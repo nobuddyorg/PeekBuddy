@@ -89,6 +89,44 @@ Each row in `budgets.toml` has: `id`, `metric` (definition), `unit`,
 decision or issue it comes from), `workload` (named churn profile from #25),
 `how` (tool and API) and `arch`.
 
+## Instrumentation
+
+ETW TraceLogging provider (`crates/peekbuddy-win/src/perf/etw.rs`, #21):
+
+| | |
+| --- | --- |
+| Name | `NoBuddy-PeekBuddy` (tools also accept `*NoBuddy-PeekBuddy`) |
+| GUID | `{69eb5350-8420-5c03-5c05-1a6dafc0df73}` (name hash; a unit test pins it) |
+| Keyword `0x1` | `Milestone` events: `Name`, `Role` (`engine`/`viewer`), `SinceProcessCreateUs` |
+| Keyword `0x2` | `Counters` events: events received, rows persisted, overflows, gaps, ring-depth high-water mark, last batch size; written on batch commit, never from a timer (F6) |
+
+Milestones (each recorded in the in-process table read by `--perf-probe`
+(#24) with the same timestamp as the ETW event):
+
+| Milestone | Recorded when |
+| --- | --- |
+| `ProcessStart` | `main` entered |
+| `SettingsLoaded` | settings read and validated |
+| `StoreOpened` | store opened and writable |
+| `WatcherArmed` | one root armed (once per root) |
+| `TrayShown` | tray icon added |
+| `EngineReady` | tray added **and** all watchers armed (F7) |
+| `ViewerSpawn` | engine started the viewer |
+| `ViewerFirstFrame` | first presented frame with the first page of rows (F7), measured from the viewer's own process creation |
+| `Overflow`, `Gap` | buffer overflow, gap row written |
+| `ReconcileStart`, `ReconcileEnd` | reconciliation scan |
+| `SegmentRotate` | new day segment opened |
+
+`SinceProcessCreateUs` is computed in-process from `GetProcessTimes`
+creation time. ETW is diagnostics only: it can drop events under pressure.
+
+Recording a trace: `wpr -start perf\peekbuddy.wprp!PeekBuddy.Light -filemode`,
+run PeekBuddy, `wpr -stop out.etl`, open in WPA.
+`wpr -start perf\peekbuddy.wprp!PeekBuddyStartup -filemode` adds disk I/O,
+file I/O and hard faults. (WPR reads `Name.DetailLevel`, so the startup
+profile cannot be called `PeekBuddy.Startup`.) CI records the `etw_smoke` example on every
+PR (job `etw smoke (windows x64)`) and uploads the ETL.
+
 ## Runner assumptions
 
 The repository is public (#4): hosted Windows runners have 4 vCPU and 16 GB.

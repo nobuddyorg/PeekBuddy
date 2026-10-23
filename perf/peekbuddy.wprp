@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  WPR profiles for PeekBuddy (#21).
+    wpr -start perf\peekbuddy.wprp!PeekBuddy.Light -filemode
+    wpr -start perf\peekbuddy.wprp!PeekBuddyStartup -filemode
+    wpr -stop out.etl
+  WPR reads "Name.DetailLevel": PeekBuddy.Light is profile PeekBuddy at
+  detail level Light; PeekBuddyStartup uses the default level, Verbose.
+  Provider NoBuddy-PeekBuddy = {69eb5350-8420-5c03-5c05-1a6dafc0df73}.
+-->
+<WindowsPerformanceRecorder Version="1.0" Author="PeekBuddy" Comments="PeekBuddy milestones, counters, CPU and I/O">
+  <Profiles>
+    <SystemCollector Id="PB_SystemCollector" Name="PeekBuddy system collector">
+      <BufferSize Value="1024"/>
+      <Buffers Value="64"/>
+    </SystemCollector>
+    <EventCollector Id="PB_EventCollector" Name="PeekBuddy event collector">
+      <BufferSize Value="256"/>
+      <Buffers Value="32"/>
+    </EventCollector>
+
+    <SystemProvider Id="PB_SystemLight">
+      <Keywords>
+        <Keyword Value="ProcessThread"/>
+        <Keyword Value="Loader"/>
+        <Keyword Value="SampledProfile"/>
+        <Keyword Value="CSwitch"/>
+        <Keyword Value="ReadyThread"/>
+      </Keywords>
+    </SystemProvider>
+    <SystemProvider Id="PB_SystemStartup" Base="PB_SystemLight">
+      <Keywords Operation="Add">
+        <Keyword Value="DiskIO"/>
+        <Keyword Value="FileIO"/>
+        <Keyword Value="HardFaults"/>
+      </Keywords>
+    </SystemProvider>
+
+    <EventProvider Id="PB_Provider" Name="69eb5350-8420-5c03-5c05-1a6dafc0df73" Level="5"/>
+
+    <Profile Id="PeekBuddy.Light.File" Name="PeekBuddy" Description="PeekBuddy provider, CPU sampling, context switches" LoggingMode="File" DetailLevel="Light">
+      <Collectors>
+        <SystemCollectorId Value="PB_SystemCollector">
+          <SystemProviderId Value="PB_SystemLight"/>
+        </SystemCollectorId>
+        <EventCollectorId Value="PB_EventCollector">
+          <EventProviders>
+            <EventProviderId Value="PB_Provider"/>
+          </EventProviders>
+        </EventCollectorId>
+      </Collectors>
+    </Profile>
+
+    <Profile Id="PeekBuddyStartup.Verbose.File" Name="PeekBuddyStartup" Description="PeekBuddy.Light plus disk I/O, file I/O and hard faults" LoggingMode="File" DetailLevel="Verbose">
+      <Collectors>
+        <SystemCollectorId Value="PB_SystemCollector">
+          <SystemProviderId Value="PB_SystemStartup"/>
+        </SystemCollectorId>
+        <EventCollectorId Value="PB_EventCollector">
+          <EventProviders>
+            <EventProviderId Value="PB_Provider"/>
+          </EventProviders>
+        </EventCollectorId>
+      </Collectors>
+    </Profile>
+  </Profiles>
+</WindowsPerformanceRecorder>
