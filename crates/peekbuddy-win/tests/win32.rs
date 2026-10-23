@@ -9,7 +9,7 @@ fn session_id_matches_tasklist() {
     let id = current_session_id().unwrap();
     let pid = std::process::id();
     let output = std::process::Command::new("tasklist")
-        .args(["/FI", &format!("PID eq {pid}"), "/FO", "CSV", "/NH"])
+        .args(["/fi", &format!("PID eq {pid}"), "/fo", "csv", "/nh"])
         .output()
         .unwrap();
     let line = String::from_utf8_lossy(&output.stdout);
