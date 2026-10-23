@@ -80,6 +80,9 @@ Gate values in `budgets.toml`:
 | `alloc.viewer_per_frame` | to be set | deterministic | pr-strict | provisional | 10M-row log, scripted scroll | counting global allocator (#23) | F10; limit set after the first measurement (#23, #66) |
 | `store.bytes_per_event` | to be set | deterministic | pr-strict | provisional | churn profile sustained-20k (#25) | segment file size / row count (#35) | F5; limit set by #35 |
 | `engine.handles.stable` | <= 0 count | deterministic | pr-strict | provisional | add/remove 10 roots three times (#48) | GetProcessHandleCount (#24) | F19 |
+| `bench.perf.milestone_record` | to be set | timing | pr-ab | provisional | criterion bench perf/milestone_record | cargo xtask bench-ab (same-runner A/B, warn +15 %, fail +50 %) | #26, #21 |
+| `bench.perf.counters_event` | to be set | timing | pr-ab | provisional | criterion bench perf/counters_event | cargo xtask bench-ab (same-runner A/B, warn +15 %, fail +50 %) | #26, #21 |
+| `bench.metrics.process_list_300` | to be set | timing | pr-ab | provisional | criterion bench metrics/process_list_300 | cargo xtask bench-ab (same-runner A/B, warn +15 %, fail +50 %) | #26, #24 |
 
 <!-- budgets:end -->
 
@@ -184,6 +187,43 @@ The `profiling` crate (issue text: 1.0.18 with `profile-with-tracy`) is not
 used: 1.0.18 depends on `tracy-client` 0.18.5 / `tracy-client-sys` 0.29.0
 (the Tracy 0.14.0 protocol), which would link a second, incompatible client.
 Library code annotates with `tracing` spans instead.
+
+## Micro-benchmarks and the A/B gate
+
+criterion 0.8.2 benches live in `benches/benches/` (no plotters, no rayon).
+Every bench id `group/name` has a budget row `bench.group.name` with
+`gate = "pr-ab"` (can fail a PR) or `nightly-trend` (reported only); a bench
+without a row fails `cargo xtask bench-ab`.
+
+```sh
+cargo xtask bench-ab [--base <rev>] [--rounds 10] [--filter <regex>]
+```
+
+builds the base revision (a `git worktree`, default: merge base with
+`origin/main`) and the working tree into separate target dirs, then runs both
+in alternating rounds (base first in even rounds, head first in odd ones),
+each a short criterion run (0.3 s warm-up, 1 s measurement, 10 samples). Per
+bench it compares the median of the per-round medians: warn above +15 %,
+fail above +50 % (F11). New benches are reported as "new", a missing base as
+"removed"; neither fails. The Markdown table goes to the job summary and
+`target/bench-ab/report.md`; it records the runner OS, arch and CPU count.
+
+CI: `lint (windows x64)` compiles the benches (`cargo bench --no-run`) as part
+of `ci-ok`; `bench a/b (windows x64) (advisory)` runs the gate on PRs. It
+becomes required after the false-positive check below.
+
+Gate checks so far (Linux container, 4 CPUs, 10 rounds):
+
+| Change | Result |
+| --- | --- |
+| no-op (`--base HEAD`) | all ok; largest change +1.8 % |
+| context-switch parse done twice (2x slower) | `metrics/process_list_300` +105.9 % FAIL, exit 1; other benches ok |
+
+Still to do (#26): 10 no-op reruns on windows-2025 (pass in >= 9 of 10)
+before the job joins `ci-ok`; the PR comment from a `workflow_run` job; the
+nightly full suite with github-action-benchmark and the rolling-median alert;
+benches for parsers, filters, store and export as their issues land
+(#40, #44, #47, #52, #55, #56).
 
 ## Runner assumptions
 

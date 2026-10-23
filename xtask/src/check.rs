@@ -109,10 +109,11 @@ pub fn plan(host: Host) -> Vec<Step> {
         "cargo",
         &["xtask", "budgets", "--check"],
     ));
-    // Features that compile C code for the target (Tracy, #22) need an MSVC
-    // toolchain, so plain `cargo clippy --target` checks the default
-    // features and a host run covers all features. CI lint runs
-    // `--all-features` on Windows.
+    // C code for the target (Tracy, #22; criterion's `alloca` dependency in
+    // `benches`, #26) needs an MSVC toolchain, so plain `cargo clippy
+    // --target` checks the default features without `benches`, and a host
+    // run covers all features and `benches`. CI lint runs everything on
+    // Windows.
     if !host.xwin {
         steps.push(
             Step::new(
@@ -137,6 +138,8 @@ pub fn plan(host: Host) -> Vec<Step> {
         args.extend(["clippy", "--workspace", "--all-targets"]);
         if host.xwin {
             args.push("--all-features");
+        } else {
+            args.extend(["--exclude", "benches"]);
         }
         args.extend(["--locked", "--target", target]);
         steps.push(
@@ -252,6 +255,11 @@ mod tests {
                 .find(|step| step.args.iter().any(|arg| arg == target))
                 .unwrap();
             assert!(!step.args.iter().any(|arg| arg == "--all-features"));
+            assert!(
+                step.args
+                    .windows(2)
+                    .any(|pair| pair == ["--exclude", "benches"])
+            );
         }
     }
 

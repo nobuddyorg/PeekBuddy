@@ -90,6 +90,12 @@ pub fn run(mode: Option<&str>) -> Result<String, String> {
     }
 }
 
+/// Reads and validates `perf/budgets.toml`.
+pub fn load() -> Result<Vec<Budget>, String> {
+    let text = std::fs::read_to_string(BUDGETS).map_err(|e| format!("{BUDGETS}: {e}"))?;
+    Ok(parse(&text)?.budget)
+}
+
 /// Parses and validates the TOML text.
 pub fn parse(text: &str) -> Result<Budgets, String> {
     let budgets: Budgets = toml::from_str(text).map_err(|e| format!("{BUDGETS}: {e}"))?;

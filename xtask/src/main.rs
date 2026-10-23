@@ -1,6 +1,7 @@
 //! Repository automation for PeekBuddy, run as `cargo xtask <command>`.
 #![forbid(unsafe_code)]
 
+mod bench_ab;
 mod budgets;
 mod check;
 mod deps;
@@ -15,6 +16,7 @@ use std::process::ExitCode;
 const USAGE: &str = "usage: cargo xtask <command>
 
 commands:
+  bench-ab       same-runner A/B of the criterion benches [--base rev] [--rounds n] [--filter re]
   budgets        check (or --write) the PERFORMANCE.md table against perf/budgets.toml
   check          the local loop: fmt, prek, Linux tests, Windows clippy
   check-unsafe   every crate forbids unsafe code except the allow-list
@@ -28,6 +30,7 @@ fn main() -> ExitCode {
     let rest: Vec<String> = std::env::args().skip(2).collect();
     let option = rest.first().cloned();
     let result = match command.as_deref() {
+        Some("bench-ab") => bench_ab::run(&rest),
         Some("budgets") => budgets::run(option.as_deref()),
         Some("check") => check::run(),
         Some("check-unsafe") => unsafe_code::run(),

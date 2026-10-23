@@ -28,6 +28,10 @@ publish = false
 # Test-only (#13). Cargo 1.100 warns on unused workspace dependencies, so
 # proptest 1.12.0, proptest-state-machine 0.9.0, rstest 0.28.0 and the
 # internal crates join here with their first user (versions in TEST_STRATEGY.md).
+# criterion without plotters and rayon: the A/B gate (#26) runs --noplot.
+criterion = { version = "0.8.2", default-features = false, features = [
+  "cargo_bench_support",
+] }
 insta = "1.49.0"
 peekbuddy-alloc = { path = "crates/peekbuddy-alloc" }
 peekbuddy-core = { path = "crates/peekbuddy-core" }

@@ -438,3 +438,46 @@ source = "F19"
 workload = "add/remove 10 roots three times (#48)"
 how = "GetProcessHandleCount (#24)"
 arch = ["x86_64", "aarch64"]
+
+# Micro-benchmarks (#26): one row per criterion id in benches/benches/,
+# `bench.` + the id with `/` as `.`. `cargo xtask bench-ab` compares base and
+# head on the same runner; there is no absolute limit (F11).
+
+[[budget]]
+id = "bench.perf.milestone_record"
+metric = "one milestone record plus its ETW event, no trace session listening"
+unit = "ns"
+bound = "max"
+class = "timing"
+gate = "pr-ab"
+status = "provisional"
+source = "#26, #21"
+workload = "criterion bench perf/milestone_record"
+how = "cargo xtask bench-ab (same-runner A/B, warn +15 %, fail +50 %)"
+arch = ["x86_64"]
+
+[[budget]]
+id = "bench.perf.counters_event"
+metric = "one Counters ETW event, no trace session listening"
+unit = "ns"
+bound = "max"
+class = "timing"
+gate = "pr-ab"
+status = "provisional"
+source = "#26, #21"
+workload = "criterion bench perf/counters_event"
+how = "cargo xtask bench-ab (same-runner A/B, warn +15 %, fail +50 %)"
+arch = ["x86_64"]
+
+[[budget]]
+id = "bench.metrics.process_list_300"
+metric = "context-switch lookup in a 300-process, 20-thread SystemProcessInformation buffer"
+unit = "ns"
+bound = "max"
+class = "timing"
+gate = "pr-ab"
+status = "provisional"
+source = "#26, #24"
+workload = "criterion bench metrics/process_list_300"
+how = "cargo xtask bench-ab (same-runner A/B, warn +15 %, fail +50 %)"
+arch = ["x86_64"]
