@@ -72,15 +72,9 @@ impl WinTarget {
             OpKind::CreateDir => std::fs::create_dir(&first),
             OpKind::Write => open(false)?.write_all(PAYLOAD),
             OpKind::Append => open(true)?.write_all(PAYLOAD),
-            OpKind::Truncate => {
-                // Truncating an empty file changes nothing and produces no
-                // record, so an empty file gets one byte first.
-                let mut file = open(false)?;
-                if file.metadata()?.len() == 0 {
-                    file.write_all(b"x")?;
-                }
-                file.set_len(0)
-            }
+            // `SetEndOfFile` updates the last-write time even on an empty
+            // file (`truncating_an_empty_file_still_changes_it`).
+            OpKind::Truncate => open(false)?.set_len(0),
             OpKind::SetSize => {
                 let file = open(false)?;
                 let len = file.metadata()?.len();

@@ -58,9 +58,9 @@ How a run works:
   so lone surrogates survive and long paths go through `\\?\`.
   Junctions (`FSCTL_SET_REPARSE_POINT`) and the archive-attribute toggle
   come from `peekbuddy_win::fs`.
-- A truncate of an empty file writes one byte first and a set-size grows
-  the file by 4 KiB, so every operation changes something and produces its
-  record. A timestamp change sets a new last-write time each time.
+- A truncate sets the size to 0, which updates the last-write time even on
+  an empty file; a set-size grows the file by 4 KiB. So every operation
+  changes something and produces its record. A timestamp change sets a new last-write time each time.
 - The raw event count of an operation is the number of records it expects
   (`Op::expected`); the achieved rate counts successful paced operations
   over the span from the first paced start to the last paced end.
