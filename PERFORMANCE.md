@@ -238,11 +238,35 @@ Gate checks so far (Linux container, 4 CPUs, 10 rounds):
 | no-op (`--base HEAD`) | all ok; largest change +1.8 % |
 | context-switch parse done twice (2x slower) | `metrics/process_list_300` +105.9 % FAIL, exit 1; other benches ok |
 
-Still to do (#26): 10 no-op reruns on windows-2025 (pass in >= 9 of 10)
-before the job joins `ci-ok`; the PR comment from a `workflow_run` job; the
-nightly full suite with github-action-benchmark and the rolling-median alert;
-benches for parsers, filters, store and export as their issues land
-(#40, #44, #47, #52, #55, #56).
+PR comment: `bench-comment.yml` runs after `ci` (`workflow_run`, default
+branch, `actions: read` and `pull-requests: write` only). It downloads the
+`bench-ab` artifact, checks that the PR number in it names an open PR whose
+head is the commit `ci` tested, and creates or updates one comment marked
+`<!-- bench-ab -->`. It never checks out or runs PR code, so fork PRs get the
+table too.
+
+False-positive check: `bench-noop.yml` runs ten no-op A/B runs (`--base
+HEAD`) in parallel on windows-2025 and passes when at least 9 of 10 pass.
+It runs on demand and on PRs that touch the gate or the benches. The A/B job
+joins `ci-ok` after the check passes (result in the changelog below).
+
+Nightly trend: `cargo xtask bench-trend [--rounds 10] [--history data.js]`
+runs every bench in 10 short rounds, writes the medians to
+`target/bench-trend/output.json` (`customSmallerIsBetter`) and compares each
+with the rolling median of its last 7 nightly points from the gh-pages
+history (`dev/bench/data.js`). More than +25 % is an alert; with fewer than 3
+earlier points there is no baseline yet. The nightly job `bench trend
+(windows x64)` publishes the medians to gh-pages with github-action-benchmark
+1.22.2 (charts under `dev/bench/`; its own previous-point alert is off). An
+alert fails the job, so the nightly `report` job opens or updates the
+`nightly: bench-trend failing` issue with the run's table. The first run
+creates the `gh-pages` branch; GitHub Pages must be turned on for it to show
+the charts (owner setting).
+
+Still to do (#26): promote the A/B job into `ci-ok` once the no-op check
+passes; recalibrate after two weeks of nightly data; benches for parsers,
+filters, store and export as their issues land (#40, #44, #47, #52, #55
+and #56).
 
 ## Runner assumptions
 

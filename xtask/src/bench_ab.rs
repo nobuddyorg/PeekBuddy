@@ -319,7 +319,7 @@ fn run_checked(command: &mut Command) -> Result<String, String> {
 
 /// Builds the benches in `source` into `target` and returns the executables
 /// (empty when the revision has no benches package).
-fn build(source: &Path, target: &Path) -> Result<Vec<PathBuf>, String> {
+pub fn build(source: &Path, target: &Path) -> Result<Vec<PathBuf>, String> {
     let cargo = std::env::var("CARGO").unwrap_or_else(|_| "cargo".to_owned());
     let output = Command::new(cargo)
         .current_dir(source)
@@ -349,7 +349,7 @@ fn build(source: &Path, target: &Path) -> Result<Vec<PathBuf>, String> {
 }
 
 /// One criterion round of every executable; returns the medians by id.
-fn round(
+pub fn round(
     exes: &[PathBuf],
     source: &Path,
     home: &Path,
