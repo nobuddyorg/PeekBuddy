@@ -1,0 +1,15 @@
+# cargo-mutants 27.1.0 (#15). Shape the run with examine/exclude, never
+# with a score threshold: any missed mutant in examined code fails.
+test_tool = "nextest"
+additional_cargo_args = ["--all-features"]
+profile = "mutants"
+# Product logic: event model, parsers, watchers, store, filters, export.
+examine_re = [
+  "crates/peekbuddy-core/",
+  "crates/peekbuddy-win/",
+  "crates/peekbuddy-store/",
+  "crates/peekbuddy-engine/",
+]
+# UI glue, the tray message pump and logging are tested by e2e and UI
+# tests (#71), not by unit tests that can catch mutants.
+exclude_re = ["tray", "message_loop", "logging", "crates/peekbuddy-viewer/"]

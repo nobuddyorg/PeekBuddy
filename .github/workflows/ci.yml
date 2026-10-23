@@ -164,6 +164,47 @@ jobs:
           use_oidc: true
           fail_ci_if_error: true
 
+  mutants:
+    # Advisory for 4 weeks, then gating for core and store (#15).
+    name: mutants in diff (advisory)
+    if: github.event_name == 'pull_request'
+    needs: test-x64
+    runs-on: windows-2025
+    timeout-minutes: 30
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Rust toolchain
+        run: rustup toolchain install && rustup show
+      - uses: Swatinem/rust-cache@2201cc584a476d1b508be977bbe4b7d1c7a52e9c # v2.9.3
+        with:
+          shared-key: mutants-x64
+          save-if: false
+      - uses: taiki-e/install-action@a4d3f3f761dcd95cce1b72cb61cb6d1963438177 # v2.87.30
+        with:
+          tool: cargo-nextest@0.9.149,cargo-mutants@27.1.0
+      - name: Diff against the base
+        shell: bash
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: git diff "origin/${BASE_REF}..." > git.diff
+      - name: Mutants in diff
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path C:\t | Out-Null
+          $env:TMP = 'C:\t'
+          $env:TEMP = 'C:\t'
+          cargo mutants --no-shuffle -vV --in-diff git.diff --test-tool nextest --in-place --timeout-multiplier 2
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: mutants-out
+          path: mutants.out
+          if-no-files-found: ignore
+
   test-arm64:
     # Advisory until promoted (#11): not in ci-ok's needs.
     name: test (windows arm64) (advisory)
