@@ -6,6 +6,8 @@
 #![forbid(unsafe_code)]
 #![deny(clippy::indexing_slicing)]
 
+pub mod perf;
+
 /// Crate version, shared by every PeekBuddy crate.
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 

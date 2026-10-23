@@ -31,6 +31,7 @@ peekbuddy-core = { path = "crates/peekbuddy-core" }
 peekbuddy-engine = { path = "crates/peekbuddy-engine" }
 peekbuddy-viewer = { path = "crates/peekbuddy-viewer" }
 peekbuddy-win = { path = "crates/peekbuddy-win" }
+tracelogging = "1.2.4"
 # Exact pin: every bump is a reviewed PR (ADR 0010, F20).
 windows-sys = "=0.61.2"
 

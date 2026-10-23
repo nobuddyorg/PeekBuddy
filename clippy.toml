@@ -9,4 +9,6 @@ doc-valid-idents = [
   "ReadDirectoryChangesW",
   "..",
   "FILE_NOTIFY",
+  "TraceLogging",
+  "PerfView",
 ]
