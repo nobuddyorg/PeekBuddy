@@ -21,5 +21,12 @@ windows-sys = { workspace = true, features = [
   "Win32_System_Threading",
 ] }
 
+[dev-dependencies]
+peekbuddy-alloc = { workspace = true }
+
+[[test]]
+name = "alloc_perf"
+harness = false
+
 [lints]
 workspace = true

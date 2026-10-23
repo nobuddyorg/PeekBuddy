@@ -5,7 +5,7 @@ use crate::metadata::{self, Crate};
 
 /// Crates allowed to contain `unsafe` code. Changing this list is a reviewed
 /// decision (see CONTRIBUTING.md, "Workspace layout").
-pub const ALLOWED: &[&str] = &["peekbuddy-win"];
+pub const ALLOWED: &[&str] = &["peekbuddy-alloc", "peekbuddy-win"];
 
 const FORBID: &str = "#![forbid(unsafe_code)]";
 

@@ -42,6 +42,33 @@ with `cargo test --doc` (nextest does not run them). Configuration is in
 | Coverage (#14), mutation in diff (#15) | yes | full shards |
 | Miri, fuzzing, long proptests, beta canary (#17) | no | yes |
 
+## Allocation tests
+
+`peekbuddy-alloc` provides `CountingAlloc`, a counting wrapper around the
+system allocator (#23). Allocation tests are integration tests with
+`harness = false` (libtest's own threads and output capture allocate), one
+binary per budget, that install the wrapper as `#[global_allocator]`:
+
+```rust
+#[global_allocator]
+static ALLOC: CountingAlloc<System> = CountingAlloc::new(System);
+
+fn main() -> ExitCode {
+    if peekbuddy_alloc::answer_nextest_list("alloc_perf") {
+        return ExitCode::SUCCESS; // nextest's --list probe
+    }
+    let delta = peekbuddy_alloc::measure(1_000, 100_000, || work());
+    if delta.allocs == 0 { ExitCode::SUCCESS } else { ExitCode::FAILURE }
+}
+```
+
+Wrap inputs and outputs in `std::hint::black_box`, or the optimiser can
+remove an allocation and hide a regression. Current binaries:
+`peekbuddy-alloc/tests/alloc_self` (the counter itself, with a Vec-push
+negative control) and `peekbuddy-win/tests/alloc_perf` (milestone and ETW
+writes: 0 allocations). Capture, writer and viewer budgets follow with
+issues #44, #52 and #66.
+
 ## Nightly jobs
 
 `.github/workflows/nightly.yml` runs at 02:17 UTC. A failing job opens or
@@ -50,7 +77,7 @@ owner triages `nightly` issues; an agent picks them up like any other issue.
 
 | Job | Runner | What |
 | --- | --- | --- |
-| `miri` | ubuntu | `cargo +nightly miri test` for `peekbuddy-core` and `peekbuddy-win` (OS-independent code, including the unsafe record parsers) |
+| `miri` | ubuntu | `cargo +nightly miri test` for `peekbuddy-core`, `peekbuddy-win` and `peekbuddy-alloc` (OS-independent code, including the unsafe record parsers and the counting allocator) |
 | `fuzz` | ubuntu | every cargo-fuzz target for 20 minutes ([fuzzing](docs/how-to/fuzzing.md)) |
 | `long property tests` | `windows-2025` | `PROPTEST_CASES=10000` |
 | `fs-serial stress` | `windows-2025` | `fs-serial` tests repeated for 30 minutes (`--stress-duration`) |

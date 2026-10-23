@@ -30,7 +30,7 @@ jobs:
       - name: Nightly toolchain with Miri
         run: rustup toolchain install nightly --profile minimal --component miri,rust-src
       - name: Miri (OS-independent crates)
-        run: cargo +nightly miri test --locked -p peekbuddy-core -p peekbuddy-win --target x86_64-unknown-linux-gnu
+        run: cargo +nightly miri test --locked -p peekbuddy-core -p peekbuddy-win -p peekbuddy-alloc --lib --target x86_64-unknown-linux-gnu
 
   fuzz:
     name: fuzz
