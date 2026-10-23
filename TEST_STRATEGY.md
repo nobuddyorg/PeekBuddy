@@ -1,0 +1,140 @@
+# Test strategy
+
+PeekBuddy's claims (zero undetected loss, raw is truth, name fidelity) are
+only as good as its tests. This page says which tests exist, where they run
+and how to add one.
+
+## Pyramid
+
+| Layer | What | Where it lives | Runs on |
+| --- | --- | --- | --- |
+| Unit and property | Pure logic: event model, names, filters, derived views, parsers | `mod tests` in each module; proptest | Linux and Windows, every PR |
+| Win32 integration | Real watchers, real NTFS, pipes, tokens | `tests/` of `peekbuddy-win`, `-engine`, `-store` | Windows x64 every PR, arm64 advisory |
+| End-to-end | Launch `peekbuddy.exe`, drive it, check the log | `tests/e2e*.rs` | Windows, every PR (`e2e` group) |
+| UI | egui_kittest snapshots and UIA smoke | `peekbuddy-viewer` (#71) | Windows |
+| Performance | Allocation budgets (#23), micro-benchmarks (#26), end-to-end harness (#27) | own test binaries and `benches` | Windows, PR (deterministic) and nightly (trends) |
+
+## Runner and profiles
+
+[cargo-nextest](https://nexte.st/) runs the tests; doctests run separately
+with `cargo test --doc` (nextest does not run them). Configuration is in
+`.config/nextest.toml`:
+
+- `default`: slow tests are terminated after 2 × 60 s; a test that leaves a
+  child process or handle behind for more than 500 ms fails as `LEAK-FAIL`.
+- `ci`: no fail-fast, no retries, JUnit to `target/nextest/ci/junit.xml`.
+- Test group `fs-serial` (one at a time): every test that opens a watcher, a
+  VHD or a USN journal, or shares a fixed root. Test binaries named
+  `fs_serial*` join it automatically; add an override for other binaries.
+- Test group `e2e` (two at a time, retried twice with exponential backoff):
+  tests that launch `peekbuddy.exe`. A retried pass shows as flaky in JUnit
+  and needs an issue.
+
+`PROPTEST_CASES=256` on PRs; the nightly run raises it (#17).
+
+## What runs when
+
+| Job | PR | Nightly |
+| --- | --- | --- |
+| `core (linux)`: `peekbuddy-core` tests | yes | yes |
+| `test (windows x64)`: nextest `ci` + doctests | yes (required) | yes |
+| `test (windows arm64)` | yes (advisory) | yes |
+| Coverage (#14), mutation in diff (#15) | yes | full shards |
+| Miri, fuzzing, long proptests, beta canary (#17) | no | yes |
+
+## Helpers: `peekbuddy-testkit`
+
+A dev-only crate:
+
+- `TestDir::new(name)`: a unique temp root under a short base
+  (`%TEMP%\pbt`, or `PEEKBUDDY_TEST_ROOT`). `on_cleanup` registers hooks
+  (stop and join watchers) that run before removal; removal retries with
+  backoff because an open handle blocks deletion on Windows. `close()`
+  reports failures, `Drop` cannot.
+- `TestDir::fixed(name)`: a fixed root that first removes what a killed run
+  left behind. Only for `fs-serial` tests.
+- `snapshot_filters()`: insta filters for backslashes, drive letters, CRLF and
+  timestamps, so snapshots authored on Linux pass on Windows.
+- `run_unelevated(cmd)` (Windows): runs a child with a restricted token.
+  Hosted runners are elevated; unelevated behaviour is only testable this way.
+- `assert_interactive_session()` (Windows): fails unless the test runs in an
+  interactive session (tray and window tests).
+
+## Adding a test
+
+**Unit**, next to the code:
+
+```rust
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn rename_pairs_old_and_new() {
+        assert_eq!(super::pair("a", "b"), ("a", "b"));
+    }
+}
+```
+
+**Property** (proptest; commit the `proptest-regressions/` files):
+
+```rust
+proptest::proptest! {
+    #[test]
+    fn utf16_round_trips(units in proptest::collection::vec(proptest::num::u16::ANY, 0..64)) {
+        proptest::prop_assert_eq!(decode(&encode(&units)), units);
+    }
+}
+```
+
+**Win32 integration**, in `tests/fs_serial_<topic>.rs` so it joins
+`fs-serial`:
+
+```rust
+#[test]
+fn create_is_reported() {
+    let mut dir = peekbuddy_testkit::TestDir::new("create").unwrap();
+    let watcher = start_watcher(dir.path());
+    dir.on_cleanup(move || watcher.stop_and_join());
+    std::fs::write(dir.path().join("a.txt"), b"x").unwrap();
+    // assert the event
+    dir.close().unwrap();
+}
+```
+
+**Snapshot** (file snapshots only, never inline):
+
+```rust
+insta::with_settings!({ filters => peekbuddy_testkit::snapshot_filters() }, {
+    insta::assert_snapshot!("event_row", render(&event));
+});
+```
+
+**Matrix** (rstest):
+
+```rust
+#[rstest::rstest]
+#[case::ntfs("NTFS")]
+#[case::refs("ReFS")]
+fn volume_kinds(#[case] fs: &str) { /* ... */ }
+```
+
+## Conventions
+
+- `mod tests` per module; integration tests in `tests/`; allocation tests in
+  their own test binaries (#23), because a counting allocator is global.
+- Each nextest test is its own process: set up per-process Win32 state (COM,
+  message loop, tray) in the test.
+- On Windows nextest kills timed-out tests immediately, without cleanup: tests
+  must be idempotent and clean up stale state at the start.
+- Dev-dependency versions live in `[workspace.dependencies]`: proptest 1.12.0,
+  proptest-state-machine 0.9.0, insta 1.49.0, rstest 0.28.0.
+
+## Flake policy
+
+Flakes are bugs. No retries outside the `e2e` group. A flaky test gets an
+issue within one day, or it is quarantined with a link to that issue. Never
+loosen a timeout or an assertion to get green.
+
+## Runner assumptions
+
+The repository is public (#4), so hosted Windows runners have 4 vCPU and
+16 GB. Test-group thread counts assume that size.

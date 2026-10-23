@@ -1,0 +1,18 @@
+[package]
+name = "peekbuddy-testkit"
+description = "Shared test helpers: temp roots, unelevated children, session checks."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[target.'cfg(windows)'.dependencies]
+peekbuddy-win = { workspace = true }
+
+[dev-dependencies]
+insta = { workspace = true, features = ["filters"] }
+
+[lints]
+workspace = true
