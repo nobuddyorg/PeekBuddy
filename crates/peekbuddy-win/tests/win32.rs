@@ -5,21 +5,19 @@ use peekbuddy_win::process::run_restricted;
 use peekbuddy_win::session::current_session_id;
 
 #[test]
-fn session_id_matches_tasklist() {
+fn session_id_matches_get_process() {
     let id = current_session_id().unwrap();
     let pid = std::process::id();
-    let output = std::process::Command::new("tasklist")
-        .args(["/fi", &format!("PID eq {pid}"), "/fo", "csv", "/nh"])
+    let output = std::process::Command::new("powershell.exe")
+        .args([
+            "-NoProfile",
+            "-Command",
+            &format!("(Get-Process -Id {pid}).SessionId"),
+        ])
         .output()
         .unwrap();
-    let line = String::from_utf8_lossy(&output.stdout);
-    // "image","pid","session name","session#","mem usage"
-    let fields: Vec<&str> = line.trim().split("\",\"").collect();
-    assert_eq!(
-        fields.get(3).copied(),
-        Some(id.to_string().as_str()),
-        "{line}"
-    );
+    let reported = String::from_utf8_lossy(&output.stdout);
+    assert_eq!(reported.trim(), id.to_string());
 }
 
 #[test]
