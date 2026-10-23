@@ -57,7 +57,7 @@ Windows 11 x64 or arm64; Windows 10 22H2 best-effort. See
 
 ## Performance
 
-Performance budgets are enforced in CI. See `PERFORMANCE.md` (added with #20).
+Performance budgets are enforced in CI. See [PERFORMANCE.md](PERFORMANCE.md).
 
 ## Privacy
 

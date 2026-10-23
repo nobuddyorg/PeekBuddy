@@ -12,7 +12,7 @@ and how to add one.
 | Win32 integration | Real watchers, real NTFS, pipes, tokens | `tests/` of `peekbuddy-win`, `-engine`, `-store` | Windows x64 every PR, arm64 advisory |
 | End-to-end | Launch `peekbuddy.exe`, drive it, check the log | `tests/e2e*.rs` | Windows, every PR (`e2e` group) |
 | UI | egui_kittest snapshots and UIA smoke | `peekbuddy-viewer` (#71) | Windows |
-| Performance | Allocation budgets (#23), micro-benchmarks (#26), end-to-end harness (#27) | own test binaries and `benches` | Windows, PR (deterministic) and nightly (trends) |
+| Performance ([PERFORMANCE.md](PERFORMANCE.md)) | Allocation budgets (#23), micro-benchmarks (#26), end-to-end harness (#27) | own test binaries and `benches` | Windows, PR (deterministic) and nightly (trends) |
 
 ## Runner and profiles
 
