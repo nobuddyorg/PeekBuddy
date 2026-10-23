@@ -1,0 +1,440 @@
+# Performance budgets: the single source of truth (#20).
+# PERFORMANCE.md renders this file; `cargo xtask budgets --check` fails CI
+# when the two disagree. Field reference is in PERFORMANCE.md.
+#
+# class:  deterministic | timing | resource
+# gate:   pr-strict | pr-ab | nightly-ab | nightly-trend | report-only
+# status: provisional | calibrated
+# bound:  max (value must stay <= limit) | min (value must stay >= limit)
+# limit is omitted while the number is still to be set by the named issue.
+
+[[budget]]
+id = "engine.ready.warm"
+metric = "engine ready (tray icon added and all watchers armed) since process creation, warm start"
+unit = "ms"
+bound = "max"
+limit = 100
+class = "timing"
+gate = "pr-ab"
+status = "provisional"
+source = "F7"
+workload = "10 roots, idle"
+how = "TraceLogging milestone + --perf-probe JSON (#21, #24)"
+arch = ["x86_64", "aarch64"]
+
+[[budget]]
+id = "engine.ready.cold"
+metric = "engine ready since process creation, cold start (after reboot)"
+unit = "ms"
+bound = "max"
+limit = 300
+class = "timing"
+gate = "report-only"
+status = "provisional"
+source = "F7"
+workload = "10 roots, idle; owner-PC runs only (#84)"
+how = "TraceLogging milestone in a WPR trace"
+arch = ["x86_64"]
+
+[[budget]]
+id = "engine.startup.cpu"
+metric = "CPU time from process creation to engine ready"
+unit = "ms"
+bound = "max"
+limit = 300
+class = "timing"
+gate = "pr-ab"
+status = "provisional"
+source = "F7"
+workload = "10 roots, idle"
+how = "GetProcessTimes at the ready milestone (#24)"
+arch = ["x86_64", "aarch64"]
+
+[[budget]]
+id = "engine.startup.disk_read"
+metric = "bytes read from disk from process creation to engine ready"
+unit = "MB"
+bound = "max"
+limit = 1
+class = "timing"
+gate = "pr-ab"
+status = "provisional"
+source = "F7"
+workload = "10 roots, idle"
+how = "GetProcessIoCounters at the ready milestone (#24)"
+arch = ["x86_64", "aarch64"]
+
+[[budget]]
+id = "viewer.first_frame.warm"
+metric = "viewer first frame with rows since process creation, warm start"
+unit = "ms"
+bound = "max"
+limit = 250
+class = "timing"
+gate = "pr-ab"
+status = "provisional"
+source = "F7, recalibrated by #33"
+workload = "1M-row log"
+how = "TraceLogging milestone + --perf-probe JSON"
+arch = ["x86_64", "aarch64"]
+
+[[budget]]
+id = "viewer.first_frame.cold"
+metric = "viewer first frame with rows since process creation, cold start"
+unit = "ms"
+bound = "max"
+limit = 600
+class = "timing"
+gate = "report-only"
+status = "provisional"
+source = "F7, recalibrated by #33"
+workload = "1M-row log; owner-PC runs only (#84)"
+how = "TraceLogging milestone in a WPR trace"
+arch = ["x86_64"]
+
+[[budget]]
+id = "engine.idle.cpu"
+metric = "average CPU over 60 s with no file activity"
+unit = "%"
+bound = "max"
+limit = 0.05
+class = "timing"
+gate = "nightly-ab"
+status = "provisional"
+source = "F6"
+workload = "10 roots, no events for 60 s"
+how = "GetProcessTimes delta over 60 s (#27)"
+arch = ["x86_64", "aarch64"]
+
+[[budget]]
+id = "engine.idle.wakes"
+metric = "process wakeups per minute while idle"
+unit = "per min"
+bound = "max"
+limit = 2
+class = "deterministic"
+gate = "pr-strict"
+status = "provisional"
+source = "F6"
+workload = "10 roots, no events for 60 s"
+how = "context switches from a 60 s WPR CPU trace (#27)"
+arch = ["x86_64", "aarch64"]
+
+[[budget]]
+id = "engine.idle.periodic_timers"
+metric = "periodic timers armed while idle"
+unit = "count"
+bound = "max"
+limit = 0
+class = "deterministic"
+gate = "pr-strict"
+status = "provisional"
+source = "F6"
+workload = "10 local roots (UNC roots allow one >= 60 s timer)"
+how = "engine timer registry counter in --perf-probe JSON"
+arch = ["x86_64", "aarch64"]
+
+[[budget]]
+id = "engine.private_bytes.idle"
+metric = "private bytes while idle, excluding change-notification buffers"
+unit = "MB"
+bound = "max"
+limit = 15
+class = "resource"
+gate = "nightly-trend"
+status = "provisional"
+source = "F8, R5"
+workload = "10 roots, 100k watched directories"
+how = "PROCESS_MEMORY_COUNTERS_EX2.PrivateUsage minus buffer bytes (#24)"
+arch = ["x86_64", "aarch64"]
+
+[[budget]]
+id = "engine.notify_buffers.total"
+metric = "change-notification buffers, all watches together"
+unit = "MiB"
+bound = "max"
+limit = 64
+class = "deterministic"
+gate = "pr-strict"
+status = "provisional"
+source = "R5, sized by #32"
+workload = "any"
+how = "buffer pool accounting in --perf-probe JSON"
+arch = ["x86_64", "aarch64"]
+
+[[budget]]
+id = "engine.private_bytes.burst"
+metric = "peak private bytes during a 100k events/s burst"
+unit = "MB"
+bound = "max"
+limit = 40
+class = "resource"
+gate = "nightly-trend"
+status = "provisional"
+source = "F8"
+workload = "churn profile burst-100k (#25)"
+how = "PeakPagefileUsage after the burst (#24)"
+arch = ["x86_64", "aarch64"]
+
+[[budget]]
+id = "viewer.private_bytes.10m_rows"
+metric = "viewer private bytes with a 10M-row log open"
+unit = "MB"
+bound = "max"
+limit = 80
+class = "resource"
+gate = "nightly-trend"
+status = "provisional"
+source = "F8; arm64 limit from #33"
+workload = "10M-row log, scrolled top to bottom"
+how = "PROCESS_MEMORY_COUNTERS_EX2.PrivateUsage (#24)"
+arch = ["x86_64"]
+
+[[budget]]
+id = "event.latency.p50"
+metric = "change to durable row latency, median"
+unit = "ms"
+bound = "max"
+limit = 10
+class = "timing"
+gate = "pr-ab"
+status = "provisional"
+source = "R1, recalibrated by #35"
+workload = "churn profile steady-10k (#25)"
+how = "ledger timestamp vs commit timestamp (#27)"
+arch = ["x86_64", "aarch64"]
+
+[[budget]]
+id = "event.latency.p99"
+metric = "change to durable row latency, 99th percentile"
+unit = "ms"
+bound = "max"
+limit = 50
+class = "timing"
+gate = "pr-ab"
+status = "provisional"
+source = "R1, recalibrated by #35"
+workload = "churn profile steady-10k (#25)"
+how = "ledger timestamp vs commit timestamp (#27)"
+arch = ["x86_64", "aarch64"]
+
+[[budget]]
+id = "ingest.burst"
+metric = "events per second ingested with zero undetected loss, 10 s burst"
+unit = "events/s"
+bound = "min"
+limit = 100000
+class = "timing"
+gate = "pr-ab"
+status = "provisional"
+source = "F2, recalibrated by #32"
+workload = "churn profile burst-100k (#25)"
+how = "ledger count / burst duration (#27)"
+arch = ["x86_64", "aarch64"]
+
+[[budget]]
+id = "ingest.sustained"
+metric = "events per second ingested sustained"
+unit = "events/s"
+bound = "min"
+limit = 20000
+class = "timing"
+gate = "pr-ab"
+status = "provisional"
+source = "F2, recalibrated by #32"
+workload = "churn profile steady-20k (#25)"
+how = "ledger count / duration (#27)"
+arch = ["x86_64", "aarch64"]
+
+[[budget]]
+id = "ingest.undetected_loss"
+metric = "ledger events neither logged nor covered by a reconciled gap"
+unit = "count"
+bound = "max"
+limit = 0
+class = "deterministic"
+gate = "pr-strict"
+status = "calibrated"
+source = "F2, R7"
+workload = "every churn profile (#25, #50)"
+how = "ledger vs store comparison (#50)"
+arch = ["x86_64", "aarch64"]
+
+[[budget]]
+id = "capture.rearm_latency"
+metric = "time from completion to the next ReadDirectoryChangesExW call"
+unit = "ms"
+bound = "max"
+limit = 5
+class = "timing"
+gate = "nightly-trend"
+status = "provisional"
+source = "F4, recalibrated by #32"
+workload = "churn profile steady-10k (#25)"
+how = "tracing span on the capture thread (#21)"
+arch = ["x86_64", "aarch64"]
+
+[[budget]]
+id = "viewer.frame.p95"
+metric = "frame time while scrolling, 95th percentile"
+unit = "ms"
+bound = "max"
+limit = 8
+class = "timing"
+gate = "nightly-trend"
+status = "provisional"
+source = "F9"
+workload = "10M-row log, scripted scroll"
+how = "egui frame timing in --perf-probe JSON"
+arch = ["x86_64", "aarch64"]
+
+[[budget]]
+id = "viewer.frame.p99"
+metric = "frame time while scrolling, 99th percentile"
+unit = "ms"
+bound = "max"
+limit = 16
+class = "timing"
+gate = "nightly-trend"
+status = "provisional"
+source = "F9"
+workload = "10M-row log, scripted scroll"
+how = "egui frame timing in --perf-probe JSON"
+arch = ["x86_64", "aarch64"]
+
+[[budget]]
+id = "viewer.frame.max"
+metric = "longest frame while scrolling"
+unit = "ms"
+bound = "max"
+limit = 33
+class = "timing"
+gate = "nightly-trend"
+status = "provisional"
+source = "F9"
+workload = "10M-row log, scripted scroll"
+how = "egui frame timing in --perf-probe JSON"
+arch = ["x86_64", "aarch64"]
+
+[[budget]]
+id = "query.filter_first_results"
+metric = "time to the first page of filter results"
+unit = "ms"
+bound = "max"
+limit = 100
+class = "timing"
+gate = "pr-ab"
+status = "provisional"
+source = "F5, recalibrated by #35"
+workload = "1M-row store, glob filter"
+how = "benchmark in benches (#26)"
+arch = ["x86_64", "aarch64"]
+
+[[budget]]
+id = "export.1m_rows"
+metric = "streaming export of 1M rows to CSV and to JSON Lines, each"
+unit = "s"
+bound = "max"
+limit = 2
+class = "timing"
+gate = "nightly-trend"
+status = "provisional"
+source = "M9, recalibrated by #35"
+workload = "1M-row store"
+how = "xtask perf export (#27)"
+arch = ["x86_64", "aarch64"]
+
+[[budget]]
+id = "binary.size"
+metric = "release peekbuddy.exe size, target"
+unit = "MB"
+bound = "max"
+limit = 5
+class = "deterministic"
+gate = "report-only"
+status = "provisional"
+source = "M14"
+workload = "release profile (#28)"
+how = "file size of the release artifact (#28)"
+arch = ["x86_64", "aarch64"]
+
+[[budget]]
+id = "binary.size.cap"
+metric = "release peekbuddy.exe size, hard cap"
+unit = "MB"
+bound = "max"
+limit = 8
+class = "deterministic"
+gate = "pr-strict"
+status = "provisional"
+source = "M14"
+workload = "release profile (#28)"
+how = "file size of the release artifact (#28)"
+arch = ["x86_64", "aarch64"]
+
+[[budget]]
+id = "alloc.capture_per_event"
+metric = "heap allocations per event on the capture path after warm-up"
+unit = "count"
+bound = "max"
+limit = 0
+class = "deterministic"
+gate = "pr-strict"
+status = "calibrated"
+source = "F10"
+workload = "parse + filter + classify of a recorded buffer (#23)"
+how = "counting global allocator (#23)"
+arch = ["x86_64", "aarch64"]
+
+[[budget]]
+id = "alloc.writer_per_1000"
+metric = "heap allocations per 1,000-event writer batch"
+unit = "count"
+bound = "max"
+class = "deterministic"
+gate = "pr-strict"
+status = "provisional"
+source = "F10; limit set after the first measurement (#23, #52)"
+workload = "writer batch of 1,000 events (#52)"
+how = "counting global allocator (#23)"
+arch = ["x86_64", "aarch64"]
+
+[[budget]]
+id = "alloc.viewer_per_frame"
+metric = "heap allocations per viewer frame while scrolling"
+unit = "count"
+bound = "max"
+class = "deterministic"
+gate = "pr-strict"
+status = "provisional"
+source = "F10; limit set after the first measurement (#23, #66)"
+workload = "10M-row log, scripted scroll"
+how = "counting global allocator (#23)"
+arch = ["x86_64", "aarch64"]
+
+[[budget]]
+id = "store.bytes_per_event"
+metric = "on-disk bytes per stored event"
+unit = "bytes"
+bound = "max"
+class = "deterministic"
+gate = "pr-strict"
+status = "provisional"
+source = "F5; limit set by #35"
+workload = "churn profile mixed (#25)"
+how = "segment file size / row count (#35)"
+arch = ["x86_64", "aarch64"]
+
+[[budget]]
+id = "engine.handles.stable"
+metric = "handle count after watch cycle 3 minus after cycle 1"
+unit = "count"
+bound = "max"
+limit = 0
+class = "deterministic"
+gate = "pr-strict"
+status = "provisional"
+source = "F19"
+workload = "add/remove 10 roots three times (#48)"
+how = "GetProcessHandleCount (#24)"
+arch = ["x86_64", "aarch64"]

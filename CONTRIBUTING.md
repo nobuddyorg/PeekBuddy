@@ -88,7 +88,7 @@ cancelled or is skipped. Jobs in `.github/workflows/ci.yml`:
 | Job | Runner | Gate |
 | --- | --- | --- |
 | `prek` | ubuntu-latest | required: all hooks except clippy; commit messages of the PR |
-| `core (linux)` | ubuntu-latest | required: `peekbuddy-core` tests on Linux |
+| `core (linux)` | ubuntu-latest | required: `peekbuddy-core` tests on Linux; `xtask budgets --check` |
 | `lint (windows x64)` | `windows-2025` | required: fmt, clippy, rustdoc, cargo-machete, `check-unsafe`, `check-deps` |
 | `test (windows x64)` | `windows-2025` | required: preflight, nextest, doctests |
 | `test (windows arm64) (advisory)` | `windows-11-vs2026-arm` | advisory until two weeks of green runs, then promoted |

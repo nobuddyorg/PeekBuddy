@@ -99,6 +99,11 @@ pub fn plan(host: Host) -> Vec<Step> {
         &["xtask", "check-unsafe"],
     ));
     steps.push(Step::new("check-deps", "cargo", &["xtask", "check-deps"]));
+    steps.push(Step::new(
+        "budgets",
+        "cargo",
+        &["xtask", "budgets", "--check"],
+    ));
     for target in WINDOWS_TARGETS {
         let mut args = Vec::new();
         if host.xwin {

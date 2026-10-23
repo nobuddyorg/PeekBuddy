@@ -3,7 +3,7 @@
 PeekBuddy watches the folders you choose and logs every change in real time.
 This page says what exists and how the parts fit together. The reasons live
 in the [ADRs](adr/README.md); the numbers live in
-[PERFORMANCE.md](../PERFORMANCE.md) once #20 lands.
+[PERFORMANCE.md](../PERFORMANCE.md).
 
 ## System context
 
