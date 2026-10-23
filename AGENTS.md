@@ -29,6 +29,15 @@ Anything that does not need Win32 lives in a crate that builds and tests on
 Linux. Win32 access goes through traits in `peekbuddy-win` with in-memory
 fakes, so engine logic is testable on Linux too.
 
+## Code rules
+
+- `unsafe` only in `peekbuddy-win`, every block with a `// SAFETY:` comment
+  (`cargo xtask check-unsafe`).
+- No `unwrap`, `expect`, `panic` or indexing outside tests; `#[expect]` with a
+  reason, never `#[allow]` (lint policy in CONTRIBUTING.md).
+- PRs that touch a hot path show A/B or allocation numbers (performance rule
+  in CONTRIBUTING.md).
+
 ## Issue-to-PR contract
 
 - Pick the lowest-numbered open issue whose "Blocked by" issues are all

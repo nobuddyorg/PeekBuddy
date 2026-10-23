@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Report a security vulnerability
+    url: https://github.com/nobuddyorg/PeekBuddy/security/advisories/new
+    about: Please report vulnerabilities privately, not as an issue.
+  - name: Contribution policy
+    url: https://github.com/nobuddyorg/PeekBuddy/blob/main/CONTRIBUTING.md
+    about: Issues are welcome through these forms. Pull requests only for issues the owner accepted.

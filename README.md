@@ -1,3 +1,5 @@
+<img src="docs/assets/peek.svg" alt="" width="96" height="96">
+
 # PeekBuddy
 
 Silently watches your folders and logs every change in real time 👀
@@ -73,7 +75,7 @@ can verify the download (details follow with #87).
 
 ## Documentation
 
-Docs live in [`docs/`](docs/), organised by [Diátaxis](https://diataxis.fr):
+Docs live in [`docs/`](docs/index.md), organised by [Diátaxis](https://diataxis.fr):
 
 - **Tutorials**: follow with v1
 - **How-to**: follow with v1
