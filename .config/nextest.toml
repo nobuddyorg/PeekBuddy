@@ -1,11 +1,32 @@
-# cargo-nextest configuration. #13 adds test groups and slow-test limits.
+# cargo-nextest configuration (#13). See TEST_STRATEGY.md.
 
 [profile.default]
 fail-fast = false
+slow-timeout = { period = "60s", terminate-after = 2 }
+leak-timeout = { period = "500ms", result = "fail" }
+
+[test-groups]
+# Tests that open a watcher, a VHD or a USN journal, or share a fixed root.
+fs-serial = { max-threads = 1 }
+# Tests that launch peekbuddy.exe.
+e2e = { max-threads = 2 }
+
+[[profile.default.overrides]]
+filter = "binary(/^fs_serial/)"
+test-group = "fs-serial"
+
+# The e2e override joins when the first e2e test binary exists (nextest
+# rejects a filter that matches no binary):
+#
+# [[profile.default.overrides]]
+# filter = "binary(/^e2e/)"
+# test-group = "e2e"
+# retries = { backoff = "exponential", count = 2, delay = "5s" }
 
 [profile.ci]
 fail-fast = false
 failure-output = "immediate-final"
+# Flakes are bugs: no retries outside the e2e group.
 retries = 0
 
 [profile.ci.junit]

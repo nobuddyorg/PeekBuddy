@@ -1,5 +1,8 @@
 # Contributing
 
+See [TEST_STRATEGY.md](TEST_STRATEGY.md) for tests and [AGENTS.md](AGENTS.md)
+for the agent workflow.
+
 Issues are welcome through the issue forms. Pull requests are accepted only
 for issues the owner has accepted ([ADR 0014](docs/adr/0014-contribution-policy.md)).
 

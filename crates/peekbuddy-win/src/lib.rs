@@ -7,6 +7,11 @@
 //! exposed through traits with in-memory fakes.
 #![deny(clippy::indexing_slicing)]
 
+#[cfg(windows)]
+pub mod process;
+#[cfg(windows)]
+pub mod session;
+
 #[cfg(test)]
 mod tests {
     #[test]

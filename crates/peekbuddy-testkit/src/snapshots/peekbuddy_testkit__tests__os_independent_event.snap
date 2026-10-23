@@ -1,0 +1,6 @@
+---
+source: crates/peekbuddy-testkit/src/lib.rs
+expression: input
+---
+/Users/me/watch/a.txt
+modified [timestamp]
