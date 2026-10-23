@@ -77,7 +77,7 @@ owner triages `nightly` issues; an agent picks them up like any other issue.
 
 | Job | Runner | What |
 | --- | --- | --- |
-| `miri` | ubuntu | `cargo +nightly miri test` for `peekbuddy-core`, `peekbuddy-win` and `peekbuddy-alloc` (OS-independent code, including the unsafe record parsers and the counting allocator) |
+| `miri` | ubuntu | `cargo +nightly miri test` for `peekbuddy-core`, `peekbuddy-win`, `peekbuddy-alloc` and `peekbuddy-churn` (OS-independent code, including the unsafe record parsers, the counting allocator and the churn comparator) |
 | `fuzz` | ubuntu | every cargo-fuzz target for 20 minutes ([fuzzing](docs/how-to/fuzzing.md)) |
 | `long property tests` | `windows-2025` | `PROPTEST_CASES=10000` |
 | `fs-serial stress` | `windows-2025` | `fs-serial` tests repeated for 30 minutes (`--stress-duration`) |

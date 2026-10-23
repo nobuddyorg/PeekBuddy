@@ -200,7 +200,7 @@ class = "timing"
 gate = "pr-ab"
 status = "provisional"
 source = "R1, recalibrated by #35"
-workload = "churn profile steady-10k (#25)"
+workload = "churn profile latency-10k (#25)"
 how = "ledger timestamp vs commit timestamp (#27)"
 arch = ["x86_64", "aarch64"]
 
@@ -214,7 +214,7 @@ class = "timing"
 gate = "pr-ab"
 status = "provisional"
 source = "R1, recalibrated by #35"
-workload = "churn profile steady-10k (#25)"
+workload = "churn profile latency-10k (#25)"
 how = "ledger timestamp vs commit timestamp (#27)"
 arch = ["x86_64", "aarch64"]
 
@@ -242,7 +242,7 @@ class = "timing"
 gate = "pr-ab"
 status = "provisional"
 source = "F2, recalibrated by #32"
-workload = "churn profile steady-20k (#25)"
+workload = "churn profile sustained-20k (#25)"
 how = "ledger count / duration (#27)"
 arch = ["x86_64", "aarch64"]
 
@@ -270,7 +270,7 @@ class = "timing"
 gate = "nightly-trend"
 status = "provisional"
 source = "F4, recalibrated by #32"
-workload = "churn profile steady-10k (#25)"
+workload = "churn profile latency-10k (#25)"
 how = "tracing span on the capture thread (#21)"
 arch = ["x86_64", "aarch64"]
 
@@ -421,7 +421,7 @@ class = "deterministic"
 gate = "pr-strict"
 status = "provisional"
 source = "F5; limit set by #35"
-workload = "churn profile mixed (#25)"
+workload = "churn profile sustained-20k (#25)"
 how = "segment file size / row count (#35)"
 arch = ["x86_64", "aarch64"]
 

@@ -1,0 +1,19 @@
+[package]
+name = "peekbuddy-churn"
+description = "Synthetic file-system churn with a ground-truth ledger and comparator (dev-only, #25)."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+[dev-dependencies]
+proptest = { workspace = true }
+
+[lints]
+workspace = true
