@@ -6,56 +6,31 @@
 //! the integrity level lowered to Medium. The runner probe (#34) showed that
 //! a `LUA_TOKEN` child fails to start on hosted runners
 //! (`STATUS_DLL_INIT_FAILED`), so that flag is not used.
+//!
+//! On hosted runners the desktop is labelled High integrity, so a Medium
+//! child cannot initialise `user32.dll`: programs such as `cmd.exe` fail with
+//! `STATUS_DLL_INIT_FAILED` (0xC0000142). Run a Rust test binary (which does
+//! not load `user32`) as the child instead.
 
 use std::os::windows::io::{AsRawHandle as _, FromRawHandle as _, OwnedHandle};
 
 use windows_sys::Win32::Foundation::{HANDLE, WAIT_OBJECT_0};
 use windows_sys::Win32::Security::{
-    CreateRestrictedToken, CreateWellKnownSid, DISABLE_MAX_PRIVILEGE, GetLengthSid,
-    SECURITY_MAX_SID_SIZE, SID_AND_ATTRIBUTES, SetTokenInformation, TOKEN_ADJUST_DEFAULT,
-    TOKEN_ASSIGN_PRIMARY, TOKEN_DUPLICATE, TOKEN_MANDATORY_LABEL, TOKEN_QUERY, TokenIntegrityLevel,
-    WELL_KNOWN_SID_TYPE, WinBuiltinAdministratorsSid, WinMediumLabelSid,
+    CreateRestrictedToken, DISABLE_MAX_PRIVILEGE, GetLengthSid, SID_AND_ATTRIBUTES,
+    SetTokenInformation, TOKEN_ADJUST_DEFAULT, TOKEN_ASSIGN_PRIMARY, TOKEN_DUPLICATE,
+    TOKEN_MANDATORY_LABEL, TOKEN_QUERY, TokenIntegrityLevel, WinBuiltinAdministratorsSid,
+    WinMediumLabelSid,
 };
 use windows_sys::Win32::System::Threading::{
     CREATE_NO_WINDOW, CreateProcessAsUserW, GetCurrentProcess, GetExitCodeProcess, INFINITE,
     OpenProcessToken, PROCESS_INFORMATION, STARTUPINFOW, WaitForSingleObject,
 };
 
+use crate::sid::Sid;
+
 /// `SE_GROUP_INTEGRITY` from `winnt.h` (kept local to avoid the large
 /// `Win32_System_SystemServices` feature).
 const SE_GROUP_INTEGRITY: u32 = 0x20;
-
-/// `SECURITY_MAX_SID_SIZE` in 4-byte words (SIDs need 4-byte alignment).
-const SID_WORDS: usize = 17;
-const _: () = assert!(SID_WORDS * 4 == SECURITY_MAX_SID_SIZE as usize);
-
-/// A SID in a buffer of the maximum SID size.
-struct Sid([u32; SID_WORDS]);
-
-impl Sid {
-    fn well_known(kind: WELL_KNOWN_SID_TYPE) -> std::io::Result<Self> {
-        let mut sid = Self([0; SID_WORDS]);
-        let mut size = SECURITY_MAX_SID_SIZE;
-        // SAFETY: the buffer holds SECURITY_MAX_SID_SIZE bytes and `size` says
-        // so; a null domain SID is allowed for these well-known types.
-        let ok = unsafe {
-            CreateWellKnownSid(
-                kind,
-                std::ptr::null_mut(),
-                sid.0.as_mut_ptr().cast(),
-                &raw mut size,
-            )
-        };
-        if ok == 0 {
-            return Err(last_error());
-        }
-        Ok(sid)
-    }
-
-    fn as_psid(&mut self) -> *mut core::ffi::c_void {
-        self.0.as_mut_ptr().cast()
-    }
-}
 
 fn last_error() -> std::io::Error {
     std::io::Error::last_os_error()
