@@ -238,6 +238,10 @@ mod tests {
 
     /// Same seed, one thread: the ledger is identical except for times.
     #[test]
+    #[cfg_attr(
+        miri,
+        ignore = "plans thousands of operations; runs natively on every PR"
+    )]
     fn same_seed_same_ledger_minus_times() {
         let ledger = |t0: u64| {
             let mut planner = Planner::new(1, 0, profile("edge-mix").unwrap());

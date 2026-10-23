@@ -80,8 +80,20 @@ mod tests {
     fn xoshiro_matches_the_reference() {
         // xoshiro256** from state [1, 2, 3, 4] (xoshiro256starstar.c).
         let mut rng = Rng { s: [1, 2, 3, 4] };
-        let first: Vec<u64> = (0..4).map(|_| rng.next_u64()).collect();
-        assert_eq!(first, [11_520, 0, 1_509_978_240, 1_215_971_899_390_074_240]);
+        let first: Vec<u64> = (0..8).map(|_| rng.next_u64()).collect();
+        assert_eq!(
+            first,
+            [
+                11_520,
+                0,
+                1_509_978_240,
+                1_215_971_899_390_074_240,
+                1_216_172_134_540_287_360,
+                607_988_272_756_665_600,
+                16_172_922_978_634_559_625,
+                8_476_171_486_693_032_832,
+            ]
+        );
     }
 
     #[test]

@@ -30,6 +30,13 @@ jobs:
       - name: Nightly toolchain with Miri
         run: rustup toolchain install nightly --profile minimal --component miri,rust-src
       - name: Miri (OS-independent crates)
+        # Miri looks for UB, not for rare inputs: proptest-long covers depth.
+        env:
+          PROPTEST_CASES: 16
+          # Failure files need the file system, which Miri isolates.
+          PROPTEST_DISABLE_FAILURE_PERSISTENCE: 1
+          # Miri passes no host environment variables unless forwarded.
+          MIRIFLAGS: -Zmiri-env-forward=PROPTEST_CASES -Zmiri-env-forward=PROPTEST_DISABLE_FAILURE_PERSISTENCE
         run: cargo +nightly miri test --locked -p peekbuddy-core -p peekbuddy-win -p peekbuddy-alloc -p peekbuddy-churn --lib --target x86_64-unknown-linux-gnu
 
   fuzz:

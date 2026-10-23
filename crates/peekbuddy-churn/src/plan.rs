@@ -274,11 +274,9 @@ impl Planner {
             .collect();
         below.extend(sub_dirs);
         self.dirs.retain(|d| !is_within(d, &dir));
-        // Deepest first: the order a recursive delete removes them in.
-        below.sort_by(|a, b| {
-            let depth = |p: &WidePath| p.iter().filter(|&&u| u == SEP).count();
-            depth(b).cmp(&depth(a)).then_with(|| a.cmp(b))
-        });
+        // Children before parents, the order a recursive delete removes
+        // them in: a path below another is always longer.
+        below.sort_by(|a, b| b.len().cmp(&a.len()).then_with(|| a.cmp(b)));
         Op {
             kind: OpKind::DeleteTree,
             paths: vec![dir],
@@ -376,6 +374,10 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(
+        miri,
+        ignore = "plans thousands of operations; runs natively on every PR"
+    )]
     fn same_seed_same_plan() {
         assert_eq!(plan(1, 0, "edge-mix", 500), plan(1, 0, "edge-mix", 500));
         assert_ne!(plan(1, 0, "edge-mix", 500), plan(2, 0, "edge-mix", 500));
@@ -402,6 +404,10 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(
+        miri,
+        ignore = "plans thousands of operations; runs natively on every PR"
+    )]
     fn edge_mix_exercises_every_class() {
         let ops = plan(1, 0, "edge-mix", 2000);
         for kind in OpKind::ALL {
@@ -410,15 +416,33 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(
+        miri,
+        ignore = "plans thousands of operations; runs natively on every PR"
+    )]
     fn edge_mix_uses_exotic_and_long_names() {
         let ops = plan(1, 0, "edge-mix", 2000);
         let paths: Vec<&WidePath> = ops.iter().flat_map(|op| &op.paths).collect();
+        let has = |unit: u16| paths.iter().any(|p| p.contains(&unit));
         assert!(paths.iter().any(|p| String::from_utf16(p).is_err()));
         assert!(paths.iter().any(|p| p.len() > 260));
+        assert!(has(0x0301), "combining mark");
+        assert!(has(0xD83D), "emoji");
+        // Plain short ASCII names are part of the mix too (setup is 65 ops).
+        let plain = |op: &crate::ops::Op| {
+            op.kind == OpKind::CreateFile
+                && op.paths[0].iter().all(|&u| u < 0x80)
+                && op.paths[0].len() < 30
+        };
+        assert!(ops.iter().skip(65).any(plain));
         assert!(paths.iter().any(|p| p.contains(&0x6587)));
     }
 
     #[test]
+    #[cfg_attr(
+        miri,
+        ignore = "plans thousands of operations; runs natively on every PR"
+    )]
     fn perf_profiles_use_only_their_mix_and_ascii() {
         let mix = profile("latency-10k").unwrap().mix;
         for op in plan(5, 0, "latency-10k", 2000) {
@@ -429,6 +453,10 @@ mod tests {
 
     /// Replays a plan on a set model and checks every operation is valid.
     #[test]
+    #[cfg_attr(
+        miri,
+        ignore = "plans thousands of operations; runs natively on every PR"
+    )]
     fn plans_are_valid_in_order() {
         use std::collections::BTreeSet;
         for seed in 0..20 {
@@ -472,18 +500,45 @@ mod tests {
     }
 
     #[test]
-    fn tree_deletes_list_the_deepest_first() {
+    #[cfg_attr(
+        miri,
+        ignore = "plans thousands of operations; runs natively on every PR"
+    )]
+    fn tree_deletes_list_children_before_parents() {
         let ops = plan(3, 0, "edge-mix", 2000);
-        let tree = ops
-            .iter()
-            .find(|op| op.kind == OpKind::DeleteTree && op.removed_below.len() > 1)
-            .unwrap();
-        let depth = |p: &WidePath| p.iter().filter(|&&u| u == u16::from(b'\\')).count();
-        let depths: Vec<usize> = tree.removed_below.iter().map(depth).collect();
-        assert!(
-            depths.windows(2).all(|pair| pair[0] >= pair[1]),
-            "{depths:?}"
-        );
+        let mut nested = 0;
+        for tree in ops.iter().filter(|op| op.kind == OpKind::DeleteTree) {
+            for (i, path) in tree.removed_below.iter().enumerate() {
+                for later in &tree.removed_below[i + 1..] {
+                    assert!(!is_within(later, path), "{tree:?}");
+                    nested += usize::from(is_within(path, later));
+                }
+            }
+        }
+        assert!(nested > 0, "no tree delete with nested entries");
+    }
+
+    #[test]
+    #[cfg_attr(
+        miri,
+        ignore = "plans thousands of operations; runs natively on every PR"
+    )]
+    fn the_thread_root_is_never_deleted_and_moves_change_directory() {
+        let parent = |p: &WidePath| {
+            let at = p.iter().rposition(|&u| u == u16::from(b'\\')).unwrap();
+            p[..at].to_vec()
+        };
+        for seed in 0..10 {
+            for op in plan(seed, 0, "edge-mix", 1000) {
+                match op.kind {
+                    OpKind::DeleteTree => assert_ne!(op.paths[0], w("t0"), "{op:?}"),
+                    OpKind::Move => {
+                        assert_ne!(parent(&op.paths[0]), parent(&op.paths[1]), "{op:?}");
+                    }
+                    _ => {}
+                }
+            }
+        }
     }
 
     #[test]

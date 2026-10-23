@@ -126,6 +126,10 @@ mod tests {
     use crate::profile::profile;
     use proptest::prelude::{any, prop, prop_assert, prop_assert_eq, proptest};
 
+    /// Planned operations per synthetic ledger (after the setup); small
+    /// under Miri, which runs these tests too (#25).
+    const OPS: usize = if cfg!(miri) { 3 } else { 120 };
+
     fn w(text: &str) -> WidePath {
         text.encode_utf16().collect()
     }
@@ -198,7 +202,7 @@ mod tests {
             gap_at in prop::option::of((any::<prop::sample::Index>(), 0u64..3_000)),
             noise in 0usize..5,
         ) {
-            let records = ledger(seed, 120);
+            let records = ledger(seed, OPS);
             let mut rows = perfect_rows(&records);
             for drop in &drops {
                 if !rows.is_empty() {
@@ -234,7 +238,7 @@ mod tests {
         /// gap, is always reported (no false negatives).
         #[test]
         fn removing_a_sole_witness_is_a_loss(seed in 0u64..1000, pick in any::<prop::sample::Index>()) {
-            let records = ledger(seed, 120);
+            let records = ledger(seed, OPS);
             let rows = perfect_rows(&records);
             let at = pick.index(rows.len());
             let removed = rows[at].clone();
@@ -277,7 +281,7 @@ mod tests {
 
     #[test]
     fn a_perfect_log_passes() {
-        let records = ledger(7, 300);
+        let records = ledger(7, OPS);
         let report = compare(&records, &perfect_rows(&records), &[]);
         assert!(report.passed());
         assert_eq!(report.matched, u64::try_from(records.len()).unwrap());
