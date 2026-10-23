@@ -1,0 +1,36 @@
+# CodeQL for Rust (#16). Required check together with ci-ok.
+name: codeql
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  merge_group:
+  schedule:
+    - cron: "41 3 * * 1"
+
+permissions: {}
+
+concurrency:
+  group: codeql-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  analyze:
+    name: CodeQL (rust)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      security-events: write # upload the analysis
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: github/codeql-action/init@8498dc4c2b27cdd99baf0f87955b29ebbf30c78d # v4.39.1
+        with:
+          languages: rust
+          build-mode: none
+      - uses: github/codeql-action/analyze@8498dc4c2b27cdd99baf0f87955b29ebbf30c78d # v4.39.1
+        with:
+          category: /language:rust

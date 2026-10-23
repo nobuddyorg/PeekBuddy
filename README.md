@@ -5,6 +5,7 @@ Silently watches your folders and logs every change in real time 👀
 [![CI](https://github.com/nobuddyorg/PeekBuddy/actions/workflows/ci.yml/badge.svg)](https://github.com/nobuddyorg/PeekBuddy/actions/workflows/ci.yml)
 [![codecov](https://img.shields.io/codecov/c/github/nobuddyorg/PeekBuddy?logo=codecov&logoColor=white)](https://codecov.io/gh/nobuddyorg/PeekBuddy)
 [![CodeQL](https://img.shields.io/badge/security-CodeQL-blue?logo=github)](https://github.com/nobuddyorg/PeekBuddy/security/code-scanning)
+[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/nobuddyorg/PeekBuddy/badge)](https://scorecard.dev/viewer/?uri=github.com/nobuddyorg/PeekBuddy)
 ![cargo-deny](https://img.shields.io/badge/supply%20chain-cargo--deny-orange)
 ![cargo-mutants](https://img.shields.io/badge/mutation%20testing-cargo--mutants-8A2BE2)
 ![Rust 1.99.1](https://img.shields.io/badge/rust-1.99.1-b7410e?logo=rust&logoColor=white)
@@ -59,7 +60,9 @@ Performance budgets are enforced in CI. See `PERFORMANCE.md` (added with #20).
 ## Privacy
 
 No login, no server, no tracking; the log never leaves your disk. PeekBuddy
-makes no network connections. See [PRIVACY.md](PRIVACY.md).
+makes no network connections. See [PRIVACY.md](PRIVACY.md). To report a
+vulnerability, see [SECURITY.md](SECURITY.md) and the
+[threat model](docs/explanation/threat-model.md).
 
 ## Unsigned builds
 
@@ -75,7 +78,7 @@ Docs live in [`docs/`](docs/), organised by [Diátaxis](https://diataxis.fr):
 - **Tutorials**: follow with v1
 - **How-to**: follow with v1
 - **Reference**: [Supported Windows versions](SUPPORT.md)
-- **Explanation**: [Architecture](docs/architecture.md) · [Decisions](docs/adr/README.md)
+- **Explanation**: [Architecture](docs/architecture.md) · [Decisions](docs/adr/README.md) · [Threat model](docs/explanation/threat-model.md)
 
 ## Contributing
 
