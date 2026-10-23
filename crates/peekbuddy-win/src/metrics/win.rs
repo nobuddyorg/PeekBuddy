@@ -248,7 +248,9 @@ impl ContextSwitches {
                 self.buffer.resize(words, 0);
                 continue;
             }
-            if status < 0 {
+            // Success is STATUS_SUCCESS (0); any other status is treated as
+            // "unavailable".
+            if status != 0 {
                 return None;
             }
             // SAFETY: the buffer holds `capacity` initialised bytes and stays
