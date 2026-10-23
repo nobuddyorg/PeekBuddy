@@ -82,6 +82,17 @@ pub fn verbatim(absolute: &[u16]) -> Vec<u16> {
     out
 }
 
+/// Whether `short_path` (from `GetShortPathNameW`) ends in a name other
+/// than `long`: the file got an 8.3 name.
+#[must_use]
+pub fn has_short_name(short_path: &[u16], long: &str) -> bool {
+    let name = short_path
+        .rsplit(|&unit| unit == u16::from(b'\\'))
+        .next()
+        .unwrap_or_default();
+    !name.iter().copied().eq(long.encode_utf16())
+}
+
 /// The junction names for an absolute target: the NT substitute name
 /// (`\??\` + path) and the print name (the path without any `\\?\`).
 #[must_use]
@@ -103,8 +114,8 @@ pub fn junction_names(absolute_target: &[u16]) -> (Vec<u16>, Vec<u16>) {
 )]
 mod tests {
     use super::{
-        ATTRIBUTE_ARCHIVE, ATTRIBUTE_NORMAL, IO_REPARSE_TAG_MOUNT_POINT, junction_names,
-        mount_point_buffer, toggled_archive, verbatim,
+        ATTRIBUTE_ARCHIVE, ATTRIBUTE_NORMAL, IO_REPARSE_TAG_MOUNT_POINT, has_short_name,
+        junction_names, mount_point_buffer, toggled_archive, verbatim,
     };
 
     fn w(text: &str) -> Vec<u16> {
@@ -172,6 +183,19 @@ mod tests {
         assert_eq!(verbatim(&w(r"\??\C:\a")), w(r"\??\C:\a"));
         // Lone surrogates pass through untouched.
         assert_eq!(verbatim(&[0x43, 0x3A, 0x5C, 0xD800]).last(), Some(&0xD800));
+    }
+
+    #[test]
+    fn short_names_are_told_apart_by_the_last_component() {
+        let long = "PeekBuddy probe.tmp";
+        assert!(!has_short_name(&w(r"C:\t\PeekBuddy probe.tmp"), long));
+        assert!(has_short_name(&w(r"C:\t\PEEKBU~1.TMP"), long));
+        // Only the last component counts.
+        assert!(!has_short_name(
+            &w(r"C:\PROGRA~1\PeekBuddy probe.tmp"),
+            long
+        ));
+        assert!(!has_short_name(&w("PeekBuddy probe.tmp"), long));
     }
 
     #[test]

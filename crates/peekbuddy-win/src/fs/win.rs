@@ -1,7 +1,6 @@
 //! The Win32 calls behind [`super`].
 
-use std::ffi::OsString;
-use std::os::windows::ffi::{OsStrExt as _, OsStringExt as _};
+use std::os::windows::ffi::OsStrExt as _;
 use std::os::windows::io::{AsRawHandle as _, FromRawHandle as _, OwnedHandle};
 use std::path::Path;
 
@@ -13,7 +12,7 @@ use windows_sys::Win32::Storage::FileSystem::{
 };
 use windows_sys::Win32::System::IO::DeviceIoControl;
 
-use super::{junction_names, mount_point_buffer, toggled_archive, verbatim};
+use super::{has_short_name, junction_names, mount_point_buffer, toggled_archive, verbatim};
 
 /// `FSCTL_SET_REPARSE_POINT` (kept local to avoid the `Win32_System_Ioctl`
 /// feature).
@@ -77,7 +76,8 @@ fn set_mount_point(name: &[u16], buffer: &[u8], size: u32) -> std::io::Result<()
             0,
             std::ptr::null(),
             OPEN_EXISTING,
-            FILE_FLAG_OPEN_REPARSE_POINT | FILE_FLAG_BACKUP_SEMANTICS,
+            // Disjoint bits: `+` equals `|` and has no equivalent `^` mutant.
+            FILE_FLAG_OPEN_REPARSE_POINT + FILE_FLAG_BACKUP_SEMANTICS,
             std::ptr::null_mut(),
         )
     };
@@ -168,12 +168,7 @@ pub fn short_names_generated(dir: &Path) -> std::io::Result<bool> {
     std::fs::File::create(&probe)?;
     let result = short_path(&probe);
     std::fs::remove_file(&probe)?;
-    let short = result?;
-    let file_name = short
-        .rsplit(|&unit| unit == u16::from(b'\\'))
-        .next()
-        .unwrap_or_default();
-    Ok(OsString::from_wide(file_name) != long)
+    Ok(has_short_name(&result?, long))
 }
 
 fn short_path(path: &Path) -> std::io::Result<Vec<u16>> {

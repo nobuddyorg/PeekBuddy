@@ -75,14 +75,10 @@ impl Pacer {
         let due = self
             .start
             .saturating_add(u64::try_from(offset).unwrap_or(u64::MAX));
-        if now < due {
-            return due - now;
-        }
-        let behind = now - due;
-        if behind > CAPACITY {
-            self.start = self.start.saturating_add(behind - CAPACITY);
-        }
-        0
+        // Behind schedule: drop the backlog beyond CAPACITY.
+        let behind = now.saturating_sub(due);
+        self.start = self.start.saturating_add(behind.saturating_sub(CAPACITY));
+        due.saturating_sub(now)
     }
 
     /// Counts `events` raw events as issued.

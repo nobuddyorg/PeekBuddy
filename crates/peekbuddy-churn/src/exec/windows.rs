@@ -191,7 +191,8 @@ pub fn header(profile: &str, seed: u64, threads: u32, root: &Path, runner: &str)
 
 /// `10.0.26100.6584` from `cmd /c ver` (`Microsoft Windows [Version
 /// 10.0.26100.6584]`), which includes the update revision.
-fn os_build() -> Option<String> {
+#[must_use]
+pub fn os_build() -> Option<String> {
     let output = std::process::Command::new("cmd.exe")
         .args(["/d", "/c", "ver"])
         .output()
@@ -212,7 +213,8 @@ pub fn parse_ver(text: &str) -> Option<String> {
 
 /// `(Get-MpComputerStatus).RealTimeProtectionEnabled`; `None` when Defender
 /// is not installed or the query fails.
-fn defender_realtime() -> Option<bool> {
+#[must_use]
+pub fn defender_realtime() -> Option<bool> {
     let output = std::process::Command::new("powershell.exe")
         .args([
             "-NoProfile",
@@ -222,7 +224,13 @@ fn defender_realtime() -> Option<bool> {
         ])
         .output()
         .ok()?;
-    match String::from_utf8_lossy(&output.stdout).trim() {
+    parse_bool(&String::from_utf8_lossy(&output.stdout))
+}
+
+/// PowerShell's `True`/`False` output; `None` for anything else.
+#[must_use]
+pub fn parse_bool(text: &str) -> Option<bool> {
+    match text.trim() {
         "True" => Some(true),
         "False" => Some(false),
         _ => None,
@@ -231,7 +239,86 @@ fn defender_realtime() -> Option<bool> {
 
 #[cfg(test)]
 mod tests {
-    use super::parse_ver;
+    use std::time::{Duration, Instant, SystemTime};
+
+    use super::{Clock as _, Target as _, WinClock, WinTarget, parse_bool, parse_ver};
+    use crate::ops::{Op, OpKind};
+
+    #[test]
+    fn powershell_booleans() {
+        assert_eq!(parse_bool("True\r\n"), Some(true));
+        assert_eq!(parse_bool(" False "), Some(false));
+        assert_eq!(parse_bool(""), None);
+        assert_eq!(parse_bool("true"), None);
+    }
+
+    #[test]
+    fn the_clock_reports_its_timer_and_sleeps_once() {
+        let mut clock = WinClock::new();
+        assert!(clock.high_resolution());
+        let start = Instant::now();
+        clock.sleep(500_000);
+        let elapsed = start.elapsed();
+        // 50 ms: not twice (timer and fallback), not skipped.
+        assert!(elapsed >= Duration::from_millis(45), "{elapsed:?}");
+        assert!(elapsed < Duration::from_millis(90), "{elapsed:?}");
+    }
+
+    #[test]
+    fn without_a_timer_the_clock_falls_back_to_thread_sleep() {
+        let mut clock = WinClock { timer: None };
+        assert!(!clock.high_resolution());
+        let start = Instant::now();
+        clock.sleep(300_000);
+        assert!(start.elapsed() >= Duration::from_millis(29));
+    }
+
+    fn file_op(kind: OpKind) -> Op {
+        Op {
+            kind,
+            paths: vec!["f".encode_utf16().collect()],
+            removed_below: Vec::new(),
+        }
+    }
+
+    fn modified(path: &std::path::Path) -> SystemTime {
+        std::fs::metadata(path).unwrap().modified().unwrap()
+    }
+
+    #[test]
+    fn timestamp_changes_set_a_new_time_each_time() {
+        let dir = std::env::temp_dir().join(format!("pbchurn-times-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let file = dir.join("f");
+        std::fs::write(&file, b"x").unwrap();
+        let mut target = WinTarget::new(&dir);
+        let base = SystemTime::UNIX_EPOCH + Duration::from_secs(1_000_000_000);
+        assert_eq!(target.apply(&file_op(OpKind::SetTimes)), 0);
+        assert_eq!(modified(&file), base + Duration::from_secs(1));
+        assert_eq!(target.apply(&file_op(OpKind::SetTimes)), 0);
+        assert_eq!(modified(&file), base + Duration::from_secs(2));
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn truncating_an_empty_file_still_changes_it() {
+        let dir = std::env::temp_dir().join(format!("pbchurn-trunc-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let file = dir.join("f");
+        std::fs::write(&file, b"").unwrap();
+        let old = SystemTime::UNIX_EPOCH + Duration::from_secs(1_000_000_000);
+        std::fs::File::options()
+            .write(true)
+            .open(&file)
+            .unwrap()
+            .set_modified(old)
+            .unwrap();
+        let mut target = WinTarget::new(&dir);
+        assert_eq!(target.apply(&file_op(OpKind::Truncate)), 0);
+        assert_eq!(std::fs::metadata(&file).unwrap().len(), 0);
+        assert_ne!(modified(&file), old);
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
 
     #[test]
     fn ver_output() {

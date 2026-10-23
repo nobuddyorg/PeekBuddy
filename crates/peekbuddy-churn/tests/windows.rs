@@ -1,13 +1,46 @@
 //! The executor against the real file system (Windows only, #25).
 #![cfg(windows)]
 
-use peekbuddy_churn::exec::windows::{WinClock, WinTarget, header};
-use peekbuddy_churn::exec::{Config, run};
+use peekbuddy_churn::exec::windows::{WinClock, WinTarget, defender_realtime, header, os_build};
+use peekbuddy_churn::exec::{Clock, Config, run};
 use peekbuddy_churn::ledger::{Record, from_jsonl, to_jsonl};
 use peekbuddy_churn::ops::OpKind;
 use peekbuddy_churn::plan::Shape;
 use peekbuddy_churn::profile::{Names, Profile, Rate, profile};
 use peekbuddy_testkit::TestDir;
+
+/// The real clock with a cap on total sleep: a pacing bug fails the test
+/// instead of hanging it.
+struct Bounded {
+    clock: WinClock,
+    slept: u64,
+}
+
+impl Bounded {
+    fn new() -> Self {
+        Self {
+            clock: WinClock::new(),
+            slept: 0,
+        }
+    }
+}
+
+impl Clock for Bounded {
+    fn now(&mut self) -> u64 {
+        self.clock.now()
+    }
+
+    fn sleep(&mut self, ticks: u64) {
+        self.slept = self.slept.saturating_add(ticks);
+        // 20 s in total is far more than any test here needs.
+        assert!(
+            self.slept <= 200_000_000,
+            "pacing asked for {} ticks",
+            self.slept
+        );
+        self.clock.sleep(ticks);
+    }
+}
 
 #[test]
 fn edge_mix_runs_every_class_without_failures() {
@@ -19,7 +52,7 @@ fn edge_mix_runs_every_class_without_failures() {
         threads: 2,
         shape: Shape::default(),
     };
-    let outcome = run(&config, |_| (WinTarget::new(&root), WinClock::new()));
+    let outcome = run(&config, |_| (WinTarget::new(&root), Bounded::new()));
     let failed: Vec<&Record> = outcome
         .records
         .iter()
@@ -36,7 +69,14 @@ fn edge_mix_runs_every_class_without_failures() {
     }
     // The ledger round-trips, header facts included.
     let header = header("edge-mix", 1, 2, &root, "test");
-    assert_ne!(header.os_build, "unknown");
+    let parts: Vec<&str> = header.os_build.split('.').collect();
+    assert_eq!(parts.len(), 4, "{}", header.os_build);
+    assert!(
+        parts.iter().all(|p| p.parse::<u32>().is_ok()),
+        "{}",
+        header.os_build
+    );
+    assert_eq!(parts[..2], ["10", "0"]);
     assert!(header.cpus > 0);
     assert!(["NTFS", "ReFS"].contains(&header.file_system.as_str()));
     assert!(header.short_names.is_some());
@@ -56,6 +96,40 @@ const PACED: Profile = Profile {
 };
 
 #[test]
+fn machine_facts_match_independent_queries() {
+    // The build number from the registry must be the third part.
+    let output = std::process::Command::new("powershell.exe")
+        .args([
+            "-NoProfile",
+            "-NonInteractive",
+            "-Command",
+            "(Get-ItemProperty 'HKLM:\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion').CurrentBuildNumber",
+        ])
+        .output()
+        .unwrap();
+    let build = String::from_utf8_lossy(&output.stdout).trim().to_owned();
+    let os = os_build().unwrap();
+    assert_eq!(os.split('.').nth(2), Some(build.as_str()), "{os}");
+    // Defender: the same property read through JSON.
+    let output = std::process::Command::new("powershell.exe")
+        .args([
+            "-NoProfile",
+            "-NonInteractive",
+            "-Command",
+            "Get-MpComputerStatus | Select-Object -ExpandProperty RealTimeProtectionEnabled | ConvertTo-Json",
+        ])
+        .output()
+        .unwrap();
+    let json = String::from_utf8_lossy(&output.stdout).trim().to_owned();
+    let expected = match json.as_str() {
+        "true" => Some(true),
+        "false" => Some(false),
+        _ => None,
+    };
+    assert_eq!(defender_realtime(), expected, "{json}");
+}
+
+#[test]
 fn pacing_holds_a_steady_run_to_its_rate() {
     let dir = TestDir::new("churn-paced").unwrap();
     let root = std::fs::canonicalize(dir.path()).unwrap();
@@ -65,7 +139,7 @@ fn pacing_holds_a_steady_run_to_its_rate() {
         threads: 1,
         shape: Shape::default(),
     };
-    let outcome = run(&config, |_| (WinTarget::new(&root), WinClock::new()));
+    let outcome = run(&config, |_| (WinTarget::new(&root), Bounded::new()));
     assert_eq!(outcome.failures(), 0);
     // 2,000 events at 2,000 ev/s cannot finish much before 1 s; the 10 ms
     // bucket and the 1 ms minimum sleep allow a little slack.
