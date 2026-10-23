@@ -267,14 +267,14 @@ jobs:
 
   bench-ab:
     # Same-runner A/B timing gate (#26, F11): warn +15 %, fail +50 % on
-    # pr-ab benches. Advisory until the false-positive check (a no-op PR
-    # passes in >= 9 of 10 reruns) is recorded in PERFORMANCE.md.
-    name: bench a/b (windows x64) (advisory)
+    # pr-ab benches. Required since the false-positive check passed 10 of
+    # 10 (bench-noop.yml, PERFORMANCE.md). PRs only: on push and merge
+    # group there is no base to compare with, and ci-ok accepts the skip.
+    name: bench a/b (windows x64)
     if: github.event_name == 'pull_request'
     needs: prek
     runs-on: windows-2025
     timeout-minutes: 30
-    continue-on-error: true
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -361,18 +361,27 @@ jobs:
   ci-ok:
     name: ci-ok
     if: always()
-    needs: [prek, deny, core-linux, lint, test-x64, etw-smoke]
+    needs: [prek, deny, core-linux, lint, test-x64, etw-smoke, bench-ab]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
       - name: All required jobs succeeded
         env:
-          RESULTS: ${{ join(needs.*.result, ' ') }}
+          NEEDS: ${{ toJSON(needs) }}
+          EVENT: ${{ github.event_name }}
         run: |
-          echo "required results: ${RESULTS}"
-          for result in ${RESULTS}; do
-            if [ "${result}" != "success" ]; then
-              echo "::error title=ci-ok::a required job ended with '${result}'"
-              exit 1
-            fi
-          done
+          echo "${NEEDS}" | jq -r 'to_entries[] | "\(.key) \(.value.result)"' | {
+            failed=0
+            while read -r job result; do
+              echo "${job}: ${result}"
+              # The bench A/B job only runs on PRs; elsewhere it is skipped.
+              if [ "${job}" = "bench-ab" ] && [ "${EVENT}" != "pull_request" ] && [ "${result}" = "skipped" ]; then
+                continue
+              fi
+              if [ "${result}" != "success" ]; then
+                echo "::error title=ci-ok::${job} ended with '${result}'"
+                failed=1
+              fi
+            done
+            exit "${failed}"
+          }

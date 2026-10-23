@@ -96,7 +96,7 @@ cancelled or is skipped. Jobs in `.github/workflows/ci.yml`:
 | `core (linux)` | ubuntu-latest | required: `peekbuddy-core`, `peekbuddy-alloc` and `peekbuddy-churn` tests on Linux; `xtask budgets --check` |
 | `lint (windows x64)` | `windows-2025` | required: fmt, clippy, rustdoc, cargo-machete, `check-unsafe`, `check-deps`, benches compile |
 | `test (windows x64)` | `windows-2025` | required: preflight, nextest, doctests, release build without Tracy (`check-release --exe`, #22) and within the size cap (`xtask size`, #28); `xtask churn` edge-mix exercises every operation class, burst throughput reported (#25) |
-| `bench a/b (windows x64) (advisory)` | `windows-2025` | advisory: same-runner A/B of the criterion benches, warn +15 %, fail +50 % (#26); required after the false-positive check |
+| `bench a/b (windows x64)` | `windows-2025` | required on PRs: same-runner A/B of the criterion benches, warn +15 %, fail +50 % (#26); skipped (and accepted by `ci-ok`) on push and merge group |
 | `test (windows arm64) (advisory)` | `windows-11-vs2026-arm` | advisory until two weeks of green runs, then promoted |
 
 Perf (#23, #26, #27) and release-build (#28) jobs join as those issues land.
