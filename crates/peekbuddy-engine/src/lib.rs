@@ -7,15 +7,12 @@
 /// Runs the engine role until it is asked to exit.
 ///
 /// The message loop, tray and watches arrive with #59 and #60.
-#[must_use]
-pub fn run() -> std::process::ExitCode {
-    std::process::ExitCode::SUCCESS
-}
+pub fn run() {}
 
 #[cfg(test)]
 mod tests {
     #[test]
-    fn run_succeeds() {
-        assert_eq!(super::run(), std::process::ExitCode::SUCCESS);
+    fn run_returns() {
+        super::run();
     }
 }

@@ -1,6 +1,6 @@
 [package]
 name = "peekbuddy-testkit"
-description = "Shared test helpers: temp roots, unelevated children, session checks."
+description = "Shared test helpers: temp roots, snapshot filters, session checks."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

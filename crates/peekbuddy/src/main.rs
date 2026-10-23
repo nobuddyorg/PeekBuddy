@@ -25,6 +25,7 @@ fn main() -> ExitCode {
         Role::Engine => peekbuddy_engine::run(),
         Role::Viewer => peekbuddy_viewer::run(),
     }
+    ExitCode::SUCCESS
 }
 
 #[cfg(test)]

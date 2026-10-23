@@ -128,7 +128,7 @@ Probe 'disk.smb_loopback' {
 
 # 7. Privilege: standard user via CreateProcessWithLogonW (Start-Process -Credential)
 Probe 'privilege.standard_user_logon' {
-    $plain = 'Pb!' + [guid]::NewGuid().ToString('N').Substring(0, 16)
+    $plain = "Pb!" + [guid]::NewGuid().ToString("N").Substring(0, 10)
     $add = & net.exe user $user $plain /add 2>&1 | Out-String
     if ($LASTEXITCODE -ne 0) { return @{ ok = $false; detail = "net user /add: $(($add -replace '\s+', ' ').Trim())" } }
     $secure = ConvertTo-SecureString $plain -AsPlainText -Force

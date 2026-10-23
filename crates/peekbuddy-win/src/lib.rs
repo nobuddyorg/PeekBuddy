@@ -8,9 +8,9 @@
 #![deny(clippy::indexing_slicing)]
 
 #[cfg(windows)]
-pub mod process;
-#[cfg(windows)]
 pub mod session;
+#[cfg(windows)]
+pub mod token;
 
 #[cfg(test)]
 mod tests {

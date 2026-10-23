@@ -1,0 +1,66 @@
+//! Facts about the current process token.
+
+use std::os::windows::io::{AsRawHandle as _, FromRawHandle as _, OwnedHandle};
+
+use windows_sys::Win32::Foundation::HANDLE;
+use windows_sys::Win32::Security::{
+    GetSidSubAuthority, GetSidSubAuthorityCount, GetTokenInformation, TOKEN_MANDATORY_LABEL,
+    TOKEN_QUERY, TokenIntegrityLevel,
+};
+use windows_sys::Win32::System::Threading::{GetCurrentProcess, OpenProcessToken};
+
+/// `SECURITY_MANDATORY_MEDIUM_RID`.
+pub const MEDIUM_INTEGRITY: u32 = 0x2000;
+/// `SECURITY_MANDATORY_HIGH_RID`.
+pub const HIGH_INTEGRITY: u32 = 0x3000;
+
+fn check(ok: i32) -> std::io::Result<()> {
+    if ok == 0 {
+        Err(std::io::Error::last_os_error())
+    } else {
+        Ok(())
+    }
+}
+
+/// Returns the integrity level RID of the current process, for example
+/// [`MEDIUM_INTEGRITY`] or [`HIGH_INTEGRITY`].
+///
+/// # Errors
+///
+/// Returns the OS error when the token cannot be read.
+pub fn integrity_rid() -> std::io::Result<u32> {
+    let mut raw: HANDLE = std::ptr::null_mut();
+    // SAFETY: GetCurrentProcess returns a pseudo-handle that needs no closing.
+    let process = unsafe { GetCurrentProcess() };
+    // SAFETY: `raw` is a valid out pointer.
+    check(unsafe { OpenProcessToken(process, TOKEN_QUERY, &raw mut raw) })?;
+    // SAFETY: OpenProcessToken succeeded, so `raw` is an owned handle.
+    let token = unsafe { OwnedHandle::from_raw_handle(raw) };
+    // TOKEN_MANDATORY_LABEL followed by its SID; 8-byte aligned.
+    let mut buffer = [0u64; 16];
+    let mut needed = 0u32;
+    let size = u32::try_from(size_of_val(&buffer)).unwrap_or(u32::MAX);
+    // SAFETY: `buffer` is writable for `size` bytes; `needed` is a valid out pointer.
+    check(unsafe {
+        GetTokenInformation(
+            token.as_raw_handle(),
+            TokenIntegrityLevel,
+            buffer.as_mut_ptr().cast(),
+            size,
+            &raw mut needed,
+        )
+    })?;
+    // SAFETY: on success the buffer starts with a TOKEN_MANDATORY_LABEL and is
+    // aligned for it.
+    let sid = unsafe { (*buffer.as_ptr().cast::<TOKEN_MANDATORY_LABEL>()).Label.Sid };
+    // SAFETY: `sid` points into `buffer`, which is still alive.
+    let count_ptr = unsafe { GetSidSubAuthorityCount(sid) };
+    // SAFETY: GetSidSubAuthorityCount returns a pointer into the valid SID.
+    let count = unsafe { *count_ptr };
+    // An integrity SID always has exactly one sub-authority, the RID.
+    let last = u32::from(count).saturating_sub(1);
+    // SAFETY: `last` is a valid sub-authority index of `sid`.
+    let rid_ptr = unsafe { GetSidSubAuthority(sid, last) };
+    // SAFETY: GetSidSubAuthority returns a pointer into the valid SID.
+    Ok(unsafe { *rid_ptr })
+}
