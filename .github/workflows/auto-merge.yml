@@ -1,0 +1,55 @@
+# Auto-merges Dependabot PRs that the dependency policy allows (#12, F20).
+# The merge still waits for the required ci-ok check.
+name: dependabot-auto-merge
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    branches: [main]
+
+permissions: {}
+
+concurrency:
+  group: auto-merge-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  auto-merge:
+    name: auto-merge
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    if: github.event.pull_request.user.login == 'dependabot[bot]'
+    permissions:
+      contents: write # gh pr merge --auto
+      pull-requests: write # gh pr merge --auto
+    steps:
+      - name: Fetch Dependabot metadata
+        id: metadata
+        uses: dependabot/fetch-metadata@25dd0e34f4fe68f24cc83900b1fe3fe149efef98 # v3.1.0
+
+      - name: Decide
+        id: decide
+        env:
+          ECOSYSTEM: ${{ steps.metadata.outputs.package-ecosystem }}
+          UPDATE_TYPE: ${{ steps.metadata.outputs.update-type }}
+          PREVIOUS: ${{ steps.metadata.outputs.previous-version }}
+        run: |
+          allowed=false
+          case "${ECOSYSTEM}:${UPDATE_TYPE}" in
+            github_actions:version-update:semver-patch|github_actions:version-update:semver-minor) allowed=true ;;
+            pre_commit:version-update:semver-patch|pre_commit:version-update:semver-minor) allowed=true ;;
+            rust_toolchain:version-update:semver-patch|rust_toolchain:version-update:semver-minor) allowed=true ;;
+            cargo:version-update:semver-patch) allowed=true ;;
+            cargo:version-update:semver-minor)
+              # 0.x crates treat minor bumps as breaking: manual.
+              case "${PREVIOUS}" in 0.*) allowed=false ;; *) allowed=true ;; esac ;;
+          esac
+          echo "ecosystem=${ECOSYSTEM} update=${UPDATE_TYPE} previous=${PREVIOUS} allowed=${allowed}"
+          echo "allowed=${allowed}" >> "${GITHUB_OUTPUT}"
+
+      - name: Enable auto-merge
+        if: steps.decide.outputs.allowed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+        run: gh pr merge --auto --squash "${PR_URL}"

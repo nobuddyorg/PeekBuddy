@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>PeekBuddy third-party licences</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 60rem; margin: 2rem auto; padding: 0 1rem; }
+    pre { white-space: pre-wrap; background: #f4f4f4; padding: 1rem; }
+  </style>
+</head>
+<body>
+  <h1>Third-party licences</h1>
+  <p>PeekBuddy includes the following crates.</p>
+  <ul>
+    {{#each overview}}
+    <li><a href="#{{id}}">{{name}}</a> ({{count}})</li>
+    {{/each}}
+  </ul>
+  {{#each licenses}}
+  <h2 id="{{id}}">{{name}}</h2>
+  <ul>
+    {{#each used_by}}
+    <li>{{crate.name}} {{crate.version}}</li>
+    {{/each}}
+  </ul>
+  <pre>{{text}}</pre>
+  {{/each}}
+</body>
+</html>

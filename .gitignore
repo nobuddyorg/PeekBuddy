@@ -2,3 +2,4 @@ target/
 **/*.rs.bk
 /mutants.out*/
 /lcov.info
+*.cdx.json

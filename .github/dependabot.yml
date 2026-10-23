@@ -1,0 +1,38 @@
+# Dependabot (#12). Auto-merge rules live in workflows/auto-merge.yml.
+version: 2
+updates:
+  - package-ecosystem: cargo
+    directory: /
+    schedule:
+      interval: daily
+    cooldown:
+      default-days: 7
+      semver-major-days: 14
+    groups:
+      cargo-patch:
+        update-types: [patch]
+    ignore:
+      # Exact pin; bumps are manual (ADR 0010, #83).
+      - dependency-name: windows-sys
+
+  - package-ecosystem: rust-toolchain
+    directory: /
+    schedule:
+      interval: daily
+    cooldown:
+      default-days: 7
+      semver-major-days: 14
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: daily
+    cooldown:
+      default-days: 7
+
+  - package-ecosystem: pre-commit
+    directory: /
+    schedule:
+      interval: daily
+    cooldown:
+      default-days: 7
