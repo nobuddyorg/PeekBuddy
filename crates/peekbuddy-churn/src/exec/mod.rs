@@ -28,6 +28,11 @@ const TICKS_PER_S: u64 = 10_000_000;
 /// pacing never sleeps per operation at high rates.
 pub const MIN_SLEEP: u64 = 10_000;
 
+/// Steady runs pace this much above their target: stalls beyond
+/// [`CAPACITY`] are dropped, so a run paced at exactly the target ends just
+/// below it and would be "not exercised" by jitter alone.
+pub const HEADROOM_PERCENT: u64 = 2;
+
 /// How far a thread may fall behind before the bucket drops the backlog
 /// (10 ms), so a stall is not followed by an unbounded burst.
 pub const CAPACITY: u64 = 100_000;
@@ -227,13 +232,16 @@ impl Config {
         total.div_ceil(u64::from(self.threads()))
     }
 
-    /// Pacing rate of each thread; `None` for a burst.
+    /// Pacing rate of each thread, [`HEADROOM_PERCENT`] above the
+    /// profile's share; `None` for a burst.
     #[must_use]
     pub fn per_thread_rate(&self) -> Option<u64> {
         match self.profile.rate {
-            Rate::Steady { events_per_s, .. } => {
-                Some(events_per_s.div_ceil(u64::from(self.threads())))
-            }
+            Rate::Steady { events_per_s, .. } => Some(
+                events_per_s
+                    .saturating_mul(100 + HEADROOM_PERCENT)
+                    .div_ceil(100 * u64::from(self.threads())),
+            ),
             Rate::Burst { .. } => None,
         }
     }

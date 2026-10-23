@@ -293,13 +293,15 @@ fn config_splits_events_and_rate_over_threads() {
     };
     let latency = config("latency-10k", 3);
     assert_eq!(latency.events_per_thread(), 100_000);
-    assert_eq!(latency.per_thread_rate(), Some(3_334));
+    // 10,000 ev/s plus 2 % over three threads.
+    assert_eq!(latency.per_thread_rate(), Some(3_400));
     let burst = config("burst-100k", 4);
     assert_eq!(burst.events_per_thread(), 250_000);
     assert_eq!(burst.per_thread_rate(), None);
     // Zero threads means one.
     assert_eq!(config("edge-mix", 0).events_per_thread(), 2_000);
-    assert_eq!(config("edge-mix", 0).per_thread_rate(), Some(200));
+    assert_eq!(config("edge-mix", 0).per_thread_rate(), Some(204));
+    assert_eq!(config("edge-mix", 7).per_thread_rate(), Some(30));
 }
 
 const TINY: Profile = Profile {

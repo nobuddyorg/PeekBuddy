@@ -39,15 +39,21 @@ root only after the watcher is stopped and joined.
 
 CI runs `edge-mix` (seed 1, 2 threads) in `test (windows x64)` and the arm64
 job and uploads the ledger (`churn-ledger-x64`, `churn-ledger-arm64`). A
-200,000-event burst with 4 threads reports what the runner can generate
-(report only).
+50,000-event burst with 4 threads reports what the runner can generate
+(report only). First numbers (debug xtask, `%TEMP%` on the system disk,
+0 failed operations): windows-2025 2,255 raw ev/s, windows-11-vs2026-arm
+3,127 raw ev/s, both with 4 threads. A hosted runner is far from the
+100k ev/s of `burst-100k` with this executor, so `burst-100k` runs there
+are "not exercised"; #32 decides whether that needs a faster executor or
+another machine.
 
 How a run works:
 
 - Every thread plans its whole stream before the clock starts, runs its
   setup (the initial tree, unpaced and not part of the rate) and waits at a
   barrier, so all threads start together.
-- A steady run is paced per thread by a token bucket (rate / threads): it
+- A steady run is paced per thread by a token bucket (rate / threads, plus
+  2 % headroom so jitter alone never makes it "not exercised"): it
   sleeps only when at least 1 ms ahead and drops backlog beyond 10 ms, so
   a stall is not followed by an unbounded burst. Sleeps use a
   `CREATE_WAITABLE_TIMER_HIGH_RESOLUTION` timer; `timeBeginPeriod` is never
