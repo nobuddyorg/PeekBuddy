@@ -13,6 +13,7 @@ for issues the owner has accepted; unsolicited pull requests are closed ([ADR 00
 | Crate | Owns | `unsafe` |
 | --- | --- | --- |
 | `crates/peekbuddy-core` | Event model, names, filters, derived views. Pure Rust, builds and tests on Linux, no `cfg(windows)`. | forbidden |
+| `crates/peekbuddy-alloc` | Counting global allocator for allocation-budget tests (dev-only). | allowed (`GlobalAlloc` is unsafe) |
 | `crates/peekbuddy-win` | `windows-sys` wrappers and OS-independent record parsers (these also compile on Linux for Miri). | allowed, every block needs `// SAFETY:` |
 | `crates/peekbuddy-store` | SQLite day segments, writer thread, queries, export. | forbidden |
 | `crates/peekbuddy-engine` | Capture threads, reconcile scanner, tray, pipe server. No GPU or UI crates. | forbidden |
@@ -24,7 +25,8 @@ for issues the owner has accepted; unsolicited pull requests are closed ([ADR 00
 Two checks keep the layout honest:
 
 - `cargo xtask check-unsafe`: every crate root has `#![forbid(unsafe_code)]`
-  except the allow-list in `xtask/src/unsafe_code.rs` (only `peekbuddy-win`).
+  except the allow-list in `xtask/src/unsafe_code.rs` (`peekbuddy-win` and
+  `peekbuddy-alloc`).
 - `cargo xtask check-deps`: `peekbuddy-core` and `peekbuddy-engine` never
   depend on `eframe`, `egui`, `winit`, `wgpu` or `glow` (ADR 0001).
 

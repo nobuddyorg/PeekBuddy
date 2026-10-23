@@ -75,7 +75,7 @@ jobs:
         with:
           shared-key: core-linux
           save-if: ${{ github.ref == 'refs/heads/main' }}
-      - run: cargo test -p peekbuddy-core --target x86_64-unknown-linux-gnu --locked
+      - run: cargo test -p peekbuddy-core -p peekbuddy-alloc --target x86_64-unknown-linux-gnu --locked
       - name: Budgets table in sync
         run: cargo xtask budgets --check
 

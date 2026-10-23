@@ -5,6 +5,7 @@ additional_cargo_args = ["--all-features"]
 profile = "mutants"
 # Product logic: event model, parsers, watchers, store, filters, export.
 examine_re = [
+  "crates/peekbuddy-alloc/",
   "crates/peekbuddy-core/",
   "crates/peekbuddy-win/",
   "crates/peekbuddy-store/",
@@ -20,6 +21,10 @@ exclude_re = [
   # Equivalent mutants: Win32 access masks are disjoint bit flags, so `^`
   # and `|` give the same value.
   "crates/peekbuddy-win/src/process.rs:.*replace \\| with \\^",
+  # Only nextest's listing call passes `--list`; returning false there makes
+  # nextest list no test for the binary, which no test can observe.
+  # `list_reply` holds the logic and is tested.
+  "crates/peekbuddy-alloc/src/lib.rs:.*replace answer_nextest_list -> bool with false",
   # Equivalent mutant: high and low FILETIME halves do not overlap.
   "crates/peekbuddy-win/src/perf/clock.rs:.*replace \\| with \\^ in ticks",
 ]
