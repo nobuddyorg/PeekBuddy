@@ -1,0 +1,67 @@
+# Posts the bench A/B table (#26) on the PR. It runs after `ci` from the
+# default branch with its own minimal token, because the PR workflow has no
+# write token on fork PRs; it never checks out or runs PR code. The
+# artifact is untrusted data: the PR number must name an open PR whose
+# head is the commit the run tested, and the table is posted as text only.
+name: bench comment
+
+on:
+  workflow_run: # zizmor: ignore[dangerous-triggers] no PR code runs here; artifacts are validated data
+    workflows: [ci]
+    types: [completed]
+
+permissions: {}
+
+concurrency:
+  group: bench-comment-${{ github.event.workflow_run.head_repository.full_name }}-${{ github.event.workflow_run.head_branch }}
+  cancel-in-progress: true
+
+jobs:
+  comment:
+    name: bench comment
+    if: github.event.workflow_run.event == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      actions: read # download the artifact of the ci run
+      pull-requests: write # create or update the one bench comment
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        id: download
+        continue-on-error: true # no artifact when the bench job did not run
+        with:
+          name: bench-ab
+          path: bench-ab
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ github.token }}
+      - uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        if: steps.download.outcome == 'success'
+        env:
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+        with:
+          script: |
+            const fs = require('fs');
+            const marker = '<!-- bench-ab -->';
+            const read = (file) => fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : '';
+            const number = Number.parseInt(read('bench-ab/pr-number').trim(), 10);
+            const report = read('bench-ab/report.md');
+            if (!Number.isSafeInteger(number) || number <= 0 || report === '') {
+              core.info('no PR number or report; nothing to post');
+              return;
+            }
+            const { owner, repo } = context.repo;
+            const { data: pr } = await github.rest.pulls.get({ owner, repo, pull_number: number });
+            if (pr.state !== 'open' || pr.head.sha !== process.env.HEAD_SHA) {
+              core.info(`PR #${number} is not open at ${process.env.HEAD_SHA}; not posting`);
+              return;
+            }
+            const body = `${marker}\n${report.slice(0, 60000)}\n\n_Posted by the \`bench comment\` workflow (#26)._`;
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner, repo, issue_number: number, per_page: 100,
+            });
+            const mine = comments.find((c) => c.user?.type === 'Bot' && c.body?.startsWith(marker));
+            if (mine) {
+              await github.rest.issues.updateComment({ owner, repo, comment_id: mine.id, body });
+            } else {
+              await github.rest.issues.createComment({ owner, repo, issue_number: number, body });
+            }

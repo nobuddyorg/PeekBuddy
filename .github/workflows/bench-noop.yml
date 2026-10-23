@@ -1,0 +1,98 @@
+# False-positive check of the bench A/B gate (#26, F11): ten no-op A/B runs
+# (base = head) on windows-2025 in parallel; the gate may join ci-ok only
+# when at least 9 of 10 pass. Runs on demand and on PRs that touch the gate.
+name: bench no-op
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - .github/workflows/bench-noop.yml
+      - benches/**
+      - xtask/src/bench_ab.rs
+
+permissions:
+  contents: read
+
+concurrency:
+  group: bench-noop-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  noop:
+    name: no-op a/b ${{ matrix.run }}
+    runs-on: windows-2025
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        run: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Rust toolchain
+        run: rustup toolchain install && rustup show
+      - uses: Swatinem/rust-cache@2201cc584a476d1b508be977bbe4b7d1c7a52e9c # v2.9.3
+        with:
+          shared-key: bench-ab-x64
+          save-if: false
+      - name: No-op A/B (base = head)
+        id: ab
+        continue-on-error: true
+        run: cargo xtask bench-ab --base HEAD
+      - name: Record the outcome
+        if: always()
+        shell: bash
+        env:
+          OUTCOME: ${{ steps.ab.outcome }}
+          RUN: ${{ matrix.run }}
+        run: |
+          mkdir -p noop
+          echo "${OUTCOME}" > "noop/${RUN}.txt"
+          cp target/bench-ab/report.md "noop/${RUN}.md" 2>/dev/null || true
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: bench-noop-${{ matrix.run }}
+          path: noop
+          if-no-files-found: warn
+
+  verdict:
+    name: no-op verdict (>= 9 of 10)
+    # Not on a cancelled run (a newer push supersedes it): no verdict then.
+    if: ${{ !cancelled() }}
+    needs: noop
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: bench-noop-*
+          path: noop
+          merge-multiple: true
+      - name: Count passing runs
+        shell: bash
+        run: |
+          passed="$(cat noop/*.txt 2>/dev/null | grep -c '^success$' || true)"
+          {
+            echo "## Bench A/B false-positive check"
+            echo
+            echo "No-op runs (base = head) passing: **${passed} of 10** (needs >= 9)."
+            for report in noop/*.md; do
+              [ -f "${report}" ] || continue
+              echo
+              echo "<details><summary>run $(basename "${report}" .md)</summary>"
+              echo
+              cat "${report}"
+              echo
+              echo "</details>"
+            done
+          } >> "${GITHUB_STEP_SUMMARY}"
+          if [ "${passed}" -lt 9 ]; then
+            echo "::error title=bench no-op::only ${passed} of 10 no-op runs passed"
+            exit 1
+          fi

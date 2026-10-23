@@ -2,6 +2,7 @@
 #![forbid(unsafe_code)]
 
 mod bench_ab;
+mod bench_trend;
 mod budgets;
 mod check;
 mod churn;
@@ -19,6 +20,7 @@ const USAGE: &str = "usage: cargo xtask <command>
 
 commands:
   bench-ab       same-runner A/B of the criterion benches [--base rev] [--rounds n] [--filter re]
+  bench-trend    nightly bench medians and the rolling-median alert [--rounds n] [--history data.js]
   budgets        check (or --write) the PERFORMANCE.md table against perf/budgets.toml
   check          the local loop: fmt, prek, Linux tests, Windows clippy
   churn          run a churn profile and write its ledger (Windows) [--profile p] [--seed n] ...
@@ -35,6 +37,7 @@ fn main() -> ExitCode {
     let option = rest.first().cloned();
     let result = match command.as_deref() {
         Some("bench-ab") => bench_ab::run(&rest),
+        Some("bench-trend") => bench_trend::run(&rest),
         Some("budgets") => budgets::run(option.as_deref()),
         Some("check") => check::run(),
         Some("churn") => churn::run(&rest),

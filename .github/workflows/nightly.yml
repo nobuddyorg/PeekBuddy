@@ -227,10 +227,75 @@ jobs:
           tool: cargo-nextest@0.9.149,cargo-mutants@27.1.0
       - run: cargo mutants --no-shuffle -p peekbuddy-core --test-tool nextest
 
+  bench-trend:
+    # Full criterion suite on main (#26): medians to gh-pages through
+    # github-action-benchmark, and the +25 % rolling-median alert from
+    # `cargo xtask bench-trend` (the action only compares with the previous
+    # point). An alert fails this job, so `report` opens or updates the
+    # `nightly: bench-trend failing` issue with the run's table.
+    name: bench trend (windows x64)
+    runs-on: windows-2025
+    timeout-minutes: 45
+    permissions:
+      contents: write # github-action-benchmark pushes the data to gh-pages
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Rust toolchain
+        run: rustup toolchain install && rustup show
+      - name: Earlier points from gh-pages
+        id: history
+        shell: bash
+        env:
+          REPO_URL: ${{ github.server_url }}/${{ github.repository }}
+        run: |
+          mkdir -p target/bench-trend
+          if git fetch --depth 1 "${REPO_URL}" gh-pages; then
+            git show FETCH_HEAD:dev/bench/data.js > target/bench-trend/history.js || true
+            echo "exists=true" >> "${GITHUB_OUTPUT}"
+          else
+            # First run: an empty local gh-pages branch for the action to
+            # commit into; its push creates the remote branch.
+            echo "no gh-pages branch yet: no baseline"
+            git switch --orphan gh-pages
+            git -c user.name=github-actions -c user.email=github-actions@github.com \
+              commit --allow-empty -m "chore: start gh-pages for the bench trend"
+            git switch --detach -
+            echo "exists=false" >> "${GITHUB_OUTPUT}"
+          fi
+      - name: Bench trend
+        id: trend
+        run: cargo xtask bench-trend --rounds 10 --history target/bench-trend/history.js
+      - name: Publish to gh-pages
+        if: always() && hashFiles('target/bench-trend/output.json') != ''
+        uses: benchmark-action/github-action-benchmark@4322e5726e6334590d251fc4f92bec0efafc45dc # v1.22.2
+        with:
+          name: benches (windows-2025)
+          tool: customSmallerIsBetter
+          output-file-path: target/bench-trend/output.json
+          gh-pages-branch: gh-pages
+          benchmark-data-dir-path: dev/bench
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          auto-push: ${{ github.event_name == 'schedule' }}
+          skip-fetch-gh-pages: ${{ steps.history.outputs.exists != 'true' }}
+          # The rolling-median alert is xtask's; the action's own alert
+          # (previous point only) stays off.
+          comment-on-alert: false
+          fail-on-alert: false
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: bench-trend
+          path: |
+            target/bench-trend/output.json
+            target/bench-trend/report.md
+          if-no-files-found: ignore
+
   report:
     name: report
     if: always() && github.event_name == 'schedule'
-    needs: [miri, fuzz, proptest-long, stress, beta, fresh-deps, mutants, mutants-core-linux]
+    needs: [miri, fuzz, proptest-long, stress, beta, fresh-deps, mutants, mutants-core-linux, bench-trend]
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
