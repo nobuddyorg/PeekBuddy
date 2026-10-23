@@ -204,22 +204,34 @@ pub fn measure(warmup: u64, iterations: u64, mut body: impl FnMut()) -> AllocDel
 /// returns `false` for a normal run. Without this nextest skips the binary.
 #[must_use]
 pub fn answer_nextest_list(name: &str) -> bool {
-    let mut args = std::env::args();
-    let listing = args.any(|arg| arg == "--list");
-    if !listing {
-        return false;
+    let args: Vec<String> = std::env::args().collect();
+    match list_reply(&args, name) {
+        None => false,
+        Some(reply) => {
+            let _ = std::io::Write::write_all(&mut std::io::stdout(), reply.as_bytes());
+            true
+        }
     }
-    if !std::env::args().any(|arg| arg == "--ignored") {
-        let mut out = std::io::stdout();
-        let _ = std::io::Write::write_all(&mut out, name.as_bytes());
-        let _ = std::io::Write::write_all(&mut out, b": test\n");
+}
+
+/// What a `harness = false` binary prints for `args`: `None` for a normal
+/// run, the terse test list for `--list` (empty with `--ignored`, as the
+/// binary has no ignored tests).
+fn list_reply(args: &[String], name: &str) -> Option<String> {
+    let has = |flag: &str| args.iter().any(|arg| arg == flag);
+    if !has("--list") {
+        return None;
     }
-    true
+    if has("--ignored") {
+        Some(String::new())
+    } else {
+        Some(format!("{name}: test\n"))
+    }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{AllocScope, CountingAlloc, measure, stats};
+    use super::{AllocScope, CountingAlloc, answer_nextest_list, list_reply, measure, stats};
     use std::alloc::{GlobalAlloc, Layout, System};
 
     // Not installed as the global allocator: these tests call it directly,
@@ -289,6 +301,27 @@ mod tests {
         assert_eq!(runs, 8);
         assert_eq!(delta.allocs, 5);
         assert_eq!(delta.bytes, 40);
+    }
+
+    #[test]
+    fn nextest_listing_names_the_one_test() {
+        let args = |list: &[&str]| list.iter().map(ToString::to_string).collect::<Vec<_>>();
+        assert_eq!(list_reply(&args(&["bin"]), "t"), None);
+        assert_eq!(list_reply(&args(&["bin", "--exact", "t"]), "t"), None);
+        assert_eq!(
+            list_reply(&args(&["bin", "--list", "--format", "terse"]), "t"),
+            Some("t: test\n".to_owned())
+        );
+        assert_eq!(
+            list_reply(&args(&["bin", "--list", "--ignored"]), "t"),
+            Some(String::new())
+        );
+    }
+
+    #[test]
+    fn a_test_run_is_not_a_listing() {
+        // Test bodies run without `--list` under both libtest and nextest.
+        assert!(!answer_nextest_list("t"));
     }
 
     #[test]
