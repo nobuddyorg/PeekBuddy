@@ -120,6 +120,27 @@ Milestones (each recorded in the in-process table read by `--perf-probe`
 `SinceProcessCreateUs` is computed in-process from `GetProcessTimes`
 creation time. ETW is diagnostics only: it can drop events under pressure.
 
+Process metrics (`peekbuddy_win::metrics`, #24) take any process handle
+opened with `PROCESS_QUERY_LIMITED_INFORMATION`, so the harness samples the
+engine from outside without waking it:
+
+| Field | API | Note |
+| --- | --- | --- |
+| `private_bytes` | `K32GetProcessMemoryInfo` (`PROCESS_MEMORY_COUNTERS_EX.PrivateUsage`) | commit charge; never mixed with the working set |
+| `working_set`, `peak_working_set` | same | include shared pages |
+| `page_faults` | same | soft and hard |
+| `creation`, `kernel`, `user` | `GetProcessTimes` | 100 ns ticks |
+| cycles | `QueryProcessCycleTime` | same machine and frequency state only |
+| handles | `GetProcessHandleCount` | `engine.handles.stable` |
+| GDI / USER objects | `GetGuiResources` | |
+| I/O bytes and operations | `GetProcessIoCounters` | `engine.startup.disk_read` |
+| context switches | `NtQuerySystemInformation(SystemProcessInformation)`, summed over the process's threads | buffer reused, 0 allocations per sample (`alloc_perf`); `None` when unavailable |
+| architecture | `IsWow64Process2` + build target | emulated processes give meaningless numbers |
+
+Context switches stand in for wakes (`engine.idle.wakes`): every wake is at
+least one switch-in, so the count is an upper bound on wakes. PDH is banned
+(`cargo xtask check-deps`).
+
 Recording a trace: `wpr -start perf\peekbuddy.wprp!PeekBuddy.Light -filemode`,
 run PeekBuddy, `wpr -stop out.etl`, open in WPA.
 `wpr -start perf\peekbuddy.wprp!PeekBuddyStartup -filemode` adds disk I/O,

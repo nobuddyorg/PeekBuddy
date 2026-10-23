@@ -18,7 +18,7 @@ commands:
   budgets        check (or --write) the PERFORMANCE.md table against perf/budgets.toml
   check          the local loop: fmt, prek, Linux tests, Windows clippy
   check-unsafe   every crate forbids unsafe code except the allow-list
-  check-deps     engine crates do not depend on GPU or UI crates
+  check-deps     engine crates have no GPU or UI crates; nothing uses PDH
   check-release  no Tracy in the release feature set [--features f] [--exe path]
   dist-extras    third-party licences and CycloneDX SBOM for the release
   profile        --tracy [--alloc] [--role engine|viewer]: Tracy profiling build";
