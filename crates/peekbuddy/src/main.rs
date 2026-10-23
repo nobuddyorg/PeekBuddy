@@ -23,20 +23,24 @@ fn role_from_args(args: impl IntoIterator<Item = String>) -> Role {
     }
 }
 
-fn main() -> ExitCode {
-    let role = role_from_args(std::env::args());
+/// Runs `role` to completion; in profiling builds inside one Tracy zone.
+fn run(role: &Role) {
     #[cfg(feature = "profile-tracy")]
-    let _zone = tracy::start(&role);
+    let _zone = tracy::start(role);
     match role {
         Role::Engine => peekbuddy_engine::run(),
         Role::Viewer => peekbuddy_viewer::run(),
     }
+}
+
+fn main() -> ExitCode {
+    run(&role_from_args(std::env::args()));
     ExitCode::SUCCESS
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{Role, role_from_args};
+    use super::{Role, role_from_args, run};
 
     fn args(list: &[&str]) -> Vec<String> {
         list.iter().map(ToString::to_string).collect()
@@ -53,5 +57,13 @@ mod tests {
             role_from_args(args(&["peekbuddy.exe", "--viewer"])),
             Role::Viewer
         );
+    }
+
+    #[test]
+    fn both_roles_run_to_completion() {
+        run(&Role::Engine);
+        run(&Role::Viewer);
+        #[cfg(feature = "profile-tracy")]
+        assert!(tracy_client::Client::is_running());
     }
 }
