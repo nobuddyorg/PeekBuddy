@@ -12,4 +12,14 @@ examine_re = [
 ]
 # UI glue, the tray message pump and logging are tested by e2e and UI
 # tests (#71), not by unit tests that can catch mutants.
-exclude_re = ["tray", "message_loop", "logging", "crates/peekbuddy-viewer/"]
+exclude_re = [
+  "tray",
+  "message_loop",
+  "logging",
+  "crates/peekbuddy-viewer/",
+  # Equivalent mutants: Win32 access masks are disjoint bit flags, so `^`
+  # and `|` give the same value.
+  "crates/peekbuddy-win/src/process.rs:.*replace \\| with \\^",
+  # Equivalent mutant: high and low FILETIME halves do not overlap.
+  "crates/peekbuddy-win/src/perf/clock.rs:.*replace \\| with \\^ in ticks",
+]

@@ -5,7 +5,7 @@
 //!   deletion with backoff, because an open handle blocks deletion on Windows.
 //! - [`snapshot_filters`]: insta filters that make snapshots authored on
 //!   Linux pass on Windows.
-//! - `assert_interactive_session` (Windows only).
+//! - `run_unelevated` and `assert_interactive_session` (Windows only).
 #![forbid(unsafe_code)]
 
 use std::io;
@@ -156,6 +156,18 @@ pub fn snapshot_filters() -> Vec<(&'static str, &'static str)> {
             "[timestamp]",
         ),
     ]
+}
+
+/// Runs `command_line` as an unelevated child (Administrators deny-only,
+/// Medium integrity, no console) and returns its exit code (F12: hosted
+/// runners run elevated).
+///
+/// # Errors
+///
+/// Returns the OS error when the child cannot be started.
+#[cfg(windows)]
+pub fn run_unelevated(command_line: &str) -> io::Result<u32> {
+    peekbuddy_win::process::run_restricted(command_line)
 }
 
 /// Panics unless the test runs in an interactive session (not session 0).
