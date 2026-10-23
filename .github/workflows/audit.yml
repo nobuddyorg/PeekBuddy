@@ -1,0 +1,58 @@
+# Daily RustSec audit (#12). Off the PR path: a new advisory opens or
+# updates one tracking issue instead of blocking unrelated PRs.
+name: audit
+
+on:
+  schedule:
+    - cron: "17 5 * * *"
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: audit
+  cancel-in-progress: false
+
+jobs:
+  audit:
+    name: cargo audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      issues: write # open or update the advisory tracking issue
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: taiki-e/install-action@a4d3f3f761dcd95cce1b72cb61cb6d1963438177 # v2.87.30
+        with:
+          tool: cargo-audit@0.22.2
+      - name: Audit Cargo.lock
+        id: audit
+        run: |
+          set +e
+          cargo audit --deny warnings > "${RUNNER_TEMP}/audit.txt" 2>&1
+          code=$?
+          set -e
+          cat "${RUNNER_TEMP}/audit.txt"
+          echo "code=${code}" >> "${GITHUB_OUTPUT}"
+      - name: Open or update the tracking issue
+        if: steps.audit.outputs.code != '0'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          title="cargo audit: open RustSec advisories"
+          body="$(printf 'The daily audit found advisories (run: %s).\n\n```text\n%s\n```\n' "${RUN_URL}" "$(tail -c 60000 "${RUNNER_TEMP}/audit.txt")")"
+          gh label create security --repo "${REPO}" --color B60205 --description "Security findings" 2>/dev/null || true
+          number="$(gh issue list --repo "${REPO}" --label security --state open --search "in:title \"${title}\"" --json number --jq '.[0].number')"
+          if [ -n "${number}" ]; then
+            gh issue edit "${number}" --repo "${REPO}" --body "${body}"
+          else
+            gh issue create --repo "${REPO}" --title "${title}" --label security --body "${body}"
+          fi
+      - name: Fail on findings
+        if: steps.audit.outputs.code != '0'
+        run: exit 1

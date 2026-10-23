@@ -47,6 +47,19 @@ jobs:
           # The PR's own commits; HEAD is GitHub's synthetic merge commit.
           committed "${BASE_SHA}..${HEAD_SHA}"
 
+  deny:
+    name: cargo-deny
+    needs: prek
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: EmbarkStudios/cargo-deny-action@c3bbe7e4e3f7baeee1a3dd9aec0a3b2aded580fb # v2.1.1
+        with:
+          command: check bans licenses sources
+
   core-linux:
     name: core (linux)
     needs: prek
@@ -157,7 +170,7 @@ jobs:
   ci-ok:
     name: ci-ok
     if: always()
-    needs: [prek, core-linux, lint, test-x64]
+    needs: [prek, deny, core-linux, lint, test-x64]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
