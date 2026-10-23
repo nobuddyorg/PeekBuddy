@@ -60,6 +60,9 @@ fn noise_baseline() {
 }
 
 fn main() {
+    if std::env::args().any(|arg| arg == "--exit7") {
+        std::process::exit(7);
+    }
     #[cfg(windows)]
     win::run();
     #[cfg(not(windows))]
@@ -381,32 +384,65 @@ mod win {
         unsafe { CloseHandle(token) };
     }
 
+    /// One experiment: which token change makes the child fail to start?
+    struct Variant {
+        name: &'static str,
+        flags: CREATE_RESTRICTED_TOKEN_FLAGS,
+        admins_deny_only: bool,
+        medium_il: bool,
+        /// None: inherit; Some(""): new non-interactive window station.
+        desktop: Option<&'static str>,
+        creation: PROCESS_CREATION_FLAGS,
+        /// true: run this probe exe (Rust, no user32) instead of cmd.exe.
+        self_exe: bool,
+    }
+
     fn restricted_child() {
-        for (name, flags, desktop) in [
-            ("token.restricted_child.max_priv", DISABLE_MAX_PRIVILEGE, false),
-            ("token.restricted_child.lua", DISABLE_MAX_PRIVILEGE | LUA_TOKEN, false),
-            ("token.restricted_child.lua_desktop", DISABLE_MAX_PRIVILEGE | LUA_TOKEN, true),
-        ] {
-            restricted_child_variant(name, flags, desktop);
+        let base = Variant {
+            name: "",
+            flags: DISABLE_MAX_PRIVILEGE,
+            admins_deny_only: false,
+            medium_il: false,
+            desktop: None,
+            creation: CREATE_NO_WINDOW,
+            self_exe: false,
+        };
+        let variants = [
+            Variant { name: "token.child.max_priv", ..base },
+            Variant { name: "token.child.lua", flags: DISABLE_MAX_PRIVILEGE | LUA_TOKEN, ..base },
+            Variant { name: "token.child.admins_deny", admins_deny_only: true, ..base },
+            Variant { name: "token.child.medium", medium_il: true, ..base },
+            Variant { name: "token.child.medium_self", medium_il: true, self_exe: true, ..base },
+            Variant { name: "token.child.deny_medium", admins_deny_only: true, medium_il: true, ..base },
+            Variant { name: "token.child.deny_medium_self", admins_deny_only: true, medium_il: true, self_exe: true, ..base },
+            Variant { name: "token.child.deny_medium_emptydesk", admins_deny_only: true, medium_il: true, desktop: Some(""), ..base },
+            Variant { name: "token.child.deny_medium_detached", admins_deny_only: true, medium_il: true, creation: DETACHED_PROCESS, ..base },
+            Variant { name: "token.child.deny_medium_detached_self", admins_deny_only: true, medium_il: true, creation: DETACHED_PROCESS, self_exe: true, ..base },
+            Variant { name: "token.child.medium_emptydesk_self", medium_il: true, desktop: Some(""), self_exe: true, ..base },
+        ];
+        for variant in &variants {
+            restricted_child_variant(variant);
         }
     }
 
-    fn restricted_child_variant(check: &str, flags: CREATE_RESTRICTED_TOKEN_FLAGS, desktop: bool) {
+    fn well_known_sid(kind: WELL_KNOWN_SID_TYPE) -> [u32; 17] {
+        let mut sid = [0u32; 17];
+        let mut size = 68u32;
+        // SAFETY: 68-byte buffer, size says so; null domain allowed.
+        unsafe { CreateWellKnownSid(kind, null_mut(), sid.as_mut_ptr().cast(), &mut size) };
+        sid
+    }
+
+    fn restricted_child_variant(v: &Variant) {
+        let check = v.name;
         let token = process_token();
+        let mut admins = well_known_sid(WinBuiltinAdministratorsSid);
+        let disable = [SID_AND_ATTRIBUTES { Sid: admins.as_mut_ptr().cast(), Attributes: 0 }];
+        let (count, list) = if v.admins_deny_only { (1, disable.as_ptr()) } else { (0, null()) };
         let mut restricted: HANDLE = null_mut();
-        // SAFETY: valid token; no SID lists.
+        // SAFETY: valid token; SID list valid for the call.
         let ok = unsafe {
-            CreateRestrictedToken(
-                token,
-                flags,
-                0,
-                null(),
-                0,
-                null(),
-                0,
-                null(),
-                &mut restricted,
-            )
+            CreateRestrictedToken(token, v.flags, count, list, 0, null(), 0, null(), &mut restricted)
         } != 0;
         if !ok {
             // SAFETY: plain call.
@@ -414,30 +450,47 @@ mod win {
             emit(check, false, &format!("CreateRestrictedToken: {err}"));
             return;
         }
-        let mut cmd = wide("cmd.exe /c exit 7");
+        if v.medium_il {
+            let mut medium = well_known_sid(WinMediumLabelSid);
+            let label = TOKEN_MANDATORY_LABEL {
+                Label: SID_AND_ATTRIBUTES { Sid: medium.as_mut_ptr().cast(), Attributes: 0x20 },
+            };
+            // SAFETY: label points to a valid SID.
+            let ok = unsafe {
+                SetTokenInformation(
+                    restricted,
+                    TokenIntegrityLevel,
+                    (&raw const label).cast(),
+                    (size_of::<TOKEN_MANDATORY_LABEL>() + 12) as u32,
+                )
+            } != 0;
+            if !ok {
+                // SAFETY: plain call.
+                let err = unsafe { GetLastError() };
+                emit(check, false, &format!("SetTokenInformation: {err}"));
+                return;
+            }
+        }
+        let line = if v.self_exe {
+            let exe = std::env::current_exe().map(|p| p.display().to_string()).unwrap_or_default();
+            format!("\"{exe}\" --exit7")
+        } else {
+            "cmd.exe /c exit 7".to_owned()
+        };
+        let mut cmd = wide(&line);
         // SAFETY: STARTUPINFOW / PROCESS_INFORMATION are plain data.
         let mut si: STARTUPINFOW = unsafe { std::mem::zeroed() };
         si.cb = size_of::<STARTUPINFOW>() as u32;
-        let mut winsta_desktop = wide("winsta0\\default");
-        if desktop {
-            si.lpDesktop = winsta_desktop.as_mut_ptr();
+        let mut desk = wide(v.desktop.unwrap_or(""));
+        if v.desktop.is_some() {
+            si.lpDesktop = desk.as_mut_ptr();
         }
         // SAFETY: as above.
         let mut pi: PROCESS_INFORMATION = unsafe { std::mem::zeroed() };
         // SAFETY: restricted is a primary token derived from ours; cmd is mutable and NUL-terminated.
         let started = unsafe {
             CreateProcessAsUserW(
-                restricted,
-                null(),
-                cmd.as_mut_ptr(),
-                null(),
-                null(),
-                0,
-                CREATE_NO_WINDOW,
-                null(),
-                null(),
-                &si,
-                &mut pi,
+                restricted, null(), cmd.as_mut_ptr(), null(), null(), 0, v.creation, null(), null(), &si, &mut pi,
             )
         } != 0;
         if !started {
