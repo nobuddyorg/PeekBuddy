@@ -128,6 +128,20 @@ fn volume_kinds(#[case] fs: &str) { /* ... */ }
 - Dev-dependency versions live in `[workspace.dependencies]`: proptest 1.12.0,
   proptest-state-machine 0.9.0, insta 1.49.0, rstest 0.28.0.
 
+## Coverage
+
+CI measures coverage on Windows x64 with cargo-llvm-cov 0.9.1 and uploads it
+to Codecov (patch target 80 %; `codecov.yml`). arm64 is not measured
+(malformed `.profraw` files, rust-lang/rust#150123). Locally:
+
+```sh
+cargo install --locked cargo-llvm-cov@0.9.1
+cargo llvm-cov nextest --open
+```
+
+On Linux this covers only code that builds there; `cfg(windows)` code is
+measured in CI.
+
 ## Flake policy
 
 Flakes are bugs. No retries outside the `e2e` group. A flaky test gets an

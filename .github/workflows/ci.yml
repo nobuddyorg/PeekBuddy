@@ -135,6 +135,35 @@ jobs:
           path: target/nextest/ci/junit.xml
           if-no-files-found: warn
 
+  coverage:
+    # Not in ci-ok: the Codecov patch status reports separately (#14).
+    name: coverage (windows x64)
+    needs: prek
+    runs-on: windows-2025
+    timeout-minutes: 40
+    permissions:
+      contents: read
+      id-token: write # Codecov OIDC upload
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Rust toolchain
+        run: rustup toolchain install && rustup show
+      - uses: Swatinem/rust-cache@2201cc584a476d1b508be977bbe4b7d1c7a52e9c # v2.9.3
+        with:
+          shared-key: coverage-x64
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      - uses: taiki-e/install-action@a4d3f3f761dcd95cce1b72cb61cb6d1963438177 # v2.87.30
+        with:
+          tool: cargo-nextest@0.9.149,cargo-llvm-cov@0.9.1
+      - run: cargo llvm-cov nextest --workspace --all-features --locked --profile ci --no-tests=pass --lcov --output-path lcov.info
+      - uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
+        with:
+          files: lcov.info
+          use_oidc: true
+          fail_ci_if_error: true
+
   test-arm64:
     # Advisory until promoted (#11): not in ci-ok's needs.
     name: test (windows arm64) (advisory)
