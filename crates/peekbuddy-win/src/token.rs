@@ -4,10 +4,12 @@ use std::os::windows::io::{AsRawHandle as _, FromRawHandle as _, OwnedHandle};
 
 use windows_sys::Win32::Foundation::HANDLE;
 use windows_sys::Win32::Security::{
-    GetSidSubAuthority, GetSidSubAuthorityCount, GetTokenInformation, TOKEN_MANDATORY_LABEL,
-    TOKEN_QUERY, TokenIntegrityLevel,
+    CheckTokenMembership, GetSidSubAuthority, GetSidSubAuthorityCount, GetTokenInformation,
+    TOKEN_MANDATORY_LABEL, TOKEN_QUERY, TokenIntegrityLevel, WinBuiltinAdministratorsSid,
 };
 use windows_sys::Win32::System::Threading::{GetCurrentProcess, OpenProcessToken};
+
+use crate::sid::Sid;
 
 /// `SECURITY_MANDATORY_MEDIUM_RID`.
 pub const MEDIUM_INTEGRITY: u32 = 0x2000;
@@ -63,4 +65,21 @@ pub fn integrity_rid() -> std::io::Result<u32> {
     let rid_ptr = unsafe { GetSidSubAuthority(sid, last) };
     // SAFETY: GetSidSubAuthority returns a pointer into the valid SID.
     Ok(unsafe { *rid_ptr })
+}
+
+/// Returns whether the current process acts as a member of
+/// `BUILTIN\Administrators` (false when the group is deny-only).
+///
+/// # Errors
+///
+/// Returns the OS error when membership cannot be checked.
+pub fn is_admin() -> std::io::Result<bool> {
+    let mut admins = Sid::well_known(WinBuiltinAdministratorsSid)?;
+    let mut member = 0;
+    // SAFETY: a null token means the calling thread's effective token; the SID
+    // is valid; `member` is a valid out pointer.
+    check(unsafe {
+        CheckTokenMembership(std::ptr::null_mut(), admins.as_psid(), &raw mut member)
+    })?;
+    Ok(member != 0)
 }

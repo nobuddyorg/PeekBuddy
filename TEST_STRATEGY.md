@@ -71,10 +71,12 @@ A dev-only crate:
   left behind. Only for `fs-serial` tests.
 - `snapshot_filters()`: insta filters for backslashes, drive letters, CRLF and
   timestamps, so snapshots authored on Linux pass on Windows.
-- Unelevated children: hosted runners are elevated (F12), and starting a
-  child with a lowered token currently fails with `STATUS_DLL_INIT_FAILED`.
-  The runner probe (#34) is measuring which variant works; the helper returns
-  once one does.
+- `run_unelevated(cmd)` (Windows): runs a child with Administrators
+  deny-only, Medium integrity and no console (`DETACHED_PROCESS`; with a
+  console such a child dies with `STATUS_DLL_INIT_FAILED`, #34). Hosted
+  runners are elevated (F12), so unelevated behaviour is only testable this
+  way. The child reports through its exit code; a test can re-run its own
+  binary as the child with `<exe> <ignored test> --exact --ignored`.
 - `assert_interactive_session()` (Windows): fails unless the test runs in an
   interactive session (tray and window tests).
 
