@@ -156,6 +156,7 @@ jobs:
       - name: Record the smoke example with the PeekBuddy.Light profile
         shell: pwsh
         run: |
+          wpr -profiles 'perf\peekbuddy.wprp'
           wpr -start 'perf\peekbuddy.wprp!PeekBuddy.Light' -filemode
           if ($LASTEXITCODE -ne 0) { throw "wpr -start failed: $LASTEXITCODE" }
           ./target/debug/examples/etw_smoke.exe

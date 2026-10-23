@@ -2,7 +2,10 @@
 <!--
   WPR profiles for PeekBuddy (#21).
     wpr -start perf\peekbuddy.wprp!PeekBuddy.Light -filemode
+    wpr -start perf\peekbuddy.wprp!PeekBuddyStartup -filemode
     wpr -stop out.etl
+  WPR reads "Name.DetailLevel": PeekBuddy.Light is profile PeekBuddy at
+  detail level Light; PeekBuddyStartup uses the default level, Verbose.
   Provider NoBuddy-PeekBuddy = {69eb5350-8420-5c03-5c05-1a6dafc0df73}.
 -->
 <WindowsPerformanceRecorder Version="1.0" Author="PeekBuddy" Comments="PeekBuddy milestones, counters, CPU and I/O">
@@ -35,7 +38,7 @@
 
     <EventProvider Id="PB_Provider" Name="69eb5350-8420-5c03-5c05-1a6dafc0df73" Level="5"/>
 
-    <Profile Id="PeekBuddy.Light.Light.File" Name="PeekBuddy.Light" Description="PeekBuddy provider, CPU sampling, context switches" LoggingMode="File" DetailLevel="Light">
+    <Profile Id="PeekBuddy.Light.File" Name="PeekBuddy" Description="PeekBuddy provider, CPU sampling, context switches" LoggingMode="File" DetailLevel="Light">
       <Collectors>
         <SystemCollectorId Value="PB_SystemCollector">
           <SystemProviderId Value="PB_SystemLight"/>
@@ -48,7 +51,7 @@
       </Collectors>
     </Profile>
 
-    <Profile Id="PeekBuddy.Startup.Light.File" Name="PeekBuddy.Startup" Description="PeekBuddy.Light plus disk I/O, file I/O and hard faults" LoggingMode="File" DetailLevel="Light">
+    <Profile Id="PeekBuddyStartup.Verbose.File" Name="PeekBuddyStartup" Description="PeekBuddy.Light plus disk I/O, file I/O and hard faults" LoggingMode="File" DetailLevel="Verbose">
       <Collectors>
         <SystemCollectorId Value="PB_SystemCollector">
           <SystemProviderId Value="PB_SystemStartup"/>

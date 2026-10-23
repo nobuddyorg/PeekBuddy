@@ -121,8 +121,10 @@ Milestones (each recorded in the in-process table read by `--perf-probe`
 creation time. ETW is diagnostics only: it can drop events under pressure.
 
 Recording a trace: `wpr -start perf\peekbuddy.wprp!PeekBuddy.Light -filemode`,
-run PeekBuddy, `wpr -stop out.etl`, open in WPA. `PeekBuddy.Startup` adds
-disk I/O, file I/O and hard faults. CI records the `etw_smoke` example on every
+run PeekBuddy, `wpr -stop out.etl`, open in WPA.
+`wpr -start perf\peekbuddy.wprp!PeekBuddyStartup -filemode` adds disk I/O,
+file I/O and hard faults. (WPR reads `Name.DetailLevel`, so the startup
+profile cannot be called `PeekBuddy.Startup`.) CI records the `etw_smoke` example on every
 PR (job `etw smoke (windows x64)`) and uploads the ETL.
 
 ## Runner assumptions
