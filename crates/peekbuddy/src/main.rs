@@ -5,6 +5,9 @@
 
 use std::process::ExitCode;
 
+#[cfg(feature = "profile-tracy")]
+mod tracy;
+
 /// The role this process runs.
 #[derive(Debug, PartialEq, Eq)]
 enum Role {
@@ -21,7 +24,10 @@ fn role_from_args(args: impl IntoIterator<Item = String>) -> Role {
 }
 
 fn main() -> ExitCode {
-    match role_from_args(std::env::args()) {
+    let role = role_from_args(std::env::args());
+    #[cfg(feature = "profile-tracy")]
+    let _zone = tracy::start(&role);
+    match role {
         Role::Engine => peekbuddy_engine::run(),
         Role::Viewer => peekbuddy_viewer::run(),
     }

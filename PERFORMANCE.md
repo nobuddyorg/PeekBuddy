@@ -127,6 +127,43 @@ file I/O and hard faults. (WPR reads `Name.DetailLevel`, so the startup
 profile cannot be called `PeekBuddy.Startup`.) CI records the `etw_smoke` example on every
 PR (job `etw smoke (windows x64)`) and uploads the ETL.
 
+## Profiling with Tracy
+
+Developer-only build (#22); no Tracy code ever ships.
+
+```sh
+cargo xtask profile --tracy [--alloc] [--role engine|viewer]
+```
+
+| | |
+| --- | --- |
+| Profile | `[profile.profiling]`: `inherits = "release"`, `debug = "line-tables-only"` (set `"full"` for variables), `strip = "none"`, PDB next to the exe |
+| Feature `profile-tracy` | `tracing` spans become Tracy zones; the role's whole run is one zone (`engine` or `viewer`) |
+| Feature `profile-tracy-alloc` | adds `ProfiledAllocator` (call-stack depth 8) around the counting allocator (#23) |
+| Versions | `tracing-tracy` 0.12.0, `tracy-client` 0.19.0, `tracy-client-sys` 0.30.1, Tracy GUI **0.14.1**; pinned exactly, bumped together by hand |
+| Client features | `enable`, `ondemand`, `only-localhost`, `sampling`, `context-switch-tracing`; the defaults `broadcast`, `code-transfer` and `crash-handler` stay off |
+
+`ondemand`: nothing is buffered until a viewer connects (without it the
+client keeps every event in RAM). `only-localhost`: no LAN broadcast, no
+remote listener. Call-stack sampling and context-switch capture need an
+elevated process; zones and plots do not. Overhead, not gated: about 2.25 ns
+per zone; a call stack costs about 98 ns at depth 1 and 1.37 us at depth 60.
+
+Guards:
+
+- `cargo xtask check-release` fails when the release feature set pulls in
+  `tracy-client-sys` (`cargo xtask check` and `test (windows x64)`), and with
+  `--exe` when the release exe contains `___tracy` or `Tracy` (`test
+  (windows x64)` scans `target/release/peekbuddy.exe`).
+- `profiling.yml` builds the profiling exe on `windows-2025` and
+  `windows-11-vs2026-arm` weekly and on PRs that touch it, runs both roles
+  and checks that both guards reject that build.
+
+The `profiling` crate (issue text: 1.0.18 with `profile-with-tracy`) is not
+used: 1.0.18 depends on `tracy-client` 0.18.5 / `tracy-client-sys` 0.29.0
+(the Tracy 0.14.0 protocol), which would link a second, incompatible client.
+Library code annotates with `tracing` spans instead.
+
 ## Runner assumptions
 
 The repository is public (#4): hosted Windows runners have 4 vCPU and 16 GB.

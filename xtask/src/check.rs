@@ -100,24 +100,45 @@ pub fn plan(host: Host) -> Vec<Step> {
     ));
     steps.push(Step::new("check-deps", "cargo", &["xtask", "check-deps"]));
     steps.push(Step::new(
+        "check-release",
+        "cargo",
+        &["xtask", "check-release"],
+    ));
+    steps.push(Step::new(
         "budgets",
         "cargo",
         &["xtask", "budgets", "--check"],
     ));
+    // Features that compile C code for the target (Tracy, #22) need an MSVC
+    // toolchain, so plain `cargo clippy --target` checks the default
+    // features and a host run covers all features. CI lint runs
+    // `--all-features` on Windows.
+    if !host.xwin {
+        steps.push(
+            Step::new(
+                "clippy (host, all features)",
+                "cargo",
+                &[
+                    "clippy",
+                    "--workspace",
+                    "--all-targets",
+                    "--all-features",
+                    "--locked",
+                ],
+            )
+            .with_env("CARGO_BUILD_WARNINGS", "deny"),
+        );
+    }
     for target in WINDOWS_TARGETS {
         let mut args = Vec::new();
         if host.xwin {
             args.push("xwin");
         }
-        args.extend([
-            "clippy",
-            "--workspace",
-            "--all-targets",
-            "--all-features",
-            "--locked",
-            "--target",
-            target,
-        ]);
+        args.extend(["clippy", "--workspace", "--all-targets"]);
+        if host.xwin {
+            args.push("--all-features");
+        }
+        args.extend(["--locked", "--target", target]);
         steps.push(
             Step::new(&format!("clippy ({target})"), "cargo", &args)
                 .with_env("CARGO_BUILD_WARNINGS", "deny"),
@@ -209,6 +230,29 @@ mod tests {
             .collect();
         assert_eq!(clippy.len(), 2);
         assert!(clippy.iter().all(|step| step.args[0] == "xwin"));
+        assert!(
+            clippy
+                .iter()
+                .all(|step| step.args.iter().any(|arg| arg == "--all-features"))
+        );
+    }
+
+    #[test]
+    fn without_xwin_all_features_are_checked_on_the_host() {
+        let steps = plan(Host::default());
+        let host = steps
+            .iter()
+            .find(|step| step.name == "clippy (host, all features)")
+            .unwrap();
+        assert!(host.args.iter().any(|arg| arg == "--all-features"));
+        assert!(!host.args.iter().any(|arg| arg == "--target"));
+        for target in WINDOWS_TARGETS {
+            let step = steps
+                .iter()
+                .find(|step| step.args.iter().any(|arg| arg == target))
+                .unwrap();
+            assert!(!step.args.iter().any(|arg| arg == "--all-features"));
+        }
     }
 
     #[test]

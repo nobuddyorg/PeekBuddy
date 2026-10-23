@@ -1,0 +1,68 @@
+# Tracy profiling build (#22): weekly compile check so it does not rot, and
+# on PRs that touch it. Never produces a release artifact.
+name: profiling
+
+on:
+  schedule:
+    - cron: "17 4 * * 1"
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - .github/workflows/profiling.yml
+      - Cargo.lock
+      - Cargo.toml
+      - crates/peekbuddy/**
+      - xtask/src/tracy.rs
+
+permissions:
+  contents: read
+
+concurrency:
+  group: profiling-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_BUILD_WARNINGS: deny
+
+jobs:
+  build:
+    name: tracy build (${{ matrix.label }})
+    runs-on: ${{ matrix.label }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        label: [windows-2025, windows-11-vs2026-arm]
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Rust toolchain
+        run: rustup toolchain install && rustup show
+      - uses: Swatinem/rust-cache@2201cc584a476d1b508be977bbe4b7d1c7a52e9c # v2.9.3
+        with:
+          shared-key: profiling-${{ matrix.label }}
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      - name: Build the profiling profile with Tracy and allocation tracking
+        run: cargo xtask profile --tracy --alloc
+      - name: PDB is next to the exe
+        run: |
+          Get-Item target/profiling/peekbuddy.exe, target/profiling/peekbuddy.pdb |
+            Format-Table Name, Length
+      - name: Both roles start and exit
+        run: |
+          target/profiling/peekbuddy.exe
+          if ($LASTEXITCODE -ne 0) { throw "engine exit code $LASTEXITCODE" }
+          target/profiling/peekbuddy.exe --viewer
+          if ($LASTEXITCODE -ne 0) { throw "viewer exit code $LASTEXITCODE" }
+      - name: The release guard rejects this build (positive control)
+        run: |
+          cargo xtask check-release --features profile-tracy
+          if ($LASTEXITCODE -eq 0) { throw 'dependency check passed a Tracy build' }
+          cargo xtask check-release --exe target/profiling/peekbuddy.exe
+          if ($LASTEXITCODE -eq 0) { throw 'string scan passed a Tracy build' }
+          $global:LASTEXITCODE = 0
