@@ -57,3 +57,8 @@ todo = "deny"
 undocumented_unsafe_blocks = "deny"
 unimplemented = "deny"
 unwrap_used = "deny"
+
+# cargo-mutants builds (#15): no debug info to cut build time.
+[profile.mutants]
+inherits = "test"
+debug = "none"
