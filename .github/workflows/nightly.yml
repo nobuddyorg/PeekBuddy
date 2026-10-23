@@ -110,7 +110,7 @@ jobs:
       - uses: taiki-e/install-action@a4d3f3f761dcd95cce1b72cb61cb6d1963438177 # v2.87.30
         with:
           tool: cargo-nextest@0.9.149
-      - run: cargo nextest run --workspace --profile ci --locked --no-tests=pass -E 'test-group(fs-serial)' --stress-duration 30m
+      - run: cargo nextest run --workspace --profile ci --locked --no-tests=pass -E 'binary(/^fs_serial/)' --stress-duration 30m
 
   beta:
     name: beta canary
@@ -127,7 +127,10 @@ jobs:
       - name: Beta toolchain
         run: rustup toolchain install beta --profile minimal --component clippy
       - run: cargo +beta clippy --workspace --all-targets --all-features --locked
-      - run: cargo +beta test --workspace --locked
+      - uses: taiki-e/install-action@a4d3f3f761dcd95cce1b72cb61cb6d1963438177 # v2.87.30
+        with:
+          tool: cargo-nextest@0.9.149
+      - run: cargo +beta nextest run --workspace --profile ci --locked --no-tests=pass
 
   fresh-deps:
     name: fresh dependencies
@@ -143,9 +146,13 @@ jobs:
           persist-credentials: false
       - name: Rust toolchain
         run: rustup toolchain install && rustup show
+      - uses: taiki-e/install-action@a4d3f3f761dcd95cce1b72cb61cb6d1963438177 # v2.87.30
+        with:
+          tool: cargo-nextest@0.9.149
       - run: cargo update
       - run: cargo build --workspace --all-targets
-      - run: cargo test --workspace
+      # nextest, not cargo test: the fs-serial group only exists under nextest.
+      - run: cargo nextest run --workspace --profile ci --no-tests=pass
 
   mutants:
     name: mutants (shard ${{ matrix.shard }}/8)
@@ -182,7 +189,7 @@ jobs:
           SHARD: ${{ matrix.shard }}
         run: |
           count() { [ -f "mutants.out/$1.txt" ] && wc -l < "mutants.out/$1.txt" || echo 0; }
-          skips="$(grep -rE 'mutants::skip' --include='*.rs' crates | wc -l)"
+          skips="$( (grep -rE 'mutants::skip' --include='*.rs' crates || true) | wc -l)"
           {
             echo "### mutants shard ${SHARD}/8"
             echo "| caught | missed | unviable | timeout | skip attributes |"

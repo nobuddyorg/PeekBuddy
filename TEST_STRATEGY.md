@@ -142,7 +142,9 @@ fn volume_kinds(#[case] fs: &str) { /* ... */ }
 - On Windows nextest kills timed-out tests immediately, without cleanup: tests
   must be idempotent and clean up stale state at the start.
 - Dev-dependency versions live in `[workspace.dependencies]`: proptest 1.12.0,
-  proptest-state-machine 0.9.0, insta 1.49.0, rstest 0.28.0.
+  proptest-state-machine 0.9.0, insta 1.49.0, rstest 0.28.0. Each is added
+  there with its first user, because Cargo 1.100 warns on unused workspace
+  dependencies.
 
 ## Coverage
 

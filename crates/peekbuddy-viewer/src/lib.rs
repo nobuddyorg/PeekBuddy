@@ -4,15 +4,12 @@
 /// Runs the viewer role until its window is closed.
 ///
 /// The window arrives with #65.
-#[must_use]
-pub fn run() -> std::process::ExitCode {
-    std::process::ExitCode::SUCCESS
-}
+pub fn run() {}
 
 #[cfg(test)]
 mod tests {
     #[test]
-    fn run_succeeds() {
-        assert_eq!(super::run(), std::process::ExitCode::SUCCESS);
+    fn run_returns() {
+        super::run();
     }
 }

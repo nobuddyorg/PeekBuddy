@@ -23,17 +23,14 @@ repository = "https://github.com/nobuddyorg/PeekBuddy"
 publish = false
 
 [workspace.dependencies]
-# Test-only (#13).
+# Test-only (#13). Cargo 1.100 warns on unused workspace dependencies, so
+# proptest 1.12.0, proptest-state-machine 0.9.0, rstest 0.28.0 and the
+# internal crates join here with their first user (versions in TEST_STRATEGY.md).
 insta = "1.49.0"
 peekbuddy-core = { path = "crates/peekbuddy-core" }
 peekbuddy-engine = { path = "crates/peekbuddy-engine" }
-peekbuddy-store = { path = "crates/peekbuddy-store" }
-peekbuddy-testkit = { path = "crates/peekbuddy-testkit" }
 peekbuddy-viewer = { path = "crates/peekbuddy-viewer" }
 peekbuddy-win = { path = "crates/peekbuddy-win" }
-proptest = "1.12.0"
-proptest-state-machine = "0.9.0"
-rstest = "0.28.0"
 # Exact pin: every bump is a reviewed PR (ADR 0010, F20).
 windows-sys = "=0.61.2"
 
