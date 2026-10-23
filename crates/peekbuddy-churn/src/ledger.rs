@@ -13,8 +13,8 @@ use crate::ops::{Expected, Op, OpKind, RawKind, WidePath};
 const HEX_PREFIX: &str = "utf16:";
 
 /// A UTF-16 path as ledger text: the string itself when it is valid
-/// Unicode, otherwise [`HEX_PREFIX`] and the units in hex. A valid path that
-/// happens to start with the prefix is hex-encoded too, so decoding is
+/// Unicode, otherwise `utf16:` and the units in hex. A valid path that
+/// happens to start with that prefix is hex-encoded too, so decoding is
 /// unambiguous.
 #[must_use]
 pub fn encode_path(path: &[u16]) -> String {
