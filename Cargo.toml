@@ -1,0 +1,50 @@
+[workspace]
+resolver = "3"
+members = [
+  "benches",
+  "crates/peekbuddy",
+  "crates/peekbuddy-core",
+  "crates/peekbuddy-engine",
+  "crates/peekbuddy-store",
+  "crates/peekbuddy-viewer",
+  "crates/peekbuddy-win",
+  "xtask",
+]
+
+[workspace.package]
+version = "0.0.0"
+edition = "2024"
+rust-version = "1.99.1"
+license = "MIT"
+repository = "https://github.com/nobuddyorg/PeekBuddy"
+publish = false
+
+[workspace.dependencies]
+peekbuddy-core = { path = "crates/peekbuddy-core" }
+peekbuddy-engine = { path = "crates/peekbuddy-engine" }
+peekbuddy-store = { path = "crates/peekbuddy-store" }
+peekbuddy-viewer = { path = "crates/peekbuddy-viewer" }
+peekbuddy-win = { path = "crates/peekbuddy-win" }
+# Exact pin: every bump is a reviewed PR (ADR 0010, F20).
+windows-sys = "=0.61.2"
+
+[workspace.lints.rust]
+missing_docs = "warn"
+rust_2018_idioms = { level = "warn", priority = -1 }
+unsafe_op_in_unsafe_fn = "deny"
+unused_qualifications = "warn"
+
+[workspace.lints.clippy]
+all = { level = "warn", priority = -1 }
+pedantic = { level = "warn", priority = -1 }
+allow_attributes = "deny"
+dbg_macro = "deny"
+expect_used = "deny"
+multiple_unsafe_ops_per_block = "deny"
+panic = "deny"
+print_stderr = "deny"
+print_stdout = "deny"
+todo = "deny"
+undocumented_unsafe_blocks = "deny"
+unimplemented = "deny"
+unwrap_used = "deny"
