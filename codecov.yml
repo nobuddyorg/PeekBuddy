@@ -1,0 +1,20 @@
+# Codecov (#14). Coverage is collected on Windows x64 only.
+coverage:
+  status:
+    patch:
+      default:
+        target: 80%
+    project:
+      default:
+        # Informational during the 4-week burn-in, then required with a
+        # 1% threshold (follow-up in #14).
+        informational: true
+        threshold: 1%
+ignore:
+  - "xtask/**"
+  - "benches/**"
+  - "fuzz/**"
+  - "spikes/**"
+  - "crates/peekbuddy-testkit/**"
+comment:
+  layout: "diff, flags, files"
