@@ -1,0 +1,10 @@
+{
+  // Linter rules only; this repo has no formatter opinion on markdown yet.
+  "config": {
+    "default": true,
+    "MD013": false, // line length
+    "MD033": false, // allow inline HTML (badges, details)
+    "MD041": false // first line need not be a heading
+  },
+  "ignores": ["target/**"]
+}
