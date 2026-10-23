@@ -1,7 +1,7 @@
 # Contributing
 
 See [TEST_STRATEGY.md](TEST_STRATEGY.md) for tests and [AGENTS.md](AGENTS.md)
-for the agent workflow.
+for the agent workflow. Security reports go through [SECURITY.md](SECURITY.md).
 
 Issues are welcome through the issue forms. Pull requests are accepted only
 for issues the owner has accepted ([ADR 0014](docs/adr/0014-contribution-policy.md)).
@@ -76,4 +76,5 @@ cancelled or is skipped. Jobs in `.github/workflows/ci.yml`:
 
 Perf (#23, #26, #27) and release-build (#28) jobs join as those issues land.
 The `main` ruleset for the owner to apply is in `.github/rulesets/main.json`
-(CodeQL joins its required checks with #16).
+with `ci-ok` and `CodeQL (rust)` as required checks. `codeql.yml` runs CodeQL
+for Rust on every PR; `scorecard.yml` runs OpenSSF Scorecard weekly.
