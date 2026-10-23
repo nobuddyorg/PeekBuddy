@@ -188,6 +188,25 @@ used: 1.0.18 depends on `tracy-client` 0.18.5 / `tracy-client-sys` 0.29.0
 (the Tracy 0.14.0 protocol), which would link a second, incompatible client.
 Library code annotates with `tracing` spans instead.
 
+## Release profile and size gate
+
+`[profile.release]` sets every option explicitly (#28): `opt-level = 3`,
+`lto = "fat"`, `codegen-units = 1`, `panic = "abort"`, `debug = false`,
+`strip = "symbols"`, `incremental = false`. Since Rust 1.77.1 the MSVC targets
+no longer strip debuginfo by default, so `strip` must be set. Tests and
+benches keep unwinding (Cargo ignores `panic` for them); release code must
+not rely on `catch_unwind`. The bench profile inherits release, so A/B
+numbers come from the shipped code generation.
+
+`cargo xtask size <exe>...` checks each exe against the `binary.*` rows:
+`binary.size.cap` (8 MB, `pr-strict`) fails the run, `binary.size` (5 MB) is
+reported. MB here is 1,000,000 bytes. CI runs it on the release exe in
+`test (windows x64)` (part of `ci-ok`) and in the arm64 job.
+
+Still to do (#28): the `dist` profile (line tables, separate PDB,
+`/PDBALTPATH`) and its size decision; `cargo bloat` per-crate deltas in the
+job summary; the x86-64-v2 benchmark; the monthly PGO experiment.
+
 ## Micro-benchmarks and the A/B gate
 
 criterion 0.8.2 benches live in `benches/benches/` (no plotters, no rayon).
