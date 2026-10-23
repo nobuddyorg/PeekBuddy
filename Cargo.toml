@@ -76,6 +76,19 @@ undocumented_unsafe_blocks = "deny"
 unimplemented = "deny"
 unwrap_used = "deny"
 
+# The shipped exe (#28). Every setting is explicit: since Rust 1.77.1 the
+# MSVC targets no longer strip debuginfo by default. panic = "abort" rules
+# out catch_unwind in release paths. Test and bench targets keep unwinding
+# (Cargo ignores `panic` for them).
+[profile.release]
+opt-level = 3
+lto = "fat"
+codegen-units = 1
+panic = "abort"
+debug = false
+strip = "symbols"
+incremental = false
+
 # Profiling builds (#22): release code with line tables and symbols, PDB
 # next to the exe. Switch `debug` to "full" for variable-level debugging.
 [profile.profiling]

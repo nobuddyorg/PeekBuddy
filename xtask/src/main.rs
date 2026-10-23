@@ -7,6 +7,7 @@ mod check;
 mod deps;
 mod dist;
 mod metadata;
+mod size;
 mod tracy;
 mod unsafe_code;
 
@@ -23,6 +24,7 @@ commands:
   check-deps     engine crates have no GPU or UI crates; nothing uses PDH
   check-release  no Tracy in the release feature set [--features f] [--exe path]
   dist-extras    third-party licences and CycloneDX SBOM for the release
+  size           binary-size gate for release exes against perf/budgets.toml
   profile        --tracy [--alloc] [--role engine|viewer]: Tracy profiling build";
 
 fn main() -> ExitCode {
@@ -38,6 +40,7 @@ fn main() -> ExitCode {
         Some("check-release") => tracy::check_release(&rest),
         Some("dist-extras") => dist::run(),
         Some("profile") => tracy::profile(&rest),
+        Some("size") => size::run(&rest),
         _ => Err(USAGE.to_owned()),
     };
     match result {
