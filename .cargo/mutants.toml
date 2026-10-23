@@ -20,10 +20,6 @@ exclude_re = [
   # Equivalent mutants: Win32 access masks are disjoint bit flags, so `^`
   # and `|` give the same value.
   "crates/peekbuddy-win/src/process.rs:.*replace \\| with \\^",
-  # Equivalent mutant on current Windows: CreateProcessAsUserW accepts a
-  # zero STARTUPINFOW.cb (seen on windows-2025, #106); the field is set
-  # because the documented contract requires it.
-  "crates/peekbuddy-win/src/process.rs:.*delete field cb from struct STARTUPINFOW",
   # Equivalent mutant: high and low FILETIME halves do not overlap.
   "crates/peekbuddy-win/src/perf/clock.rs:.*replace \\| with \\^ in ticks",
 ]

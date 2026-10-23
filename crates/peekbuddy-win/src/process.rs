@@ -107,6 +107,14 @@ fn unelevated_token() -> std::io::Result<OwnedHandle> {
     Ok(restricted)
 }
 
+/// A default `STARTUPINFOW` with `cb` set, as the API contract requires.
+fn startup_info() -> STARTUPINFOW {
+    STARTUPINFOW {
+        cb: u32::try_from(size_of::<STARTUPINFOW>()).unwrap_or(u32::MAX),
+        ..STARTUPINFOW::default()
+    }
+}
+
 /// Runs `command_line` as an unelevated child (Administrators deny-only,
 /// Medium integrity), waits for it and returns its exit code.
 ///
@@ -117,10 +125,7 @@ fn unelevated_token() -> std::io::Result<OwnedHandle> {
 pub fn run_restricted(command_line: &str) -> std::io::Result<u32> {
     let token = unelevated_token()?;
     let mut command: Vec<u16> = command_line.encode_utf16().chain(Some(0)).collect();
-    let startup = STARTUPINFOW {
-        cb: u32::try_from(size_of::<STARTUPINFOW>()).unwrap_or(u32::MAX),
-        ..STARTUPINFOW::default()
-    };
+    let startup = startup_info();
     let mut info = PROCESS_INFORMATION::default();
     // SAFETY: `token` is a primary token derived from our own; `command` is a
     // mutable NUL-terminated UTF-16 buffer that outlives the call; the
@@ -154,4 +159,17 @@ pub fn run_restricted(command_line: &str) -> std::io::Result<u32> {
     // SAFETY: `raw` is live; `code` is a valid out pointer.
     check(unsafe { GetExitCodeProcess(raw, &raw mut code) })?;
     Ok(code)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{STARTUPINFOW, startup_info};
+
+    #[test]
+    fn startup_info_carries_its_size() {
+        // CreateProcessAsUserW tolerates a zero `cb` today, so only this
+        // test notices if it goes missing.
+        let size = u32::try_from(size_of::<STARTUPINFOW>()).unwrap();
+        assert_eq!(startup_info().cb, size);
+    }
 }
