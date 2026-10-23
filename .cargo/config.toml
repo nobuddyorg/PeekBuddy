@@ -1,0 +1,8 @@
+[alias]
+xtask = "run --package xtask --"
+
+[env]
+# SQLite compile-time options for the bundled build, filled by #52.
+# LIBSQLITE3_FLAGS = ""
+
+# CI sets CARGO_BUILD_WARNINGS=deny (Cargo 1.97+) so warnings fail the build.

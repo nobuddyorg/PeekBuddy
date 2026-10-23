@@ -1,0 +1,15 @@
+[package]
+name = "peekbuddy-store"
+description = "SQLite day-segment event store."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[dependencies]
+peekbuddy-core = { workspace = true }
+
+[lints]
+workspace = true

@@ -1,0 +1,15 @@
+[package]
+name = "peekbuddy-win"
+description = "Thin safe wrappers over windows-sys and OS-independent record parsers."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { workspace = true }
+
+[lints]
+workspace = true
