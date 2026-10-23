@@ -33,11 +33,6 @@ version = "0.0.0"
 [[package]]
 name = "peekbuddy-engine"
 version = "0.0.0"
-dependencies = [
- "peekbuddy-core",
- "peekbuddy-store",
- "peekbuddy-win",
-]
 
 [[package]]
 name = "peekbuddy-store"
@@ -49,10 +44,6 @@ dependencies = [
 [[package]]
 name = "peekbuddy-viewer"
 version = "0.0.0"
-dependencies = [
- "peekbuddy-core",
- "peekbuddy-store",
-]
 
 [[package]]
 name = "peekbuddy-win"

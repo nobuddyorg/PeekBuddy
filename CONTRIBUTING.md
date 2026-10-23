@@ -57,3 +57,20 @@ release-plz are exempt.
 update stuff                  rejected
 feat(core): add event kind    accepted
 ```
+
+## CI gates
+
+`ci-ok` is the only required check; it fails when any required job fails, is
+cancelled or is skipped. Jobs in `.github/workflows/ci.yml`:
+
+| Job | Runner | Gate |
+| --- | --- | --- |
+| `prek` | ubuntu-latest | required: all hooks except clippy; commit messages of the PR |
+| `core (linux)` | ubuntu-latest | required: `peekbuddy-core` tests on Linux |
+| `lint (windows x64)` | `windows-2025` | required: fmt, clippy, rustdoc, cargo-machete, `check-unsafe`, `check-deps` |
+| `test (windows x64)` | `windows-2025` | required: preflight, nextest, doctests |
+| `test (windows arm64) (advisory)` | `windows-11-vs2026-arm` | advisory until two weeks of green runs, then promoted |
+
+Perf (#23, #26, #27) and release-build (#28) jobs join as those issues land.
+The `main` ruleset for the owner to apply is in `.github/rulesets/main.json`
+(CodeQL joins its required checks with #16).

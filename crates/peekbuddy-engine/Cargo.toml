@@ -8,10 +8,6 @@ license.workspace = true
 repository.workspace = true
 publish.workspace = true
 
-[dependencies]
-peekbuddy-core = { workspace = true }
-peekbuddy-store = { workspace = true }
-peekbuddy-win = { workspace = true }
 
 [lints]
 workspace = true
