@@ -1,0 +1,6 @@
+{
+  "Exclude": ["^LICENSE$", "^Cargo\\.lock$", "^target/"],
+  "Disable": {
+    "Indentation": true
+  }
+}

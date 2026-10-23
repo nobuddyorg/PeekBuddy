@@ -1,0 +1,7 @@
+style = "conventional"
+subject_length = 50
+line_length = 72
+subject_capitalized = false
+allowed_types = ["fix", "feat", "chore", "docs", "style", "refactor", "perf", "test", "build", "ci"]
+# Bot commits follow their own templates.
+ignore_author_re = "(dependabot\\[bot\\]|release-plz\\[bot\\]|github-actions\\[bot\\])"
