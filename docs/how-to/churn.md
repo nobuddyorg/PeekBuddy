@@ -41,11 +41,18 @@ CI runs `edge-mix` (seed 1, 2 threads) in `test (windows x64)` and the arm64
 job and uploads the ledger (`churn-ledger-x64`, `churn-ledger-arm64`). A
 50,000-event burst with 4 threads reports what the runner can generate
 (report only). First numbers (debug xtask, `%TEMP%` on the system disk,
-0 failed operations): windows-2025 2,255 raw ev/s, windows-11-vs2026-arm
-3,127 raw ev/s, both with 4 threads. A hosted runner is far from the
-100k ev/s of `burst-100k` with this executor, so `burst-100k` runs there
-are "not exercised"; #32 decides whether that needs a faster executor or
-another machine.
+4 threads, 0 failed operations):
+
+| Burst | windows-2025 | windows-11-vs2026-arm |
+| --- | --- | --- |
+| 50,000 raw events | 8,178 ev/s | 8,925 ev/s |
+| 200,000 raw events | 2,255 ev/s | 3,127 ev/s |
+
+The rate falls as each thread's tree grows (every create adds a file to a
+few directories), so compare runs of the same length only. A hosted runner
+is far from the 100k ev/s of `burst-100k` with this executor, so
+`burst-100k` runs there are "not exercised"; #32 decides whether that needs
+a faster executor or another machine.
 
 How a run works:
 
