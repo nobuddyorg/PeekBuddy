@@ -12,8 +12,14 @@ publish.workspace = true
 serde = { workspace = true }
 serde_json = { workspace = true }
 
+[target.'cfg(windows)'.dependencies]
+peekbuddy-win = { workspace = true }
+
 [dev-dependencies]
 proptest = { workspace = true }
+
+[target.'cfg(windows)'.dev-dependencies]
+peekbuddy-testkit = { workspace = true }
 
 [lints]
 workspace = true

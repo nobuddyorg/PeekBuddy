@@ -5,9 +5,65 @@ known, and compares that truth with what PeekBuddy logged. It is dev-only
 and never shipped. The correctness suite (#50), the perf harness (#27) and
 the RDCW/SQLite spikes (#32, #35) all use it as their oracle.
 
-The OS-independent parts (plans, profiles, ledger, comparator) are in this
-crate and run on Linux and under Miri. The Windows executor that performs
-the plan and `cargo xtask churn` follow in a later PR.
+The OS-independent parts (plans, profiles, ledger, comparator and the
+executor loop) are in this crate and run on Linux and under Miri. The
+Windows file system and clock (`exec::windows`) drive the real run.
+
+## Running it
+
+```powershell
+cargo xtask churn --profile edge-mix --seed 1
+cargo xtask churn --profile burst-100k --threads 4
+cargo xtask churn --profile latency-10k --duration 5 --root D:\churn --keep
+```
+
+| Option | Default | Meaning |
+| --- | --- | --- |
+| `--profile <name>` | `edge-mix` | named workload (below) |
+| `--seed <n>` | 1 | seed of every thread's stream |
+| `--threads <n>` | 1 | generator threads, each in its own `t<n>` |
+| `--rate <ev/s>`, `--duration <s>` | the profile's | make the run steady at this rate |
+| `--burst <events>`, `--within <s>` | the profile's | make the run a burst: unpaced, target `events / within` per second |
+| `--shape <depth,width,files>` | `2,3,4` | initial tree per thread |
+| `--mix <profile>` | the profile's | take the operation mix of another profile |
+| `--root <dir>` | fresh `%TEMP%\pbchurn-<pid>` | churn root; must be empty |
+| `--ledger <path>` | `target/churn/<profile>-seed<seed>.jsonl` | where the ledger goes |
+| `--keep` | off | keep a root the command created |
+
+The command prints (and appends to the GitHub job summary) the operations,
+the achieved raw event rate against the target, the verdict and per-class
+ok/failed counts. It fails when a class of the mix never succeeded; a
+"not exercised" verdict is reported, not failed. A root the command created
+is deleted afterwards; a `--root` you pass is never deleted. Delete a watched
+root only after the watcher is stopped and joined.
+
+CI runs `edge-mix` (seed 1, 2 threads) in `test (windows x64)` and the arm64
+job and uploads the ledger (`churn-ledger-x64`, `churn-ledger-arm64`). A
+200,000-event burst with 4 threads reports what the runner can generate
+(report only).
+
+How a run works:
+
+- Every thread plans its whole stream before the clock starts, runs its
+  setup (the initial tree, unpaced and not part of the rate) and waits at a
+  barrier, so all threads start together.
+- A steady run is paced per thread by a token bucket (rate / threads): it
+  sleeps only when at least 1 ms ahead and drops backlog beyond 10 ms, so
+  a stall is not followed by an unbounded burst. Sleeps use a
+  `CREATE_WAITABLE_TIMER_HIGH_RESOLUTION` timer; `timeBeginPeriod` is never
+  called. A burst runs unpaced.
+- Timings go into vectors sized up front; ledger records are built after
+  the run, sorted by end time into `seq`.
+- Operations use `std::fs` with exact UTF-16 paths (`OsString::from_wide`),
+  so lone surrogates survive and long paths go through `\\?\`.
+  Junctions (`FSCTL_SET_REPARSE_POINT`) and the archive-attribute toggle
+  come from `peekbuddy_win::fs`.
+- A truncate of an empty file writes one byte first and a set-size grows
+  the file by 4 KiB, so every operation changes something and produces its
+  record. A timestamp change sets a new last-write time each time.
+- The raw event count of an operation is the number of records it expects
+  (`Op::expected`); the achieved rate counts successful paced operations
+  over the span from the first paced start to the last paced end.
 
 ## Profiles
 
@@ -94,7 +150,14 @@ only witness of an expected record, with no gap, is always reported, and that
 a covering gap makes the run pass. cargo-mutants examines the crate: an
 oracle that cannot fail is worthless.
 
-Still to come with the executor and the export (#56): mapping the export or
-segment DBs to rows and gaps, reconstructing the final tree from the log and
-comparing it with a walk of the real tree, latency samples (ledger `t_end` to
-batch commit time from #24's probe), and the ledger header's machine facts.
+The ledger header's machine facts come from `cmd /c ver` (OS build with the
+update revision), `available_parallelism`, `GetVolumeInformationW` (file
+system), `Get-MpComputerStatus` (Defender real-time) and an 8.3 probe file
+created next to the root (`GetShortPathNameW`). A fact that cannot be read
+is `null` or `unknown`. The runner label is `PEEKBUDDY_RUNNER_LABEL`, else
+`ImageOS`, else the computer name.
+
+Still to come with the export (#56) and the probe (#24): mapping the export
+or segment DBs to rows and gaps, reconstructing the final tree from the log
+and comparing it with a walk of the real tree, and latency samples (ledger
+`t_end` to batch commit time).

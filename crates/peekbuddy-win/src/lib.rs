@@ -7,6 +7,7 @@
 //! exposed through traits with in-memory fakes.
 #![deny(clippy::indexing_slicing)]
 
+pub mod fs;
 pub mod metrics;
 pub mod perf;
 
@@ -16,6 +17,8 @@ pub mod process;
 pub mod session;
 #[cfg(windows)]
 mod sid;
+#[cfg(windows)]
+pub mod timer;
 #[cfg(windows)]
 pub mod token;
 
