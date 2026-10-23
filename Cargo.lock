@@ -336,6 +336,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "peekbuddy-churn"
+version = "0.0.0"
+dependencies = [
+ "proptest",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "peekbuddy-core"
 version = "0.0.0"
 

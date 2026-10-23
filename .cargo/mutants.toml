@@ -6,6 +6,7 @@ profile = "mutants"
 # Product logic: event model, parsers, watchers, store, filters, export.
 examine_re = [
   "crates/peekbuddy-alloc/",
+  "crates/peekbuddy-churn/",
   "crates/peekbuddy-core/",
   "crates/peekbuddy-win/",
   "crates/peekbuddy-store/",

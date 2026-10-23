@@ -62,12 +62,12 @@ Gate values in `budgets.toml`:
 | `engine.notify_buffers.total` | <= 64 MiB | deterministic | pr-strict | provisional | any | buffer pool accounting in --perf-probe JSON | R5, sized by #32 |
 | `engine.private_bytes.burst` | <= 40 MB | resource | nightly-trend | provisional | churn profile burst-100k (#25) | PeakPagefileUsage after the burst (#24) | F8 |
 | `viewer.private_bytes.10m_rows` | <= 80 MB | resource | nightly-trend | provisional | 10M-row log, scrolled top to bottom | PROCESS_MEMORY_COUNTERS_EX2.PrivateUsage (#24) | F8; arm64 limit from #33 |
-| `event.latency.p50` | <= 10 ms | timing | pr-ab | provisional | churn profile steady-10k (#25) | ledger timestamp vs commit timestamp (#27) | R1, recalibrated by #35 |
-| `event.latency.p99` | <= 50 ms | timing | pr-ab | provisional | churn profile steady-10k (#25) | ledger timestamp vs commit timestamp (#27) | R1, recalibrated by #35 |
+| `event.latency.p50` | <= 10 ms | timing | pr-ab | provisional | churn profile latency-10k (#25) | ledger timestamp vs commit timestamp (#27) | R1, recalibrated by #35 |
+| `event.latency.p99` | <= 50 ms | timing | pr-ab | provisional | churn profile latency-10k (#25) | ledger timestamp vs commit timestamp (#27) | R1, recalibrated by #35 |
 | `ingest.burst` | >= 100000 events/s | timing | pr-ab | provisional | churn profile burst-100k (#25) | ledger count / burst duration (#27) | F2, recalibrated by #32 |
-| `ingest.sustained` | >= 20000 events/s | timing | pr-ab | provisional | churn profile steady-20k (#25) | ledger count / duration (#27) | F2, recalibrated by #32 |
+| `ingest.sustained` | >= 20000 events/s | timing | pr-ab | provisional | churn profile sustained-20k (#25) | ledger count / duration (#27) | F2, recalibrated by #32 |
 | `ingest.undetected_loss` | <= 0 count | deterministic | pr-strict | calibrated | every churn profile (#25, #50) | ledger vs store comparison (#50) | F2, R7 |
-| `capture.rearm_latency` | <= 5 ms | timing | nightly-trend | provisional | churn profile steady-10k (#25) | tracing span on the capture thread (#21) | F4, recalibrated by #32 |
+| `capture.rearm_latency` | <= 5 ms | timing | nightly-trend | provisional | churn profile latency-10k (#25) | tracing span on the capture thread (#21) | F4, recalibrated by #32 |
 | `viewer.frame.p95` | <= 8 ms | timing | nightly-trend | provisional | 10M-row log, scripted scroll | egui frame timing in --perf-probe JSON | F9 |
 | `viewer.frame.p99` | <= 16 ms | timing | nightly-trend | provisional | 10M-row log, scripted scroll | egui frame timing in --perf-probe JSON | F9 |
 | `viewer.frame.max` | <= 33 ms | timing | nightly-trend | provisional | 10M-row log, scripted scroll | egui frame timing in --perf-probe JSON | F9 |
@@ -78,7 +78,7 @@ Gate values in `budgets.toml`:
 | `alloc.capture_per_event` | <= 0 count | deterministic | pr-strict | calibrated | parse + filter + classify of a recorded buffer (#23) | counting global allocator (#23) | F10 |
 | `alloc.writer_per_1000` | to be set | deterministic | pr-strict | provisional | writer batch of 1,000 events (#52) | counting global allocator (#23) | F10; limit set after the first measurement (#23, #52) |
 | `alloc.viewer_per_frame` | to be set | deterministic | pr-strict | provisional | 10M-row log, scripted scroll | counting global allocator (#23) | F10; limit set after the first measurement (#23, #66) |
-| `store.bytes_per_event` | to be set | deterministic | pr-strict | provisional | churn profile mixed (#25) | segment file size / row count (#35) | F5; limit set by #35 |
+| `store.bytes_per_event` | to be set | deterministic | pr-strict | provisional | churn profile sustained-20k (#25) | segment file size / row count (#35) | F5; limit set by #35 |
 | `engine.handles.stable` | <= 0 count | deterministic | pr-strict | provisional | add/remove 10 roots three times (#48) | GetProcessHandleCount (#24) | F19 |
 
 <!-- budgets:end -->

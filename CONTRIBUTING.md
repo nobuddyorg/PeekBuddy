@@ -14,6 +14,7 @@ for issues the owner has accepted; unsolicited pull requests are closed ([ADR 00
 | --- | --- | --- |
 | `crates/peekbuddy-core` | Event model, names, filters, derived views. Pure Rust, builds and tests on Linux, no `cfg(windows)`. | forbidden |
 | `crates/peekbuddy-alloc` | Counting global allocator for allocation-budget tests (dev-only). | allowed (`GlobalAlloc` is unsafe) |
+| `crates/peekbuddy-churn` | Churn generator plans, ledger and comparator: the ground truth for correctness and perf runs (dev-only, #25). | forbidden |
 | `crates/peekbuddy-win` | `windows-sys` wrappers and OS-independent record parsers (these also compile on Linux for Miri). | allowed, every block needs `// SAFETY:` |
 | `crates/peekbuddy-store` | SQLite day segments, writer thread, queries, export. | forbidden |
 | `crates/peekbuddy-engine` | Capture threads, reconcile scanner, tray, pipe server. No GPU or UI crates. | forbidden |
@@ -92,7 +93,7 @@ cancelled or is skipped. Jobs in `.github/workflows/ci.yml`:
 | Job | Runner | Gate |
 | --- | --- | --- |
 | `prek` | ubuntu-latest | required: all hooks except clippy; commit messages of the PR |
-| `core (linux)` | ubuntu-latest | required: `peekbuddy-core` tests on Linux; `xtask budgets --check` |
+| `core (linux)` | ubuntu-latest | required: `peekbuddy-core`, `peekbuddy-alloc` and `peekbuddy-churn` tests on Linux; `xtask budgets --check` |
 | `lint (windows x64)` | `windows-2025` | required: fmt, clippy, rustdoc, cargo-machete, `check-unsafe`, `check-deps` |
 | `test (windows x64)` | `windows-2025` | required: preflight, nextest, doctests, release build without Tracy (`check-release --exe`, #22) |
 | `test (windows arm64) (advisory)` | `windows-11-vs2026-arm` | advisory until two weeks of green runs, then promoted |

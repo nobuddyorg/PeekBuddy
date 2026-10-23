@@ -4,6 +4,7 @@ members = [
   "benches",
   "crates/peekbuddy",
   "crates/peekbuddy-alloc",
+  "crates/peekbuddy-churn",
   "crates/peekbuddy-core",
   "crates/peekbuddy-engine",
   "crates/peekbuddy-store",
@@ -34,6 +35,8 @@ peekbuddy-engine = { path = "crates/peekbuddy-engine" }
 peekbuddy-viewer = { path = "crates/peekbuddy-viewer" }
 peekbuddy-win = { path = "crates/peekbuddy-win" }
 proptest = "1.12.0"
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.154"
 tracelogging = "1.2.4"
 tracing = { version = "0.1.44", default-features = false, features = ["std"] }
 tracing-subscriber = { version = "0.3.23", default-features = false, features = [
