@@ -1,10 +1,12 @@
 # Contributing
 
 See [TEST_STRATEGY.md](TEST_STRATEGY.md) for tests and [AGENTS.md](AGENTS.md)
-for the agent workflow. Security reports go through [SECURITY.md](SECURITY.md).
+for the agent workflow. Security reports go through [SECURITY.md](SECURITY.md);
+participation follows the [code of conduct](CODE_OF_CONDUCT.md).
 
-Issues are welcome through the issue forms. Pull requests are accepted only
-for issues the owner has accepted ([ADR 0014](docs/adr/0014-contribution-policy.md)).
+Issues are welcome through the issue forms (bug report, performance
+regression with numbers, feature request). Pull requests are accepted only
+for issues the owner has accepted; unsolicited pull requests are closed ([ADR 0014](docs/adr/0014-contribution-policy.md)).
 
 ## Workspace layout
 
@@ -25,6 +27,23 @@ Two checks keep the layout honest:
   except the allow-list in `xtask/src/unsafe_code.rs` (only `peekbuddy-win`).
 - `cargo xtask check-deps`: `peekbuddy-core` and `peekbuddy-engine` never
   depend on `eframe`, `egui`, `winit`, `wgpu` or `glow` (ADR 0001).
+
+## Running tests
+
+```sh
+cargo nextest run            # unit and integration tests
+cargo test --doc             # doctests (nextest does not run them)
+cargo xtask check            # the full local loop before a push
+```
+
+See [TEST_STRATEGY.md](TEST_STRATEGY.md) for layers, groups and helpers.
+
+## Performance rule
+
+Performance is a feature. Every PR that touches a hot path (capture, parse,
+filter, writer, viewer frame) shows numbers in its description: the
+same-runner A/B timing from CI or the allocation counts (#23, #26). Budgets
+and gate policy: [ADR 0007](docs/adr/0007-performance-gate-policy.md).
 
 ## Lint policy
 

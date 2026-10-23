@@ -1,0 +1,41 @@
+name: Performance regression
+description: PeekBuddy got slower or bigger. Numbers required.
+labels: [performance]
+body:
+  - type: input
+    id: version
+    attributes:
+      label: PeekBuddy version (and the last good version, if known)
+    validations:
+      required: true
+  - type: input
+    id: idle_cpu
+    attributes:
+      label: Idle CPU %
+      description: Average over 60 s with no file activity.
+  - type: input
+    id: private_bytes
+    attributes:
+      label: Private bytes (MB)
+  - type: input
+    id: events
+    attributes:
+      label: Events per second
+  - type: input
+    id: startup
+    attributes:
+      label: Startup (ms)
+  - type: textarea
+    id: machine
+    attributes:
+      label: Machine
+      description: CPU, RAM, disk type (NVMe, SATA SSD, HDD, network share), Windows version and build.
+    validations:
+      required: true
+  - type: textarea
+    id: method
+    attributes:
+      label: How did you measure?
+      description: Tool (Task Manager, Process Explorer, WPR, ...) and what you did while measuring.
+    validations:
+      required: true
