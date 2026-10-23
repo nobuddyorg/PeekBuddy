@@ -132,7 +132,8 @@ fn a_gdi_brush_is_counted() {
     assert_eq!(gui_objects(current_process()).gdi, before + 1);
     // SAFETY: `brush` is a brush this test created and no longer uses.
     assert_ne!(unsafe { DeleteObject(brush) }, 0);
-    assert_eq!(gui_objects(current_process()).gdi, before);
+    // No check that the count drops again: GDI may keep a deleted solid
+    // brush in its per-process cache (seen on windows-2025, #24).
 }
 
 #[test]
