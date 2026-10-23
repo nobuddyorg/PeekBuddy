@@ -1,9 +1,8 @@
 //! Win32 integration tests (Windows only).
 //!
-//! The unelevated-child tests re-run this test binary as the child: a Rust
-//! test binary does not load `user32.dll`, which a Medium-integrity child
-//! cannot initialise on hosted runners (see `peekbuddy_win::process`). The
-//! child entry points are `#[ignore]`d so normal runs skip them.
+//! The unelevated-child tests re-run this test binary as the child, so the
+//! child can check its own token. The child entry points are `#[ignore]`d so
+//! normal runs skip them.
 #![cfg(windows)]
 
 use peekbuddy_win::process::run_restricted;

@@ -7,10 +7,12 @@
 //! a `LUA_TOKEN` child fails to start on hosted runners
 //! (`STATUS_DLL_INIT_FAILED`), so that flag is not used.
 //!
-//! On hosted runners the desktop is labelled High integrity, so a Medium
-//! child cannot initialise `user32.dll`: programs such as `cmd.exe` fail with
-//! `STATUS_DLL_INIT_FAILED` (0xC0000142). Run a Rust test binary (which does
-//! not load `user32`) as the child instead.
+//! A Medium child cannot use the runner's interactive window station and
+//! desktop (they belong to the elevated session): started there it fails with
+//! `STATUS_DLL_INIT_FAILED` (0xC0000142). The child therefore gets an empty
+//! `lpDesktop`, which makes Windows give it a non-interactive window station
+//! of its own. It cannot show windows; it is for file-system and token
+//! behaviour, not UI.
 
 use std::os::windows::io::{AsRawHandle as _, FromRawHandle as _, OwnedHandle};
 
@@ -116,14 +118,17 @@ fn unelevated_token() -> std::io::Result<OwnedHandle> {
 pub fn run_restricted(command_line: &str) -> std::io::Result<u32> {
     let token = unelevated_token()?;
     let mut command: Vec<u16> = command_line.encode_utf16().chain(Some(0)).collect();
+    // Empty string, not null: null would inherit the interactive desktop.
+    let mut desktop: [u16; 1] = [0];
     let startup = STARTUPINFOW {
         cb: u32::try_from(size_of::<STARTUPINFOW>()).unwrap_or(u32::MAX),
+        lpDesktop: desktop.as_mut_ptr(),
         ..STARTUPINFOW::default()
     };
     let mut info = PROCESS_INFORMATION::default();
     // SAFETY: `token` is a primary token derived from our own; `command` is a
     // mutable NUL-terminated UTF-16 buffer that outlives the call; the
-    // startup and process-information structs are valid for the call.
+    // startup struct and the `desktop` string it points to outlive the call.
     check(unsafe {
         CreateProcessAsUserW(
             token.as_raw_handle(),
