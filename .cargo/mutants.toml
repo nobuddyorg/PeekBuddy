@@ -26,6 +26,11 @@ exclude_re = [
   # nextest list no test for the binary, which no test can observe.
   # `list_reply` holds the logic and is tested.
   "crates/peekbuddy-alloc/src/lib.rs:.*replace answer_nextest_list -> bool with false",
+  # Fixed per runner: Defender real-time is off on windows-2025 and on on
+  # windows-11-vs2026-arm, so one constant always matches the machine the
+  # mutants run on. The parser is tested; the full query is compared with
+  # an independent one (`machine_facts_match_independent_queries`).
+  "crates/peekbuddy-churn/src/exec/windows.rs:.*replace defender_realtime -> Option<bool> with Some",
   # Equivalent mutant: high and low FILETIME halves do not overlap.
   "crates/peekbuddy-win/src/perf/clock.rs:.*replace \\| with \\^ in ticks",
 ]

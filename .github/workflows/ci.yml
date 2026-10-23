@@ -137,6 +137,20 @@ jobs:
           cargo build --release --package peekbuddy --locked
           cargo xtask check-release --exe target/release/peekbuddy.exe
           cargo xtask size target/release/peekbuddy.exe
+      - name: Churn edge-mix exercises every operation class (#25)
+        env:
+          PEEKBUDDY_RUNNER_LABEL: windows-2025
+        run: cargo xtask churn --profile edge-mix --seed 1 --threads 2 --ledger target/churn/edge-mix-seed1.jsonl
+      - name: Churn burst throughput (#25, report only)
+        env:
+          PEEKBUDDY_RUNNER_LABEL: windows-2025
+        run: cargo xtask churn --profile burst-100k --threads 4 --burst 50000 --within 1 --ledger target/churn/burst.jsonl
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: churn-ledger-x64
+          path: target/churn/edge-mix-seed1.jsonl
+          if-no-files-found: warn
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
@@ -313,6 +327,20 @@ jobs:
         run: |
           cargo build --release --package peekbuddy --locked
           cargo xtask size target/release/peekbuddy.exe
+      - name: Churn edge-mix exercises every operation class (#25)
+        env:
+          PEEKBUDDY_RUNNER_LABEL: windows-11-vs2026-arm
+        run: cargo xtask churn --profile edge-mix --seed 1 --threads 2 --ledger target/churn/edge-mix-seed1.jsonl
+      - name: Churn burst throughput (#25, report only)
+        env:
+          PEEKBUDDY_RUNNER_LABEL: windows-11-vs2026-arm
+        run: cargo xtask churn --profile burst-100k --threads 4 --burst 50000 --within 1 --ledger target/churn/burst.jsonl
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: churn-ledger-arm64
+          path: target/churn/edge-mix-seed1.jsonl
+          if-no-files-found: warn
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:

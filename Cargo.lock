@@ -504,6 +504,8 @@ dependencies = [
 name = "peekbuddy-churn"
 version = "0.0.0"
 dependencies = [
+ "peekbuddy-testkit",
+ "peekbuddy-win",
  "proptest",
  "serde",
  "serde_json",
@@ -1179,6 +1181,7 @@ dependencies = [
 name = "xtask"
 version = "0.0.0"
 dependencies = [
+ "peekbuddy-churn",
  "serde",
  "serde_json",
  "toml",

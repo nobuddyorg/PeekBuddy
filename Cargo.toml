@@ -34,8 +34,10 @@ criterion = { version = "0.8.2", default-features = false, features = [
 ] }
 insta = "1.49.0"
 peekbuddy-alloc = { path = "crates/peekbuddy-alloc" }
+peekbuddy-churn = { path = "crates/peekbuddy-churn" }
 peekbuddy-core = { path = "crates/peekbuddy-core" }
 peekbuddy-engine = { path = "crates/peekbuddy-engine" }
+peekbuddy-testkit = { path = "crates/peekbuddy-testkit" }
 peekbuddy-viewer = { path = "crates/peekbuddy-viewer" }
 peekbuddy-win = { path = "crates/peekbuddy-win" }
 proptest = "1.12.0"
