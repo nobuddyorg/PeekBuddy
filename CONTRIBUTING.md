@@ -92,10 +92,12 @@ cancelled or is skipped. Jobs in `.github/workflows/ci.yml`:
 | `prek` | ubuntu-latest | required: all hooks except clippy; commit messages of the PR |
 | `core (linux)` | ubuntu-latest | required: `peekbuddy-core` tests on Linux; `xtask budgets --check` |
 | `lint (windows x64)` | `windows-2025` | required: fmt, clippy, rustdoc, cargo-machete, `check-unsafe`, `check-deps` |
-| `test (windows x64)` | `windows-2025` | required: preflight, nextest, doctests |
+| `test (windows x64)` | `windows-2025` | required: preflight, nextest, doctests, release build without Tracy (`check-release --exe`, #22) |
 | `test (windows arm64) (advisory)` | `windows-11-vs2026-arm` | advisory until two weeks of green runs, then promoted |
 
 Perf (#23, #26, #27) and release-build (#28) jobs join as those issues land.
+`profiling.yml` builds the Tracy profiling exe weekly and on PRs that touch
+it (#22); it is not part of `ci-ok`.
 The `main` ruleset for the owner to apply is in `.github/rulesets/main.json`
 with `ci-ok` and `CodeQL (rust)` as required checks. `codeql.yml` runs CodeQL
 for Rust on every PR; `scorecard.yml` runs OpenSSF Scorecard weekly.

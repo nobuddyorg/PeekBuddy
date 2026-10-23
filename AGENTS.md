@@ -17,11 +17,13 @@ cargo xtask check
 
 It runs, in order: `cargo fmt --check`; prek (or typos while there is no
 prek config); the Linux tests (nextest when installed) and doctests;
-`xtask check-unsafe` and `check-deps`; clippy with warnings denied for
-`x86_64-pc-windows-msvc` and `aarch64-pc-windows-msvc`. Clippy for the
-Windows targets uses plain `cargo clippy --target`, which needs no linker;
-set `PEEKBUDDY_XWIN=1` to run it through `cargo xwin clippy` once a crate
-compiles C code (bundled SQLite, #52). Tests that need Win32 run only in CI.
+`xtask check-unsafe`, `check-deps` and `check-release`; clippy with
+warnings denied for `x86_64-pc-windows-msvc` and `aarch64-pc-windows-msvc`.
+Clippy for the Windows targets uses plain `cargo clippy --target`, which
+needs no linker but cannot compile C code, so it checks the default features
+and a host clippy run covers `--all-features` (Tracy, #22). Set
+`PEEKBUDDY_XWIN=1` to run the Windows targets through `cargo xwin clippy`
+with all features instead. Tests that need Win32 run only in CI.
 
 ## Crate rule
 

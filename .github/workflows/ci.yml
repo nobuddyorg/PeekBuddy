@@ -130,6 +130,10 @@ jobs:
           tool: cargo-nextest@0.9.149
       - run: cargo nextest run --workspace --profile ci --locked --no-tests=pass
       - run: cargo test --workspace --doc --locked
+      - name: No Tracy in the release build (#22)
+        run: |
+          cargo build --release --package peekbuddy --locked
+          cargo xtask check-release --exe target/release/peekbuddy.exe
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:

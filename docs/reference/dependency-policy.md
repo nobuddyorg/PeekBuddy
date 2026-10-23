@@ -8,6 +8,11 @@ reference for how it is enforced.
 
 - `windows-sys` is pinned exactly (`=0.61.2`). Every bump is a reviewed PR
   (#83); Dependabot ignores it.
+- `tracing-tracy` 0.12.0, `tracy-client` 0.19.0 and `tracy-client-sys`
+  0.30.1 are pinned exactly: together they speak the protocol of Tracy GUI
+  0.14.1, so they move only with the GUI version, by hand (#22). Dependabot
+  ignores them. They are optional, behind the `profile-tracy` feature, and
+  `cargo xtask check-release` keeps them out of release builds.
 - No `notify` crate: capture uses ReadDirectoryChangesExW directly
   (cargo-deny bans it).
 - crates.io only: no git or other registries (cargo-deny `[sources]`).
@@ -26,6 +31,7 @@ reference for how it is enforced.
 | `cargo deny check bans licenses sources` | `ci.yml` job `cargo-deny` | required (in `ci-ok`) |
 | `cargo audit` (RustSec advisories) | `audit.yml`, daily | opens or updates one `security` issue; never blocks PRs |
 | cargo-machete (unused deps) | `ci.yml` job `lint` | required |
+| `cargo xtask check-release` (no Tracy in the release feature set or exe) | `ci.yml` job `test (windows x64)`, `cargo xtask check` | required |
 
 Advisories are deliberately not a PR gate: a new advisory must not block an
 unrelated PR. The `rustsec/audit-check` action is not used (its last release

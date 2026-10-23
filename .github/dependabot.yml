@@ -14,6 +14,10 @@ updates:
     ignore:
       # Exact pin; bumps are manual (ADR 0010, #83).
       - dependency-name: windows-sys
+      # Tracy crates follow the Tracy GUI protocol; bumps are manual (#22).
+      - dependency-name: tracing-tracy
+      - dependency-name: tracy-client
+      - dependency-name: tracy-client-sys
 
   - package-ecosystem: rust-toolchain
     directory: /
