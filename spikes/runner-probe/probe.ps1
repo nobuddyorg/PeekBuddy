@@ -25,7 +25,8 @@ function Emit([string]$Check, [bool]$Ok, [string]$Detail) {
 
 function Probe([string]$Check, [scriptblock]$Body) {
     try {
-        $result = & $Body
+        # Only the last object is the result; cmdlets may emit other output.
+        $result = @(& $Body)[-1]
         Emit $Check $result.ok "$($result.detail)"
     } catch {
         Emit $Check $false "exception: $($_.Exception.Message)"
@@ -95,7 +96,7 @@ foreach ($fs in 'ntfs', 'refs', 'fat32', 'exfat') {
     Probe "disk.vhd_$fs" {
         $vhd = Join-Path $WorkDir "$fs.vhdx"
         $r = Invoke-DiskPart @(
-            "create vdisk file=`"$vhd`" maximum=1024 type=expandable",
+            "create vdisk file=`"$vhd`" maximum=4096 type=expandable",
             "select vdisk file=`"$vhd`"",
             'attach vdisk',
             'create partition primary',
@@ -128,7 +129,8 @@ Probe 'disk.smb_loopback' {
 # 7. Privilege: standard user via CreateProcessWithLogonW (Start-Process -Credential)
 Probe 'privilege.standard_user_logon' {
     $plain = 'Pb!' + [guid]::NewGuid().ToString('N').Substring(0, 16)
-    & net.exe user $user $plain /add 2>&1 | Out-Null
+    $add = & net.exe user $user $plain /add 2>&1 | Out-String
+    if ($LASTEXITCODE -ne 0) { return @{ ok = $false; detail = "net user /add: $(($add -replace '\s+', ' ').Trim())" } }
     $secure = ConvertTo-SecureString $plain -AsPlainText -Force
     $cred = [pscredential]::new("$env:COMPUTERNAME\$user", $secure)
     $out = Join-Path $WorkDir 'whoami.txt'

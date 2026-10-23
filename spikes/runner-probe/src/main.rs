@@ -109,12 +109,13 @@ mod win {
     }
 
     fn desktop() {
-        // SAFETY: plain call; the handle is closed below.
-        let desk = unsafe { OpenInputDesktop(0, 0, DESKTOP_READOBJECTS) };
+        // WSF_VISIBLE is a window-station flag; desktops report other flags.
+        // SAFETY: plain call; the handle is not owned by us and needs no close.
+        let desk = unsafe { GetProcessWindowStation() };
         if desk.is_null() {
             // SAFETY: plain call.
             let err = unsafe { GetLastError() };
-            emit("desktop.input_visible", false, &format!("OpenInputDesktop failed: {err}"));
+            emit("winsta.visible", false, &format!("GetProcessWindowStation failed: {err}"));
             return;
         }
         let mut flags = USEROBJECTFLAGS { fInherit: 0, fReserved: 0, dwFlags: 0 };
@@ -131,12 +132,10 @@ mod win {
         } != 0;
         let visible = flags.dwFlags & (WSF_VISIBLE as u32) != 0;
         emit(
-            "desktop.input_visible",
+            "winsta.visible",
             ok && visible,
             &format!("dwFlags={:#x}", flags.dwFlags),
         );
-        // SAFETY: desk came from OpenInputDesktop.
-        unsafe { CloseDesktop(desk) };
     }
 
     extern "system" fn wndproc(hwnd: HWND, msg: u32, w: WPARAM, l: LPARAM) -> LRESULT {
@@ -383,13 +382,23 @@ mod win {
     }
 
     fn restricted_child() {
+        for (name, flags, desktop) in [
+            ("token.restricted_child.max_priv", DISABLE_MAX_PRIVILEGE, false),
+            ("token.restricted_child.lua", DISABLE_MAX_PRIVILEGE | LUA_TOKEN, false),
+            ("token.restricted_child.lua_desktop", DISABLE_MAX_PRIVILEGE | LUA_TOKEN, true),
+        ] {
+            restricted_child_variant(name, flags, desktop);
+        }
+    }
+
+    fn restricted_child_variant(check: &str, flags: CREATE_RESTRICTED_TOKEN_FLAGS, desktop: bool) {
         let token = process_token();
         let mut restricted: HANDLE = null_mut();
         // SAFETY: valid token; no SID lists.
         let ok = unsafe {
             CreateRestrictedToken(
                 token,
-                DISABLE_MAX_PRIVILEGE | LUA_TOKEN,
+                flags,
                 0,
                 null(),
                 0,
@@ -402,13 +411,17 @@ mod win {
         if !ok {
             // SAFETY: plain call.
             let err = unsafe { GetLastError() };
-            emit("token.restricted_child", false, &format!("CreateRestrictedToken: {err}"));
+            emit(check, false, &format!("CreateRestrictedToken: {err}"));
             return;
         }
         let mut cmd = wide("cmd.exe /c exit 7");
         // SAFETY: STARTUPINFOW / PROCESS_INFORMATION are plain data.
         let mut si: STARTUPINFOW = unsafe { std::mem::zeroed() };
         si.cb = size_of::<STARTUPINFOW>() as u32;
+        let mut winsta_desktop = wide("winsta0\\default");
+        if desktop {
+            si.lpDesktop = winsta_desktop.as_mut_ptr();
+        }
         // SAFETY: as above.
         let mut pi: PROCESS_INFORMATION = unsafe { std::mem::zeroed() };
         // SAFETY: restricted is a primary token derived from ours; cmd is mutable and NUL-terminated.
@@ -430,7 +443,7 @@ mod win {
         if !started {
             // SAFETY: plain call.
             let err = unsafe { GetLastError() };
-            emit("token.restricted_child", false, &format!("CreateProcessAsUserW: {err}"));
+            emit(check, false, &format!("CreateProcessAsUserW: {err}"));
             return;
         }
         let mut code = 0u32;
@@ -443,6 +456,6 @@ mod win {
             CloseHandle(restricted);
             CloseHandle(token);
         }
-        emit("token.restricted_child", code == 7, &format!("exit_code={code}"));
+        emit(check, code == 7, &format!("exit_code={code:#x}"));
     }
 }
