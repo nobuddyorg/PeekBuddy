@@ -228,8 +228,8 @@ fail above +50 % (F11). New benches are reported as "new", a missing base as
 `target/bench-ab/report.md`; it records the runner OS, arch and CPU count.
 
 CI: `lint (windows x64)` compiles the benches (`cargo bench --no-run`) as part
-of `ci-ok`; `bench a/b (windows x64) (advisory)` runs the gate on PRs. It
-becomes required after the false-positive check below.
+of `ci-ok`; `bench a/b (windows x64)` runs the gate on PRs and is required
+(part of `ci-ok`) since the false-positive check below passed.
 
 Gate checks so far (Linux container, 4 CPUs, 10 rounds):
 
@@ -294,3 +294,6 @@ Pending recalibration hooks:
 ## Changelog
 
 - 2026-10-23: initial provisional budgets from the roadmap (#1) and F6-F11.
+- 2026-10-23: bench A/B false-positive check on windows-2025: 10 of 10
+  no-op runs passed (`bench-noop.yml` on #118); the A/B job joins `ci-ok`
+  (#26).
