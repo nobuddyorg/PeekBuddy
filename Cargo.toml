@@ -10,6 +10,8 @@ members = [
   "crates/peekbuddy-win",
   "xtask",
 ]
+# Spikes are throwaway measurement code with their own workspaces.
+exclude = ["spikes"]
 
 [workspace.package]
 version = "0.0.0"

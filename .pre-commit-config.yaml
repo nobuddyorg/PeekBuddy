@@ -27,7 +27,7 @@ repos:
     rev: v1.31.1
     hooks:
       - id: zizmor
-        args: ["--persona", "pedantic"]
+        args: ["--persona", "pedantic", "--offline"]
 
   - repo: https://github.com/DavidAnson/markdownlint-cli2
     rev: v0.23.3

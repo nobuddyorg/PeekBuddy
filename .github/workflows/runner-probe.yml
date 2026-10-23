@@ -1,0 +1,130 @@
+# Spike #34: probes what the pinned GitHub-hosted Windows runners can do.
+name: runner-probe
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: runner-probe
+  cancel-in-progress: false
+
+jobs:
+  probe:
+    name: probe (${{ matrix.label }})
+    runs-on: ${{ matrix.label }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        label: [windows-2025, windows-11-vs2026-arm]
+    env:
+      PROBE_LABEL: ${{ matrix.label }}
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Preflight
+        id: preflight
+        continue-on-error: true
+        run: |
+          $sw = [Diagnostics.Stopwatch]::StartNew()
+          ./scripts/ci/preflight.ps1
+          "Preflight wall time: $($sw.Elapsed.TotalSeconds) s"
+
+      - name: Rust toolchain
+        run: |
+          rustup toolchain install
+          rustup show
+
+      - name: install cargo-nextest
+        id: tool_nextest
+        continue-on-error: true
+        uses: taiki-e/install-action@a4d3f3f761dcd95cce1b72cb61cb6d1963438177 # v2.87.30
+        with:
+          tool: cargo-nextest@0.9.149
+
+      - name: install cargo-deny
+        id: tool_deny
+        continue-on-error: true
+        uses: taiki-e/install-action@a4d3f3f761dcd95cce1b72cb61cb6d1963438177 # v2.87.30
+        with:
+          tool: cargo-deny@0.20.2
+
+      - name: install cargo-mutants
+        id: tool_mutants
+        continue-on-error: true
+        uses: taiki-e/install-action@a4d3f3f761dcd95cce1b72cb61cb6d1963438177 # v2.87.30
+        with:
+          tool: cargo-mutants@27.1.0
+
+      - name: install hyperfine
+        id: tool_hyperfine
+        continue-on-error: true
+        uses: taiki-e/install-action@a4d3f3f761dcd95cce1b72cb61cb6d1963438177 # v2.87.30
+        with:
+          tool: hyperfine@2.0.0
+
+      - name: Rust probe
+        working-directory: spikes/runner-probe
+        run: |
+          cargo run --release --locked | Tee-Object -FilePath "$env:RUNNER_TEMP/probe-rust.jsonl"
+
+      - name: PowerShell probe
+        run: |
+          ./spikes/runner-probe/probe.ps1 -Label $env:PROBE_LABEL | Tee-Object -FilePath "$env:RUNNER_TEMP/probe-ps.jsonl"
+
+      - name: Summary
+        if: always()
+        env:
+          PREFLIGHT: ${{ steps.preflight.outcome }}
+          NEXTEST: ${{ steps.tool_nextest.outcome }}
+          DENY: ${{ steps.tool_deny.outcome }}
+          MUTANTS: ${{ steps.tool_mutants.outcome }}
+          HYPERFINE: ${{ steps.tool_hyperfine.outcome }}
+        run: |
+          $rows = @()
+          $rows += [pscustomobject]@{ check = 'preflight'; ok = ($env:PREFLIGHT -eq 'success'); detail = $env:PREFLIGHT }
+          foreach ($t in @(@('tools.cargo-nextest', $env:NEXTEST), @('tools.cargo-deny', $env:DENY), @('tools.cargo-mutants', $env:MUTANTS), @('tools.hyperfine', $env:HYPERFINE))) {
+            $rows += [pscustomobject]@{ check = $t[0]; ok = ($t[1] -eq 'success'); detail = $t[1] }
+          }
+          foreach ($f in 'probe-rust.jsonl', 'probe-ps.jsonl') {
+            $path = Join-Path $env:RUNNER_TEMP $f
+            if (Test-Path $path) {
+              Get-Content $path | Where-Object { $_.StartsWith('{') } | ForEach-Object { $rows += ($_ | ConvertFrom-Json) }
+            }
+          }
+          $rows | ForEach-Object { [ordered]@{ check = $_.check; label = $env:PROBE_LABEL; ok = $_.ok; detail = "$($_.detail)" } | ConvertTo-Json -Compress } |
+            Set-Content -Path "$env:RUNNER_TEMP/probe.jsonl"
+          $md = @("### Runner probe: $env:PROBE_LABEL", '', '| check | ok | detail |', '| --- | --- | --- |')
+          $md += $rows | ForEach-Object { "| $($_.check) | $(if ($_.ok) { 'yes' } else { 'NO' }) | $("$($_.detail)" -replace '\|', '/') |" }
+          $md -join "`n" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+
+      - name: Screenshot
+        if: always()
+        continue-on-error: true
+        run: |
+          Add-Type -AssemblyName System.Windows.Forms, System.Drawing
+          $b = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
+          $bmp = [System.Drawing.Bitmap]::new($b.Width, $b.Height)
+          [System.Drawing.Graphics]::FromImage($bmp).CopyFromScreen($b.Location, [System.Drawing.Point]::Empty, $b.Size)
+          $bmp.Save("$env:RUNNER_TEMP/screen.png")
+
+      - name: Cleanup
+        if: always()
+        run: ./spikes/runner-probe/probe.ps1 -Cleanup
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: runner-probe-${{ matrix.label }}
+          path: |
+            ${{ runner.temp }}/probe.jsonl
+            ${{ runner.temp }}/screen.png
+          if-no-files-found: warn
