@@ -7,6 +7,7 @@
 //! exposed through traits with in-memory fakes.
 #![deny(clippy::indexing_slicing)]
 
+pub mod metrics;
 pub mod perf;
 
 #[cfg(windows)]

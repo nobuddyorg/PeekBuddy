@@ -28,7 +28,9 @@ Two checks keep the layout honest:
   except the allow-list in `xtask/src/unsafe_code.rs` (`peekbuddy-win` and
   `peekbuddy-alloc`).
 - `cargo xtask check-deps`: `peekbuddy-core` and `peekbuddy-engine` never
-  depend on `eframe`, `egui`, `winit`, `wgpu` or `glow` (ADR 0001).
+  depend on `eframe`, `egui`, `winit`, `wgpu` or `glow` (ADR 0001), and no
+  crate uses PDH: no `Win32_System_Performance` feature, no `Pdh*` call, no
+  `pdh.dll` (#24). Process metrics come from `peekbuddy_win::metrics`.
 
 ## Running tests
 

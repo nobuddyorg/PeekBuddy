@@ -14,15 +14,21 @@ tracelogging = { workspace = true }
 
 [target.'cfg(windows)'.dependencies]
 windows-sys = { workspace = true, features = [
+  "Wdk_System_SystemInformation",
   "Win32_Foundation",
   "Win32_Security",
+  "Win32_System_ProcessStatus",
   "Win32_System_RemoteDesktop",
   "Win32_System_SystemInformation",
   "Win32_System_Threading",
+  "Win32_System_WindowsProgramming",
 ] }
 
 [dev-dependencies]
 peekbuddy-alloc = { workspace = true }
+
+[target.'cfg(windows)'.dev-dependencies]
+windows-sys = { workspace = true, features = ["Win32_Graphics_Gdi"] }
 
 [[test]]
 name = "alloc_perf"
