@@ -29,3 +29,31 @@ Warnings are errors in CI (`CARGO_BUILD_WARNINGS=deny`). `unwrap`, `expect`,
 `panic`, `todo`, `dbg!` and printing macros are denied outside tests; indexing
 and slicing are denied in `peekbuddy-core` and `peekbuddy-win`. Use
 `#[expect(..., reason = "...")]`, never `#[allow]`.
+
+## Hooks and commit messages
+
+The repository uses [prek](https://github.com/j178/prek) (pre-commit
+compatible) with the hooks in `.pre-commit-config.yaml`:
+
+```sh
+pip install prek==0.5.7   # or: uv tool install prek
+prek install              # installs the pre-commit and commit-msg hooks
+prek run --all-files      # everything, once
+```
+
+The first run builds `taplo`, `cargo-sort` and `committed` from source and
+takes a few minutes; later runs take seconds. `cargo-clippy` is slow on a cold
+cache: skip it locally with `SKIP=cargo-clippy git commit ...`; CI still runs
+it on Windows.
+
+Commit messages follow [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/),
+checked by [committed](https://github.com/crate-ci/committed) (`committed.toml`):
+`type(scope): summary` with a lowercase summary of at most 50 characters,
+body lines of at most 72. Allowed types: `fix`, `feat`, `chore`, `docs`,
+`style`, `refactor`, `perf`, `test`, `build`, `ci`. Commits by Dependabot and
+release-plz are exempt.
+
+```text
+update stuff                  rejected
+feat(core): add event kind    accepted
+```

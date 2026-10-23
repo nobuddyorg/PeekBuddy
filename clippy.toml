@@ -2,4 +2,11 @@ allow-unwrap-in-tests = true
 allow-expect-in-tests = true
 # Same value as rust-version in Cargo.toml; clippy warns when the two differ.
 msrv = "1.99.1"
-doc-valid-idents = ["PeekBuddy", "NoBuddy", "ReadDirectoryChangesExW", "ReadDirectoryChangesW", "..", "FILE_NOTIFY"]
+doc-valid-idents = [
+  "PeekBuddy",
+  "NoBuddy",
+  "ReadDirectoryChangesExW",
+  "ReadDirectoryChangesW",
+  "..",
+  "FILE_NOTIFY",
+]
