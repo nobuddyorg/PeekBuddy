@@ -42,6 +42,22 @@ with `cargo test --doc` (nextest does not run them). Configuration is in
 | Coverage (#14), mutation in diff (#15) | yes | full shards |
 | Miri, fuzzing, long proptests, beta canary (#17) | no | yes |
 
+## Nightly jobs
+
+`.github/workflows/nightly.yml` runs at 02:17 UTC. A failing job opens or
+updates one issue labelled `nightly`; the next green run closes it. The
+owner triages `nightly` issues; an agent picks them up like any other issue.
+
+| Job | Runner | What |
+| --- | --- | --- |
+| `miri` | ubuntu | `cargo +nightly miri test` for `peekbuddy-core` and `peekbuddy-win` (OS-independent code, including the unsafe record parsers) |
+| `fuzz` | ubuntu | every cargo-fuzz target for 20 minutes ([fuzzing](docs/how-to/fuzzing.md)) |
+| `long property tests` | `windows-2025` | `PROPTEST_CASES=10000` |
+| `fs-serial stress` | `windows-2025` | `fs-serial` tests repeated for 30 minutes (`--stress-duration`) |
+| `beta canary` | `windows-2025` | clippy and tests on beta, ahead of the toolchain bump |
+| `fresh dependencies` | `windows-2025` | `cargo update`, then build and test |
+| `mutants` | `windows-2025` × 8 shards, plus core on ubuntu | full mutation run ([mutation testing](docs/how-to/mutation-testing.md)) |
+
 ## Helpers: `peekbuddy-testkit`
 
 A dev-only crate:
