@@ -17,7 +17,7 @@ use super::{Event, Flags, Kind, MAX_NAME_UNITS, NameArena, NameKind, RootIdx, So
 pub const VERSION: u8 = 1;
 
 /// Bytes before the name units.
-pub const FIXED_LEN: usize = 6 + 6 + 24 + 8 + 8 + 8 + 32 + 8 + 2;
+pub const FIXED_LEN: usize = 102;
 
 /// The largest encoded event.
 pub const MAX_ENCODED_LEN: usize = FIXED_LEN + 2 * MAX_NAME_UNITS;
@@ -296,6 +296,12 @@ mod tests {
     fn fixed_len_matches_the_layout() {
         let mut buf = [0_u8; FIXED_LEN];
         assert_eq!(encode(&sample(), &[], &mut buf), Ok(FIXED_LEN));
+    }
+
+    #[test]
+    fn max_encoded_len_is_the_longest_event() {
+        assert_eq!(MAX_ENCODED_LEN, 65_636);
+        assert_eq!(encoded_len(MAX_NAME_UNITS), MAX_ENCODED_LEN);
     }
 
     #[test]

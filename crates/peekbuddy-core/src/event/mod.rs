@@ -242,6 +242,24 @@ pub(crate) mod tests {
     }
 
     #[test]
+    fn flag_bits_are_stable() {
+        let all = [
+            (Flags::CLOUD_CHURN, 0x01),
+            (Flags::SELF_CHURN, 0x02),
+            (Flags::TEMP, 0x04),
+            (Flags::SHORT_DUP, 0x08),
+            (Flags::NAME_UNRESOLVED, 0x10),
+            (Flags::GAP_FOLLOWS, 0x20),
+        ];
+        for (flag, bits) in all {
+            assert_eq!(flag.bits(), bits);
+        }
+        let both = Flags::TEMP.union(Flags::TEMP);
+        assert_eq!(both, Flags::TEMP);
+        assert_eq!(Flags::TEMP.union(Flags::SELF_CHURN).bits(), 0x06);
+    }
+
+    #[test]
     fn flags_reject_undefined_bits() {
         assert_eq!(Flags::from_bits(0), Some(Flags::NONE));
         assert!(Flags::from_bits(Flags::ALL_BITS).is_some());

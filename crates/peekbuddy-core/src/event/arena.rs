@@ -134,5 +134,11 @@ mod tests {
         assert!(a.is_empty());
         let r = a.push_iter(2, [1_u16, 2, 3].into_iter());
         assert_eq!(r.and_then(|r| a.get(r)), Some(&[1, 2][..]));
+        // A failed push after a successful one must leave the earlier name.
+        assert!(a.push_iter(3, [9_u16].into_iter()).is_none());
+        assert_eq!(a.len(), 2);
+        assert!(!a.is_empty());
+        let r2 = a.push_iter(1, [7_u16].into_iter());
+        assert_eq!(r2.and_then(|r| a.get(r)), Some(&[7][..]));
     }
 }

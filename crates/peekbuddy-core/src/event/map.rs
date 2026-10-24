@@ -84,49 +84,17 @@ pub mod usn_reason {
     /// `USN_REASON_CLOSE`.
     pub const CLOSE: u32 = 0x8000_0000;
 
-    /// Every defined bit.
-    pub const ALL: u32 = DATA_OVERWRITE
-        | DATA_EXTEND
-        | DATA_TRUNCATION
-        | NAMED_DATA_OVERWRITE
-        | NAMED_DATA_EXTEND
-        | NAMED_DATA_TRUNCATION
-        | FILE_CREATE
-        | FILE_DELETE
-        | EA_CHANGE
-        | SECURITY_CHANGE
-        | RENAME_OLD_NAME
-        | RENAME_NEW_NAME
-        | INDEXABLE_CHANGE
-        | BASIC_INFO_CHANGE
-        | HARD_LINK_CHANGE
-        | COMPRESSION_CHANGE
-        | ENCRYPTION_CHANGE
-        | OBJECT_ID_CHANGE
-        | REPARSE_POINT_CHANGE
-        | STREAM_CHANGE
-        | TRANSACTED_CHANGE
-        | INTEGRITY_CHANGE
-        | DESIRED_STORAGE_CLASS_CHANGE
-        | CLOSE;
+    /// Every defined bit (literal; a test checks it against the members).
+    pub const ALL: u32 = 0x81FF_FF77;
 
     /// The plain data bits.
-    pub const DATA: u32 = DATA_OVERWRITE | DATA_EXTEND | DATA_TRUNCATION;
+    pub const DATA: u32 = 0x0000_0007;
     /// The named-data and stream bits.
-    pub const STREAM: u32 =
-        NAMED_DATA_OVERWRITE | NAMED_DATA_EXTEND | NAMED_DATA_TRUNCATION | STREAM_CHANGE;
+    pub const STREAM: u32 = 0x0020_0070;
     /// The link bits.
-    pub const LINK: u32 = HARD_LINK_CHANGE | REPARSE_POINT_CHANGE;
+    pub const LINK: u32 = 0x0011_0000;
     /// Metadata bits that map to `AttributesChanged` ("and the rest").
-    pub const ATTRIBUTES: u32 = BASIC_INFO_CHANGE
-        | EA_CHANGE
-        | INDEXABLE_CHANGE
-        | COMPRESSION_CHANGE
-        | ENCRYPTION_CHANGE
-        | OBJECT_ID_CHANGE
-        | TRANSACTED_CHANGE
-        | INTEGRITY_CHANGE
-        | DESIRED_STORAGE_CLASS_CHANGE;
+    pub const ATTRIBUTES: u32 = 0x01CE_C400;
 }
 
 /// The kind of an RDCW `FILE_ACTION_*` value. Unknown values give
@@ -278,10 +246,76 @@ mod tests {
         }
     }
 
+    fn or_all(bits: &[u32]) -> u32 {
+        bits.iter().fold(0, |acc, b| acc | b)
+    }
+
     #[test]
-    fn group_masks_are_defined_bits() {
-        for group in [r::DATA, r::STREAM, r::LINK, r::ATTRIBUTES] {
-            assert_eq!(group & !r::ALL, 0);
+    fn group_masks_are_the_union_of_their_members() {
+        assert_eq!(
+            r::DATA,
+            or_all(&[r::DATA_OVERWRITE, r::DATA_EXTEND, r::DATA_TRUNCATION])
+        );
+        assert_eq!(
+            r::STREAM,
+            or_all(&[
+                r::NAMED_DATA_OVERWRITE,
+                r::NAMED_DATA_EXTEND,
+                r::NAMED_DATA_TRUNCATION,
+                r::STREAM_CHANGE,
+            ])
+        );
+        assert_eq!(
+            r::LINK,
+            or_all(&[r::HARD_LINK_CHANGE, r::REPARSE_POINT_CHANGE])
+        );
+        assert_eq!(
+            r::ATTRIBUTES,
+            or_all(&[
+                r::BASIC_INFO_CHANGE,
+                r::EA_CHANGE,
+                r::INDEXABLE_CHANGE,
+                r::COMPRESSION_CHANGE,
+                r::ENCRYPTION_CHANGE,
+                r::OBJECT_ID_CHANGE,
+                r::TRANSACTED_CHANGE,
+                r::INTEGRITY_CHANGE,
+                r::DESIRED_STORAGE_CLASS_CHANGE,
+            ])
+        );
+    }
+
+    #[test]
+    fn all_is_the_union_of_every_defined_bit() {
+        let every = [
+            r::DATA_OVERWRITE,
+            r::DATA_EXTEND,
+            r::DATA_TRUNCATION,
+            r::NAMED_DATA_OVERWRITE,
+            r::NAMED_DATA_EXTEND,
+            r::NAMED_DATA_TRUNCATION,
+            r::FILE_CREATE,
+            r::FILE_DELETE,
+            r::EA_CHANGE,
+            r::SECURITY_CHANGE,
+            r::RENAME_OLD_NAME,
+            r::RENAME_NEW_NAME,
+            r::INDEXABLE_CHANGE,
+            r::BASIC_INFO_CHANGE,
+            r::HARD_LINK_CHANGE,
+            r::COMPRESSION_CHANGE,
+            r::ENCRYPTION_CHANGE,
+            r::OBJECT_ID_CHANGE,
+            r::REPARSE_POINT_CHANGE,
+            r::STREAM_CHANGE,
+            r::TRANSACTED_CHANGE,
+            r::INTEGRITY_CHANGE,
+            r::DESIRED_STORAGE_CLASS_CHANGE,
+            r::CLOSE,
+        ];
+        assert_eq!(r::ALL, or_all(&every));
+        for bit in every {
+            assert_eq!(bit.count_ones(), 1);
         }
     }
 
