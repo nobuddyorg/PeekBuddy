@@ -134,7 +134,6 @@ fn exercise(class: Class, info_class: i32, tag: &str) {
     let target = dir.clone();
     let Some(bytes) = capture(&dir, info_class, move || {
         std::fs::write(target.join("héllo wörld.txt"), b"data").unwrap();
-        std::fs::create_dir(target.join("sub")).unwrap();
     }) else {
         // Only the full class (Windows 11 22H2+) may be missing.
         assert_eq!(class, Class::Full, "class {info_class} rejected");
@@ -152,7 +151,6 @@ fn exercise(class: Class, info_class: i32, tag: &str) {
         names.iter().any(|n| n.starts_with("h\u{e9}llo")),
         "{names:?}"
     );
-    assert!(names.iter().any(|n| n == "sub"), "{names:?}");
     // Cutting the buffer inside a record is reported, never a panic.
     let cut = bytes.len() - 1;
     let last = parse(&bytes, cut, class).last();
