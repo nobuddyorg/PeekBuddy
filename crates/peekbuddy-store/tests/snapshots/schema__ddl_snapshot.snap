@@ -1,0 +1,96 @@
+---
+source: crates/peekbuddy-store/tests/schema.rs
+expression: "ddl.join(\";\\n\\n\")"
+---
+CREATE TABLE cursor (
+  root_id INTEGER NOT NULL,
+  vol_id INTEGER NOT NULL,
+  usn INTEGER,
+  last_event_id INTEGER NOT NULL,
+  ts INTEGER NOT NULL,
+  PRIMARY KEY (root_id, vol_id)
+) STRICT, WITHOUT ROWID;
+
+CREATE TABLE event (
+  id INTEGER PRIMARY KEY,
+  ts INTEGER NOT NULL,
+  kind INTEGER NOT NULL,
+  source INTEGER NOT NULL,
+  raw_mask INTEGER NOT NULL,
+  node_id INTEGER NOT NULL,
+  old_node_id INTEGER,
+  is_dir INTEGER NOT NULL,
+  size INTEGER,
+  attrs INTEGER,
+  reparse_tag INTEGER,
+  file_id INTEGER,
+  file_id_hi INTEGER,
+  usn INTEGER,
+  vol_id INTEGER NOT NULL,
+  root_id INTEGER NOT NULL,
+  flags INTEGER NOT NULL,
+  pid INTEGER,
+  proc_id INTEGER
+) STRICT;
+
+CREATE INDEX event_node ON event(node_id, id);
+
+CREATE INDEX event_root ON event(root_id, id);
+
+CREATE TABLE meta (
+  key TEXT PRIMARY KEY,
+  value ANY
+) STRICT, WITHOUT ROWID;
+
+CREATE TABLE node (
+  id INTEGER PRIMARY KEY,
+  vol_id INTEGER NOT NULL,
+  parent_id INTEGER NOT NULL,
+  name TEXT NOT NULL,
+  name_w BLOB,
+  name_kind INTEGER NOT NULL,
+  file_id INTEGER
+) STRICT;
+
+CREATE VIRTUAL TABLE node_fts USING fts5(
+  name,
+  content='node',
+  content_rowid='id',
+  tokenize='trigram case_sensitive 0 remove_diacritics 1',
+  detail='none'
+);
+
+CREATE UNIQUE INDEX node_key ON node(parent_id, name, coalesce(name_w, x''));
+
+CREATE TABLE proc (
+  id INTEGER PRIMARY KEY,
+  pid INTEGER NOT NULL,
+  image TEXT NOT NULL,
+  started INTEGER
+) STRICT;
+
+CREATE TABLE root (
+  id INTEGER PRIMARY KEY,
+  path TEXT NOT NULL,
+  path_w BLOB,
+  recursive INTEGER NOT NULL,
+  vol_id INTEGER NOT NULL
+) STRICT;
+
+CREATE TABLE stats (
+  hour_ts INTEGER NOT NULL,
+  root_id INTEGER NOT NULL,
+  kind INTEGER NOT NULL,
+  n INTEGER NOT NULL,
+  min_id INTEGER NOT NULL,
+  max_id INTEGER NOT NULL,
+  PRIMARY KEY (hour_ts, root_id, kind)
+) STRICT, WITHOUT ROWID;
+
+CREATE TABLE vol (
+  id INTEGER PRIMARY KEY,
+  guid TEXT NOT NULL,
+  serial INTEGER NOT NULL,
+  letter TEXT,
+  journal_id INTEGER
+) STRICT
