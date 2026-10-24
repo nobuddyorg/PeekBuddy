@@ -66,6 +66,18 @@ jobs:
           $md -join "`n" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
           Compress-Archive -Path $dir -DestinationPath (Join-Path $env:RUNNER_TEMP "fs-lab-$env:LABEL.zip") -Force
 
+      - name: Dump the results into the log
+        if: always()
+        env:
+          LABEL: ${{ matrix.label }}
+        run: |
+          # The log is readable without artifact access; decode with `base64 -d`.
+          $z = Join-Path $env:RUNNER_TEMP "fs-lab-$env:LABEL.zip"
+          if (-not (Test-Path $z)) { return }
+          "FSLAB-ZIP-BEGIN $env:LABEL"
+          [Convert]::ToBase64String([IO.File]::ReadAllBytes($z), 'InsertLineBreaks')
+          'FSLAB-ZIP-END'
+
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
