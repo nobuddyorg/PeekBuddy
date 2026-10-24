@@ -83,8 +83,9 @@ fn ordinal_ignore_case_agrees_for_every_single_unit() {
                 WideStr::new(&[v]),
                 CaseMode::Insensitive,
             );
-            if ours != os_equal(&[u], &[v]) {
-                bad.push(format!("{u:04X}/{v:04X}"));
+            let os = os_equal(&[u], &[v]);
+            if ours != os {
+                bad.push(format!("{u:04X}/{v:04X}:ours={ours}/os={os}"));
             }
         }
     }

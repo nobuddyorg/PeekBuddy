@@ -49,7 +49,8 @@ possible and flagged when not.
   format characters visible; `name_json` emits `name` plus `name_utf16` only
   when the name is not exact.
 
-The table is currently derived from Rust's Unicode data; the Windows test
+The table is read from the OS (`LCMapStringEx`, invariant, simple
+upper-case; it lags the Rust Unicode data); the Windows test
 `peekbuddy-win/tests/name.rs` compares it with the OS for every unit, and a
 pinned checksum makes any table change a reviewed change.
 

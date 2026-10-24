@@ -4,7 +4,8 @@
 //! are not folded. `str::to_lowercase` and SQLite `NOCASE` disagree with
 //! that, so never use them for matching. The table is range-encoded in
 //! `upcase.rs` and must agree with `CompareStringOrdinal(bIgnoreCase = TRUE)`
-//! (a Windows test in `peekbuddy-win` cross-checks every unit).
+//! (a Windows test in `peekbuddy-win` cross-checks every unit; the table was
+//! read from the OS, which lags the Rust Unicode data in places).
 
 use super::{WideStr, upcase::UPCASE};
 
@@ -117,7 +118,7 @@ mod tests {
                 h = h.wrapping_mul(0x0000_0100_0000_01B3);
             }
         }
-        assert_eq!(h, 0x6B6A_6531_84D1_823A, "table checksum changed");
+        assert_eq!(h, 0x48ED_4531_E939_9927, "table checksum changed");
     }
 
     #[test]
