@@ -10,6 +10,7 @@ pub mod derive;
 pub mod event;
 pub mod filter;
 pub mod name;
+pub mod notify;
 pub mod perf;
 
 /// Crate version, shared by every PeekBuddy crate.
