@@ -1,0 +1,30 @@
+# Spike #36: Windows file-system edge-case lab. Its own workspace: spike
+# code, not product code. It reuses the product's notify parser so the
+# fixtures are decoded by the code that will classify them.
+[workspace]
+
+[package]
+name = "fs-lab"
+version = "0.0.0"
+edition = "2024"
+license = "MIT"
+publish = false
+
+[dependencies]
+peekbuddy-core = { path = "../../crates/peekbuddy-core" }
+serde_json = "1"
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "=0.61.2", features = [
+  "Win32_Foundation",
+  "Win32_Security",
+  "Win32_Storage_FileSystem",
+  "Win32_System_IO",
+  "Win32_System_Ioctl",
+  "Win32_System_Performance",
+  "Win32_System_SystemInformation",
+  "Win32_System_Threading",
+] }
+
+[profile.release]
+debug = 1
