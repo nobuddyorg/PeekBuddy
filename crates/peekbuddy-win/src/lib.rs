@@ -8,6 +8,7 @@
 #![deny(clippy::indexing_slicing)]
 
 pub mod fs;
+pub mod io;
 pub mod metrics;
 pub mod perf;
 
