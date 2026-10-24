@@ -481,3 +481,108 @@ source = "#26, #24"
 workload = "criterion bench metrics/process_list_300"
 how = "cargo xtask bench-ab (same-runner A/B, warn +15 %, fail +50 %)"
 arch = ["x86_64"]
+
+[[budget]]
+id = "bench.notify_parse.plain.64kib"
+metric = "zero-copy parse of a 64 KiB plain ReadDirectoryChanges buffer, names of 8 to 64 units"
+unit = "ns"
+bound = "max"
+class = "timing"
+gate = "pr-ab"
+status = "provisional"
+source = "#26, #44"
+workload = "criterion bench notify_parse/plain/64KiB"
+how = "cargo xtask bench-ab (same-runner A/B, warn +15 %, fail +50 %)"
+arch = ["x86_64"]
+
+[[budget]]
+id = "bench.notify_parse.extended.64kib"
+metric = "zero-copy parse of a 64 KiB extended ReadDirectoryChanges buffer, names of 8 to 64 units"
+unit = "ns"
+bound = "max"
+class = "timing"
+gate = "pr-ab"
+status = "provisional"
+source = "#26, #44"
+workload = "criterion bench notify_parse/extended/64KiB"
+how = "cargo xtask bench-ab (same-runner A/B, warn +15 %, fail +50 %)"
+arch = ["x86_64"]
+
+[[budget]]
+id = "bench.notify_parse.full.64kib"
+metric = "zero-copy parse of a 64 KiB full ReadDirectoryChanges buffer, names of 8 to 64 units"
+unit = "ns"
+bound = "max"
+class = "timing"
+gate = "pr-ab"
+status = "provisional"
+source = "#26, #44"
+workload = "criterion bench notify_parse/full/64KiB"
+how = "cargo xtask bench-ab (same-runner A/B, warn +15 %, fail +50 %)"
+arch = ["x86_64"]
+
+[[budget]]
+id = "bench.filter.eval_6_names"
+metric = "six filter verdicts over the default presets plus a regex rule"
+unit = "ns"
+bound = "max"
+class = "timing"
+gate = "pr-ab"
+status = "provisional"
+source = "#26, #40"
+workload = "criterion bench filter/eval_6_names"
+how = "cargo xtask bench-ab (same-runner A/B, warn +15 %, fail +50 %)"
+arch = ["x86_64"]
+
+[[budget]]
+id = "bench.store.intern_hit_1000"
+metric = "1,000 interner lookups that hit in memory"
+unit = "ns"
+bound = "max"
+class = "timing"
+gate = "pr-ab"
+status = "provisional"
+source = "#26, #53"
+workload = "criterion bench store/intern_hit_1000"
+how = "cargo xtask bench-ab (same-runner A/B, warn +15 %, fail +50 %)"
+arch = ["x86_64"]
+
+[[budget]]
+id = "bench.store.intern_miss_1000"
+metric = "1,000 interner misses on an in-memory segment: node and search row inserts"
+unit = "ns"
+bound = "max"
+class = "timing"
+gate = "pr-ab"
+status = "provisional"
+source = "#26, #53"
+workload = "criterion bench store/intern_miss_1000"
+how = "cargo xtask bench-ab (same-runner A/B, warn +15 %, fail +50 %)"
+arch = ["x86_64"]
+
+[[budget]]
+id = "bench.store.batch_insert_1000"
+metric = "one 1,000-event insert transaction on an in-memory segment"
+unit = "ns"
+bound = "max"
+class = "timing"
+gate = "pr-ab"
+status = "provisional"
+source = "#26, #52"
+workload = "criterion bench store/batch_insert_1000"
+how = "cargo xtask bench-ab (same-runner A/B, warn +15 %, fail +50 %)"
+arch = ["x86_64"]
+
+[[budget]]
+id = "capture.parse.throughput"
+metric = "FILE_NOTIFY parse throughput on a 64 KiB buffer"
+unit = "GB/s"
+bound = "min"
+limit = 1
+class = "timing"
+gate = "nightly-trend"
+status = "provisional"
+source = "#44"
+workload = "criterion bench notify_parse/{plain,extended,full}/64KiB"
+how = "criterion throughput; trended nightly, never a PR gate (F11)"
+arch = ["x86_64"]

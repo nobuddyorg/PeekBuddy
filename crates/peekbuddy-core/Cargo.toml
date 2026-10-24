@@ -31,3 +31,7 @@ harness = false
 [[test]]
 name = "notify_alloc"
 harness = false
+
+[[test]]
+name = "capture_alloc"
+harness = false

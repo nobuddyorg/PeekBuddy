@@ -1,0 +1,140 @@
+//! The capture path (parse, map, filter) allocates nothing per event once
+//! the matcher scratch exists (#23, F10). `harness = false`: libtest itself
+//! allocates.
+
+use std::alloc::System;
+use std::hint::black_box;
+use std::process::ExitCode;
+
+use peekbuddy_alloc::{CountingAlloc, answer_nextest_list, measure};
+use peekbuddy_core::event::{Event, Flags, NameKind, NameRef, RootIdx, Source, VolIdx};
+use peekbuddy_core::filter::{CompileOptions, FilterSet, Pattern, Rule, Scope, Scratch, presets};
+use peekbuddy_core::name::{CaseMode, WideStr};
+use peekbuddy_core::notify::{Class, layout, parse};
+
+#[global_allocator]
+static ALLOC: CountingAlloc<System> = CountingAlloc::new(System);
+
+const BUFFER: usize = 64 * 1024;
+
+/// A 64 KiB buffer of extended records with names from a fixed set (some
+/// match the presets, some do not); returns it and the record count.
+fn build() -> (Vec<u8>, usize) {
+    let names: Vec<Vec<u16>> = [
+        "src\\main.rs",
+        "node_modules\\x\\index.js",
+        "Docs\\~$draft.docx",
+        "crash.dmp",
+        "backup.bak12",
+        "a\\b\\c\\d\\e.txt",
+    ]
+    .iter()
+    .map(|n| n.encode_utf16().collect())
+    .collect();
+    let header = Class::Extended.header_len();
+    let mut buf = vec![0_u8; BUFFER];
+    let (mut at, mut count, mut last) = (0_usize, 0_usize, 0_usize);
+    loop {
+        let name = names.get(count % names.len()).cloned().unwrap_or_default();
+        let size = (header + name.len() * 2).next_multiple_of(4);
+        if at + size > BUFFER {
+            break;
+        }
+        let mut put = |offset: usize, bytes: &[u8]| {
+            if let Some(dst) = buf.get_mut(at + offset..at + offset + bytes.len()) {
+                dst.copy_from_slice(bytes);
+            }
+        };
+        put(
+            layout::NEXT_ENTRY_OFFSET,
+            &u32::try_from(size).unwrap_or(0).to_le_bytes(),
+        );
+        put(layout::ACTION, &3_u32.to_le_bytes());
+        put(
+            layout::EXTENDED_NAME_LENGTH,
+            &u32::try_from(name.len() * 2).unwrap_or(0).to_le_bytes(),
+        );
+        put(layout::FILE_ATTRIBUTES, &0x20_u32.to_le_bytes());
+        for (i, unit) in name.iter().enumerate() {
+            put(header + i * 2, &unit.to_le_bytes());
+        }
+        last = at;
+        at += size;
+        count += 1;
+    }
+    if let Some(dst) = buf.get_mut(last..last + 4) {
+        dst.fill(0);
+    }
+    (buf, count)
+}
+
+fn main() -> ExitCode {
+    if answer_nextest_list("capture_alloc") {
+        return ExitCode::SUCCESS;
+    }
+    let mut rules: Vec<Rule> = presets::all()
+        .unwrap_or_default()
+        .iter()
+        .filter(|p| {
+            matches!(
+                p.name.as_str(),
+                "temp-lock-swap" | "build-dirs" | "cloud-churn"
+            )
+        })
+        .flat_map(|p| p.rules(Scope::Global))
+        .collect();
+    rules.push(Rule::exclude(Pattern::Regex(r"(?i)\.bak\d*$".into())));
+    rules.push(Rule::exclude(Pattern::Ext(vec!["dmp".into()])).never_record());
+    let options = CompileOptions {
+        default_case: CaseMode::Insensitive,
+        overrides: Vec::new(),
+    };
+    let Ok(set) = FilterSet::compile_with(&rules, &options) else {
+        return ExitCode::FAILURE;
+    };
+    let (buf, expected) = build();
+    let mut scratch = Scratch::new();
+    let mut units = [0_u16; 128];
+    let (mut seen, mut hidden) = (0_usize, 0_usize);
+    let delta = measure(20, 500, || {
+        seen = 0;
+        hidden = 0;
+        for record in parse(black_box(&buf), buf.len(), Class::Extended) {
+            let Ok(record) = record else { return };
+            let Some(extended) = record.extended else {
+                return;
+            };
+            let len = record.name.copy_into(&mut units).unwrap_or(0);
+            let event = Event {
+                ts: 1,
+                qpc: 1,
+                src_ts: 0,
+                source: Source::Rdcw,
+                kind: record.action.kind(),
+                raw_mask: record.action.raw(),
+                source_info: 0,
+                is_dir: extended.is_dir(),
+                size: u64::try_from(extended.file_size).unwrap_or(0),
+                attrs: extended.attributes,
+                reparse_tag: extended.reparse_tag,
+                file_id: u128::try_from(extended.file_id).unwrap_or(0),
+                parent_file_id: u128::try_from(extended.parent_file_id).unwrap_or(0),
+                usn: 0,
+                vol: VolIdx(0),
+                root: RootIdx(0),
+                name: NameRef::EMPTY,
+                name_kind: NameKind::Unknown,
+                flags: Flags::NONE,
+            };
+            let name = units.get(..len).unwrap_or_default();
+            let verdict = set.eval(black_box(&event), WideStr::new(name), &mut scratch);
+            seen += 1;
+            hidden += usize::from(!verdict.visible);
+        }
+    });
+    // A run that stopped early or hid nothing measured nothing.
+    if seen != expected || hidden == 0 || delta.allocs != 0 || delta.bytes != 0 {
+        return ExitCode::FAILURE;
+    }
+    ExitCode::SUCCESS
+}

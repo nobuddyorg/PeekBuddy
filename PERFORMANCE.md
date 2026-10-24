@@ -83,6 +83,14 @@ Gate values in `budgets.toml`:
 | `bench.perf.milestone_record` | to be set | timing | pr-ab | provisional | criterion bench perf/milestone_record | cargo xtask bench-ab (same-runner A/B, warn +15 %, fail +50 %) | #26, #21 |
 | `bench.perf.counters_event` | to be set | timing | pr-ab | provisional | criterion bench perf/counters_event | cargo xtask bench-ab (same-runner A/B, warn +15 %, fail +50 %) | #26, #21 |
 | `bench.metrics.process_list_300` | to be set | timing | pr-ab | provisional | criterion bench metrics/process_list_300 | cargo xtask bench-ab (same-runner A/B, warn +15 %, fail +50 %) | #26, #24 |
+| `bench.notify_parse.plain.64kib` | to be set | timing | pr-ab | provisional | criterion bench notify_parse/plain/64KiB | cargo xtask bench-ab (same-runner A/B, warn +15 %, fail +50 %) | #26, #44 |
+| `bench.notify_parse.extended.64kib` | to be set | timing | pr-ab | provisional | criterion bench notify_parse/extended/64KiB | cargo xtask bench-ab (same-runner A/B, warn +15 %, fail +50 %) | #26, #44 |
+| `bench.notify_parse.full.64kib` | to be set | timing | pr-ab | provisional | criterion bench notify_parse/full/64KiB | cargo xtask bench-ab (same-runner A/B, warn +15 %, fail +50 %) | #26, #44 |
+| `bench.filter.eval_6_names` | to be set | timing | pr-ab | provisional | criterion bench filter/eval_6_names | cargo xtask bench-ab (same-runner A/B, warn +15 %, fail +50 %) | #26, #40 |
+| `bench.store.intern_hit_1000` | to be set | timing | pr-ab | provisional | criterion bench store/intern_hit_1000 | cargo xtask bench-ab (same-runner A/B, warn +15 %, fail +50 %) | #26, #53 |
+| `bench.store.intern_miss_1000` | to be set | timing | pr-ab | provisional | criterion bench store/intern_miss_1000 | cargo xtask bench-ab (same-runner A/B, warn +15 %, fail +50 %) | #26, #53 |
+| `bench.store.batch_insert_1000` | to be set | timing | pr-ab | provisional | criterion bench store/batch_insert_1000 | cargo xtask bench-ab (same-runner A/B, warn +15 %, fail +50 %) | #26, #52 |
+| `capture.parse.throughput` | >= 1 GB/s | timing | nightly-trend | provisional | criterion bench notify_parse/{plain,extended,full}/64KiB | criterion throughput; trended nightly, never a PR gate (F11) | #44 |
 
 <!-- budgets:end -->
 
