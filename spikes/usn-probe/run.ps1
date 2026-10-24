@@ -107,6 +107,8 @@ foreach ($vol in $volumes) {
         if ($mode -eq 'admin') {
             fsutil usn readjournal $drive minver=2 maxver=3 2>&1 | Select-Object -Last 40 | Out-File (Join-Path $OutDir "$Label-$($vol.Name)-fsutil-readjournal-tail.txt")
         }
+        $childLog = [IO.Path]::ChangeExtension($out, 'child.log')
+        if (Test-Path $childLog) { "--- $cell child log ---"; Get-Content $childLog | Select-Object -First 30 }
         if (-not (Test-Path $out)) {
             '{"spike":"usn","cell":"no-output","name":"' + $cell + '","exit":' + $proc.ExitCode + '}' | Add-Content $out
         }

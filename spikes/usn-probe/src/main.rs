@@ -501,6 +501,39 @@ fn name_withholding(out: &Out, a: &Args, variant: &str, guid: Option<&str>, jour
     if let Some(first) = recs.iter().find(|r| r.name.starts_with("granted-") || r.name.starts_with("touch-")) {
         out.line("record-sample", &[("name", s(&first.name)), ("reason", format!("{:#x}", first.reason)), ("frn", s(&format!("{:#x}", first.frn))), ("parent", s(&format!("{:#x}", first.parent)))]);
     }
+    // Q4: resolve the FRNs of the window and of the probe's own files by id.
+    let own = granted_frns(a);
+    let (mut ok_n, mut ok_probe, mut fail_n) = (0, 0, 0);
+    let mut errors = std::collections::BTreeMap::<u32, u32>::new();
+    let extended = out.fs == "ReFS";
+    for r in recs.iter().take(200) {
+        match resolve_frn(h, r.frn, extended) {
+            Ok(p) => {
+                ok_n += 1;
+                if p.contains("probe-") {
+                    ok_probe += 1;
+                }
+            }
+            Err(e) => {
+                fail_n += 1;
+                *errors.entry(e).or_default() += 1;
+            }
+        }
+    }
+    let own_resolved = own.iter().filter(|f| resolve_frn(h, **f, extended).is_ok()).count();
+    out.line(
+        "resolve-by-id",
+        &[
+            ("handle", s(variant)),
+            ("tried", format!("{}", recs.len().min(200))),
+            ("resolved", format!("{ok_n}")),
+            ("resolved_in_probe_dirs", format!("{ok_probe}")),
+            ("failed", format!("{fail_n}")),
+            ("errors", s(&format!("{errors:?}"))),
+            ("own_files_listed", format!("{}", own.len())),
+            ("own_files_resolved", format!("{own_resolved}")),
+        ],
+    );
     // SAFETY: handle opened above.
     unsafe { CloseHandle(h) };
 }
@@ -537,6 +570,13 @@ fn resolve_frn(volume_handle: HANDLE, frn: u128, extended: bool) -> Result<Strin
     Ok(String::from_utf16_lossy(&buf[..n as usize]))
 }
 
+/// FRNs of the files the probe left in its ok directory.
+fn granted_frns(a: &Args) -> Vec<u128> {
+    std::fs::read_dir(&a.ok_dir)
+        .map(|rd| rd.flatten().filter_map(|e| file_frn(&e.path())).collect())
+        .unwrap_or_default()
+}
+
 fn percentile(sorted: &[u64], p: f64) -> u64 {
     if sorted.is_empty() {
         return 0;
@@ -547,13 +587,18 @@ fn percentile(sorted: &[u64], p: f64) -> u64 {
 /// The FRN of `path` through `FSCTL_READ_FILE_USN_DATA` (names are stripped
 /// from unprivileged journal records, so records are matched by FRN).
 fn file_frn(path: &Path) -> Option<u128> {
-    let h = open(&path.to_string_lossy(), GENERIC_READ, FILE_FLAG_BACKUP_SEMANTICS).ok()?;
+    file_frn_or_error(path).ok()
+}
+
+/// As [`file_frn`], with the failing Win32 error (0 = no record in the reply).
+fn file_frn_or_error(path: &Path) -> Result<u128, u32> {
+    let h = open(&path.to_string_lossy(), GENERIC_READ, FILE_FLAG_BACKUP_SEMANTICS)?;
     let mut buf = vec![0u8; 4096];
     let result = ioctl(h, FSCTL_READ_FILE_USN_DATA, &[2u8, 0, 3, 0], &mut buf);
     // SAFETY: handle opened above.
     unsafe { CloseHandle(h) };
-    let n = result.ok()?;
-    parse_records_with_prefix(&buf, n as usize).1.first().map(|r| r.frn)
+    let n = result?;
+    parse_records_with_prefix(&buf, n as usize).1.first().map(|r| r.frn).ok_or(0)
 }
 
 /// Q5: change to readable record, 200 operations, `BytesToWaitFor = 1`
@@ -563,14 +608,19 @@ fn latency(out: &Out, a: &Args, variant: &str, guid: Option<&str>, journal_id: u
     let (mut next, _, _) = read_all(h, 0, journal_id);
     let mut micros = Vec::new();
     let mut misses = 0u32;
+    let mut first_error: Option<u32> = None;
     let mut buf = vec![0u8; 65_536];
     for i in 0..200 {
         let path = a.ok_dir.join(format!("lat-{i}.txt"));
         let t0 = Instant::now();
         let _ = std::fs::write(&path, b"z");
-        let Some(frn) = file_frn(&path) else {
-            misses += 1;
-            continue;
+        let frn = match file_frn_or_error(&path) {
+            Ok(frn) => frn,
+            Err(e) => {
+                misses += 1;
+                first_error.get_or_insert(e);
+                continue;
+            }
         };
         let mut seen = false;
         while t0.elapsed() < Duration::from_secs(2) && !seen {
@@ -590,7 +640,7 @@ fn latency(out: &Out, a: &Args, variant: &str, guid: Option<&str>, journal_id: u
         }
     }
     micros.sort_unstable();
-    out.line("latency", &[("handle", s(variant)), ("ops", "200".into()), ("misses", format!("{misses}")), ("p50_us", format!("{}", percentile(&micros, 0.5))), ("p99_us", format!("{}", percentile(&micros, 0.99))), ("max_us", format!("{}", micros.last().copied().unwrap_or(0)))]);
+    out.line("latency", &[("handle", s(variant)), ("ops", "200".into()), ("misses", format!("{misses}")), ("first_frn_error", first_error.map_or("null".into(), |e| format!("{e}"))), ("p50_us", format!("{}", percentile(&micros, 0.5))), ("p99_us", format!("{}", percentile(&micros, 0.99))), ("max_us", format!("{}", micros.last().copied().unwrap_or(0)))]);
     // SAFETY: handle opened above.
     unsafe { CloseHandle(h) };
 }
