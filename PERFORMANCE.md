@@ -62,8 +62,8 @@ Gate values in `budgets.toml`:
 | `engine.notify_buffers.total` | <= 64 MiB | deterministic | pr-strict | provisional | any | buffer pool accounting in --perf-probe JSON | R5, sized by #32 |
 | `engine.private_bytes.burst` | <= 40 MB | resource | nightly-trend | provisional | churn profile burst-100k (#25) | PeakPagefileUsage after the burst (#24) | F8 |
 | `viewer.private_bytes.10m_rows` | <= 80 MB | resource | nightly-trend | provisional | 10M-row log, scrolled top to bottom | PROCESS_MEMORY_COUNTERS_EX2.PrivateUsage (#24) | F8; arm64 limit from #33 |
-| `event.latency.p50` | <= 10 ms | timing | pr-ab | provisional | churn profile latency-10k (#25) | ledger timestamp vs commit timestamp (#27) | R1, recalibrated by #35 |
-| `event.latency.p99` | <= 50 ms | timing | pr-ab | provisional | churn profile latency-10k (#25) | ledger timestamp vs commit timestamp (#27) | R1, recalibrated by #35 |
+| `event.latency.p50` | <= 10 ms | timing | pr-ab | provisional | churn profile latency-10k (#25) | ledger timestamp vs commit timestamp (#27) | R1, checked by #35 (commit path alone: p50 3.2 ms, p99 6.3 ms at 10k events/s, linger 5 ms from the first pending event) |
+| `event.latency.p99` | <= 50 ms | timing | pr-ab | provisional | churn profile latency-10k (#25) | ledger timestamp vs commit timestamp (#27) | R1, checked by #35 (commit path alone: p50 3.2 ms, p99 6.3 ms at 10k events/s, linger 5 ms from the first pending event) |
 | `ingest.burst` | >= 100000 events/s | timing | pr-ab | provisional | churn profile burst-100k (#25) | ledger count / burst duration (#27) | F2, recalibrated by #32 |
 | `ingest.sustained` | >= 20000 events/s | timing | pr-ab | provisional | churn profile sustained-20k (#25) | ledger count / duration (#27) | F2, recalibrated by #32 |
 | `ingest.undetected_loss` | <= 0 count | deterministic | pr-strict | calibrated | every churn profile (#25, #50) | ledger vs store comparison (#50) | F2, R7 |
@@ -78,7 +78,9 @@ Gate values in `budgets.toml`:
 | `alloc.capture_per_event` | <= 0 count | deterministic | pr-strict | calibrated | parse + filter + classify of a recorded buffer (#23) | counting global allocator (#23) | F10 |
 | `alloc.writer_per_1000` | to be set | deterministic | pr-strict | provisional | writer batch of 1,000 events (#52) | counting global allocator (#23) | F10; limit set after the first measurement (#23, #52) |
 | `alloc.viewer_per_frame` | to be set | deterministic | pr-strict | provisional | 10M-row log, scripted scroll | counting global allocator (#23) | F10; limit set after the first measurement (#23, #66) |
-| `store.bytes_per_event` | to be set | deterministic | pr-strict | provisional | churn profile sustained-20k (#25) | segment file size / row count (#35) | F5; limit set by #35 |
+| `store.bytes_per_event` | <= 90 bytes | deterministic | pr-strict | provisional | churn profile sustained-20k (#25) | segment file size / row count (#35) | F5; set by #35 (76 B measured: interned paths, both indexes, 4 KiB pages; inline paths cost 115 B) |
+| `store.commit.p99` | <= 15 ms | timing | nightly-trend | provisional | spikes/store-bench commit cells, replaced by the writer bench (#52) | store-bench JSONL, later the writer bench (#26) | #35 (6.3 ms measured on windows-2025; limit is about twice that) |
+| `store.writer.burst` | >= 50000 events/s | timing | nightly-trend | provisional | spikes/store-bench commit cells, replaced by the writer bench (#52) | store-bench JSONL, later the writer bench (#26) | #35 (77k to 83k events/s measured; the 100k/s burst needs the ring of about 170k records or the spill, see ADR 0004) |
 | `engine.handles.stable` | <= 0 count | deterministic | pr-strict | provisional | add/remove 10 roots three times (#48) | GetProcessHandleCount (#24) | F19 |
 | `bench.perf.milestone_record` | to be set | timing | pr-ab | provisional | criterion bench perf/milestone_record | cargo xtask bench-ab (same-runner A/B, warn +15 %, fail +50 %) | #26, #21 |
 | `bench.perf.counters_event` | to be set | timing | pr-ab | provisional | criterion bench perf/counters_event | cargo xtask bench-ab (same-runner A/B, warn +15 %, fail +50 %) | #26, #21 |

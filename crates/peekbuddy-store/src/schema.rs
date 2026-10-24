@@ -56,7 +56,7 @@ CREATE VIRTUAL TABLE node_fts USING fts5(
   content='node',
   content_rowid='id',
   tokenize='trigram case_sensitive 0 remove_diacritics 1',
-  detail='none'
+  detail='full'
 );
 CREATE TABLE root (
   id INTEGER PRIMARY KEY,

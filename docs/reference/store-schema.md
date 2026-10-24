@@ -22,7 +22,7 @@ and is snapshot-tested.
 | Table | Purpose |
 | --- | --- |
 | `node` | The interned directory tree: `parent_id` (0 for top level), `name` (lossy UTF-8), `name_w` (exact UTF-16LE, only when the name is not valid Unicode), `name_kind`, `file_id`. |
-| `node_fts` | FTS5 trigram index over `node.name`, `detail='none'`, written by the writer, no triggers. |
+| `node_fts` | FTS5 trigram index over `node.name`, `detail='full'`, written by the writer, no triggers. |
 | `root` | Watch roots. |
 | `vol` | Volumes: GUID path, serial, letter, journal id. |
 | `proc` | Reserved for process attribution after v1. |
@@ -33,12 +33,15 @@ coalesced and the parent is never NULL. Names are case-preserving and
 byte-exact: `a.txt` and `A.txt` are different nodes, and two names that
 differ only in lone surrogates are different nodes.
 
-Because the FTS table has `detail='none'`, a `MATCH` with more than one
-trigram is a phrase query and SQLite rejects it. Substring search uses
-`name LIKE '%text%'` on `node_fts`, which the trigram index accelerates and
-which folds case for Unicode. Whether `LIKE` on this external-content
-table really uses the trigram index (and not a scan of `node`) is unverified
-and #55 must check it with `EXPLAIN QUERY PLAN`.
+Substring search uses `node_fts MATCH '"text"'` with the text as a quoted
+phrase (double quotes inside the text doubled). The trigram index answers it
+in 0.1 to 0.5 ms at 200k nodes. `LIKE '%text%'` on `node_fts` never uses the
+index (it is a scan of the virtual table, slower than a scan of `node`).
+`detail='none'` and `detail='column'` both reject a `MATCH` phrase of more
+than one trigram ("phrase queries are not supported (detail!=full)"), so the
+table uses `detail='full'`: 2.2x the index size of `none` (spike #35,
+`docs/spikes/0005-sqlite-ingest-query.md`). Search texts shorter than three
+characters have no trigram: scan `node` instead.
 
 ## Segment part
 
