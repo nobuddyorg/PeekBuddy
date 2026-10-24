@@ -1,0 +1,104 @@
+# Spike #33: viewer renderer and footprint on the hosted Windows runners.
+# The runners have no GPU: every cell renders with WARP (informational, F11).
+name: viewer-bench
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - spikes/viewer-bench/**
+      - .github/workflows/viewer-bench.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: viewer-bench-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  bench:
+    name: viewer-bench (${{ matrix.label }})
+    runs-on: ${{ matrix.label }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        label: [windows-2025, windows-11-vs2026-arm]
+    env:
+      LABEL: ${{ matrix.label }}
+      CARGO_TERM_COLOR: always
+    defaults:
+      run:
+        shell: pwsh
+        working-directory: spikes/viewer-bench
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Rust toolchain
+        working-directory: .
+        run: |
+          rustup toolchain install
+          rustup show
+
+      - name: Build wgpu (DX12 only)
+        run: cargo build --release --locked
+
+      - name: Build glow (x64 only)
+        if: matrix.label == 'windows-2025'
+        env:
+          CARGO_TARGET_DIR: target-glow
+        run: cargo build --release --locked --no-default-features --features glow
+
+      - name: Session facts
+        run: |
+          $out = Join-Path $env:RUNNER_TEMP 'results.jsonl'
+          $os = Get-CimInstance Win32_OperatingSystem
+          $gpu = Get-CimInstance Win32_VideoController | ForEach-Object { $_.Name }
+          (@{ experiment = 'env'; label = $env:LABEL; caption = $os.Caption; version = $os.Version; gpu = $gpu; session = (Get-Process -Id $PID).SessionId } | ConvertTo-Json -Compress) | Add-Content $out
+
+      - name: Scenarios
+        continue-on-error: true
+        run: |
+          $out = Join-Path $env:RUNNER_TEMP 'results.jsonl'
+          $variants = @(@{ name = 'wgpu'; exe = 'target/release/viewer-bench.exe' })
+          if ($env:LABEL -eq 'windows-2025') { $variants += @{ name = 'glow'; exe = 'target-glow/release/viewer-bench.exe' } }
+          foreach ($v in $variants) {
+            $tag = "$env:LABEL/$($v.name)"
+            # Engine role: no window, the module list shows what the binary loads.
+            & $v.exe --scenario engine --secs 3 --label $tag --out $out | Out-Null
+            # First frame: five runs.
+            1..5 | ForEach-Object { & $v.exe --scenario first-frame --label "$tag/run$_" --out $out | Out-Null }
+            foreach ($s in @(@('idle', 30), @('scroll', 30), @('tail', 30), @('wiggle', 20))) {
+              $p = Start-Process -FilePath $v.exe -ArgumentList @('--scenario', $s[0], '--secs', $s[1], '--label', $tag, '--out', $out) -PassThru -NoNewWindow
+              if (-not $p.WaitForExit(180000)) { $p.Kill($true); '{"experiment":"timeout","scenario":"' + $s[0] + '","label":"' + $tag + '"}' | Add-Content $out }
+            }
+            # Warm 10 ms latency scroll.
+            $p = Start-Process -FilePath $v.exe -ArgumentList @('--scenario', 'scroll', '--secs', '20', '--latency-ms', '5', '--label', "$tag/latency5", '--out', $out) -PassThru -NoNewWindow
+            if (-not $p.WaitForExit(180000)) { $p.Kill($true) }
+            "$tag exe bytes: $((Get-Item $v.exe).Length)" | Write-Host
+          }
+
+      - name: Summary
+        if: always()
+        run: |
+          $out = Join-Path $env:RUNNER_TEMP 'results.jsonl'
+          if (-not (Test-Path $out)) { return }
+          Copy-Item $out (Join-Path $env:RUNNER_TEMP "viewer-bench-$env:LABEL.jsonl")
+          $md = @("### viewer-bench: $env:LABEL", '', '```')
+          foreach ($line in Get-Content $out) {
+            $r = $line | ConvertFrom-Json
+            if ($r.modules) { $r.modules = ($r.modules | Where-Object { $_ -match 'gl|d3d|dxgi|vulkan|wgpu|dxc|d3dcompiler' }) }
+            $md += ($r | ConvertTo-Json -Compress -Depth 6)
+          }
+          $md += '```'
+          $md -join "`n" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: viewer-bench-${{ matrix.label }}
+          path: ${{ runner.temp }}/viewer-bench-${{ matrix.label }}.jsonl
+          if-no-files-found: warn
