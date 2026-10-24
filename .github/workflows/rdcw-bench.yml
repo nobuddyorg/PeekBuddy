@@ -1,0 +1,64 @@
+# Spike #32: ReadDirectoryChangesExW throughput, overflow and lifecycle on the hosted Windows runners.
+name: rdcw-bench
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - spikes/rdcw-bench/**
+      - .github/workflows/rdcw-bench.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: rdcw-bench-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  probe:
+    name: rdcw-bench (${{ matrix.label }})
+    runs-on: ${{ matrix.label }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        label: [windows-2025, windows-11-vs2026-arm]
+    env:
+      LABEL: ${{ matrix.label }}
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Rust toolchain
+        run: |
+          rustup toolchain install
+          rustup show
+
+      - name: Build the probe
+        working-directory: spikes/rdcw-bench
+        run: cargo build --release --locked
+
+      - name: Run the matrix
+        run: ./spikes/rdcw-bench/run.ps1 -Exe spikes/rdcw-bench/target/release/rdcw-bench.exe -Label $env:LABEL
+
+      - name: Summary
+        if: always()
+        run: |
+          $all = 'C:\rdcw-bench\out\' + $env:LABEL + '-all.jsonl'
+          if (-not (Test-Path $all)) { return }
+          $md = @("### rdcw-bench: $env:LABEL", '', '```')
+          $md += Get-Content $all | Where-Object { $_ -match '"experiment":"(matrix|lifecycle|detach)"' } | Select-Object -First 400
+          $md += '```'
+          $md -join "`n" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: rdcw-bench-${{ matrix.label }}
+          path: C:\rdcw-bench\out\
+          if-no-files-found: warn

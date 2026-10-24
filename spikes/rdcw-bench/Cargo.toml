@@ -1,0 +1,26 @@
+# Spike #32: ReadDirectoryChangesExW throughput and overflow characteristics.
+# Its own workspace: spike code, not product code. It reuses the product's
+# IOCP primitives (#43) and notify parser (#44).
+[workspace]
+
+[package]
+name = "rdcw-bench"
+version = "0.0.0"
+edition = "2024"
+license = "MIT"
+publish = false
+
+[target.'cfg(windows)'.dependencies]
+peekbuddy-core = { path = "../../crates/peekbuddy-core" }
+peekbuddy-win = { path = "../../crates/peekbuddy-win" }
+windows-sys = { version = "=0.61.2", features = [
+  "Win32_Foundation",
+  "Win32_Storage_FileSystem",
+  "Win32_System_IO",
+  "Win32_System_ProcessStatus",
+  "Win32_System_Threading",
+  "Win32_System_WindowsProgramming",
+] }
+
+[profile.release]
+debug = 1
