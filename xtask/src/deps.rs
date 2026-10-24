@@ -1,5 +1,6 @@
 //! `cargo xtask check-deps`: the always-running engine crates never pull in a
-//! GPU or UI stack (ADR 0001, F1), and nothing uses PDH (#24).
+//! GPU or UI stack (ADR 0001, F1), nothing uses PDH (#24), and the per-record
+//! capture path has no `tracing` macro (#21).
 
 use crate::metadata;
 
@@ -40,10 +41,12 @@ pub fn run() -> Result<String, String> {
         "{p}",
     ])?;
     problems.extend(pdh_features(&features));
-    problems.extend(pdh_sources(&product_sources()?));
+    let sources = product_sources()?;
+    problems.extend(pdh_sources(&sources));
+    problems.extend(tracing_sources(&sources));
     if problems.is_empty() {
         Ok(format!(
-            "check-deps: ok ({} free of {}; no PDH)",
+            "check-deps: ok ({} free of {}; no PDH; no tracing in the capture path)",
             ENGINE_CRATES.join(", "),
             FORBIDDEN.join(", ")
         ))
@@ -94,6 +97,53 @@ pub fn pdh_sources(files: &[(String, String)]) -> Vec<String> {
     problems
 }
 
+/// Directories of the per-record capture path: parse, name, filter, classify.
+/// Release builds must not spend a span or an event per file event there (#21);
+/// subsystem spans live in the engine.
+const CAPTURE_DIRS: &[&str] = &[
+    "crates/peekbuddy-core/src/derive/",
+    "crates/peekbuddy-core/src/event/",
+    "crates/peekbuddy-core/src/filter/",
+    "crates/peekbuddy-core/src/name/",
+    "crates/peekbuddy-core/src/notify/",
+];
+
+/// Macros of the `tracing` crate, spelled in parts so this file does not
+/// match its own source scan.
+const TRACING_MACROS: &[&str] = &[
+    concat!("tracing", "::"),
+    concat!("trace", "!("),
+    concat!("debug", "!("),
+    concat!("info", "!("),
+    concat!("warn", "!("),
+    concat!("error", "!("),
+    concat!("span", "!("),
+    concat!("#[", "instrument"),
+    concat!("#[profiling", "::function"),
+];
+
+/// Problems in `(path, text)` source files of the capture path: a `tracing`
+/// or `profiling` use per record.
+pub fn tracing_sources(files: &[(String, String)]) -> Vec<String> {
+    let mut problems = Vec::new();
+    for (path, text) in files {
+        let normalised = path.replace('\\', "/");
+        if !CAPTURE_DIRS.iter().any(|dir| normalised.starts_with(dir)) {
+            continue;
+        }
+        for (number, line) in text.lines().enumerate() {
+            let code = line.split("//").next().unwrap_or("");
+            if TRACING_MACROS.iter().any(|needle| code.contains(needle)) {
+                problems.push(format!(
+                    "{path}:{}: no tracing macro in the capture path (#21)",
+                    number + 1
+                ));
+            }
+        }
+    }
+    problems
+}
+
 /// Every `.rs` and `Cargo.toml` file under [`PRODUCT_DIRS`].
 fn product_sources() -> Result<Vec<(String, String)>, String> {
     let mut files = Vec::new();
@@ -132,7 +182,7 @@ pub fn check(krate: &str, tree: &str, forbidden: &[&str]) -> Vec<String> {
 
 #[cfg(test)]
 mod tests {
-    use super::{FORBIDDEN, PDH_FEATURE, check, pdh_features, pdh_sources};
+    use super::{FORBIDDEN, PDH_FEATURE, check, pdh_features, pdh_sources, tracing_sources};
 
     fn files(list: &[(&str, &str)]) -> Vec<(String, String)> {
         list.iter()
@@ -209,5 +259,38 @@ mod tests {
             check("peekbuddy-core", tree, FORBIDDEN),
             Vec::<String>::new()
         );
+    }
+    #[test]
+    fn tracing_in_the_capture_path_is_reported() {
+        let hot = "crates/peekbuddy-core/src/notify/mod.rs";
+        let found = tracing_sources(&files(&[(hot, "fn f() {\n    tracing::info!(\"x\");\n}")]));
+        assert_eq!(found.len(), 1);
+        assert!(found[0].contains(":2:"), "{found:?}");
+        let attr = tracing_sources(&files(&[(hot, "#[instrument]\nfn f() {}")]));
+        assert_eq!(attr.len(), 1);
+    }
+
+    #[test]
+    fn tracing_elsewhere_and_in_comments_is_fine() {
+        let engine = "crates/peekbuddy-engine/src/lib.rs";
+        assert_eq!(
+            tracing_sources(&files(&[(engine, "tracing::info!(\"x\");")])),
+            Vec::<String>::new()
+        );
+        let hot = "crates/peekbuddy-core/src/filter/mod.rs";
+        assert_eq!(
+            tracing_sources(&files(&[(hot, "// tracing::info! is banned here")])),
+            Vec::<String>::new()
+        );
+        assert_eq!(
+            tracing_sources(&files(&[(hot, "let a = 1; // debug!(x)")])),
+            Vec::<String>::new()
+        );
+    }
+
+    #[test]
+    fn windows_separators_are_normalised() {
+        let hot = "crates\\peekbuddy-core\\src\\name\\mod.rs";
+        assert_eq!(tracing_sources(&files(&[(hot, "warn!(\"x\");")])).len(), 1);
     }
 }
