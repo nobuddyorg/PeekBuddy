@@ -1,0 +1,161 @@
+{"experiment": "env", "cell": "sqlite", "label": "windows-2025/stock", "version": "3.53.2", "cpus": 4}
+{"experiment": "size", "cell": "page4096-interned-2idx", "label": "windows-2025/stock", "rows": 500000, "bytes_per_event": 76.333056, "table_bytes_per_event": 44.572672, "index_bytes_per_event": 31.760384, "node_bytes_per_event": 11.411456}
+{"experiment": "size", "cell": "page4096-interned-no-idx", "label": "windows-2025/stock", "rows": 500000, "bytes_per_event": 44.572672, "table_bytes_per_event": 44.572672, "index_bytes_per_event": 0, "node_bytes_per_event": 11.411456}
+{"experiment": "size", "cell": "page4096-interned-node-idx", "label": "windows-2025/stock", "rows": 500000, "bytes_per_event": 61.308928, "table_bytes_per_event": 44.572672, "index_bytes_per_event": 16.736256, "node_bytes_per_event": 11.411456}
+{"experiment": "size", "cell": "page4096-interned-root-idx", "label": "windows-2025/stock", "rows": 500000, "bytes_per_event": 59.5968, "table_bytes_per_event": 44.572672, "index_bytes_per_event": 15.024128, "node_bytes_per_event": 11.411456}
+{"experiment": "size", "cell": "page4096-inline-path", "label": "windows-2025/stock", "rows": 500000, "bytes_per_event": 115.130368, "table_bytes_per_event": 100.089856, "index_bytes_per_event": 15.040512, "node_bytes_per_event": 11.411456}
+{"experiment": "size", "cell": "page8192-interned-2idx", "label": "windows-2025/stock", "rows": 500000, "bytes_per_event": 76.169216, "table_bytes_per_event": 44.449792, "index_bytes_per_event": 31.719424, "node_bytes_per_event": 11.206656}
+{"experiment": "size", "cell": "page8192-interned-no-idx", "label": "windows-2025/stock", "rows": 500000, "bytes_per_event": 44.449792, "table_bytes_per_event": 44.449792, "index_bytes_per_event": 0, "node_bytes_per_event": 11.206656}
+{"experiment": "size", "cell": "page8192-interned-node-idx", "label": "windows-2025/stock", "rows": 500000, "bytes_per_event": 61.19424, "table_bytes_per_event": 44.449792, "index_bytes_per_event": 16.744448, "node_bytes_per_event": 11.206656}
+{"experiment": "size", "cell": "page8192-interned-root-idx", "label": "windows-2025/stock", "rows": 500000, "bytes_per_event": 59.424768, "table_bytes_per_event": 44.449792, "index_bytes_per_event": 14.974976, "node_bytes_per_event": 11.206656}
+{"experiment": "size", "cell": "page8192-inline-path", "label": "windows-2025/stock", "rows": 500000, "bytes_per_event": 114.950144, "table_bytes_per_event": 99.9424, "index_bytes_per_event": 15.007744, "node_bytes_per_event": 11.206656}
+{"experiment": "env", "cell": "sqlite", "label": "windows-2025/stock", "version": "3.53.2", "cpus": 4}
+{"experiment": "checkpoint", "cell": "auto1000", "label": "windows-2025/stock", "worst_commit_us": 123607, "peak_wal_bytes": 6229472, "events_per_s": 16751}
+{"experiment": "checkpoint", "cell": "auto4000", "label": "windows-2025/stock", "worst_commit_us": 180597, "peak_wal_bytes": 18820192, "events_per_s": 29988}
+{"experiment": "checkpoint", "cell": "off-passive-at-end", "label": "windows-2025/stock", "worst_commit_us": 7524, "peak_wal_bytes": 1628776112, "events_per_s": 63100}
+{"experiment": "env", "cell": "sqlite", "label": "windows-2025/stock", "version": "3.53.2", "cpus": 4}
+{"experiment": "commit", "cell": "batch100-linger5ms", "label": "windows-2025/stock", "burst_events_per_s": 61135, "paced10k_p50_us": 3176, "paced10k_p99_us": 6212, "paced10k_commits_per_s": 180}
+{"experiment": "commit", "cell": "batch100-linger10ms", "label": "windows-2025/stock", "burst_events_per_s": 61338, "paced10k_p50_us": 5561, "paced10k_p99_us": 10528, "paced10k_commits_per_s": 99}
+{"experiment": "commit", "cell": "batch100-linger25ms", "label": "windows-2025/stock", "burst_events_per_s": 61791, "paced10k_p50_us": 5566, "paced10k_p99_us": 10537, "paced10k_commits_per_s": 99}
+{"experiment": "commit", "cell": "batch1000-linger5ms", "label": "windows-2025/stock", "burst_events_per_s": 76962, "paced10k_p50_us": 3379, "paced10k_p99_us": 6987, "paced10k_commits_per_s": 175}
+{"experiment": "commit", "cell": "batch1000-linger10ms", "label": "windows-2025/stock", "burst_events_per_s": 83128, "paced10k_p50_us": 6060, "paced10k_p99_us": 11781, "paced10k_commits_per_s": 92}
+{"experiment": "commit", "cell": "batch1000-linger25ms", "label": "windows-2025/stock", "burst_events_per_s": 63432, "paced10k_p50_us": 14086, "paced10k_p99_us": 27415, "paced10k_commits_per_s": 38}
+{"experiment": "commit", "cell": "batch10000-linger5ms", "label": "windows-2025/stock", "burst_events_per_s": 82855, "paced10k_p50_us": 3210, "paced10k_p99_us": 6271, "paced10k_commits_per_s": 178}
+{"experiment": "commit", "cell": "batch10000-linger10ms", "label": "windows-2025/stock", "burst_events_per_s": 84542, "paced10k_p50_us": 5938, "paced10k_p99_us": 11495, "paced10k_commits_per_s": 93}
+{"experiment": "commit", "cell": "batch10000-linger25ms", "label": "windows-2025/stock", "burst_events_per_s": 98922, "paced10k_p50_us": 13726, "paced10k_p99_us": 26766, "paced10k_commits_per_s": 38}
+{"experiment": "commit", "cell": "batch1000-linger5ms-since-last-event", "label": "windows-2025/stock", "burst_events_per_s": 84766, "paced10k_p50_us": 50994, "paced10k_p99_us": 99993, "paced10k_commits_per_s": 9}
+{"experiment": "env", "cell": "sqlite", "label": "windows-2025/stock", "version": "3.53.2", "cpus": 4}
+{"experiment": "readers", "cell": "no-reader", "label": "windows-2025/stock", "writer_events_per_s": 14501, "reader_pages": 0, "reader_p50_us": 0, "reader_p99_us": 0, "peak_wal_bytes": 11210552}
+{"experiment": "readers", "cell": "reader-mmap0", "label": "windows-2025/stock", "writer_events_per_s": 20929, "reader_pages": 192146, "reader_p50_us": 85, "reader_p99_us": 184, "peak_wal_bytes": 61264432}
+{"experiment": "readers", "cell": "reader-mmap256m", "label": "windows-2025/stock", "writer_events_per_s": 19450, "reader_pages": 236133, "reader_p50_us": 76, "reader_p99_us": 146, "peak_wal_bytes": 58998432}
+{"experiment": "readers", "cell": "reader-pins-snapshot", "label": "windows-2025/stock", "writer_events_per_s": 41139, "reader_pages": 1819, "reader_p50_us": 100, "reader_p99_us": 190, "peak_wal_bytes": 1371651032}
+{"experiment": "env", "cell": "sqlite", "label": "windows-2025/stock", "version": "3.53.2", "cpus": 4}
+{"experiment": "memory", "cell": "cache16000k", "label": "windows-2025/stock", "private_before": 733184, "private_after_burst": 22757376, "private_after_shrink": 3661824, "delta_after_burst": 22024192}
+{"experiment": "memory", "cell": "allocs-per-1000-batch", "label": "windows-2025/stock", "allocs": 1, "bytes": 280}
+{"experiment": "env", "cell": "sqlite", "label": "windows-2025/stock", "version": "3.53.2", "cpus": 4}
+{"experiment": "memory", "cell": "cache4000k", "label": "windows-2025/stock", "private_before": 720896, "private_after_burst": 8204288, "private_after_shrink": 3149824, "delta_after_burst": 7483392}
+{"experiment": "memory", "cell": "allocs-per-1000-batch", "label": "windows-2025/stock", "allocs": 1, "bytes": 280}
+{"experiment": "env", "cell": "sqlite", "label": "windows-2025/stock", "version": "3.53.2", "cpus": 4}
+{"experiment": "memory", "cell": "cache2000k", "label": "windows-2025/stock", "private_before": 700416, "private_after_burst": 5517312, "private_after_shrink": 3252224, "delta_after_burst": 4816896}
+{"experiment": "memory", "cell": "allocs-per-1000-batch", "label": "windows-2025/stock", "allocs": 1, "bytes": 280}
+{"experiment": "env", "cell": "sqlite", "label": "windows-2025/stock", "version": "3.53.2", "cpus": 4}
+{"experiment": "query", "cell": "fill", "label": "windows-2025/stock", "rows": 10000000, "events_per_s": 31405, "db_bytes": 828866560}
+{"experiment": "query", "cell": "newest-all", "label": "windows-2025/stock", "p50_us": 80, "p99_us": 138, "rows": 200}
+{"experiment": "query", "cell": "root", "label": "windows-2025/stock", "p50_us": 176, "p99_us": 357, "rows": 200}
+{"experiment": "query", "cell": "kind-common", "label": "windows-2025/stock", "p50_us": 200, "p99_us": 353, "rows": 200}
+{"experiment": "query", "cell": "kind-rare", "label": "windows-2025/stock", "p50_us": 13042, "p99_us": 14925, "rows": 200}
+{"experiment": "query", "cell": "subtree-50-nodes", "label": "windows-2025/stock", "p50_us": 906, "p99_us": 3538, "rows": 200}
+{"experiment": "query", "cell": "fts-size", "label": "windows-2025/stock", "fts_bytes": 12599296, "name_bytes": 7606966, "ratio": 1.6562839902268527}
+{"experiment": "query", "cell": "fts-like-3-node_fts", "label": "windows-2025/stock", "p50_us": 38713, "p99_us": 52098, "found_per_query": 116, "plan": "SCAN node_fts VIRTUAL TABLE INDEX 0:"}
+{"experiment": "query", "cell": "fts-like-3-node", "label": "windows-2025/stock", "p50_us": 21555, "p99_us": 38433, "found_per_query": 116, "plan": "SCAN node USING COVERING INDEX node_key"}
+{"experiment": "query", "cell": "fts-like-5-node_fts", "label": "windows-2025/stock", "p50_us": 38486, "p99_us": 52687, "found_per_query": 1, "plan": "SCAN node_fts VIRTUAL TABLE INDEX 0:"}
+{"experiment": "query", "cell": "fts-like-5-node", "label": "windows-2025/stock", "p50_us": 21201, "p99_us": 37611, "found_per_query": 1, "plan": "SCAN node USING COVERING INDEX node_key"}
+{"experiment": "query", "cell": "fts-like-10-node_fts", "label": "windows-2025/stock", "p50_us": 38963, "p99_us": 52326, "found_per_query": 1, "plan": "SCAN node_fts VIRTUAL TABLE INDEX 0:"}
+{"experiment": "query", "cell": "fts-like-10-node", "label": "windows-2025/stock", "p50_us": 20923, "p99_us": 39294, "found_per_query": 1, "plan": "SCAN node USING COVERING INDEX node_key"}
+{"experiment": "query", "cell": "fts-column-like-3", "label": "windows-2025/stock", "index_bytes": 27648000, "p50_us": 38706, "p99_us": 52201, "found_per_query": 116, "error": false, "plan": "SCAN node_fts_column VIRTUAL TABLE INDEX 0:"}
+{"experiment": "query", "cell": "fts-column-match-3", "label": "windows-2025/stock", "index_bytes": 27648000, "p50_us": 107, "p99_us": 604, "found_per_query": 116, "error": false, "plan": "SCAN node_fts_column VIRTUAL TABLE INDEX 0:M0"}
+{"experiment": "query", "cell": "fts-column-like-5", "label": "windows-2025/stock", "index_bytes": 27648000, "p50_us": 39088, "p99_us": 57900, "found_per_query": 1, "error": false, "plan": "SCAN node_fts_column VIRTUAL TABLE INDEX 0:"}
+{"experiment": "query", "cell": "fts-column-match-5", "label": "windows-2025/stock", "index_bytes": 27648000, "p50_us": 17, "p99_us": 40, "found_per_query": 1, "error": false, "plan": "SCAN node_fts_column VIRTUAL TABLE INDEX 0:M0"}
+{"experiment": "query", "cell": "fts-column-like-10", "label": "windows-2025/stock", "index_bytes": 27648000, "p50_us": 39624, "p99_us": 45469, "found_per_query": 1, "error": false, "plan": "SCAN node_fts_column VIRTUAL TABLE INDEX 0:"}
+{"experiment": "query", "cell": "fts-column-match-10", "label": "windows-2025/stock", "index_bytes": 27648000, "p50_us": 25, "p99_us": 84, "found_per_query": 1, "error": false, "plan": "SCAN node_fts_column VIRTUAL TABLE INDEX 0:M0"}
+{"experiment": "query", "cell": "fts-full-like-3", "label": "windows-2025/stock", "index_bytes": 27643904, "p50_us": 38605, "p99_us": 52211, "found_per_query": 116, "error": false, "plan": "SCAN node_fts_full VIRTUAL TABLE INDEX 0:"}
+{"experiment": "query", "cell": "fts-full-match-3", "label": "windows-2025/stock", "index_bytes": 27643904, "p50_us": 107, "p99_us": 599, "found_per_query": 116, "error": false, "plan": "SCAN node_fts_full VIRTUAL TABLE INDEX 0:M0"}
+{"experiment": "query", "cell": "fts-full-like-5", "label": "windows-2025/stock", "index_bytes": 27643904, "p50_us": 38573, "p99_us": 44971, "found_per_query": 1, "error": false, "plan": "SCAN node_fts_full VIRTUAL TABLE INDEX 0:"}
+{"experiment": "query", "cell": "fts-full-match-5", "label": "windows-2025/stock", "index_bytes": 27643904, "p50_us": 215, "p99_us": 483, "found_per_query": 1, "error": false, "plan": "SCAN node_fts_full VIRTUAL TABLE INDEX 0:M0"}
+{"experiment": "query", "cell": "fts-full-like-10", "label": "windows-2025/stock", "index_bytes": 27643904, "p50_us": 38769, "p99_us": 46538, "found_per_query": 1, "error": false, "plan": "SCAN node_fts_full VIRTUAL TABLE INDEX 0:"}
+{"experiment": "query", "cell": "fts-full-match-10", "label": "windows-2025/stock", "index_bytes": 27643904, "p50_us": 464, "p99_us": 785, "found_per_query": 1, "error": false, "plan": "SCAN node_fts_full VIRTUAL TABLE INDEX 0:M0"}
+{"experiment": "query", "cell": "open-warm", "label": "windows-2025/stock", "p50_us": 598, "max_us": 843}
+{"experiment": "query", "cell": "vacuum-into", "label": "windows-2025/stock", "seconds": 5.4009146, "before_bytes": 885448704, "after_bytes": 854126592}
+{"experiment": "env", "cell": "sqlite", "label": "windows-2025/flags", "version": "3.53.2", "cpus": 4}
+{"experiment": "size", "cell": "page4096-interned-2idx", "label": "windows-2025/flags", "rows": 500000, "bytes_per_event": 76.333056, "table_bytes_per_event": 44.572672, "index_bytes_per_event": 31.760384, "node_bytes_per_event": 11.411456}
+{"experiment": "size", "cell": "page4096-interned-no-idx", "label": "windows-2025/flags", "rows": 500000, "bytes_per_event": 44.572672, "table_bytes_per_event": 44.572672, "index_bytes_per_event": 0, "node_bytes_per_event": 11.411456}
+{"experiment": "size", "cell": "page4096-interned-node-idx", "label": "windows-2025/flags", "rows": 500000, "bytes_per_event": 61.308928, "table_bytes_per_event": 44.572672, "index_bytes_per_event": 16.736256, "node_bytes_per_event": 11.411456}
+{"experiment": "size", "cell": "page4096-interned-root-idx", "label": "windows-2025/flags", "rows": 500000, "bytes_per_event": 59.5968, "table_bytes_per_event": 44.572672, "index_bytes_per_event": 15.024128, "node_bytes_per_event": 11.411456}
+{"experiment": "size", "cell": "page4096-inline-path", "label": "windows-2025/flags", "rows": 500000, "bytes_per_event": 115.130368, "table_bytes_per_event": 100.089856, "index_bytes_per_event": 15.040512, "node_bytes_per_event": 11.411456}
+{"experiment": "size", "cell": "page8192-interned-2idx", "label": "windows-2025/flags", "rows": 500000, "bytes_per_event": 76.169216, "table_bytes_per_event": 44.449792, "index_bytes_per_event": 31.719424, "node_bytes_per_event": 11.206656}
+{"experiment": "size", "cell": "page8192-interned-no-idx", "label": "windows-2025/flags", "rows": 500000, "bytes_per_event": 44.449792, "table_bytes_per_event": 44.449792, "index_bytes_per_event": 0, "node_bytes_per_event": 11.206656}
+{"experiment": "size", "cell": "page8192-interned-node-idx", "label": "windows-2025/flags", "rows": 500000, "bytes_per_event": 61.19424, "table_bytes_per_event": 44.449792, "index_bytes_per_event": 16.744448, "node_bytes_per_event": 11.206656}
+{"experiment": "size", "cell": "page8192-interned-root-idx", "label": "windows-2025/flags", "rows": 500000, "bytes_per_event": 59.424768, "table_bytes_per_event": 44.449792, "index_bytes_per_event": 14.974976, "node_bytes_per_event": 11.206656}
+{"experiment": "size", "cell": "page8192-inline-path", "label": "windows-2025/flags", "rows": 500000, "bytes_per_event": 114.950144, "table_bytes_per_event": 99.9424, "index_bytes_per_event": 15.007744, "node_bytes_per_event": 11.206656}
+{"experiment": "env", "cell": "sqlite", "label": "windows-2025/flags", "version": "3.53.2", "cpus": 4}
+{"experiment": "commit", "cell": "batch100-linger5ms", "label": "windows-2025/flags", "burst_events_per_s": 61812, "paced10k_p50_us": 3190, "paced10k_p99_us": 6189, "paced10k_commits_per_s": 180}
+{"experiment": "commit", "cell": "batch100-linger10ms", "label": "windows-2025/flags", "burst_events_per_s": 61415, "paced10k_p50_us": 5552, "paced10k_p99_us": 10524, "paced10k_commits_per_s": 99}
+{"experiment": "commit", "cell": "batch100-linger25ms", "label": "windows-2025/flags", "burst_events_per_s": 61327, "paced10k_p50_us": 5545, "paced10k_p99_us": 10510, "paced10k_commits_per_s": 99}
+{"experiment": "commit", "cell": "batch1000-linger5ms", "label": "windows-2025/flags", "burst_events_per_s": 84031, "paced10k_p50_us": 3189, "paced10k_p99_us": 6342, "paced10k_commits_per_s": 179}
+{"experiment": "commit", "cell": "batch1000-linger10ms", "label": "windows-2025/flags", "burst_events_per_s": 83551, "paced10k_p50_us": 5946, "paced10k_p99_us": 11564, "paced10k_commits_per_s": 93}
+{"experiment": "commit", "cell": "batch1000-linger25ms", "label": "windows-2025/flags", "burst_events_per_s": 83994, "paced10k_p50_us": 13735, "paced10k_p99_us": 26747, "paced10k_commits_per_s": 38}
+{"experiment": "commit", "cell": "batch10000-linger5ms", "label": "windows-2025/flags", "burst_events_per_s": 83701, "paced10k_p50_us": 3187, "paced10k_p99_us": 6227, "paced10k_commits_per_s": 179}
+{"experiment": "commit", "cell": "batch10000-linger10ms", "label": "windows-2025/flags", "burst_events_per_s": 86357, "paced10k_p50_us": 5945, "paced10k_p99_us": 11530, "paced10k_commits_per_s": 92}
+{"experiment": "commit", "cell": "batch10000-linger25ms", "label": "windows-2025/flags", "burst_events_per_s": 98202, "paced10k_p50_us": 13764, "paced10k_p99_us": 26864, "paced10k_commits_per_s": 38}
+{"experiment": "commit", "cell": "batch1000-linger5ms-since-last-event", "label": "windows-2025/flags", "burst_events_per_s": 83542, "paced10k_p50_us": 50997, "paced10k_p99_us": 99996, "paced10k_commits_per_s": 9}
+{"experiment": "env", "cell": "sqlite", "label": "windows-2025/flags", "version": "3.53.2", "cpus": 4}
+{"experiment": "query", "cell": "fill", "label": "windows-2025/flags", "rows": 2000000, "events_per_s": 101713, "db_bytes": 191049728}
+{"experiment": "query", "cell": "newest-all", "label": "windows-2025/flags", "p50_us": 84, "p99_us": 171, "rows": 200}
+{"experiment": "query", "cell": "root", "label": "windows-2025/flags", "p50_us": 177, "p99_us": 375, "rows": 200}
+{"experiment": "query", "cell": "kind-common", "label": "windows-2025/flags", "p50_us": 179, "p99_us": 352, "rows": 200}
+{"experiment": "query", "cell": "kind-rare", "label": "windows-2025/flags", "p50_us": 12503, "p99_us": 14734, "rows": 200}
+{"experiment": "query", "cell": "subtree-50-nodes", "label": "windows-2025/flags", "p50_us": 402, "p99_us": 1099, "rows": 200}
+{"experiment": "query", "cell": "fts-size", "label": "windows-2025/flags", "fts_bytes": 12599296, "name_bytes": 7606966, "ratio": 1.6562839902268527}
+{"experiment": "query", "cell": "fts-like-3-node_fts", "label": "windows-2025/flags", "p50_us": 43208, "p99_us": 56013, "found_per_query": 114, "plan": "SCAN node_fts VIRTUAL TABLE INDEX 0:"}
+{"experiment": "query", "cell": "fts-like-3-node", "label": "windows-2025/flags", "p50_us": 21515, "p99_us": 42631, "found_per_query": 114, "plan": "SCAN node USING COVERING INDEX node_key"}
+{"experiment": "query", "cell": "fts-like-5-node_fts", "label": "windows-2025/flags", "p50_us": 42955, "p99_us": 55941, "found_per_query": 1, "plan": "SCAN node_fts VIRTUAL TABLE INDEX 0:"}
+{"experiment": "query", "cell": "fts-like-5-node", "label": "windows-2025/flags", "p50_us": 21669, "p99_us": 38075, "found_per_query": 1, "plan": "SCAN node USING COVERING INDEX node_key"}
+{"experiment": "query", "cell": "fts-like-10-node_fts", "label": "windows-2025/flags", "p50_us": 43342, "p99_us": 55935, "found_per_query": 1, "plan": "SCAN node_fts VIRTUAL TABLE INDEX 0:"}
+{"experiment": "query", "cell": "fts-like-10-node", "label": "windows-2025/flags", "p50_us": 22090, "p99_us": 38239, "found_per_query": 1, "plan": "SCAN node USING COVERING INDEX node_key"}
+{"experiment": "query", "cell": "fts-column-like-3", "label": "windows-2025/flags", "index_bytes": 27648000, "p50_us": 42761, "p99_us": 53817, "found_per_query": 114, "error": false, "plan": "SCAN node_fts_column VIRTUAL TABLE INDEX 0:"}
+{"experiment": "query", "cell": "fts-column-match-3", "label": "windows-2025/flags", "index_bytes": 27648000, "p50_us": 98, "p99_us": 561, "found_per_query": 114, "error": false, "plan": "SCAN node_fts_column VIRTUAL TABLE INDEX 0:M0"}
+{"experiment": "query", "cell": "fts-column-like-5", "label": "windows-2025/flags", "index_bytes": 27648000, "p50_us": 42992, "p99_us": 53603, "found_per_query": 1, "error": false, "plan": "SCAN node_fts_column VIRTUAL TABLE INDEX 0:"}
+{"experiment": "query", "cell": "fts-column-match-5", "label": "windows-2025/flags", "index_bytes": 27648000, "p50_us": 9, "p99_us": 26, "found_per_query": 1, "error": false, "plan": "SCAN node_fts_column VIRTUAL TABLE INDEX 0:M0"}
+{"experiment": "query", "cell": "fts-column-like-10", "label": "windows-2025/flags", "index_bytes": 27648000, "p50_us": 43492, "p99_us": 55009, "found_per_query": 1, "error": false, "plan": "SCAN node_fts_column VIRTUAL TABLE INDEX 0:"}
+{"experiment": "query", "cell": "fts-column-match-10", "label": "windows-2025/flags", "index_bytes": 27648000, "p50_us": 19, "p99_us": 30, "found_per_query": 1, "error": false, "plan": "SCAN node_fts_column VIRTUAL TABLE INDEX 0:M0"}
+{"experiment": "query", "cell": "fts-full-like-3", "label": "windows-2025/flags", "index_bytes": 27643904, "p50_us": 42859, "p99_us": 56216, "found_per_query": 114, "error": false, "plan": "SCAN node_fts_full VIRTUAL TABLE INDEX 0:"}
+{"experiment": "query", "cell": "fts-full-match-3", "label": "windows-2025/flags", "index_bytes": 27643904, "p50_us": 115, "p99_us": 502, "found_per_query": 114, "error": false, "plan": "SCAN node_fts_full VIRTUAL TABLE INDEX 0:M0"}
+{"experiment": "query", "cell": "fts-full-like-5", "label": "windows-2025/flags", "index_bytes": 27643904, "p50_us": 42940, "p99_us": 58195, "found_per_query": 1, "error": false, "plan": "SCAN node_fts_full VIRTUAL TABLE INDEX 0:"}
+{"experiment": "query", "cell": "fts-full-match-5", "label": "windows-2025/flags", "index_bytes": 27643904, "p50_us": 200, "p99_us": 539, "found_per_query": 1, "error": false, "plan": "SCAN node_fts_full VIRTUAL TABLE INDEX 0:M0"}
+{"experiment": "query", "cell": "fts-full-like-10", "label": "windows-2025/flags", "index_bytes": 27643904, "p50_us": 42611, "p99_us": 46506, "found_per_query": 1, "error": false, "plan": "SCAN node_fts_full VIRTUAL TABLE INDEX 0:"}
+{"experiment": "query", "cell": "fts-full-match-10", "label": "windows-2025/flags", "index_bytes": 27643904, "p50_us": 454, "p99_us": 960, "found_per_query": 1, "error": false, "plan": "SCAN node_fts_full VIRTUAL TABLE INDEX 0:M0"}
+{"experiment": "query", "cell": "open-warm", "label": "windows-2025/flags", "p50_us": 617, "max_us": 826}
+{"experiment": "query", "cell": "vacuum-into", "label": "windows-2025/flags", "seconds": 0.9645994, "before_bytes": 247631872, "after_bytes": 239067136}
+{"experiment": "env", "cell": "sqlite", "label": "windows-2025/stock-2M", "version": "3.53.2", "cpus": 4}
+{"experiment": "query", "cell": "fill", "label": "windows-2025/stock-2M", "rows": 2000000, "events_per_s": 100425, "db_bytes": 191049728}
+{"experiment": "query", "cell": "newest-all", "label": "windows-2025/stock-2M", "p50_us": 78, "p99_us": 156, "rows": 200}
+{"experiment": "query", "cell": "root", "label": "windows-2025/stock-2M", "p50_us": 171, "p99_us": 239, "rows": 200}
+{"experiment": "query", "cell": "kind-common", "label": "windows-2025/stock-2M", "p50_us": 175, "p99_us": 255, "rows": 200}
+{"experiment": "query", "cell": "kind-rare", "label": "windows-2025/stock-2M", "p50_us": 12844, "p99_us": 14773, "rows": 200}
+{"experiment": "query", "cell": "subtree-50-nodes", "label": "windows-2025/stock-2M", "p50_us": 391, "p99_us": 1072, "rows": 200}
+{"experiment": "query", "cell": "fts-size", "label": "windows-2025/stock-2M", "fts_bytes": 12599296, "name_bytes": 7606966, "ratio": 1.6562839902268527}
+{"experiment": "query", "cell": "fts-like-3-node_fts", "label": "windows-2025/stock-2M", "p50_us": 39654, "p99_us": 52669, "found_per_query": 114, "plan": "SCAN node_fts VIRTUAL TABLE INDEX 0:"}
+{"experiment": "query", "cell": "fts-like-3-node", "label": "windows-2025/stock-2M", "p50_us": 21753, "p99_us": 38434, "found_per_query": 114, "plan": "SCAN node USING COVERING INDEX node_key"}
+{"experiment": "query", "cell": "fts-like-5-node_fts", "label": "windows-2025/stock-2M", "p50_us": 39216, "p99_us": 52831, "found_per_query": 1, "plan": "SCAN node_fts VIRTUAL TABLE INDEX 0:"}
+{"experiment": "query", "cell": "fts-like-5-node", "label": "windows-2025/stock-2M", "p50_us": 21997, "p99_us": 38859, "found_per_query": 1, "plan": "SCAN node USING COVERING INDEX node_key"}
+{"experiment": "query", "cell": "fts-like-10-node_fts", "label": "windows-2025/stock-2M", "p50_us": 38605, "p99_us": 52017, "found_per_query": 1, "plan": "SCAN node_fts VIRTUAL TABLE INDEX 0:"}
+{"experiment": "query", "cell": "fts-like-10-node", "label": "windows-2025/stock-2M", "p50_us": 21415, "p99_us": 38283, "found_per_query": 1, "plan": "SCAN node USING COVERING INDEX node_key"}
+{"experiment": "query", "cell": "fts-column-like-3", "label": "windows-2025/stock-2M", "index_bytes": 27648000, "p50_us": 39330, "p99_us": 52537, "found_per_query": 114, "error": false, "plan": "SCAN node_fts_column VIRTUAL TABLE INDEX 0:"}
+{"experiment": "query", "cell": "fts-column-match-3", "label": "windows-2025/stock-2M", "index_bytes": 27648000, "p50_us": 202, "p99_us": 564, "found_per_query": 114, "error": false, "plan": "SCAN node_fts_column VIRTUAL TABLE INDEX 0:M0"}
+{"experiment": "query", "cell": "fts-column-like-5", "label": "windows-2025/stock-2M", "index_bytes": 27648000, "p50_us": 38632, "p99_us": 44360, "found_per_query": 1, "error": false, "plan": "SCAN node_fts_column VIRTUAL TABLE INDEX 0:"}
+{"experiment": "query", "cell": "fts-column-match-5", "label": "windows-2025/stock-2M", "index_bytes": 27648000, "p50_us": 8, "p99_us": 25, "found_per_query": 1, "error": false, "plan": "SCAN node_fts_column VIRTUAL TABLE INDEX 0:M0"}
+{"experiment": "query", "cell": "fts-column-like-10", "label": "windows-2025/stock-2M", "index_bytes": 27648000, "p50_us": 39280, "p99_us": 45439, "found_per_query": 1, "error": false, "plan": "SCAN node_fts_column VIRTUAL TABLE INDEX 0:"}
+{"experiment": "query", "cell": "fts-column-match-10", "label": "windows-2025/stock-2M", "index_bytes": 27648000, "p50_us": 9, "p99_us": 71, "found_per_query": 1, "error": false, "plan": "SCAN node_fts_column VIRTUAL TABLE INDEX 0:M0"}
+{"experiment": "query", "cell": "fts-full-like-3", "label": "windows-2025/stock-2M", "index_bytes": 27643904, "p50_us": 39790, "p99_us": 52517, "found_per_query": 114, "error": false, "plan": "SCAN node_fts_full VIRTUAL TABLE INDEX 0:"}
+{"experiment": "query", "cell": "fts-full-match-3", "label": "windows-2025/stock-2M", "index_bytes": 27643904, "p50_us": 113, "p99_us": 475, "found_per_query": 114, "error": false, "plan": "SCAN node_fts_full VIRTUAL TABLE INDEX 0:M0"}
+{"experiment": "query", "cell": "fts-full-like-5", "label": "windows-2025/stock-2M", "index_bytes": 27643904, "p50_us": 39133, "p99_us": 44591, "found_per_query": 1, "error": false, "plan": "SCAN node_fts_full VIRTUAL TABLE INDEX 0:"}
+{"experiment": "query", "cell": "fts-full-match-5", "label": "windows-2025/stock-2M", "index_bytes": 27643904, "p50_us": 195, "p99_us": 497, "found_per_query": 1, "error": false, "plan": "SCAN node_fts_full VIRTUAL TABLE INDEX 0:M0"}
+{"experiment": "query", "cell": "fts-full-like-10", "label": "windows-2025/stock-2M", "index_bytes": 27643904, "p50_us": 39092, "p99_us": 44547, "found_per_query": 1, "error": false, "plan": "SCAN node_fts_full VIRTUAL TABLE INDEX 0:"}
+{"experiment": "query", "cell": "fts-full-match-10", "label": "windows-2025/stock-2M", "index_bytes": 27643904, "p50_us": 473, "p99_us": 846, "found_per_query": 1, "error": false, "plan": "SCAN node_fts_full VIRTUAL TABLE INDEX 0:M0"}
+{"experiment": "query", "cell": "open-warm", "label": "windows-2025/stock-2M", "p50_us": 598, "max_us": 777}
+{"experiment": "query", "cell": "vacuum-into", "label": "windows-2025/stock-2M", "seconds": 0.9954074, "before_bytes": 247631872, "after_bytes": 239067136}
+{"experiment": "env", "cell": "sqlite", "label": "windows-2025/stock-defender-excluded", "version": "3.53.2", "cpus": 4}
+{"experiment": "checkpoint", "cell": "auto1000", "label": "windows-2025/stock-defender-excluded", "worst_commit_us": 111081, "peak_wal_bytes": 6509632, "events_per_s": 16363}
+{"experiment": "checkpoint", "cell": "auto4000", "label": "windows-2025/stock-defender-excluded", "worst_commit_us": 176305, "peak_wal_bytes": 18770752, "events_per_s": 29704}
+{"experiment": "checkpoint", "cell": "off-passive-at-end", "label": "windows-2025/stock-defender-excluded", "worst_commit_us": 8078, "peak_wal_bytes": 1635553512, "events_per_s": 62998}
+{"experiment": "env", "cell": "sqlite", "label": "windows-2025/stock-defender-excluded", "version": "3.53.2", "cpus": 4}
+{"experiment": "commit", "cell": "batch100-linger5ms", "label": "windows-2025/stock-defender-excluded", "burst_events_per_s": 61547, "paced10k_p50_us": 3192, "paced10k_p99_us": 6214, "paced10k_commits_per_s": 179}
+{"experiment": "commit", "cell": "batch100-linger10ms", "label": "windows-2025/stock-defender-excluded", "burst_events_per_s": 60728, "paced10k_p50_us": 5557, "paced10k_p99_us": 10526, "paced10k_commits_per_s": 99}
+{"experiment": "commit", "cell": "batch100-linger25ms", "label": "windows-2025/stock-defender-excluded", "burst_events_per_s": 62409, "paced10k_p50_us": 5554, "paced10k_p99_us": 10520, "paced10k_commits_per_s": 99}
+{"experiment": "commit", "cell": "batch1000-linger5ms", "label": "windows-2025/stock-defender-excluded", "burst_events_per_s": 83400, "paced10k_p50_us": 3190, "paced10k_p99_us": 6309, "paced10k_commits_per_s": 179}
+{"experiment": "commit", "cell": "batch1000-linger10ms", "label": "windows-2025/stock-defender-excluded", "burst_events_per_s": 83219, "paced10k_p50_us": 5943, "paced10k_p99_us": 11498, "paced10k_commits_per_s": 93}
+{"experiment": "commit", "cell": "batch1000-linger25ms", "label": "windows-2025/stock-defender-excluded", "burst_events_per_s": 83489, "paced10k_p50_us": 13745, "paced10k_p99_us": 26768, "paced10k_commits_per_s": 38}
+{"experiment": "commit", "cell": "batch10000-linger5ms", "label": "windows-2025/stock-defender-excluded", "burst_events_per_s": 83896, "paced10k_p50_us": 3189, "paced10k_p99_us": 6211, "paced10k_commits_per_s": 179}
+{"experiment": "commit", "cell": "batch10000-linger10ms", "label": "windows-2025/stock-defender-excluded", "burst_events_per_s": 87813, "paced10k_p50_us": 5938, "paced10k_p99_us": 11497, "paced10k_commits_per_s": 93}
+{"experiment": "commit", "cell": "batch10000-linger25ms", "label": "windows-2025/stock-defender-excluded", "burst_events_per_s": 97796, "paced10k_p50_us": 13734, "paced10k_p99_us": 26752, "paced10k_commits_per_s": 38}
+{"experiment": "commit", "cell": "batch1000-linger5ms-since-last-event", "label": "windows-2025/stock-defender-excluded", "burst_events_per_s": 82175, "paced10k_p50_us": 51070, "paced10k_p99_us": 100070, "paced10k_commits_per_s": 9}

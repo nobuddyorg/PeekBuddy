@@ -1,0 +1,28 @@
+# Spike #35: SQLite ingest and query performance on Windows NTFS.
+# Its own workspace: spike code, not product code, so the workspace lint
+# policy and check-unsafe do not apply. It reuses the product schema so the
+# numbers describe the real tables.
+[workspace]
+
+[package]
+name = "store-bench"
+version = "0.0.0"
+edition = "2024"
+license = "MIT"
+publish = false
+
+[dependencies]
+peekbuddy-alloc = { path = "../../crates/peekbuddy-alloc" }
+peekbuddy-core = { path = "../../crates/peekbuddy-core" }
+peekbuddy-store = { path = "../../crates/peekbuddy-store" }
+rusqlite = { version = "=0.40.2", features = ["bundled"] }
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "=0.61.2", features = [
+  "Win32_Foundation",
+  "Win32_System_ProcessStatus",
+  "Win32_System_Threading",
+] }
+
+[profile.release]
+debug = 1

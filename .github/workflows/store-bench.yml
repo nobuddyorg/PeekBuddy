@@ -1,0 +1,115 @@
+# Spike #35: SQLite ingest and query performance on the hosted Windows runners.
+# Runs on demand and on changes to the spike; the numbers go to the job
+# summary and to the `store-bench-*` artifacts.
+name: store-bench
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - spikes/store-bench/**
+      - .github/workflows/store-bench.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: store-bench-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  bench:
+    name: store-bench (${{ matrix.label }})
+    runs-on: ${{ matrix.label }}
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        label: [windows-2025, windows-11-vs2026-arm]
+    env:
+      LABEL: ${{ matrix.label }}
+      CARGO_TERM_COLOR: always
+    defaults:
+      run:
+        shell: pwsh
+        working-directory: spikes/store-bench
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Rust toolchain
+        working-directory: .
+        run: |
+          rustup toolchain install
+          rustup show
+
+      - name: Pick the data drive
+        run: |
+          $drive = if (Test-Path 'D:\') { 'D:\' } else { $env:RUNNER_TEMP }
+          $dir = Join-Path $drive 'store-bench-data'
+          New-Item -ItemType Directory -Force -Path $dir | Out-Null
+          "BENCH_DIR=$dir" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          Get-PSDrive -PSProvider FileSystem | Format-Table Name, Used, Free | Out-String | Write-Host
+          $defender = (Get-MpComputerStatus -ErrorAction SilentlyContinue).RealTimeProtectionEnabled
+          "Defender real-time: $defender"
+
+      - name: Build (stock bundled SQLite)
+        run: cargo build --release --locked
+
+      - name: Build (LIBSQLITE3_FLAGS speed set)
+        env:
+          CARGO_TARGET_DIR: target-flags
+          LIBSQLITE3_FLAGS: SQLITE_DEFAULT_MEMSTATUS=0 SQLITE_DQS=0 SQLITE_LIKE_DOESNT_MATCH_BLOBS SQLITE_MAX_EXPR_DEPTH=0 SQLITE_OMIT_DEPRECATED SQLITE_OMIT_SHARED_CACHE SQLITE_USE_ALLOCA SQLITE_DEFAULT_WAL_SYNCHRONOUS=1 SQLITE_ENABLE_UPDATE_DELETE_LIMIT -USQLITE_DEFAULT_FOREIGN_KEYS
+        run: cargo build --release --locked
+
+      - name: Experiments (stock)
+        run: |
+          $out = Join-Path $env:RUNNER_TEMP 'results.jsonl'
+          foreach ($e in 'size', 'checkpoint', 'commit', 'readers') {
+            ./target/release/store-bench.exe $e --dir $env:BENCH_DIR --label "$env:LABEL/stock" | Tee-Object -FilePath $out -Append
+          }
+          foreach ($cache in 16000, 4000, 2000) {
+            ./target/release/store-bench.exe memory --cache-kib $cache --dir $env:BENCH_DIR --label "$env:LABEL/stock" | Tee-Object -FilePath $out -Append
+          }
+          ./target/release/store-bench.exe query --rows 10000000 --dir $env:BENCH_DIR --label "$env:LABEL/stock" | Tee-Object -FilePath $out -Append
+
+      - name: Experiments (speed flags, A/B)
+        run: |
+          $out = Join-Path $env:RUNNER_TEMP 'results.jsonl'
+          foreach ($e in 'size', 'commit') {
+            ./target-flags/release/store-bench.exe $e --dir $env:BENCH_DIR --label "$env:LABEL/flags" | Tee-Object -FilePath $out -Append
+          }
+          ./target-flags/release/store-bench.exe query --rows 2000000 --dir $env:BENCH_DIR --label "$env:LABEL/flags" | Tee-Object -FilePath $out -Append
+          ./target/release/store-bench.exe query --rows 2000000 --dir $env:BENCH_DIR --label "$env:LABEL/stock-2M" | Tee-Object -FilePath $out -Append
+
+      - name: Experiments (Defender exclusion for the data directory)
+        continue-on-error: true
+        run: |
+          $out = Join-Path $env:RUNNER_TEMP 'results.jsonl'
+          Add-MpPreference -ExclusionPath $env:BENCH_DIR
+          foreach ($e in 'checkpoint', 'commit') {
+            ./target/release/store-bench.exe $e --dir $env:BENCH_DIR --label "$env:LABEL/stock-defender-excluded" | Tee-Object -FilePath $out -Append
+          }
+
+      - name: Summary
+        if: always()
+        run: |
+          $out = Join-Path $env:RUNNER_TEMP 'results.jsonl'
+          if (-not (Test-Path $out)) { return }
+          $rows = Get-Content $out | Where-Object { $_.StartsWith('{') } | ForEach-Object { $_ | ConvertFrom-Json }
+          $md = @("### store-bench: $env:LABEL", '')
+          foreach ($group in ($rows | Group-Object experiment)) {
+            $md += "#### $($group.Name)", '', '```'
+            foreach ($r in $group.Group) { $md += ($r | ConvertTo-Json -Compress) }
+            $md += '```', ''
+          }
+          $md -join "`n" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+          Copy-Item $out (Join-Path $env:RUNNER_TEMP "store-bench-$env:LABEL.jsonl")
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: store-bench-${{ matrix.label }}
+          path: ${{ runner.temp }}/store-bench-${{ matrix.label }}.jsonl
+          if-no-files-found: warn
