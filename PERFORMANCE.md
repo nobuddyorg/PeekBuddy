@@ -59,13 +59,13 @@ Gate values in `budgets.toml`:
 | `engine.idle.wakes` | <= 2 per min | deterministic | pr-strict | provisional | 10 roots, no events for 60 s | context switches from a 60 s WPR CPU trace (#27) | F6 |
 | `engine.idle.periodic_timers` | <= 0 count | deterministic | pr-strict | provisional | 10 local roots (UNC roots allow one >= 60 s timer) | engine timer registry counter in --perf-probe JSON | F6 |
 | `engine.private_bytes.idle` | <= 15 MB | resource | nightly-trend | provisional | 10 roots, 100k watched directories | PROCESS_MEMORY_COUNTERS_EX2.PrivateUsage minus buffer bytes (#24) | F8, R5 |
-| `engine.notify_buffers.total` | <= 64 MiB | deterministic | pr-strict | provisional | any | buffer pool accounting in --perf-probe JSON | R5, sized by #32 |
+| `engine.notify_buffers.total` | <= 64 MiB | deterministic | pr-strict | provisional | any | buffer pool accounting in --perf-probe JSON | R5, sized by #32 (1 MiB per local NTFS root, 64 KiB per UNC root; report 0002) |
 | `engine.private_bytes.burst` | <= 40 MB | resource | nightly-trend | provisional | churn profile burst-100k (#25) | PeakPagefileUsage after the burst (#24) | F8 |
 | `viewer.private_bytes.10m_rows` | <= 80 MB | resource | nightly-trend | provisional | 10M-row log, scrolled top to bottom | PROCESS_MEMORY_COUNTERS_EX2.PrivateUsage (#24) | F8; arm64 limit from #33 |
 | `event.latency.p50` | <= 10 ms | timing | pr-ab | provisional | churn profile latency-10k (#25) | ledger timestamp vs commit timestamp (#27) | R1, checked by #35 (commit path alone: p50 3.2 ms, p99 6.3 ms at 10k events/s, linger 5 ms from the first pending event) |
 | `event.latency.p99` | <= 50 ms | timing | pr-ab | provisional | churn profile latency-10k (#25) | ledger timestamp vs commit timestamp (#27) | R1, checked by #35 (commit path alone: p50 3.2 ms, p99 6.3 ms at 10k events/s, linger 5 ms from the first pending event) |
-| `ingest.burst` | >= 100000 events/s | timing | pr-ab | provisional | churn profile burst-100k (#25) | ledger count / burst duration (#27) | F2, recalibrated by #32 |
-| `ingest.sustained` | >= 20000 events/s | timing | pr-ab | provisional | churn profile sustained-20k (#25) | ledger count / duration (#27) | F2, recalibrated by #32 |
+| `ingest.burst` | >= 100000 events/s | timing | pr-ab | provisional | churn profile burst-100k (#25) | ledger count / burst duration (#27) | F2, recalibrated by #32 (the notification side could not be driven above 37k records/s on a 4-vCPU runner; 100k stays unconfirmed, report 0002) |
+| `ingest.sustained` | >= 20000 events/s | timing | pr-ab | provisional | churn profile sustained-20k (#25) | ledger count / duration (#27) | F2, recalibrated by #32 (reader sustained 33k to 37k records/s on x64 with no overflow; report 0002) |
 | `ingest.undetected_loss` | <= 0 count | deterministic | pr-strict | calibrated | every churn profile (#25, #50) | ledger vs store comparison (#50) | F2, R7 |
 | `capture.rearm_latency` | <= 5 ms | timing | nightly-trend | provisional | churn profile latency-10k (#25) | tracing span on the capture thread (#21) | F4, recalibrated by #32 |
 | `viewer.frame.p95` | <= 8 ms | timing | nightly-trend | provisional | 10M-row log, scripted scroll | egui frame timing in --perf-probe JSON | F9 |

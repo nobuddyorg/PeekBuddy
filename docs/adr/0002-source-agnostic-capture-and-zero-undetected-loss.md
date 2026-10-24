@@ -57,6 +57,18 @@ RDCW and reconciliation; USN stays an optional backend for the service mode
 (#79) and a later FRN-keyed completeness check, with names resolved from an
 FRN-to-path cache and `OpenFileById`.
 
+## Amendment: spike #32 (2026-10-24)
+
+Report: [0002](../spikes/0002-rdcw-throughput.md). On windows-2025 and
+windows-11-vs2026-arm: local NTFS watches use the extended or full class with
+a 1 MiB buffer and one read in flight; every other volume (ReFS, exFAT, FAT32,
+SMB) refuses those classes, so it uses the plain class, and over UNC a 64 KiB
+buffer (1 MiB is rejected). An overflow is a successful completion with zero
+bytes and always triggers reconciliation of that root. A deleted root fails
+the re-arm with access denied and is reopened; a renamed root or parent keeps
+the watch alive. Detaching a volume completes nothing, so volume loss needs its
+own liveness signal and a `CancelIoEx`.
+
 ## Consequences
 
 - Good: honest guarantee, provable in CI with a churn generator and a

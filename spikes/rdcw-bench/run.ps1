@@ -1,12 +1,14 @@
 # Spike #32 orchestrator: builds scratch volumes and an SMB loopback share, then
 # runs every rdcw-bench experiment. Needs an elevated session (hosted runners
-# are admin). Appends JSONL to $OutDir\<label>-all.jsonl.
+# are admin). -Rest skips the matrix, lifecycle and throughput sweeps and runs
+# the remaining burst cells, the pool cost and the detach case only. Appends JSONL to $OutDir\<label>-all.jsonl.
 param(
     [Parameter(Mandatory)] [string] $Exe,
     [Parameter(Mandatory)] [string] $Label,
     [string] $OutDir = 'C:\rdcw-bench\out',
     [string] $Work = 'D:\rdcw-vhd',
-    [int] $Secs = 5
+    [int] $Secs = 5,
+    [switch] $Rest
 )
 $ErrorActionPreference = 'Continue'
 if (-not (Test-Path 'D:\')) { $Work = Join-Path $env:RUNNER_TEMP 'rdcw-vhd' }
@@ -58,6 +60,7 @@ try {
 }
 
 foreach ($t in $targets) {
+    if ($Rest) { break }
     New-Item -ItemType Directory -Force -Path $t.Dir -ErrorAction SilentlyContinue | Out-Null
     Invoke-Bench $t.Fs @('matrix', '--dir', $t.Dir)
     if ($t.Fs -in 'ntfs', 'refs', 'ntfs-system') { Invoke-Bench $t.Fs @('lifecycle', '--dir', $t.Dir) }
@@ -67,15 +70,18 @@ foreach ($t in $targets) {
 $perfDir = ($targets | Where-Object Fs -eq 'ntfs').Dir
 if (-not $perfDir) { $perfDir = 'C:\rdcw-bench\work' }
 foreach ($mode in 'single', 'double') {
+    if ($Rest) { break }
     foreach ($size in 65536, 262144, 1048576, 4194304) {
         foreach ($rate in 5000, 20000, 50000, 100000, 200000) {
             Invoke-Bench 'ntfs' @('perf', '--dir', $perfDir, '--size', $size, '--rate', $rate, '--secs', $Secs, '--mode', $mode)
         }
     }
 }
-foreach ($size in 65536, 262144, 1048576, 4194304) {
+$burstSizes = if ($Rest) { @(1048576, 4194304) } else { @(65536, 262144, 1048576, 4194304) }
+$burstOps = if ($Rest) { @(50000) } else { @(10000, 50000, 200000) }
+foreach ($size in $burstSizes) {
     foreach ($stall in 0, 10, 50, 100) {
-        foreach ($ops in 10000, 50000, 200000) {
+        foreach ($ops in $burstOps) {
             Invoke-Bench 'ntfs' @('burst', '--dir', $perfDir, '--size', $size, '--stall-ms', $stall, '--ops', $ops)
         }
     }
