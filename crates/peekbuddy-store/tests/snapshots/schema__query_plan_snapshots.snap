@@ -1,0 +1,13 @@
+---
+source: crates/peekbuddy-store/tests/schema.rs
+expression: out
+---
+-- insert event
+-- insert node
+-- upsert stats
+-- select node
+SEARCH node USING INDEX node_key (parent_id=? AND name=? AND <expr>=?)
+-- events by node
+SEARCH event USING COVERING INDEX event_node (node_id=?)
+-- events by root
+SEARCH event USING COVERING INDEX event_root (root_id=?)

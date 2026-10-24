@@ -10,6 +10,11 @@ publish.workspace = true
 
 [dependencies]
 peekbuddy-core = { workspace = true }
+rusqlite = { workspace = true }
+
+[dev-dependencies]
+insta = { workspace = true }
+proptest = { workspace = true }
 
 [lints]
 workspace = true

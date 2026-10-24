@@ -110,10 +110,11 @@ pub fn plan(host: Host) -> Vec<Step> {
         &["xtask", "budgets", "--check"],
     ));
     // C code for the target (Tracy, #22; criterion's `alloca` dependency in
-    // `benches`, #26) needs an MSVC toolchain, so plain `cargo clippy
-    // --target` checks the default features without `benches`, and a host
-    // run covers all features and `benches`. CI lint runs everything on
-    // Windows.
+    // `benches`, #26; the bundled SQLite in `peekbuddy-store`, #53) needs an
+    // MSVC toolchain, so plain `cargo clippy --target` checks the default
+    // features without `benches` and the store, and a host run covers all
+    // features, `benches` and the store (which has no `cfg(windows)` code).
+    // CI lint runs everything on Windows.
     if !host.xwin {
         steps.push(
             Step::new(
@@ -139,7 +140,7 @@ pub fn plan(host: Host) -> Vec<Step> {
         if host.xwin {
             args.push("--all-features");
         } else {
-            args.extend(["--exclude", "benches"]);
+            args.extend(["--exclude", "benches", "--exclude", "peekbuddy-store"]);
         }
         args.extend(["--locked", "--target", target]);
         steps.push(
@@ -259,6 +260,11 @@ mod tests {
                 step.args
                     .windows(2)
                     .any(|pair| pair == ["--exclude", "benches"])
+            );
+            assert!(
+                step.args
+                    .windows(2)
+                    .any(|pair| pair == ["--exclude", "peekbuddy-store"])
             );
         }
     }
