@@ -10,8 +10,8 @@ use std::os::windows::ffi::{OsStrExt as _, OsStringExt as _};
 
 use peekbuddy_core::name::CaseMode;
 use peekbuddy_win::fs::{
-    ATTRIBUTE_ARCHIVE, case_mode, create_junction, file_id, file_system_name, open_directory,
-    resolve_long_name, short_names_generated, toggle_archive,
+    ATTRIBUTE_ARCHIVE, NO_FOLLOW_NO_RECALL, SHARE_ALL, case_mode, create_junction, file_id,
+    file_system_name, open_directory, resolve_long_name, short_names_generated, toggle_archive,
 };
 use peekbuddy_win::timer::HighResTimer;
 
@@ -221,4 +221,20 @@ fn directories_are_case_insensitive_unless_flagged() {
             );
         }
     }
+}
+
+#[test]
+fn the_flag_literals_match_windows_sys() {
+    use windows_sys::Win32::Storage::FileSystem::{
+        FILE_FLAG_BACKUP_SEMANTICS, FILE_FLAG_OPEN_NO_RECALL, FILE_FLAG_OPEN_REPARSE_POINT,
+        FILE_SHARE_DELETE, FILE_SHARE_READ, FILE_SHARE_WRITE,
+    };
+    assert_eq!(
+        SHARE_ALL,
+        FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE
+    );
+    assert_eq!(
+        NO_FOLLOW_NO_RECALL,
+        FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT | FILE_FLAG_OPEN_NO_RECALL
+    );
 }

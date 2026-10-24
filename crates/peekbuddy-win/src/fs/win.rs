@@ -9,18 +9,18 @@ use windows_sys::Win32::Foundation::{
     ERROR_INSUFFICIENT_BUFFER, GENERIC_WRITE, HANDLE, INVALID_HANDLE_VALUE,
 };
 use windows_sys::Win32::Storage::FileSystem::{
-    CreateFileW, FILE_CASE_SENSITIVE_INFO, FILE_FLAG_BACKUP_SEMANTICS, FILE_FLAG_OPEN_NO_RECALL,
+    CreateFileW, FILE_CASE_SENSITIVE_INFO, FILE_FLAG_BACKUP_SEMANTICS,
     FILE_FLAG_OPEN_REPARSE_POINT, FILE_ID_128, FILE_ID_DESCRIPTOR, FILE_ID_DESCRIPTOR_0,
-    FILE_ID_INFO, FILE_READ_ATTRIBUTES, FILE_SHARE_DELETE, FILE_SHARE_READ, FILE_SHARE_WRITE,
-    FileCaseSensitiveInfo, FileIdInfo, GetFileAttributesW, GetFileInformationByHandleEx,
-    GetFinalPathNameByHandleW, GetShortPathNameW, GetVolumeInformationW, GetVolumePathNameW,
-    INVALID_FILE_ATTRIBUTES, OPEN_EXISTING, OpenFileById, SetFileAttributesW, VOLUME_NAME_NONE,
+    FILE_ID_INFO, FILE_READ_ATTRIBUTES, FileCaseSensitiveInfo, FileIdInfo, GetFileAttributesW,
+    GetFileInformationByHandleEx, GetFinalPathNameByHandleW, GetShortPathNameW,
+    GetVolumeInformationW, GetVolumePathNameW, INVALID_FILE_ATTRIBUTES, OPEN_EXISTING,
+    OpenFileById, SetFileAttributesW, VOLUME_NAME_NONE,
 };
 use windows_sys::Win32::System::IO::DeviceIoControl;
 
 use super::{
-    FileIdKind, case_mode_from_flags, file_id_kind, has_short_name, junction_names,
-    means_no_case_sensitivity, mount_point_buffer, toggled_archive, verbatim,
+    FileIdKind, NO_FOLLOW_NO_RECALL, SHARE_ALL, case_mode_from_flags, file_id_kind, has_short_name,
+    junction_names, means_no_case_sensitivity, mount_point_buffer, toggled_archive, verbatim,
 };
 
 /// `FILE_ID_TYPE` values of `FILE_ID_DESCRIPTOR` (kept local: the enum lives
@@ -208,10 +208,10 @@ fn open_attributes(path: &Path) -> std::io::Result<OwnedHandle> {
         CreateFileW(
             name.as_ptr(),
             FILE_READ_ATTRIBUTES,
-            FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+            SHARE_ALL,
             std::ptr::null(),
             OPEN_EXISTING,
-            FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT | FILE_FLAG_OPEN_NO_RECALL,
+            NO_FOLLOW_NO_RECALL,
             std::ptr::null_mut(),
         )
     };
@@ -300,9 +300,9 @@ pub fn resolve_long_name(
             hint.as_raw_handle(),
             &raw const descriptor,
             0,
-            FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+            SHARE_ALL,
             std::ptr::null(),
-            FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT | FILE_FLAG_OPEN_NO_RECALL,
+            NO_FOLLOW_NO_RECALL,
         )
     };
     if raw == INVALID_HANDLE_VALUE {

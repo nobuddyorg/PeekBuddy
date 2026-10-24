@@ -93,6 +93,17 @@ pub fn has_short_name(short_path: &[u16], long: &str) -> bool {
     !name.iter().copied().eq(long.encode_utf16())
 }
 
+/// `FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE`. A literal, so
+/// that no operator in it can be mutated unseen; a Windows test compares it
+/// with windows-sys.
+pub const SHARE_ALL: u32 = 0x0000_0007;
+
+/// `FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT |
+/// FILE_FLAG_OPEN_NO_RECALL`: open directories, do not follow reparse points,
+/// do not recall cloud files (F18). A literal, checked on Windows like
+/// [`SHARE_ALL`].
+pub const NO_FOLLOW_NO_RECALL: u32 = 0x0230_0000;
+
 /// How `OpenFileById` wants a file id (#39).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FileIdKind {
