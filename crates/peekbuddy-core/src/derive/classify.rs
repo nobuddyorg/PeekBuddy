@@ -191,6 +191,16 @@ mod tests {
         let mut steps = pair(1, 2, 0, 1).to_vec();
         steps.push(step(5, Kind::Deleted, 1));
         assert_eq!(classify(&steps, false), Outcome::Split);
+        // Something else created, not the target: not a save either.
+        let mut steps = pair(1, 2, 0, 1).to_vec();
+        steps.push(step(3, Kind::Created, 2));
+        steps.push(step(5, Kind::Deleted, 1));
+        assert_eq!(classify(&steps, false), Outcome::Split);
+        // Target rewritten, but something else deleted: not a save.
+        let mut steps = pair(1, 2, 0, 1).to_vec();
+        steps.push(step(3, Kind::Created, 0));
+        steps.push(step(5, Kind::Deleted, 2));
+        assert_eq!(classify(&steps, false), Outcome::Split);
     }
 
     #[test]

@@ -388,6 +388,50 @@ fn pending_items_are_bounded() {
 }
 
 #[test]
+fn one_push_can_need_several_forced_flushes() {
+    // A burst with many steps closes behind two open ones and spreads into
+    // many pending items at once: the bound must flush until it holds.
+    let cfg = Config {
+        save_window_ms: 100,
+        max_open_groups: 3,
+        ..Config::default()
+    };
+    let max_pending = 3 * 4;
+    let mut deriver = Deriver::new(cfg);
+    let push = |deriver: &mut Deriver, id: u64, ms: u64, path: &str| {
+        deriver.push(
+            stored(&(id, ms, Modified, 0, 0, "")),
+            WideStr::new(&w(path)),
+        );
+        assert!(
+            deriver.stats().pending_items <= max_pending,
+            "{:?}",
+            deriver.stats()
+        );
+    };
+    push(&mut deriver, 1, 0, "a");
+    for id in 2..=4 {
+        push(&mut deriver, id, 0, "b");
+    }
+    push(&mut deriver, 5, 0, "c");
+    for id in 6..=17 {
+        push(&mut deriver, id, 0, "b");
+    }
+    // Keep the outer bursts alive, then let burst b run out.
+    push(&mut deriver, 18, 60, "a");
+    push(&mut deriver, 19, 60, "c");
+    assert_eq!(deriver.stats().forced_flushes, 0);
+    push(&mut deriver, 20, 120, "d");
+    assert_eq!(deriver.stats().forced_flushes, 2);
+    deriver.finish();
+    assert!(deriver.is_idle());
+    let mut out = Vec::new();
+    deriver.take(&mut out);
+    let ids: Vec<u64> = out.iter().flat_map(DisplayItem::ids).collect();
+    assert_eq!(ids, (1..=20).collect::<Vec<u64>>());
+}
+
+#[test]
 fn a_rename_onto_a_busy_path_merges_the_bursts() {
     // The earlier burst (id 1) joins the later one (id 2).
     let names = [w("x"), w("a"), w("x")];
