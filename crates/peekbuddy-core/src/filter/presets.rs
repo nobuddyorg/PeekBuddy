@@ -272,6 +272,29 @@ mod tests {
     }
 
     #[test]
+    fn flag_names_map_to_their_bits() {
+        let head = "version = 1\nname = \"a\"\ntitle = \"b\"\n";
+        for (name, flag) in [
+            ("cloud_churn", Flags::CLOUD_CHURN),
+            ("self_churn", Flags::SELF_CHURN),
+            ("temp", Flags::TEMP),
+            ("short_dup", Flags::SHORT_DUP),
+        ] {
+            let preset = parse("t", &format!("{head}[[rule]]\nflags = [\"{name}\"]\n")).unwrap();
+            assert_eq!(preset.patterns, vec![Pattern::Flags(flag)], "{name}");
+        }
+        let two = parse(
+            "t",
+            &format!("{head}[[rule]]\nflags = [\"temp\", \"cloud_churn\"]\n"),
+        )
+        .unwrap();
+        assert_eq!(
+            two.patterns,
+            vec![Pattern::Flags(Flags::TEMP.union(Flags::CLOUD_CHURN))]
+        );
+    }
+
+    #[test]
     fn rules_take_the_scope() {
         let presets = all().unwrap();
         let preset = presets.first().unwrap();

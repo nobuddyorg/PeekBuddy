@@ -37,12 +37,12 @@ pub use glob::GlobError;
 pub const MAX_RULES: usize = 100_000;
 
 /// Size limit for one compiled NFA, in bytes.
-const NFA_SIZE_LIMIT: usize = 2 * 1024 * 1024;
+const NFA_SIZE_LIMIT: usize = 2_097_152;
 /// Size limit for one compiled DFA, in bytes. DFAs live as long as the
 /// engine, so this is part of its memory budget (F8).
-const DFA_SIZE_LIMIT: usize = 2 * 1024 * 1024;
+const DFA_SIZE_LIMIT: usize = 2_097_152;
 /// Size limit for the working memory of building one DFA, in bytes.
-const DETERMINIZE_SIZE_LIMIT: usize = 8 * 1024 * 1024;
+const DETERMINIZE_SIZE_LIMIT: usize = 8_388_608;
 
 /// Where a rule applies.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -446,16 +446,18 @@ fn syntax_config(case_insensitive: bool, bytewise: bool) -> syntax::Config {
         .utf8(!bytewise)
 }
 
-fn thompson_config(bytewise: bool) -> thompson::Config {
+/// The NFA never splits on chars: only the syntax setting decides whether a
+/// pattern may match arbitrary bytes, and only whole-path matches count.
+fn thompson_config() -> thompson::Config {
     thompson::Config::new()
         .nfa_size_limit(Some(NFA_SIZE_LIMIT))
-        .utf8(!bytewise)
+        .utf8(false)
 }
 
 /// Checks that one pattern compiles within the NFA limit.
 fn check_pattern(source: &str, case_insensitive: bool, bytewise: bool) -> Result<(), String> {
     thompson::Compiler::new()
-        .configure(thompson_config(bytewise))
+        .configure(thompson_config())
         .syntax(syntax_config(case_insensitive, bytewise))
         .build(source)
         .map(|_| ())
@@ -472,7 +474,7 @@ fn build_dfa(patterns: &[String], case_insensitive: bool, bytewise: bool) -> Opt
                 .minimize(false),
         )
         .syntax(syntax_config(case_insensitive, bytewise))
-        .thompson(thompson_config(bytewise))
+        .thompson(thompson_config())
         .build_many(patterns)
         .ok()
 }
@@ -762,9 +764,7 @@ impl Variant {
 }
 
 fn raise(best: &mut Option<usize>, rule: usize) {
-    if best.is_none_or(|b| rule > b) {
-        *best = Some(rule);
-    }
+    *best = (*best).max(Some(rule));
 }
 
 /// Calls `found` with the pattern index and end offset of every match of

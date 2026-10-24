@@ -43,8 +43,6 @@ pub enum GlobError {
     Nul,
     /// A `[` without a closing `]`.
     UnclosedClass,
-    /// A class without members.
-    EmptyClass,
     /// A range whose end comes before its start.
     ReversedRange,
 }
@@ -56,7 +54,6 @@ impl fmt::Display for GlobError {
             Self::TooLong => "the pattern is too long",
             Self::Nul => "the pattern contains a NUL character",
             Self::UnclosedClass => "a `[` has no closing `]`",
-            Self::EmptyClass => "a character class is empty",
             Self::ReversedRange => "a character range ends before it starts",
         })
     }
@@ -223,72 +220,57 @@ fn subtract_separators(ranges: &[(u32, u32)]) -> Vec<(u32, u32)> {
     out
 }
 
-/// Parses a class that starts after its `[`; returns the regex and the
-/// index after the closing `]`.
-fn parse_class(chars: &[char], start: usize, mode: CaseMode) -> Result<(String, usize), GlobError> {
-    let mut i = start;
-    let negated = matches!(chars.get(i), Some('!' | '^'));
+/// Parses a class whose `[` has been consumed; consumes through the closing
+/// `]` and returns the regex.
+fn parse_class(
+    chars: &mut std::slice::Iter<'_, char>,
+    mode: CaseMode,
+) -> Result<String, GlobError> {
+    let negated = matches!(chars.as_slice().first(), Some('!' | '^'));
     if negated {
-        i += 1;
+        chars.next();
     }
     let mut set = ClassSet::default();
     let mut members = 0_usize;
     loop {
-        let Some(&c) = chars.get(i) else {
+        let Some(&c) = chars.next() else {
             return Err(GlobError::UnclosedClass);
         };
         // A `]` right after the opening is a member.
         if c == ']' && members > 0 {
-            i += 1;
             break;
         }
         // `a-z`, unless the `-` is last.
-        let range_end = match (chars.get(i + 1), chars.get(i + 2)) {
-            (Some('-'), Some(&end)) if end != ']' => Some(end),
-            _ => None,
-        };
-        if let Some(end) = range_end {
+        if let ['-', end, ..] = *chars.as_slice()
+            && end != ']'
+        {
             if end < c {
                 return Err(GlobError::ReversedRange);
             }
             set.add_folded(c, end, mode);
-            i += 3;
+            chars.next();
+            chars.next();
         } else {
             set.add_folded(c, c, mode);
-            i += 1;
         }
         members += 1;
     }
-    if members == 0 {
-        return Err(GlobError::EmptyClass);
-    }
-    Ok((set.to_regex(negated), i))
+    Ok(set.to_regex(negated))
 }
 
 /// Translates one segment (no separators, not `**`).
-fn segment_regex(chars: &[char], mode: CaseMode) -> Result<String, GlobError> {
+fn segment_regex(segment: &[char], mode: CaseMode) -> Result<String, GlobError> {
     let mut out = String::new();
-    let mut i = 0;
-    while let Some(&c) = chars.get(i) {
+    let mut chars = segment.iter();
+    while let Some(&c) = chars.next() {
         match c {
             '*' => {
                 out.push_str(NOT_SEP_BYTES);
                 out.push('*');
-                i += 1;
             }
-            '?' => {
-                out.push_str(NOT_SEP_CHAR);
-                i += 1;
-            }
-            '[' => {
-                let (class, next) = parse_class(chars, i + 1, mode)?;
-                out.push_str(&class);
-                i = next;
-            }
-            other => {
-                push_literal(&mut out, fold_char(other, mode));
-                i += 1;
-            }
+            '?' => out.push_str(NOT_SEP_CHAR),
+            '[' => out.push_str(&parse_class(&mut chars, mode)?),
+            other => push_literal(&mut out, fold_char(other, mode)),
         }
     }
     Ok(out)
@@ -380,6 +362,31 @@ mod tests {
         assert_eq!(p("[z-a]"), GlobError::ReversedRange);
         assert_eq!(p(&"a".repeat(MAX_PATTERN_BYTES + 1)), GlobError::TooLong);
         assert!(parse(&"a".repeat(MAX_PATTERN_BYTES), CaseMode::Sensitive).is_ok());
+    }
+
+    #[test]
+    fn class_regexes_merge_and_fold_their_ranges() {
+        let class = |pattern: &str, mode| parse(pattern, mode).unwrap().regex;
+        assert!(class("[abc]", CaseMode::Sensitive).contains(r"[\x{61}-\x{63}]"));
+        assert!(class("[a-cb-d]", CaseMode::Sensitive).contains(r"[\x{61}-\x{64}]"));
+        assert!(class("[ac]", CaseMode::Sensitive).contains(r"[\x{61}\x{63}]"));
+        assert!(class("[a-a]", CaseMode::Sensitive).contains(r"[\x{61}]"));
+        assert!(class("[!a]", CaseMode::Sensitive).contains(r"[^\x{2F}\x{5C}\x{61}]"));
+        // Folded one member at a time.
+        assert!(class("[a-c]", CaseMode::Insensitive).contains(r"[\x{41}-\x{43}]"));
+        // Outside the BMP nothing folds; the range stays whole.
+        assert!(
+            class("[\u{10000}-\u{10FFFF}]", CaseMode::Insensitive)
+                .contains(r"[\x{10000}-\x{10FFFF}]")
+        );
+        // A range that ends at U+FFFF adds nothing outside the BMP.
+        let top = class("[\u{FFFE}-\u{FFFF}]", CaseMode::Insensitive);
+        assert!(top.contains(r"[\x{FFFE}-\x{FFFF}]"), "{top}");
+        // A range that starts below and ends above U+FFFF has both parts.
+        let both = class("[\u{FFFF}-\u{10001}]", CaseMode::Insensitive);
+        assert!(both.contains(r"\x{FFFF}-\x{10001}"), "{both}");
+        // Separators never match inside a class.
+        assert!(class("[.-0]", CaseMode::Sensitive).contains(r"[\x{2E}\x{30}]"));
     }
 
     #[test]
