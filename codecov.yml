@@ -16,5 +16,6 @@ ignore:
   - "fuzz/**"
   - "spikes/**"
   - "crates/peekbuddy-testkit/**"
-comment:
-  layout: "diff, flags, files"
+# No PR comments: they email everyone subscribed to the PR. The status
+# checks above still report.
+comment: false
