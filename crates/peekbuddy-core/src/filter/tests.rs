@@ -445,6 +445,9 @@ fn memory_is_the_sum_of_the_dfas() {
         overrides: vec![(RootIdx(1), CaseMode::Sensitive)],
     };
     let s = mem(std::slice::from_ref(&glob), &sensitive_only);
+    // Only the modes in use are built: a default of one mode costs one set.
+    assert!(s > 0);
+    assert!(mem(std::slice::from_ref(&glob), &both) > g);
     assert_eq!(mem(&[glob], &both), g + s);
     assert_eq!(FilterSet::compile(&[]).unwrap().memory_usage(), 0);
 }
@@ -479,6 +482,26 @@ fn extensions_are_taken_from_the_last_component() {
     assert!(!hidden("a.tmp\\b"));
     assert!(!hidden("a.tmp/"));
     assert!(!hidden("dir.tmp\\a"));
+    // A leading dot is a name even when a directory comes first.
+    assert!(!hidden("d\\.tmp"));
+    assert!(!hidden("d/.tmp"));
+}
+
+#[test]
+fn a_case_insensitive_root_in_a_case_sensitive_default() {
+    let options = CompileOptions {
+        default_case: CaseMode::Sensitive,
+        overrides: vec![(RootIdx(1), CaseMode::Insensitive)],
+    };
+    let rules = [Rule::exclude(Pattern::Glob("README".into()))];
+    let hit = |root: u16, path: &str| {
+        let ev = event(root, Kind::Modified, false, Flags::NONE);
+        run(&rules, &options, path, &ev).matched_rule.is_some()
+    };
+    assert!(!hit(0, "readme"));
+    assert!(hit(0, "README"));
+    assert!(hit(1, "readme"));
+    assert!(hit(1, "README"));
 }
 
 #[test]
