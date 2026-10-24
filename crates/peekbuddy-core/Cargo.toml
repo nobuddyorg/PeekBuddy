@@ -27,3 +27,7 @@ workspace = true
 [[test]]
 name = "filter_alloc"
 harness = false
+
+[[test]]
+name = "notify_alloc"
+harness = false
