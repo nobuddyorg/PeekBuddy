@@ -31,6 +31,9 @@ exclude_re = [
   # mutants run on. The parser is tested; the full query is compared with
   # an independent one (`machine_facts_match_independent_queries`).
   "crates/peekbuddy-churn/src/exec/windows.rs:.*replace defender_realtime -> Option<bool> with Some",
+  # Equivalent mutant: `IoSlot::new` rejects empty buffers, so `is_empty`
+  # (kept for `len`'s clippy pairing) is always false.
+  "crates/peekbuddy-win/src/io/slot.rs:.*replace IoSlot::is_empty -> bool with false",
   # A pending slot leaks its memory on drop so the kernel cannot write into
   # freed pages; no test can observe a leak.
   "crates/peekbuddy-win/src/io/slot.rs:.*replace <impl Drop for IoSlot>::drop with",

@@ -169,6 +169,7 @@ fn cancel_completes_with_operation_aborted() {
         c.status,
         peekbuddy_win::io::error::WinError::OperationAborted
     );
+    assert!(!c.is_success());
     slot.finish().unwrap();
 }
 
