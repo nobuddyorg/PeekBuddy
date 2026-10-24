@@ -535,6 +535,17 @@ fn the_interner_hits_in_memory_and_finds_nodes_after_a_restart() {
         )
         .unwrap();
     assert_eq!(hits, 1);
+    // A quoted phrase of several trigrams works with `detail='full'` (it is
+    // rejected with `'none'` and with `'column'`) and is the indexed search
+    // path (#35).
+    let phrase_hits: i64 = conn
+        .query_row(
+            "SELECT count(*) FROM node_fts WHERE node_fts MATCH '\"port.d\"'",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap();
+    assert_eq!(phrase_hits, 1);
     cold.clear();
     assert_eq!(cold.stats().entries, 0);
     assert_eq!(cold.lookup(TOP_LEVEL, key.name), None);
@@ -666,4 +677,31 @@ fn errors_expose_their_source() {
             .to_string()
             .contains("0x5")
     );
+}
+
+/// Why `node_fts` is `detail='full'` (#35): only `full` answers a `MATCH`
+/// phrase of more than one trigram, which is how substring search uses the
+/// index. The spike's first numbers for `column` were errors counted as rows.
+#[test]
+fn only_detail_full_answers_a_multi_trigram_phrase() {
+    for (detail, works) in [("none", false), ("column", false), ("full", true)] {
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch(&format!(
+            "CREATE TABLE node(id INTEGER PRIMARY KEY, name TEXT);\
+             CREATE VIRTUAL TABLE f USING fts5(name, content='node', content_rowid='id', \
+             tokenize='trigram case_sensitive 0 remove_diacritics 1', detail='{detail}');\
+             INSERT INTO node VALUES (1, 'report.docx');\
+             INSERT INTO f(rowid, name) VALUES (1, 'report.docx');"
+        ))
+        .unwrap();
+        let hits = |text: &str| -> rusqlite::Result<i64> {
+            conn.query_row(
+                "SELECT count(*) FROM f WHERE f MATCH ?1",
+                [format!("\"{text}\"")],
+                |r| r.get(0),
+            )
+        };
+        assert_eq!(hits("por").unwrap(), 1, "one trigram works with {detail}");
+        assert_eq!(hits("port.d").is_ok(), works, "a phrase with {detail}");
+    }
 }

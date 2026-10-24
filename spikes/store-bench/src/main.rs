@@ -653,7 +653,13 @@ fn query(cfg: &Config) {
                             .unwrap_or_default();
                     }
                     let started = Instant::now();
-                    let result = conn.prepare(&sql).and_then(|mut st| st.query_map([], |_| Ok(())).map(|r| r.count()));
+                    // Errors (an FTS5 phrase with detail != full) surface as items of the
+                    // iterator, so collect them instead of counting them as rows.
+                    let result = conn.prepare(&sql).and_then(|mut st| {
+                        st.query_map([], |_| Ok(()))
+                            .and_then(|rows| rows.collect::<Result<Vec<_>, _>>())
+                            .map(|rows| rows.len())
+                    });
                     match result {
                         Ok(n) => found_total += n,
                         Err(_) => failed = true,

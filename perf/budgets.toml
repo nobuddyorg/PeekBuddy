@@ -199,7 +199,7 @@ limit = 10
 class = "timing"
 gate = "pr-ab"
 status = "provisional"
-source = "R1, recalibrated by #35"
+source = "R1, checked by #35 (commit path alone: p50 3.2 ms, p99 6.3 ms at 10k events/s, linger 5 ms from the first pending event)"
 workload = "churn profile latency-10k (#25)"
 how = "ledger timestamp vs commit timestamp (#27)"
 arch = ["x86_64", "aarch64"]
@@ -213,7 +213,7 @@ limit = 50
 class = "timing"
 gate = "pr-ab"
 status = "provisional"
-source = "R1, recalibrated by #35"
+source = "R1, checked by #35 (commit path alone: p50 3.2 ms, p99 6.3 ms at 10k events/s, linger 5 ms from the first pending event)"
 workload = "churn profile latency-10k (#25)"
 how = "ledger timestamp vs commit timestamp (#27)"
 arch = ["x86_64", "aarch64"]
@@ -417,12 +417,41 @@ id = "store.bytes_per_event"
 metric = "on-disk bytes per stored event"
 unit = "bytes"
 bound = "max"
+limit = 90
 class = "deterministic"
 gate = "pr-strict"
 status = "provisional"
-source = "F5; limit set by #35"
+source = "F5; set by #35 (76 B measured: interned paths, both indexes, 4 KiB pages; inline paths cost 115 B)"
 workload = "churn profile sustained-20k (#25)"
 how = "segment file size / row count (#35)"
+arch = ["x86_64", "aarch64"]
+
+[[budget]]
+id = "store.commit.p99"
+metric = "writer commit latency, 99th percentile, 10k events/s paced, batch cap 1,000, linger 5 ms from the first pending event"
+unit = "ms"
+bound = "max"
+limit = 15
+class = "timing"
+gate = "nightly-trend"
+status = "provisional"
+source = "#35 (6.3 ms measured on windows-2025; limit is about twice that)"
+workload = "spikes/store-bench commit cells, replaced by the writer bench (#52)"
+how = "store-bench JSONL, later the writer bench (#26)"
+arch = ["x86_64", "aarch64"]
+
+[[budget]]
+id = "store.writer.burst"
+metric = "events per second the writer alone commits in a burst, batch cap 1,000, linger 5 ms"
+unit = "events/s"
+bound = "min"
+limit = 50000
+class = "timing"
+gate = "nightly-trend"
+status = "provisional"
+source = "#35 (77k to 83k events/s measured; the 100k/s burst needs the ring of about 170k records or the spill, see ADR 0004)"
+workload = "spikes/store-bench commit cells, replaced by the writer bench (#52)"
+how = "store-bench JSONL, later the writer bench (#26)"
 arch = ["x86_64", "aarch64"]
 
 [[budget]]
