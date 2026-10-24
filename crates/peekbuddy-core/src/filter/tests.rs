@@ -380,22 +380,105 @@ fn compile_errors_name_the_rule() {
 }
 
 #[test]
-fn too_many_rules_and_too_complex_regexes_are_rejected() {
-    let many = vec![Rule::exclude(Pattern::Ext(vec!["a".into()])); MAX_RULES + 1];
+fn the_rule_limit_is_exact() {
+    let rule = Rule::exclude(Pattern::Ext(vec!["a".into()]));
+    let at_limit = vec![rule.clone(); MAX_RULES];
     assert_eq!(
-        FilterSet::compile(&many).unwrap_err(),
+        FilterSet::compile(&at_limit).unwrap().rule_count(),
+        MAX_RULES
+    );
+    let over = vec![rule; MAX_RULES + 1];
+    assert_eq!(
+        FilterSet::compile(&over).unwrap_err(),
         FilterError::TooManyRules
     );
-    // A bounded repetition of a Unicode class blows up any DFA.
+}
+
+#[test]
+fn size_limits_reject_big_regexes() {
+    // The NFA of a bounded repetition of a Unicode class is over the limit.
     let huge = Rule::exclude(Pattern::Regex(r"\w{200}".into()));
     let e = FilterSet::compile(&[huge]).unwrap_err();
     assert!(
-        matches!(
-            e,
-            FilterError::Regex { .. } | FilterError::TooComplex { .. }
-        ),
+        matches!(&e, FilterError::Regex { rule: 0, message } if message.contains("exceeded limit")),
         "{e}"
     );
+}
+
+#[test]
+fn kind_sets_ignore_duplicates() {
+    let once = KindSet::of(&[Kind::Created]);
+    assert_eq!(KindSet::of(&[Kind::Created, Kind::Created]), once);
+    assert!(once.contains(Kind::Created));
+    assert!(!once.contains(Kind::Deleted));
+    assert!(KindSet::EMPTY.is_empty());
+    assert!(!once.is_empty());
+}
+
+#[test]
+fn memory_is_the_sum_of_the_dfas() {
+    let glob = Rule::exclude(Pattern::Glob("*.tmp".into()));
+    let regex = Rule::exclude(Pattern::Regex("a.b".into()));
+    let mem = |rules: &[Rule], options: &CompileOptions| {
+        FilterSet::compile_with(rules, options)
+            .unwrap()
+            .memory_usage()
+    };
+    let o = CompileOptions::default();
+    let (g, r) = (
+        mem(std::slice::from_ref(&glob), &o),
+        mem(std::slice::from_ref(&regex), &o),
+    );
+    assert!(g > 0 && r > 0);
+    // A glob DFA and a regex DFA are separate.
+    assert_eq!(mem(&[glob.clone(), regex.clone()], &o), g + r);
+    // A second scope has its own DFAs.
+    let watch = glob.clone().in_watch(RootIdx(1));
+    assert_eq!(mem(&[glob.clone(), watch], &o), g * 2);
+    // Each case mode in use has its own set, and only modes in use count.
+    let sensitive_only = CompileOptions {
+        default_case: CaseMode::Sensitive,
+        overrides: Vec::new(),
+    };
+    let both = CompileOptions {
+        default_case: CaseMode::Insensitive,
+        overrides: vec![(RootIdx(1), CaseMode::Sensitive)],
+    };
+    let s = mem(std::slice::from_ref(&glob), &sensitive_only);
+    assert_eq!(mem(&[glob], &both), g + s);
+    assert_eq!(FilterSet::compile(&[]).unwrap().memory_usage(), 0);
+}
+
+#[test]
+fn classes_reach_outside_the_basic_plane() {
+    let hit = |pattern: &str, path: &str| glob_hits(pattern, path, false);
+    assert!(hit("[\u{10000}-\u{10FFFF}]", "\u{1F600}"));
+    assert!(!hit("[\u{10000}-\u{10FFFF}]", "a"));
+    assert!(hit("[\u{FFFE}-\u{FFFF}]", "\u{FFFF}"));
+    assert!(!hit("[\u{FFFE}-\u{FFFF}]", "\u{1F600}"));
+    assert!(hit("[\u{FFFF}-\u{10001}]", "\u{10000}"));
+    assert!(hit("[\u{1F600}]", "\u{1F600}"));
+    assert!(!hit("[\u{1F600}]", "\u{1F601}"));
+    assert!(hit("[a-a]", "a"));
+    assert!(!hit("[a-a]", "b"));
+    assert!(hit("[a-cb-d]", "d"));
+    assert!(!hit("[a-cb-d]", "e"));
+}
+
+#[test]
+fn extensions_are_taken_from_the_last_component() {
+    let rules = [Rule::exclude(Pattern::Ext(vec!["tmp".into()]))];
+    let o = CompileOptions::default();
+    let hidden = |path: &str| {
+        let ev = event(0, Kind::Modified, false, Flags::NONE);
+        !run(&rules, &o, path, &ev).visible
+    };
+    assert!(hidden("a.tmp"));
+    assert!(hidden("dir.x\\a.tmp"));
+    assert!(hidden("dir/a.b.tmp"));
+    assert!(!hidden("a.tmp\\b"));
+    assert!(!hidden("a.tmp/"));
+    assert!(!hidden("dir.tmp\\a"));
 }
 
 #[test]
@@ -774,7 +857,9 @@ fn arb_path() -> impl Strategy<Value = String> {
 }
 
 proptest! {
-    #![proptest_config(ProptestConfig::with_cases(2000))]
+    // A failing case is found fast; shrinking it a long time only slows a
+    // mutation run down.
+    #![proptest_config(ProptestConfig { cases: 2000, max_shrink_iters: 100, ..ProptestConfig::default() })]
 
     #[test]
     fn compiled_verdict_equals_the_reference(

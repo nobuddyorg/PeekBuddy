@@ -153,8 +153,9 @@ impl ClassSet {
                 self.add(f, f);
             }
         }
-        if u32::from(hi) > 0xFFFF {
-            self.add(u32::from(lo).max(0x1_0000), u32::from(hi));
+        let astral_lo = u32::from(lo).max(0x1_0000);
+        if astral_lo <= u32::from(hi) {
+            self.add(astral_lo, u32::from(hi));
         }
     }
 
