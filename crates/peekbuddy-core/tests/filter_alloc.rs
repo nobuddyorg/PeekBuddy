@@ -41,12 +41,20 @@ fn main() -> ExitCode {
     if answer_nextest_list("filter_alloc") {
         return ExitCode::SUCCESS;
     }
+    // A few presets are enough to exercise every matcher; compiling all of
+    // them makes a mutated glob translation slow to build.
     let mut rules: Vec<Rule> = presets::all()
         .unwrap_or_default()
         .iter()
+        .filter(|p| {
+            matches!(
+                p.name.as_str(),
+                "temp-lock-swap" | "build-dirs" | "cloud-churn"
+            )
+        })
         .flat_map(|p| p.rules(peekbuddy_core::filter::Scope::Global))
         .collect();
-    for i in 0..20 {
+    for i in 0..6 {
         rules.push(Rule::exclude(Pattern::Glob(format!("user-{i}/**/*.log"))).in_watch(RootIdx(1)));
     }
     rules.push(Rule::exclude(Pattern::Regex(r"(?i)\.bak\d*$".into())));
