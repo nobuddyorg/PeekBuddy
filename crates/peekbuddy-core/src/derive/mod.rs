@@ -292,6 +292,19 @@ impl Deriver {
         }
     }
 
+    /// Whether no state is left: nothing open, pending or awaited. True after
+    /// [`Deriver::finish`].
+    #[cfg(test)]
+    fn is_idle(&self) -> bool {
+        self.slab.iter().all(Option::is_none)
+            && self.open_count == 0
+            && self.entries.is_empty()
+            && self.by_key.is_empty()
+            && self.deadlines.is_empty()
+            && self.awaiting.is_empty()
+            && self.pending_from.is_empty()
+    }
+
     /// The counters.
     #[must_use]
     pub fn stats(&self) -> Stats {
@@ -364,6 +377,11 @@ impl Deriver {
         (root.0, units)
     }
 
+    fn put_unpaired(&mut self, id: u64) {
+        self.stats.unpaired += 1;
+        self.put(id, DisplayItem::Unpaired(id));
+    }
+
     fn put(&mut self, id: u64, item: DisplayItem) {
         self.entries.insert(id, Entry::Closed(item));
     }
@@ -376,8 +394,7 @@ impl Deriver {
                 if let Some((from_id, open)) = self.find_partner(&event) {
                     self.pair(open, from_id, event, key, name);
                 } else {
-                    self.stats.unpaired += 1;
-                    self.put(event.id, DisplayItem::Unpaired(event.id));
+                    self.put_unpaired(event.id);
                 }
             }
             Kind::RenamedFrom => {
@@ -435,8 +452,7 @@ impl Deriver {
         let Some(burst) = self.slab.get_mut(open).and_then(Option::as_mut) else {
             // The burst is gone (cannot happen while it is awaited): never
             // lose the row.
-            self.stats.unpaired += 1;
-            self.put(event.id, DisplayItem::Unpaired(event.id));
+            self.put_unpaired(event.id);
             return;
         };
         let path = if let Some(path) = burst.paths.iter().position(|p| p.key == key) {
@@ -521,8 +537,9 @@ impl Deriver {
             }
             slot
         } else {
+            let slot = self.slab.len();
             self.slab.push(Some(burst));
-            self.slab.len() - 1
+            slot
         };
         self.open_count += 1;
         self.by_key.insert(key, open);
@@ -574,10 +591,11 @@ impl Deriver {
         target.steps.append(&mut source.steps);
         target.steps.sort_by_key(|s| s.id);
         target.last_ts = target.last_ts.max(source.last_ts);
-        if source.first_id < target.first_id {
+        let first = source.first_id.min(target.first_id);
+        if first != target.first_id {
             self.entries.remove(&target.first_id);
-            target.first_id = source.first_id;
-            self.entries.insert(target.first_id, Entry::Open(into));
+            target.first_id = first;
+            self.entries.insert(first, Entry::Open(into));
         }
         self.deadlines.insert((target.last_ts, into));
         if let Some(cell) = self.slab.get_mut(into) {
@@ -586,12 +604,11 @@ impl Deriver {
     }
 
     fn expire(&mut self) {
-        while let Some(&(last, open)) = self.deadlines.first() {
-            if last.saturating_add(self.window) < self.now {
-                self.close(open);
-            } else {
-                break;
-            }
+        while let Some(&(last, open)) = self.deadlines.first()
+            && last.saturating_add(self.window) < self.now
+        {
+            self.deadlines.remove(&(last, open));
+            self.close(open);
         }
     }
 
@@ -693,8 +710,7 @@ impl Deriver {
                         continue;
                     }
                     if step.awaiting {
-                        self.stats.unpaired += 1;
-                        self.put(step.id, DisplayItem::Unpaired(step.id));
+                        self.put_unpaired(step.id);
                     } else {
                         self.put(step.id, DisplayItem::Raw(step.id));
                     }

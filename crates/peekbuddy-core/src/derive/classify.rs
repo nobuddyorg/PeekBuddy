@@ -76,13 +76,17 @@ pub(super) fn rename_pairs(steps: &[Step]) -> Vec<(usize, usize)> {
 /// `ReplaceFileW` (temp, backup, rename, delete) shows up as 1 and 2 together
 /// and matches 1.
 fn save_target(steps: &[Step], pairs: &[(usize, usize)]) -> Option<usize> {
+    // The steps are in id order, so "before" and "after" are positions. A
+    // slice that starts at a rename half or at the step itself only adds a
+    // step that is neither a creation nor a deletion.
     // 1. temp written, then renamed to another name.
     for &(f, t) in pairs {
         let (from, to) = (steps.get(f)?, steps.get(t)?);
         if from.path != to.path
             && steps
                 .iter()
-                .any(|s| is_created(s.kind) && s.path == from.path && s.id < from.id)
+                .take(f)
+                .any(|s| is_created(s.kind) && s.path == from.path)
         {
             return Some(to.path);
         }
@@ -95,19 +99,22 @@ fn save_target(steps: &[Step], pairs: &[(usize, usize)]) -> Option<usize> {
         }
         let rewritten = steps
             .iter()
-            .any(|s| is_created(s.kind) && s.path == from.path && s.id > to.id);
+            .skip(t)
+            .any(|s| is_created(s.kind) && s.path == from.path);
         let backup_gone = steps
             .iter()
-            .any(|s| is_deleted(s.kind) && s.path == to.path && s.id > to.id);
+            .skip(t)
+            .any(|s| is_deleted(s.kind) && s.path == to.path);
         if rewritten && backup_gone {
             return Some(from.path);
         }
     }
     // 3. delete and create of the same name.
-    for d in steps.iter().filter(|s| is_deleted(s.kind)) {
+    for (i, d) in steps.iter().enumerate().filter(|(_, s)| is_deleted(s.kind)) {
         if steps
             .iter()
-            .any(|c| is_created(c.kind) && c.path == d.path && c.id > d.id)
+            .skip(i)
+            .any(|c| is_created(c.kind) && c.path == d.path)
         {
             return Some(d.path);
         }

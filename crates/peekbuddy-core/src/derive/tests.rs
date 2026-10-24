@@ -366,6 +366,7 @@ fn pending_items_are_bounded() {
     let mut deriver = Deriver::new(cfg);
     let name = w("busy");
     let mut ids = 0_u64;
+    let mut peak = 0;
     for _ in 0..100 {
         ids += 1;
         deriver.push(
@@ -377,13 +378,83 @@ fn pending_items_are_bounded() {
             stored(&(ids, ids * 40, Kind::EngineStarted, 0, 0, "x")),
             WideStr::new(&name),
         );
-        assert!(
-            deriver.stats().pending_items <= 2 * 4 + 1,
-            "{:?}",
-            deriver.stats()
-        );
+        let pending = deriver.stats().pending_items;
+        assert!(pending <= 2 * 4, "{:?}", deriver.stats());
+        peak = peak.max(pending);
     }
+    // The bound is used in full, not one short of it.
+    assert_eq!(peak, 2 * 4);
     assert!(deriver.stats().forced_flushes > 0);
+}
+
+#[test]
+fn a_rename_onto_a_busy_path_merges_the_bursts() {
+    // The earlier burst (id 1) joins the later one (id 2).
+    let names = [w("x"), w("a"), w("x")];
+    let rows = [
+        (1, 0, Deleted, 0, 0, "x"),
+        (2, 1, RenamedFrom, 0, 7, "a"),
+        (3, 2, RenamedTo, 0, 7, "x"),
+    ];
+    let mut deriver = Deriver::new(Config::default());
+    deriver.push(stored(&rows[0]), WideStr::new(&names[0]));
+    deriver.push(stored(&rows[1]), WideStr::new(&names[1]));
+    assert_eq!(deriver.stats().open_groups, 2);
+    deriver.push(stored(&rows[2]), WideStr::new(&names[2]));
+    assert_eq!(deriver.stats().open_groups, 1);
+    assert_eq!(deriver.stats().pending_items, 1);
+    deriver.finish();
+    assert!(deriver.is_idle());
+    let mut out = Vec::new();
+    deriver.take(&mut out);
+    assert_eq!(render(&out), "raw 1\nRenamed [2, 3] a -> x (raw events: 2)");
+}
+
+#[test]
+fn merged_bursts_keep_their_paths_apart() {
+    // Deleted x and created x around a rename onto x: a save, whichever
+    // burst came first.
+    let later_into_earlier = [
+        (1, 0, RenamedFrom, 0, 7, "a"),
+        (2, 1, Deleted, 0, 0, "x"),
+        (3, 2, RenamedTo, 0, 7, "x"),
+        (4, 3, Created, 0, 0, "x"),
+    ];
+    let (items, _) = run(Config::default(), &later_into_earlier);
+    assert_eq!(render(&items), "Saved [1, 2, 3, 4] x (raw events: 4)");
+    let earlier_into_later = [
+        (1, 0, Deleted, 0, 0, "x"),
+        (2, 1, RenamedFrom, 0, 7, "a"),
+        (3, 2, RenamedTo, 0, 7, "x"),
+        (4, 3, Created, 0, 0, "x"),
+    ];
+    let (items, _) = run(Config::default(), &earlier_into_later);
+    assert_eq!(render(&items), "Saved [1, 2, 3, 4] x (raw events: 4)");
+}
+
+#[test]
+fn pairing_by_file_id_leaves_no_state_behind() {
+    let names = [w("a"), w("c"), w("b"), w("d")];
+    let rows = [
+        (1, 0, RenamedFrom, 0, 7, "a"),
+        (2, 1, Modified, 0, 0, "c"),
+        (3, 2, RenamedTo, 0, 7, "b"),
+        (4, 3, RenamedFrom, 0, 8, "d"),
+    ];
+    let mut deriver = Deriver::new(Config::default());
+    for (row, name) in rows.iter().zip(&names) {
+        deriver.push(stored(row), WideStr::new(name));
+    }
+    // The pair, the lone edit and the last half each have a burst.
+    assert_eq!(deriver.stats().open_groups, 3);
+    deriver.finish();
+    assert!(deriver.is_idle());
+    let mut out = Vec::new();
+    deriver.take(&mut out);
+    assert_eq!(
+        render(&out),
+        "Renamed [1, 3] a -> b (raw events: 2)\nraw 2\nunpaired 4"
+    );
 }
 
 #[test]
@@ -568,6 +639,7 @@ fn derive_in_chunks(config: Config, rows: &[Row], chunk: usize) -> Vec<DisplayIt
         }
     }
     deriver.finish();
+    assert!(deriver.is_idle(), "state left after finish");
     deriver.take(&mut out);
     out
 }
@@ -722,6 +794,7 @@ impl StateMachineTest for Sut {
         }
         sut.deriver.take(&mut sut.out);
         if matches!(op, Op::Finish) {
+            assert!(sut.deriver.is_idle(), "state left after finish");
             // Everything pushed so far is out, exactly once.
             let mut ids: Vec<u64> = sut.out.iter().flat_map(DisplayItem::ids).collect();
             ids.sort_unstable();
