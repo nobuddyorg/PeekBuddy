@@ -109,6 +109,28 @@ tray; `peekbuddy-engine` spawns the capture threads and the reconcile
 scanner; `peekbuddy-store` owns the writer thread. The viewer's main thread
 is eframe's.
 
+## Event kinds
+
+`peekbuddy_core::event::Kind` is derived from the raw record, which stays in
+`Event::raw_mask` (raw is truth, ADR 0003).
+
+| Kind | RDCW `FILE_ACTION_*` | USN reason (by precedence) |
+| --- | --- | --- |
+| `Deleted` | `REMOVED`, `REMOVED_BY_DELETE` | `FILE_DELETE` |
+| `Created` | `ADDED` | `FILE_CREATE` |
+| `RenamedFrom` | `RENAMED_OLD_NAME` | `RENAME_OLD_NAME` |
+| `RenamedTo` | `RENAMED_NEW_NAME` | `RENAME_NEW_NAME` |
+| `Modified` | `MODIFIED` | `DATA_*` |
+| `SecurityChanged` | | `SECURITY_CHANGE` |
+| `StreamChanged` | `ADDED_STREAM`, `REMOVED_STREAM`, `MODIFIED_STREAM` | `NAMED_DATA_*`, `STREAM_CHANGE` |
+| `LinkChanged` | | `HARD_LINK_CHANGE`, `REPARSE_POINT_CHANGE` |
+| `AttributesChanged` | | `BASIC_INFO_CHANGE` and the other metadata bits |
+| `Other` | everything else | `CLOSE` alone or undefined bits |
+
+System kinds: `Overflow(GapReason)`, `WatchStateChanged(WatchState)`,
+`ReconciledCreated/Modified/Deleted`, `EngineStarted`, `EngineStopped`,
+`SegmentRotated`, `RetentionPurged`, `SettingsChanged`.
+
 ## Runtime feature gates
 
 APIs newer than Windows 10 22H2 are detected at runtime, never assumed
