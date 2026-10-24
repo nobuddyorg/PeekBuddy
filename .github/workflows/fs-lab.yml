@@ -1,0 +1,74 @@
+# Spike #36: file-system edge-case lab on the hosted Windows runners. Cloud
+# Files (OneDrive) scenarios C1-C8 need a signed-in client and cannot run
+# here; everything else is captured on NTFS, ReFS, Dev Drive, exFAT and FAT32
+# volumes. Output: the `fs-lab-*` artifacts (raw JSON lines per scenario).
+name: fs-lab
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - spikes/fs-lab/**
+      - .github/workflows/fs-lab.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fs-lab-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lab:
+    name: fs-lab (${{ matrix.label }})
+    runs-on: ${{ matrix.label }}
+    timeout-minutes: 150
+    strategy:
+      fail-fast: false
+      matrix:
+        label: [windows-2025, windows-11-vs2026-arm]
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Rust toolchain
+        run: |
+          rustup toolchain install
+          rustup show
+
+      - name: Build
+        working-directory: spikes/fs-lab
+        run: cargo build --release --locked
+
+      - name: Scenarios
+        env:
+          LABEL: ${{ matrix.label }}
+        run: ./spikes/fs-lab/run.ps1 -Exe (Resolve-Path spikes/fs-lab/target/release/fs-lab.exe).Path -Out $env:RUNNER_TEMP/fs-lab -Label $env:LABEL
+
+      - name: Summary
+        if: always()
+        env:
+          LABEL: ${{ matrix.label }}
+        run: |
+          $dir = Join-Path $env:RUNNER_TEMP 'fs-lab'
+          if (-not (Test-Path $dir)) { return }
+          $md = @("### fs-lab: $env:LABEL", '', '```')
+          $md += Get-Content (Join-Path $dir 'summary.jsonl')
+          $md += '```', '', '| fs | scenario | rdcw | usn | op | note | error |', '| --- | --- | --- | --- | --- | --- | --- |'
+          foreach ($f in Get-ChildItem $dir -Recurse -Filter *.jsonl | Where-Object Name -ne 'summary.jsonl') {
+            $rows = Get-Content $f.FullName | ForEach-Object { $_ | ConvertFrom-Json }
+            $md += ('| {0} | {1} | {2} | {3} | {4} | {5} | {6} |' -f $f.Directory.Name, $f.BaseName, ($rows | Where-Object src -eq 'rdcw').Count, ($rows | Where-Object src -eq 'usn').Count, ($rows | Where-Object src -eq 'op').Count, ($rows | Where-Object src -eq 'note').Count, ($rows | Where-Object src -eq 'error').Count)
+          }
+          $md -join "`n" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+          Compress-Archive -Path $dir -DestinationPath (Join-Path $env:RUNNER_TEMP "fs-lab-$env:LABEL.zip") -Force
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: fs-lab-${{ matrix.label }}
+          path: ${{ runner.temp }}/fs-lab-${{ matrix.label }}.zip
+          if-no-files-found: warn
