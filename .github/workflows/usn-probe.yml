@@ -1,0 +1,64 @@
+# Spike #31: unprivileged USN journal reading on the hosted Windows runners.
+name: usn-probe
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - spikes/usn-probe/**
+      - .github/workflows/usn-probe.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: usn-probe-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  probe:
+    name: usn-probe (${{ matrix.label }})
+    runs-on: ${{ matrix.label }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        label: [windows-2025, windows-11-vs2026-arm]
+    env:
+      LABEL: ${{ matrix.label }}
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Rust toolchain
+        run: |
+          rustup toolchain install
+          rustup show
+
+      - name: Build the probe
+        working-directory: spikes/usn-probe
+        run: cargo build --release --locked
+
+      - name: Run the matrix
+        run: ./spikes/usn-probe/run.ps1 -Exe spikes/usn-probe/target/release/usn-probe.exe -Label $env:LABEL
+
+      - name: Summary
+        if: always()
+        run: |
+          $all = 'C:\usn-probe\out\' + $env:LABEL + '-all.jsonl'
+          if (-not (Test-Path $all)) { return }
+          $md = @("### usn-probe: $env:LABEL", '', '```')
+          $md += Get-Content $all | Where-Object { $_ -match '"cell":"(verdict|read-unpriv|read|query|latency|overlapped|name-withholding|open)"' } | Select-Object -First 400
+          $md += '```'
+          $md -join "`n" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: usn-probe-${{ matrix.label }}
+          path: C:\usn-probe\out\
+          if-no-files-found: warn
