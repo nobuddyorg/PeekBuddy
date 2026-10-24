@@ -27,6 +27,12 @@ SQLite, #53), and a host clippy run covers `--all-features` (Tracy, #22),
 `PEEKBUDDY_XWIN=1` to run the Windows targets through `cargo xwin clippy`
 with all features instead. Tests that need Win32 run only in CI.
 
+In Claude Code cloud sessions the SessionStart hook
+(`.claude/settings.json`, `scripts/claude/session-start.sh`) installs the
+toolchain targets, cargo-nextest, prek, cargo-xwin and typos with the versions
+CI uses, and keeps the cargo-xwin download cache in `XWIN_CACHE_DIR`. It is
+idempotent; a cold container needs about five minutes, a warm one seconds.
+
 ## Crate rule
 
 Anything that does not need Win32 lives in a crate that builds and tests on
