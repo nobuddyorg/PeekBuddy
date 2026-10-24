@@ -21,7 +21,7 @@ jobs:
   bench:
     name: store-bench (${{ matrix.label }})
     runs-on: ${{ matrix.label }}
-    timeout-minutes: 90
+    timeout-minutes: 180
     strategy:
       fail-fast: false
       matrix:
@@ -64,6 +64,8 @@ jobs:
         run: cargo build --release --locked
 
       - name: Experiments (stock)
+        continue-on-error: true
+        timeout-minutes: 60
         run: |
           $out = Join-Path $env:RUNNER_TEMP 'results.jsonl'
           foreach ($e in 'size', 'checkpoint', 'commit', 'readers') {
@@ -72,9 +74,19 @@ jobs:
           foreach ($cache in 16000, 4000, 2000) {
             ./target/release/store-bench.exe memory --cache-kib $cache --dir $env:BENCH_DIR --label "$env:LABEL/stock" | Tee-Object -FilePath $out -Append
           }
-          ./target/release/store-bench.exe query --rows 10000000 --dir $env:BENCH_DIR --label "$env:LABEL/stock" | Tee-Object -FilePath $out -Append
+
+      - name: Query experiments (stock)
+        continue-on-error: true
+        timeout-minutes: 80
+        run: |
+          $out = Join-Path $env:RUNNER_TEMP 'results.jsonl'
+          # The 10M-row fill takes more than 90 minutes on the arm64 runner: 2M rows there.
+          $rows = if ($env:LABEL -eq 'windows-2025') { 10000000 } else { 2000000 }
+          ./target/release/store-bench.exe query --rows $rows --dir $env:BENCH_DIR --label "$env:LABEL/stock" | Tee-Object -FilePath $out -Append
 
       - name: Experiments (speed flags, A/B)
+        continue-on-error: true
+        timeout-minutes: 40
         run: |
           $out = Join-Path $env:RUNNER_TEMP 'results.jsonl'
           foreach ($e in 'size', 'commit') {
