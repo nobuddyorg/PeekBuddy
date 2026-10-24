@@ -1,0 +1,9 @@
+---
+source: crates/peekbuddy-core/src/derive/tests.rs
+expression: "render(&run(compact(), &rows).0)"
+---
+raw 1
+raw 2
+raw 3
+Coalesced [4, 5] new.rs (raw events: 2)
+raw 6

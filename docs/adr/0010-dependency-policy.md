@@ -42,7 +42,8 @@ Apache-2.0:
   `dfa-build`, `dfa-search`, `std`, `syntax`, `unicode`.
 - `toml` 1.1.8 (`parse` and `serde` only) and `serde`: the embedded preset
   files.
-- `rstest` 0.28.0 and `insta` 1.49.0 are test-only.
+- `rstest` 0.28.0, `insta` 1.49.0 and `proptest-state-machine` 0.9.0 are
+  test-only.
 
 ## Consequences
 

@@ -1,0 +1,6 @@
+---
+source: crates/peekbuddy-core/src/derive/tests.rs
+expression: "render(&run(compact(), &rows).0)"
+---
+Renamed [1, 2] docs\a.md -> archive\a.md (raw events: 2)
+raw 3
