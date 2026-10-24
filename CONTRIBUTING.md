@@ -4,9 +4,18 @@ See [TEST_STRATEGY.md](TEST_STRATEGY.md) for tests and [AGENTS.md](AGENTS.md)
 for the agent workflow. Security reports go through [SECURITY.md](SECURITY.md);
 participation follows the [code of conduct](CODE_OF_CONDUCT.md).
 
-Issues are welcome through the issue forms (bug report, performance
-regression with numbers, feature request). Pull requests are accepted only
-for issues the owner has accepted; unsolicited pull requests are closed ([ADR 0014](docs/adr/0014-contribution-policy.md)).
+## No outside contributions
+
+PeekBuddy is a personal hobby project. I don't accept pull requests, issues
+or feature requests from outside the project; they are closed without
+review.
+
+Want to change something? **Fork it.** The [MIT License](LICENSE) lets you
+use, change and redistribute the code in your own fork, no need to ask. There
+is no support for forks.
+
+The rest of this guide is how the project itself is worked on; it applies
+equally to a fork.
 
 ## Workspace layout
 

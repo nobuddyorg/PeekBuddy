@@ -84,9 +84,7 @@ Docs live in [`docs/`](docs/index.md), organised by [Diátaxis](https://diataxis
 
 ## Contributing
 
-Issues are welcome through the issue forms: bug reports, performance
-regressions with numbers, and feature requests. Pull requests are accepted
-only for issues the owner has accepted; unsolicited pull requests are closed.
+PeekBuddy is a personal hobby project and doesn't accept outside pull requests, issues or feature requests; they are closed without review. Want to change something? Fork it: [CONTRIBUTING.md](CONTRIBUTING.md) has why, local setup, and the checks CI runs.
 
 ## License
 

@@ -5,4 +5,4 @@ contact_links:
     about: Please report vulnerabilities privately, not as an issue.
   - name: Contribution policy
     url: https://github.com/nobuddyorg/PeekBuddy/blob/main/CONTRIBUTING.md
-    about: Issues are welcome through these forms. Pull requests only for issues the owner accepted.
+    about: PeekBuddy is a personal hobby project. Outside issues, feature requests and pull requests are closed without review; fork it instead.
