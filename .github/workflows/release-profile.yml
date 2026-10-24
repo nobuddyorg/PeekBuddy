@@ -1,0 +1,150 @@
+# Release profile experiments (#28): exe sizes with and without the dist
+# profile, per-crate size deltas, the x86-64-v2 CPU baseline benchmark and the
+# monthly PGO experiment. Informational: adoption is a decision recorded in
+# PERFORMANCE.md, nothing here gates a PR (the size gate is `cargo xtask
+# size` in ci.yml).
+name: release-profile
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "23 3 1 * *"
+  pull_request:
+    paths:
+      - .github/workflows/release-profile.yml
+      - scripts/ci/bloat-delta.ps1
+      - xtask/src/bench_flags.rs
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-profile-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  sizes:
+    name: sizes (${{ matrix.label }})
+    runs-on: ${{ matrix.label }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        label: [windows-2025, windows-11-vs2026-arm]
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Rust toolchain
+        run: rustup toolchain install && rustup show
+      - uses: taiki-e/install-action@a4d3f3f761dcd95cce1b72cb61cb6d1963438177 # v2.87.30
+        with:
+          tool: cargo-bloat@0.12.1
+
+      - name: Release build
+        run: cargo build --release --package peekbuddy --locked
+
+      - name: Dist build (line tables, separate PDB, no build path)
+        env:
+          CARGO_TARGET_DIR: target-dist
+          RUSTFLAGS: -Clink-arg=/PDBALTPATH:%_PDB%
+        run: cargo build --profile dist --package peekbuddy --locked
+
+      - name: Compare sizes and check the PDB
+        run: |
+          $rel = Get-Item target/release/peekbuddy.exe
+          $dist = Get-Item target-dist/dist/peekbuddy.exe
+          $pdb = Get-Item target-dist/dist/peekbuddy.pdb
+          $path = (Get-Location).Path
+          $bytes = [IO.File]::ReadAllBytes($dist.FullName)
+          $text = [Text.Encoding]::ASCII.GetString($bytes)
+          $leak = $text.Contains($path) -or $text.Contains($path.Replace('\', '/'))
+          $debugdir = & "$(rustc --print sysroot)/lib/rustlib/$(rustc -vV | Select-String 'host: (.*)' | ForEach-Object { $_.Matches[0].Groups[1].Value })/bin/llvm-readobj.exe" --coff-debug-directory $dist.FullName 2>&1 | Out-String
+          $md = @(
+            "### sizes: $env:LABEL", '',
+            '| artifact | bytes |', '| --- | --- |',
+            "| release exe (strip = symbols) | $($rel.Length) |",
+            "| dist exe (line tables, strip = none) | $($dist.Length) |",
+            "| dist PDB | $($pdb.Length) |", '',
+            "Difference dist - release: $($dist.Length - $rel.Length) bytes.", '',
+            "Build path embedded in the dist exe: $leak", '',
+            '```', $debugdir.Trim(), '```'
+          )
+          $md -join "`n" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+          cargo xtask size target/release/peekbuddy.exe target-dist/dist/peekbuddy.exe
+
+      - name: Per-crate size deltas against the base (cargo bloat)
+        continue-on-error: true
+        run: |
+          $base = (git merge-base origin/main HEAD)
+          cargo bloat --release --crates -n 40 --message-format json --package peekbuddy > head-bloat.json
+          git worktree add --detach ../base-src $base
+          Push-Location ../base-src
+          cargo bloat --release --crates -n 40 --message-format json --package peekbuddy > ../PeekBuddy/base-bloat.json
+          Pop-Location
+          ./scripts/ci/bloat-delta.ps1 -Base base-bloat.json -Head head-bloat.json | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+
+  cpu-baseline:
+    name: x86-64-v2 bench (windows-2025)
+    runs-on: windows-2025
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Rust toolchain
+        run: rustup toolchain install && rustup show
+      - name: Default target against -Ctarget-cpu=x86-64-v2
+        run: cargo xtask bench-flags --flags "-Ctarget-cpu=x86-64-v2" --rounds 10
+
+  pgo:
+    name: pgo experiment (${{ matrix.label }})
+    runs-on: ${{ matrix.label }}
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        label: [windows-2025, windows-11-vs2026-arm]
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Rust toolchain
+        run: rustup toolchain install && rustup show
+      - name: Instrumented benches, trained by their own run
+        run: |
+          $data = (Join-Path (Get-Location) 'target/pgo-data').Replace('\', '/')
+          New-Item -ItemType Directory -Force -Path $data | Out-Null
+          $env:RUSTFLAGS = "-Cprofile-generate=$data"
+          $env:CARGO_TARGET_DIR = 'target/pgo-instr'
+          $json = cargo bench --no-run --package benches --locked --message-format json
+          $exes = $json | ForEach-Object { try { $_ | ConvertFrom-Json } catch { $null } } |
+            Where-Object { $_.reason -eq 'compiler-artifact' -and $_.executable -and $_.profile.test -eq $true -or ($_.reason -eq 'compiler-artifact' -and $_.executable -and $_.target.kind -contains 'bench') } |
+            ForEach-Object { $_.executable } | Select-Object -Unique
+          foreach ($exe in $exes) {
+            & $exe --bench --noplot --warm-up-time 0.3 --measurement-time 2 --sample-size 20
+          }
+          Get-ChildItem $data | Measure-Object -Property Length -Sum | Format-List Count, Sum
+      - name: Merge the profile
+        run: |
+          $host_triple = rustc -vV | Select-String 'host: (.*)' | ForEach-Object { $_.Matches[0].Groups[1].Value }
+          $prof = "$(rustc --print sysroot)/lib/rustlib/$host_triple/bin/llvm-profdata.exe"
+          & $prof merge -o target/pgo.profdata (Get-ChildItem target/pgo-data -Filter *.profraw).FullName
+          Get-Item target/pgo.profdata | Format-List Name, Length
+      - name: Plain against profile-guided (same runner, alternating rounds)
+        run: |
+          $p = (Resolve-Path target/pgo.profdata).Path.Replace('\', '/')
+          cargo xtask bench-flags --flags "-Cprofile-use=$p -Cllvm-args=-pgo-warn-missing-function" --rounds 10
