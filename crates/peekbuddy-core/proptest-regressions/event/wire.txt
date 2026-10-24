@@ -1,0 +1,8 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc 0fc874ba08f6f4ad362abbff42fa882db929e5819591e7c9689ffba8b31ccc13 # shrinks to ev = Event { ts: 0, qpc: 0, src_ts: 0, source: Rdcw, kind: Created, raw_mask: 0, source_info: 0, is_dir: false, size: 0, attrs: 0, reparse_tag: 0, file_id: 0, parent_file_id: 0, usn: 0, vol: VolIdx(0), root: RootIdx(0), name: NameRef { offset: 0, len: 0 }, name_kind: Relative, flags: Flags(0) }, pos = 0, val = 0
+cc d1fadf1b3515c912f78aee1a3a8bcc147107cef5bb23e54aef05848ae961e87e # shrinks to ev = Event { ts: 0, qpc: 0, src_ts: 0, source: Rdcw, kind: Created, raw_mask: 0, source_info: 0, is_dir: false, size: 0, attrs: 0, reparse_tag: 0, file_id: 0, parent_file_id: 0, usn: 0, vol: VolIdx(0), root: RootIdx(0), name: NameRef { offset: 0, len: 0 }, name_kind: Relative, flags: Flags(0) }, name = []

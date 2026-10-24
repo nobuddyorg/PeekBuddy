@@ -6,6 +6,7 @@
 #![forbid(unsafe_code)]
 #![deny(clippy::indexing_slicing)]
 
+pub mod event;
 pub mod perf;
 
 /// Crate version, shared by every PeekBuddy crate.

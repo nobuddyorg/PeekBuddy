@@ -188,6 +188,12 @@ used: 1.0.18 depends on `tracy-client` 0.18.5 / `tracy-client-sys` 0.29.0
 (the Tracy 0.14.0 protocol), which would link a second, incompatible client.
 Library code annotates with `tracing` spans instead.
 
+## Event size
+
+`peekbuddy_core::event::Event` is `Copy`, has no `Drop` and no heap pointers
+(#38). Its size is 112 bytes on x86-64 and arm64, under the 128-byte limit
+asserted at compile time; a unit test pins the exact number.
+
 ## Release profile and size gate
 
 `[profile.release]` sets every option explicitly (#28): `opt-level = 3`,
