@@ -48,7 +48,7 @@ fn glob_hits(pattern: &str, path: &str, is_dir: bool) -> bool {
 #[case("a.txt", "x/y/a.txt", false, true)]
 #[case("d/a.txt", "d\\a.txt", false, true)]
 #[case("d/a.txt", "x/d/a.txt", false, false)]
-#[case("a.txt", "ba.txt", false, false)]
+#[case("a.txt", "xa.txt", false, false)]
 // `*` and `?` stop at separators
 #[case("*.tmp", "a.tmp", false, true)]
 #[case("*.tmp", "dir/a.tmp", false, true)]
