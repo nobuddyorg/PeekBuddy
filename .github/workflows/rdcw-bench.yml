@@ -3,6 +3,11 @@ name: rdcw-bench
 
 on:
   workflow_dispatch:
+    inputs:
+      rest:
+        description: Run only the burst, pool and detach cells
+        type: boolean
+        default: false
   pull_request:
     paths:
       - spikes/rdcw-bench/**
@@ -26,6 +31,7 @@ jobs:
         label: [windows-2025, windows-11-vs2026-arm]
     env:
       LABEL: ${{ matrix.label }}
+      REST: ${{ inputs.rest }}
     defaults:
       run:
         shell: pwsh
@@ -44,7 +50,7 @@ jobs:
         run: cargo build --release --locked
 
       - name: Run the matrix
-        run: ./spikes/rdcw-bench/run.ps1 -Exe spikes/rdcw-bench/target/release/rdcw-bench.exe -Label $env:LABEL
+        run: ./spikes/rdcw-bench/run.ps1 -Exe spikes/rdcw-bench/target/release/rdcw-bench.exe -Label $env:LABEL -Rest:($env:REST -eq 'true')
 
       - name: Summary
         if: always()
