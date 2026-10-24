@@ -270,6 +270,8 @@ jobs:
     # pr-ab benches. Required since the false-positive check passed 10 of
     # 10 (bench-noop.yml, PERFORMANCE.md). PRs only: on push and merge
     # group there is no base to compare with, and ci-ok accepts the skip.
+    # The table is in the job summary; there is no PR comment (it mailed
+    # everyone subscribed to the PR).
     name: bench a/b (windows x64)
     if: github.event_name == 'pull_request'
     needs: prek
@@ -291,21 +293,11 @@ jobs:
         env:
           BASE_REF: ${{ github.base_ref }}
         run: cargo xtask bench-ab --base "$(git merge-base "origin/${BASE_REF}" HEAD)"
-      - name: PR number for the comment job
-        if: always()
-        shell: bash
-        env:
-          PR_NUMBER: ${{ github.event.pull_request.number }}
-        run: |
-          mkdir -p target/bench-ab
-          echo "${PR_NUMBER}" > target/bench-ab/pr-number
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
           name: bench-ab
-          path: |
-            target/bench-ab/report.md
-            target/bench-ab/pr-number
+          path: target/bench-ab/report.md
           if-no-files-found: ignore
 
   test-arm64:
