@@ -483,7 +483,7 @@ how = "cargo xtask bench-ab (same-runner A/B, warn +15 %, fail +50 %)"
 arch = ["x86_64"]
 
 [[budget]]
-id = "bench.notify_parse.plain.64KiB"
+id = "bench.notify_parse.plain.64kib"
 metric = "zero-copy parse of a 64 KiB plain ReadDirectoryChanges buffer, names of 8 to 64 units"
 unit = "ns"
 bound = "max"
@@ -496,7 +496,7 @@ how = "cargo xtask bench-ab (same-runner A/B, warn +15 %, fail +50 %)"
 arch = ["x86_64"]
 
 [[budget]]
-id = "bench.notify_parse.extended.64KiB"
+id = "bench.notify_parse.extended.64kib"
 metric = "zero-copy parse of a 64 KiB extended ReadDirectoryChanges buffer, names of 8 to 64 units"
 unit = "ns"
 bound = "max"
@@ -509,7 +509,7 @@ how = "cargo xtask bench-ab (same-runner A/B, warn +15 %, fail +50 %)"
 arch = ["x86_64"]
 
 [[budget]]
-id = "bench.notify_parse.full.64KiB"
+id = "bench.notify_parse.full.64kib"
 metric = "zero-copy parse of a 64 KiB full ReadDirectoryChanges buffer, names of 8 to 64 units"
 unit = "ns"
 bound = "max"
