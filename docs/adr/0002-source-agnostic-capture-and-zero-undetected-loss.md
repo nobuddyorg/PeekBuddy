@@ -46,6 +46,17 @@ Chosen option 3.
   silently dead: losing and restoring it are logged events.
 - "Lossless" is always written as **zero undetected loss**.
 
+## Amendment: spike #31 (2026-10-24)
+
+Report: [0001](../spikes/0001-unprivileged-usn.md). `FSCTL_READ_UNPRIVILEGED_USN_JOURNAL`
+works for a real standard user on NTFS and ReFS (windows-2025 build 26100,
+windows-11 build 26200), is overlapped and cancellable and has p99 latency of
+a few milliseconds, but its records never carry file names. The decision rule of
+the spike requires names, so the USN backend does not join v1: v1 captures with
+RDCW and reconciliation; USN stays an optional backend for the service mode
+(#79) and a later FRN-keyed completeness check, with names resolved from an
+FRN-to-path cache and `OpenFileById`.
+
 ## Consequences
 
 - Good: honest guarantee, provable in CI with a churn generator and a
