@@ -1,0 +1,8 @@
+version = 1
+name = "cloud-churn"
+title = "Cloud placeholder churn"
+
+# Flag based: the capture side sets the flag (#49); the rules only hide.
+
+[[rule]]
+flags = ["cloud_churn"]

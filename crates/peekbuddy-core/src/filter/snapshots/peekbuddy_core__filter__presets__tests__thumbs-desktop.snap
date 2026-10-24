@@ -1,0 +1,22 @@
+---
+source: crates/peekbuddy-core/src/filter/presets.rs
+expression: "preset.rules(Scope::Global)"
+---
+[
+    Rule {
+        scope: Global,
+        pattern: Glob(
+            "Thumbs.db",
+        ),
+        polarity: Exclude,
+        action: HideInView,
+    },
+    Rule {
+        scope: Global,
+        pattern: Glob(
+            "desktop.ini",
+        ),
+        polarity: Exclude,
+        action: HideInView,
+    },
+]

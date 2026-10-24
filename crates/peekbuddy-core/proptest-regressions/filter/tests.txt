@@ -1,0 +1,8 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc b2ad4d72b302f597f717adc6d80afaa87706fee2f0b9f090f16be5a708872b8d # shrinks to rules = [RefRule { root: None, pattern: Glob("**/**"), include: false, never_record: false }], path = "a", root = 0, is_dir = false, kind = Created, flags = Flags(0), sensitive = false
+cc fc158edb1073a0be1828f0f025e4d49e11ad6c35d1e177dd69efc26b3d966b25 # shrinks to rules = [RefRule { root: None, pattern: Glob("**/"), include: false, never_record: false }], path = "a", root = 0, is_dir = false, kind = Created, flags = Flags(0), sensitive = false

@@ -32,6 +32,18 @@ Chosen option 2.
 - Supply-chain checks run through cargo-deny's advisories (RustSec). The
   rustsec `audit-check` action is not used.
 
+### Filter engine dependencies (#40)
+
+`peekbuddy-core` stays pure Rust and gains three dependencies, all MIT or
+Apache-2.0:
+
+- `regex-automata` 0.4.18 (with `regex-syntax` 0.8.11): fully built dense
+  DFAs, so matching has no lazy cache and never allocates. Features:
+  `dfa-build`, `dfa-search`, `std`, `syntax`, `unicode`.
+- `toml` 1.1.8 (`parse` and `serde` only) and `serde`: the embedded preset
+  files.
+- `rstest` 0.28.0 and `insta` 1.49.0 are test-only.
+
 ## Consequences
 
 - Good: Win32 changes are always deliberate.
@@ -41,4 +53,6 @@ Chosen option 2.
 
 - windows-sys 0.61.2, checked 2026-10-22: <https://crates.io/crates/windows-sys/0.61.2>
 - notify 8.2.0 (rejected for the core), checked 2026-10-22: <https://crates.io/crates/notify/8.2.0>
+- regex-automata 0.4.18, checked 2026-10-24: <https://crates.io/crates/regex-automata/0.4.18>
+- toml 1.1.8, checked 2026-10-24: <https://crates.io/crates/toml/1.1.8>
 - cargo-deny, checked 2026-10-22: <https://embarkstudios.github.io/cargo-deny/>

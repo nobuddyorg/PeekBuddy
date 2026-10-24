@@ -1,0 +1,15 @@
+version = 1
+name = "temp-lock-swap"
+title = "Temporary, lock and swap files"
+
+[[rule]]
+glob = "~$*"
+
+[[rule]]
+glob = "*.tmp"
+
+[[rule]]
+glob = "*.swp"
+
+[[rule]]
+glob = ".~lock.*#"
