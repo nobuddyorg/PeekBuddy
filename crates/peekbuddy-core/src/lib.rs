@@ -23,3 +23,8 @@ mod tests {
         assert!(super::VERSION.contains('.'));
     }
 }
+
+#[must_use]
+pub fn throwaway_gate_check(x: u32) -> bool {
+    x == x
+}
