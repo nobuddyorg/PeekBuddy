@@ -70,7 +70,10 @@ foreach ($vol in $volumes) {
         Remove-Item $root -Recurse -Force -ErrorAction SilentlyContinue
         New-Item -ItemType Directory -Force -Path $ok, $denied | Out-Null
         icacls $ok /grant "${userName}:(OI)(CI)M" /grant 'Users:(OI)(CI)M' 2>$null | Out-Null
-        icacls $denied /deny "${userName}:(OI)(CI)F" /deny 'Users:(OI)(CI)F' /inheritance:r /grant 'Administrators:(OI)(CI)F' 2>$null | Out-Null
+        # Only Administrators and SYSTEM may use the denied directory: the standard
+        # user and the restricted token (Administrators deny-only) are locked out,
+        # the orchestrator (full admin) is not.
+        icacls $denied /inheritance:r /grant 'Administrators:(OI)(CI)F' /grant 'SYSTEM:(OI)(CI)F' 2>$null | Out-Null
         (Get-Frn $denied) | Set-Content "$ok\denied-dir.frn" -Encoding ascii
         $out = Join-Path $OutDir "$Label-$cell.jsonl"
         Remove-Item $out -ErrorAction SilentlyContinue
@@ -81,7 +84,7 @@ foreach ($vol in $volumes) {
             'user' { @('user', $userName, $password) + $common }
         }
         $proc = Start-Process -FilePath $probe -ArgumentList ($argsList | ForEach-Object { '"' + $_ + '"' }) -PassThru -NoNewWindow
-        $deadline = (Get-Date).AddSeconds(120)
+        $deadline = (Get-Date).AddSeconds(90)
         while (-not (Test-Path "$ok\ready.flag") -and -not $proc.HasExited -and (Get-Date) -lt $deadline) { Start-Sleep -Milliseconds 200 }
         if (Test-Path "$ok\ready.flag") {
             # Changes the probe user cannot read: files in the denied directory and a deny-read file next to the probe's files.
@@ -100,7 +103,7 @@ foreach ($vol in $volumes) {
             }
         }
         Set-Content "$ok\done.flag" '1'
-        if (-not $proc.WaitForExit(240000)) { $proc.Kill(); "probe $cell timed out" | Out-Host }
+        if (-not $proc.WaitForExit(150000)) { $proc.Kill(); "probe $cell timed out" | Out-Host }
         if ($mode -eq 'admin') {
             fsutil usn readjournal $drive minver=2 maxver=3 2>&1 | Select-Object -Last 40 | Out-File (Join-Path $OutDir "$Label-$($vol.Name)-fsutil-readjournal-tail.txt")
         }

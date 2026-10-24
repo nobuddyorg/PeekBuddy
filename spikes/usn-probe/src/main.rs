@@ -28,7 +28,7 @@ use windows_sys::Win32::Security::{
     WinBuiltinAdministratorsSid, TOKEN_MANDATORY_LABEL,
 };
 use windows_sys::Win32::Storage::FileSystem::{
-    CreateFileW, FILE_FLAG_BACKUP_SEMANTICS, FILE_FLAG_OVERLAPPED, FILE_SHARE_DELETE,
+    FILE_ID_DESCRIPTOR, GetFinalPathNameByHandleW, OpenFileById, CreateFileW, FILE_FLAG_BACKUP_SEMANTICS, FILE_FLAG_OVERLAPPED, FILE_SHARE_DELETE,
     FILE_SHARE_READ, FILE_SHARE_WRITE, GetVolumeInformationW, GetVolumeNameForVolumeMountPointW,
     OPEN_EXISTING,
 };
@@ -364,10 +364,10 @@ fn battery(a: &Args) {
             Ok(_) => out.line("ntfs-data", &[("handle", s(variant)), ("ok", "true".into())]),
             Err(e) => out.line("ntfs-data", &[("handle", s(variant)), ("ok", "false".into()), ("error", error_text(e))]),
         }
-        let mut enum_in = vec![0u8; 40];
+        let mut enum_in = vec![0u8; 32];
         enum_in[16..24].copy_from_slice(&i64::MAX.to_le_bytes());
-        enum_in[32..34].copy_from_slice(&2u16.to_le_bytes());
-        enum_in[34..36].copy_from_slice(&3u16.to_le_bytes());
+        enum_in[24..26].copy_from_slice(&2u16.to_le_bytes());
+        enum_in[26..28].copy_from_slice(&3u16.to_le_bytes());
         match ioctl(h, FSCTL_ENUM_USN_DATA, &enum_in, &mut buf) {
             Ok(n) => out.line("enum", &[("handle", s(variant)), ("ok", "true".into()), ("bytes", format!("{n}"))]),
             Err(e) => out.line("enum", &[("handle", s(variant)), ("ok", "false".into()), ("error", error_text(e))]),
@@ -505,6 +505,38 @@ fn name_withholding(out: &Out, a: &Args, variant: &str, guid: Option<&str>, jour
     unsafe { CloseHandle(h) };
 }
 
+
+/// Q4: the cache-miss path of #47: `OpenFileById` plus `GetFinalPathNameByHandleW`
+/// for the FRN of a record, through the volume handle.
+fn resolve_frn(volume_handle: HANDLE, frn: u128, extended: bool) -> Result<String, u32> {
+    // SAFETY: zero is a valid initial state for this plain-data union struct.
+    let mut desc: FILE_ID_DESCRIPTOR = unsafe { std::mem::zeroed() };
+    desc.dwSize = u32::try_from(std::mem::size_of::<FILE_ID_DESCRIPTOR>()).unwrap_or(0);
+    if extended {
+        desc.Type = 2; // ExtendedFileIdType
+        // SAFETY: writing the 16-byte extended id member of the union.
+        unsafe { desc.Anonymous.ExtendedFileId.Identifier = frn.to_le_bytes() };
+    } else {
+        desc.Type = 0; // FileIdType
+        desc.Anonymous.FileId = i64::try_from(frn).unwrap_or(0);
+    }
+    // SAFETY: the descriptor is live for the call.
+    let h = unsafe { OpenFileById(volume_handle, &raw const desc, 0, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, null(), FILE_FLAG_BACKUP_SEMANTICS) };
+    if h == INVALID_HANDLE_VALUE {
+        // SAFETY: no preconditions.
+        return Err(unsafe { GetLastError() });
+    }
+    let mut buf = [0u16; 1024];
+    // SAFETY: buffer and length are valid for the call.
+    let n = unsafe { GetFinalPathNameByHandleW(h, buf.as_mut_ptr(), 1024, 0) };
+    // SAFETY: handle opened above.
+    unsafe { CloseHandle(h) };
+    if n == 0 || n >= 1024 {
+        return Err(n);
+    }
+    Ok(String::from_utf16_lossy(&buf[..n as usize]))
+}
+
 fn percentile(sorted: &[u64], p: f64) -> u64 {
     if sorted.is_empty() {
         return 0;
@@ -512,7 +544,20 @@ fn percentile(sorted: &[u64], p: f64) -> u64 {
     sorted.get(((sorted.len() as f64 - 1.0) * p).round() as usize).copied().unwrap_or(0)
 }
 
-/// Q5: change to readable record, 200 operations, `BytesToWaitFor = 1` polling.
+/// The FRN of `path` through `FSCTL_READ_FILE_USN_DATA` (names are stripped
+/// from unprivileged journal records, so records are matched by FRN).
+fn file_frn(path: &Path) -> Option<u128> {
+    let h = open(&path.to_string_lossy(), GENERIC_READ, FILE_FLAG_BACKUP_SEMANTICS).ok()?;
+    let mut buf = vec![0u8; 4096];
+    let result = ioctl(h, FSCTL_READ_FILE_USN_DATA, &[2u8, 0, 3, 0], &mut buf);
+    // SAFETY: handle opened above.
+    unsafe { CloseHandle(h) };
+    let n = result.ok()?;
+    parse_records_with_prefix(&buf, n as usize).1.first().map(|r| r.frn)
+}
+
+/// Q5: change to readable record, 200 operations, `BytesToWaitFor = 1`
+/// polling, each record matched by FRN.
 fn latency(out: &Out, a: &Args, variant: &str, guid: Option<&str>, journal_id: u64) {
     let Some(h) = open_variant(out, variant, &a.volume, guid, false) else { return };
     let (mut next, _, _) = read_all(h, 0, journal_id);
@@ -520,17 +565,22 @@ fn latency(out: &Out, a: &Args, variant: &str, guid: Option<&str>, journal_id: u
     let mut misses = 0u32;
     let mut buf = vec![0u8; 65_536];
     for i in 0..200 {
-        let name = format!("lat-{i}.txt");
+        let path = a.ok_dir.join(format!("lat-{i}.txt"));
         let t0 = Instant::now();
-        let _ = std::fs::write(a.ok_dir.join(&name), b"z");
+        let _ = std::fs::write(&path, b"z");
+        let Some(frn) = file_frn(&path) else {
+            misses += 1;
+            continue;
+        };
         let mut seen = false;
-        while t0.elapsed() < Duration::from_secs(5) && !seen {
-            if let Ok(n) = ioctl(h, FSCTL_READ_UNPRIVILEGED_USN_JOURNAL, &read_input(next, journal_id, 1, 0), &mut buf) {
+        while t0.elapsed() < Duration::from_secs(2) && !seen {
+            // A short timeout (100 ns units) keeps the call from blocking for good.
+            if let Ok(n) = ioctl(h, FSCTL_READ_UNPRIVILEGED_USN_JOURNAL, &read_input(next, journal_id, 1, 10_000_000), &mut buf) {
                 let (n_usn, recs) = parse_records_with_prefix(&buf, n as usize);
                 if !recs.is_empty() {
                     next = n_usn;
                 }
-                seen = recs.iter().any(|r| r.name == name);
+                seen = recs.iter().any(|r| r.frn == frn);
             }
         }
         if seen {
@@ -682,7 +732,15 @@ fn run_user(name: &str, password: &str, extra: &[String]) {
     let mut si: STARTUPINFOW = unsafe { std::mem::zeroed() };
     si.cb = u32::try_from(std::mem::size_of::<STARTUPINFOW>()).unwrap_or(0);
     let mut pi: PROCESS_INFORMATION = unsafe { std::mem::zeroed() };
-    let mut cmd = command_line(extra);
+    // The child has its own console: capture what it prints next to its JSONL.
+    let log = parse_args(extra).out.with_extension("child.log");
+    let exe = std::env::current_exe().map(|p| p.to_string_lossy().into_owned()).unwrap_or_default();
+    let mut line = format!("cmd.exe /c \"\"{exe}\" battery");
+    for arg in extra {
+        line.push_str(&format!(" \"{arg}\""));
+    }
+    line.push_str(&format!(" > \"{}\" 2>&1\"", log.display()));
+    let mut cmd = wide(&line);
     // SAFETY: all strings are NUL-terminated and live for the call.
     let ok = unsafe { CreateProcessWithLogonW(wide(name).as_ptr(), wide(".").as_ptr(), wide(password).as_ptr(), LOGON_WITH_PROFILE, null(), cmd.as_mut_ptr(), 0, null(), null(), &si, &raw mut pi) };
     if ok == 0 {
