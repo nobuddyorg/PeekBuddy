@@ -1,0 +1,85 @@
+# Spike #31: unprivileged USN journal reading on the hosted Windows runners.
+# Creates NTFS, ReFS, exFAT and FAT32 VHDs, a standard user and a restricted
+# token; runs every token against every volume. Output: the job summary and
+# the `usn-probe-*` artifacts (raw JSON lines).
+name: usn-probe
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - spikes/usn-probe/**
+      - .github/workflows/usn-probe.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: usn-probe-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  probe:
+    name: usn-probe (${{ matrix.label }})
+    runs-on: ${{ matrix.label }}
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        label: [windows-2025, windows-11-vs2026-arm]
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Rust toolchain
+        run: |
+          rustup toolchain install
+          rustup show
+
+      - name: Build
+        working-directory: spikes/usn-probe
+        run: cargo build --release --locked
+
+      - name: Matrix
+        env:
+          LABEL: ${{ matrix.label }}
+        run: ./spikes/usn-probe/run.ps1 -Exe spikes/usn-probe/target/release/usn-probe.exe -Label $env:LABEL
+
+      - name: Summary
+        if: always()
+        env:
+          LABEL: ${{ matrix.label }}
+        run: |
+          $f = 'C:\usn-spike\share\results.jsonl'
+          if (-not (Test-Path $f)) { return }
+          Copy-Item $f "$env:RUNNER_TEMP\usn-probe-$env:LABEL.jsonl"
+          $rows = Get-Content $f | Where-Object { $_.StartsWith('{') } | ForEach-Object { $_ | ConvertFrom-Json }
+          $md = @("### usn-probe: $env:LABEL", '')
+          $env_row = $rows | Where-Object kind -eq 'env' | Select-Object -First 1
+          if ($env_row) { $md += ("``{0} {1}.{2} {3}``" -f $env_row.caption, $env_row.version, $env_row.ubr, $env_row.arch), '' }
+          $md += '| token | volume | handle | fsctl | ok | error | records | empty names |', '| --- | --- | --- | --- | --- | --- | --- | --- |'
+          foreach ($r in ($rows | Where-Object { $_.kind -in 'open', 'fsctl' })) {
+            $md += ('| {0} | {1} | {2} | {3} | {4} | {5} | {6} | {7} |' -f $r.label, $r.volume, $r.handle, $r.fsctl, $r.ok, $r.error, $r.records, $r.empty_names)
+          }
+          $md += '', '#### watch', '', '| cell | ok | allowed (files/seen/named/empty) | denied (files/seen/named/empty) | create p50/p99 ms |', '| --- | --- | --- | --- | --- |'
+          foreach ($r in ($rows | Where-Object kind -eq 'watch')) {
+            $a = $r.classes.allowed; $d = $r.classes.denied
+            $md += ('| {0} {1} | {2} {3}{4} | {5}/{6}/{7}/{8} | {9}/{10}/{11}/{12} | {13}/{14} |' -f $r.label, $r.fsctl, $r.ok, $r.open_error, $r.read_error, $a.files, $a.files_with_records, $a.records_with_name, $a.records_empty_name, $d.files, $d.files_with_records, $d.records_with_name, $d.records_empty_name, $r.latency_create_allowed.p50_ms, $r.latency_create_allowed.p99_ms)
+          }
+          $md += '', '#### overlapped and cancel', '', '```'
+          foreach ($r in ($rows | Where-Object kind -eq 'overlapped')) { $md += ($r | ConvertTo-Json -Compress -Depth 4) }
+          $md += '```', '', '#### other rows', '', '```'
+          foreach ($r in ($rows | Where-Object { $_.kind -in 'frnset', 'tree', 'user', 'volume', 'timeout', 'workload' })) { $md += ($r | ConvertTo-Json -Compress -Depth 4) }
+          $md += '```'
+          $md -join "`n" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: usn-probe-${{ matrix.label }}
+          path: ${{ runner.temp }}/usn-probe-${{ matrix.label }}.jsonl
+          if-no-files-found: warn

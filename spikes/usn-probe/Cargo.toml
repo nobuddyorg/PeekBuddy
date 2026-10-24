@@ -1,0 +1,32 @@
+# Spike #31: unprivileged USN journal reading on current Windows.
+# Its own workspace: spike code, not product code. It follows the unsafe
+# policy (every block has a SAFETY comment) so it can move into
+# peekbuddy-win on GO.
+[workspace]
+
+[package]
+name = "usn-probe"
+version = "0.0.0"
+edition = "2024"
+license = "MIT"
+publish = false
+
+[dependencies]
+serde_json = "1"
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "=0.61.2", features = [
+  "Win32_Foundation",
+  "Win32_Security",
+  "Win32_Security_Authorization",
+  "Win32_Storage_FileSystem",
+  "Win32_System_IO",
+  "Win32_System_Ioctl",
+  "Win32_System_Performance",
+  "Win32_System_ProcessStatus",
+  "Win32_System_SystemInformation",
+  "Win32_System_Threading",
+] }
+
+[profile.release]
+debug = 1
