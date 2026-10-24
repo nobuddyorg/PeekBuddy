@@ -15,7 +15,9 @@ bench = false
 [dev-dependencies]
 criterion = { workspace = true }
 peekbuddy-core = { workspace = true }
+peekbuddy-store = { workspace = true }
 peekbuddy-win = { workspace = true }
+rusqlite = { workspace = true }
 
 [[bench]]
 name = "hot_paths"
