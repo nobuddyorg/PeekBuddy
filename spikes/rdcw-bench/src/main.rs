@@ -154,16 +154,23 @@ fn dequeue_one(iocp: &Iocp, timeout: Duration) -> Option<peekbuddy_win::io::iocp
 
 fn describe(
     c: &peekbuddy_win::io::iocp::Completion,
-    watch: &Watch,
+    watch: &mut Watch,
     size_class: Class,
 ) -> (String, usize, usize, Option<String>) {
     let status = format!("{:?}", c.status);
     let bytes = c.bytes as usize;
     let (mut records, mut errs) = (0, 0);
     let mut first_err = None;
+    // The slot must be finished before its buffer can be read.
+    let slot_index = watch.slot_of(c.overlapped);
+    if let Some(i) = slot_index
+        && let Some(s) = watch.slots.get_mut(i)
+    {
+        let _ = s.finish();
+    }
     if bytes > 0
         && c.is_success()
-        && let Some(i) = watch.slot_of(c.overlapped)
+        && let Some(i) = slot_index
         && let Some(data) = watch.slots.get(i).and_then(|s| s.data(bytes))
     {
         for item in parse(data, bytes, size_class) {
@@ -223,7 +230,7 @@ fn matrix(cfg: &Cfg) {
             let first = dequeue_one(&iocp, Duration::from_secs(10));
             let (status, bytes, records, err) =
                 first.as_ref().map_or(("timeout".into(), 0, 0, None), |c| {
-                    describe(c, &watch, class_of(class))
+                    describe(c, &mut watch, class_of(class))
                 });
             let mut fields = vec![
                 ("armed", "true".to_owned()),
@@ -246,7 +253,7 @@ fn matrix(cfg: &Cfg) {
                     let second = dequeue_one(&iocp, Duration::from_secs(20));
                     let (status2, bytes2, records2, _) =
                         second.as_ref().map_or(("timeout".into(), 0, 0, None), |c| {
-                            describe(c, &watch, class_of(class))
+                            describe(c, &mut watch, class_of(class))
                         });
                     fields.push(("flood_files", files.to_string()));
                     fields.push(("flood_status", json_str(&status2)));
@@ -283,6 +290,7 @@ fn lifecycle(cfg: &Cfg) {
             let dir = base.join(name);
             let _ = std::fs::create_dir_all(&dir);
             let (watched, victim) = setup(&dir);
+            let _ = std::fs::create_dir_all(&watched);
             let Ok(iocp) = Iocp::new(1) else { return };
             let mut watch = match Watch::new(&watched, size, 1, 2, &iocp) {
                 Ok(w) => w,
@@ -311,7 +319,7 @@ fn lifecycle(cfg: &Cfg) {
             let _ = std::fs::write(watched.join("pre.txt"), b"x");
             let mut records_before = 0;
             if let Some(c) = dequeue_one(&iocp, Duration::from_secs(5)) {
-                records_before = describe(&c, &watch, Class::Extended).2;
+                records_before = describe(&c, &mut watch, Class::Extended).2;
                 if let Some(i) = watch.slot_of(c.overlapped) {
                     let _ = watch.slots[i].finish();
                 }
@@ -321,7 +329,7 @@ fn lifecycle(cfg: &Cfg) {
             let after = dequeue_one(&iocp, Duration::from_secs(10));
             let (status, bytes, records, _) =
                 after.as_ref().map_or(("timeout".into(), 0, 0, None), |c| {
-                    describe(c, &watch, Class::Extended)
+                    describe(c, &mut watch, Class::Extended)
                 });
             if let Some(c) = after.as_ref()
                 && let Some(i) = watch.slot_of(c.overlapped)
@@ -416,12 +424,29 @@ fn detach(cfg: &Cfg) {
     let _ = std::fs::write(cfg.flag_dir.join("armed.flag"), b"1");
     let c = dequeue_one(&iocp, Duration::from_secs(60));
     let (status, bytes, records, _) = c.as_ref().map_or(("timeout".into(), 0, 0, None), |c| {
-        describe(c, &watch, Class::Extended)
+        describe(c, &mut watch, Class::Extended)
     });
     if let Some(c) = c.as_ref()
         && let Some(i) = watch.slot_of(c.overlapped)
     {
         let _ = watch.slots[i].finish();
+    }
+    let mut after_cancel = String::from("not-needed");
+    if c.is_none() {
+        // No completion for the detach: does cancelling the pending read produce one?
+        let cancel = watch
+            .slots
+            .first()
+            .map(|s| watch.dir.cancel(s).map(|o| format!("{o:?}")));
+        let again = dequeue_one(&iocp, Duration::from_secs(10));
+        after_cancel = format!(
+            "cancel={:?} completion={}",
+            cancel,
+            again.as_ref().map_or_else(
+                || "timeout".to_owned(),
+                |c| format!("{:?}/{}", c.status, c.bytes)
+            )
+        );
     }
     let rearm = watch.arm(0, true);
     emit(
@@ -429,6 +454,7 @@ fn detach(cfg: &Cfg) {
         "detach",
         "vhd-detached",
         &[
+            ("after_cancel", json_str(&after_cancel)),
             ("armed", "true".into()),
             ("status", json_str(&status)),
             ("bytes", bytes.to_string()),
@@ -616,15 +642,15 @@ fn run_perf(
                 let spare = 1 - i;
                 let _ = watch.arm(spare, true);
                 rearm_us.push(u64::try_from(t_deq.elapsed().as_micros()).unwrap_or(u64::MAX));
-                parse_slot(&watch, &mut records, &mut bytes);
                 if let Some(s) = watch.slots.get_mut(i) {
                     let _ = s.finish();
                 }
+                parse_slot(&watch, &mut records, &mut bytes);
             } else {
-                parse_slot(&watch, &mut records, &mut bytes);
                 if let Some(s) = watch.slots.get_mut(i) {
                     let _ = s.finish();
                 }
+                parse_slot(&watch, &mut records, &mut bytes);
                 let _ = watch.arm(i, true);
                 rearm_us.push(u64::try_from(t_deq.elapsed().as_micros()).unwrap_or(u64::MAX));
             }
