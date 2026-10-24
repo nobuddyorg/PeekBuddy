@@ -30,6 +30,29 @@ rules (ordinal, case-insensitive by default, honouring per-directory case
 sensitivity where reported). Short (8.3) names are resolved to long names when
 possible and flagged when not.
 
+## API (peekbuddy-core::name)
+
+- `WideStr` and `WideName` hold `[u16]` units, the lossless in-core form.
+  `peekbuddy-win` converts with `OsString::from_wide` / `encode_wide`;
+  `OsStr::as_encoded_bytes` is never persisted or sent over IPC.
+- `to_lossy_utf8(name, buf)` writes lossy UTF-8 into a caller buffer
+  (`max_utf8_len` bytes always suffice) and reports `is_exact`.
+- `encode_name_w` / `decode_name_w` carry the exact UTF-16LE sidecar, only
+  for names that are not valid Unicode.
+- `NameKind { Unknown, Long, Short, Both }` comes from the `FileNameFlags` of
+  `FILE_NOTIFY_FULL_INFORMATION`; the other info classes give `Unknown`.
+  `looks_like_short_name` is a shape check for `NAME~N.EXT`.
+- `fold_upper`, `fold_upper_into` and `eq_ignore_case_ordinal(a, b, mode)`
+  use a range-encoded upper-case table; `CaseMode::Sensitive` is for
+  case-sensitive directories. Surrogate pairs are not folded.
+- `escape_for_display` and `needs_escape` make lone surrogates and invisible
+  format characters visible; `name_json` emits `name` plus `name_utf16` only
+  when the name is not exact.
+
+The table is currently derived from Rust's Unicode data; the Windows test
+`peekbuddy-win/tests/name.rs` compares it with the OS for every unit, and a
+pinned checksum makes any table change a reviewed change.
+
 ## Consequences
 
 - Good: no record ever names the wrong file.

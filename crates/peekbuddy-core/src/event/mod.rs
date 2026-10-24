@@ -52,23 +52,42 @@ impl Source {
     }
 }
 
-/// How to read the name an event refers to (refined by #39).
+/// Which kind of name the source delivered (#39).
+///
+/// Derived from the `FileNameFlags` of `FILE_NOTIFY_FULL_INFORMATION`; the
+/// other info classes do not say and give [`NameKind::Unknown`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
 pub enum NameKind {
-    /// Path relative to the watch root (RDCW).
-    Relative,
-    /// A single file name without a directory part (USN).
-    Leaf,
-    /// An 8.3 short name.
+    /// The source does not say which name this is.
+    Unknown,
+    /// A long (NTFS namespace) name.
+    Long,
+    /// An 8.3 (DOS namespace) short name.
     Short,
-    /// The name could not be resolved; the name reference is empty.
-    Unresolved,
+    /// A name that is both: it already fits 8.3.
+    Both,
 }
 
 impl NameKind {
     /// Every name kind, in wire-tag order.
-    pub const ALL: [Self; 4] = [Self::Relative, Self::Leaf, Self::Short, Self::Unresolved];
+    pub const ALL: [Self; 4] = [Self::Unknown, Self::Long, Self::Short, Self::Both];
+
+    /// `FILE_NAME_NTFS`.
+    pub const FILE_NAME_NTFS: u8 = 0x01;
+    /// `FILE_NAME_DOS`.
+    pub const FILE_NAME_DOS: u8 = 0x02;
+
+    /// The kind for `FileNameFlags`; other bits are ignored.
+    #[must_use]
+    pub const fn from_file_name_flags(flags: u8) -> Self {
+        match flags & 0x03 {
+            Self::FILE_NAME_NTFS => Self::Long,
+            Self::FILE_NAME_DOS => Self::Short,
+            0 => Self::Unknown,
+            _ => Self::Both,
+        }
+    }
 
     /// The stable wire tag.
     #[must_use]
@@ -80,10 +99,10 @@ impl NameKind {
     #[must_use]
     pub const fn from_tag(tag: u8) -> Option<Self> {
         match tag {
-            0 => Some(Self::Relative),
-            1 => Some(Self::Leaf),
+            0 => Some(Self::Unknown),
+            1 => Some(Self::Long),
             2 => Some(Self::Short),
-            3 => Some(Self::Unresolved),
+            3 => Some(Self::Both),
             _ => None,
         }
     }
@@ -229,7 +248,7 @@ pub(crate) mod tests {
             vol: VolIdx(1),
             root: RootIdx(2),
             name: NameRef::EMPTY,
-            name_kind: NameKind::Leaf,
+            name_kind: NameKind::Long,
             flags: Flags::TEMP.union(Flags::GAP_FOLLOWS),
         }
     }
@@ -278,6 +297,17 @@ pub(crate) mod tests {
         }
         assert_eq!(Source::from_tag(4), None);
         assert_eq!(NameKind::from_tag(4), None);
+    }
+
+    #[test]
+    fn name_kind_follows_file_name_flags() {
+        assert_eq!(NameKind::from_file_name_flags(0), NameKind::Unknown);
+        assert_eq!(NameKind::from_file_name_flags(1), NameKind::Long);
+        assert_eq!(NameKind::from_file_name_flags(2), NameKind::Short);
+        assert_eq!(NameKind::from_file_name_flags(3), NameKind::Both);
+        assert_eq!(NameKind::from_file_name_flags(0x04), NameKind::Unknown);
+        assert_eq!(NameKind::from_file_name_flags(0xFD), NameKind::Long);
+        assert_eq!(NameKind::from_file_name_flags(0xFF), NameKind::Both);
     }
 
     #[test]

@@ -266,7 +266,7 @@ mod tests {
             vol: VolIdx(t.1.0),
             root: RootIdx(t.1.1),
             name: super::super::NameRef::EMPTY,
-            name_kind: NameKind::ALL.get(t.2).copied().unwrap_or(NameKind::Leaf),
+            name_kind: NameKind::ALL.get(t.2).copied().unwrap_or(NameKind::Unknown),
             flags: Flags::from_bits(t.3).unwrap_or(Flags::NONE),
         })
     }

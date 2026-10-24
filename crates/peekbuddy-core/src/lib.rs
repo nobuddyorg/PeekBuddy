@@ -7,6 +7,7 @@
 #![deny(clippy::indexing_slicing)]
 
 pub mod event;
+pub mod name;
 pub mod perf;
 
 /// Crate version, shared by every PeekBuddy crate.
