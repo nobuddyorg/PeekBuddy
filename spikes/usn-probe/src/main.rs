@@ -28,7 +28,7 @@ use windows_sys::Win32::Security::{
     WinBuiltinAdministratorsSid, TOKEN_MANDATORY_LABEL,
 };
 use windows_sys::Win32::Storage::FileSystem::{
-    FILE_ID_DESCRIPTOR, GetFinalPathNameByHandleW, OpenFileById, CreateFileW, FILE_FLAG_BACKUP_SEMANTICS, FILE_FLAG_OVERLAPPED, FILE_SHARE_DELETE,
+    FILE_ID_INFO, FILE_READ_ATTRIBUTES, FileIdInfo, GetFileInformationByHandleEx, FILE_ID_DESCRIPTOR, GetFinalPathNameByHandleW, OpenFileById, CreateFileW, FILE_FLAG_BACKUP_SEMANTICS, FILE_FLAG_OVERLAPPED, FILE_SHARE_DELETE,
     FILE_SHARE_READ, FILE_SHARE_WRITE, GetVolumeInformationW, GetVolumeNameForVolumeMountPointW,
     OPEN_EXISTING,
 };
@@ -590,15 +590,19 @@ fn file_frn(path: &Path) -> Option<u128> {
     file_frn_or_error(path).ok()
 }
 
-/// As [`file_frn`], with the failing Win32 error (0 = no record in the reply).
+/// As [`file_frn`], with the failing Win32 error. `FileIdInfo` gives the same
+/// id the journal records carry (128-bit; NTFS ids are zero-extended).
 fn file_frn_or_error(path: &Path) -> Result<u128, u32> {
-    let h = open(&path.to_string_lossy(), GENERIC_READ, FILE_FLAG_BACKUP_SEMANTICS)?;
-    let mut buf = vec![0u8; 4096];
-    let result = ioctl(h, FSCTL_READ_FILE_USN_DATA, &[2u8, 0, 3, 0], &mut buf);
+    let h = open(&path.to_string_lossy(), FILE_READ_ATTRIBUTES, FILE_FLAG_BACKUP_SEMANTICS)?;
+    // SAFETY: zero is a valid initial state for this plain-data struct.
+    let mut info: FILE_ID_INFO = unsafe { std::mem::zeroed() };
+    // SAFETY: the struct and its size are valid for the call.
+    let ok = unsafe { GetFileInformationByHandleEx(h, FileIdInfo, (&raw mut info).cast(), u32::try_from(std::mem::size_of::<FILE_ID_INFO>()).unwrap_or(0)) };
+    // SAFETY: no preconditions.
+    let err = if ok == 0 { unsafe { GetLastError() } } else { 0 };
     // SAFETY: handle opened above.
     unsafe { CloseHandle(h) };
-    let n = result?;
-    parse_records_with_prefix(&buf, n as usize).1.first().map(|r| r.frn).ok_or(0)
+    if ok == 0 { Err(err) } else { Ok(u128::from_le_bytes(info.FileId.Identifier)) }
 }
 
 /// Q5: change to readable record, 200 operations, `BytesToWaitFor = 1`
