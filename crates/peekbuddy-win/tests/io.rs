@@ -61,6 +61,56 @@ fn posted_message_round_trips() {
     let c = batch.iter().next().unwrap();
     assert_eq!((c.key, c.bytes, c.overlapped), (7, 42, 0x1000));
     assert!(c.is_success());
+    assert_eq!(batch.len(), 1);
+    assert!(!batch.is_empty());
+}
+
+#[test]
+fn batch_counts_every_entry() {
+    let iocp = Iocp::new(1).unwrap();
+    iocp.post(1, 0, 0).unwrap();
+    iocp.post(2, 0, 0).unwrap();
+    let mut batch = Batch::new(8);
+    assert_eq!(
+        iocp.dequeue(&mut batch, Some(Duration::from_secs(5)))
+            .unwrap(),
+        2
+    );
+    assert_eq!(batch.len(), 2);
+    assert_eq!(batch.iter().count(), 2);
+}
+
+#[test]
+fn a_huge_timeout_returns_when_a_message_is_ready() {
+    let iocp = Iocp::new(1).unwrap();
+    iocp.post(3, 0, 0).unwrap();
+    let mut batch = Batch::new(1);
+    assert_eq!(iocp.dequeue(&mut batch, Some(Duration::MAX)).unwrap(), 1);
+    iocp.post(4, 0, 0).unwrap();
+    assert_eq!(iocp.dequeue(&mut batch, None).unwrap(), 1);
+}
+
+#[test]
+fn slot_state_is_observable() {
+    let mut slot = IoSlot::new(4096).unwrap();
+    assert_eq!(slot.len(), 4096);
+    assert!(!slot.is_empty());
+    assert!(!slot.is_pending());
+    assert_eq!(slot.data(4096).map(<[u8]>::len), Some(4096));
+    assert!(slot.data(4097).is_none());
+    slot.begin().unwrap();
+    assert!(slot.is_pending());
+    assert!(slot.data(0).is_none());
+    slot.finish().unwrap();
+    assert!(!slot.is_pending());
+}
+
+#[test]
+fn cancel_without_io_is_already_completed() {
+    let tmp = tempdir();
+    let (_, dir) = open_dir(&tmp);
+    let slot = IoSlot::new(4096).unwrap();
+    assert_eq!(dir.cancel(&slot).unwrap(), CancelOutcome::AlreadyCompleted);
 }
 
 #[test]
@@ -134,6 +184,9 @@ fn volume_identity_and_final_path() {
     assert_ne!(id.file_system.len(), 0);
     let fin = final_path(&dir).unwrap();
     assert_ne!(fin.len(), 0);
+    // The normalised DOS name of a local directory is `\\?\X:\...`.
+    let prefix: Vec<u16> = r"\\?\".encode_utf16().collect();
+    assert!(fin.starts_with(&prefix));
 }
 
 fn tempdir() -> std::path::PathBuf {

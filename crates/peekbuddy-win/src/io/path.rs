@@ -190,16 +190,16 @@ impl EqIgnoreAsciiUnits for [u16] {
 /// and of a device path.
 #[must_use]
 pub fn trim_trailing_separators(path: &[u16]) -> &[u16] {
-    let mut end = path.len();
-    while end > 0 && path.get(end - 1).copied().is_some_and(is_separator) {
-        end -= 1;
-    }
+    let end = path
+        .iter()
+        .rposition(|&unit| !is_separator(unit))
+        .map_or(0, |last| last + 1);
     // Keep `C:\`.
-    if end == 2 && path.get(1) == Some(&COLON) && path.len() > 2 {
+    if end == 2 && path.get(1) == Some(&COLON) {
         return path.get(..3).unwrap_or(path);
     }
     // Keep `\\?\C:\`.
-    if has_device_prefix(path) && end == 6 && path.get(5) == Some(&COLON) && path.len() > 6 {
+    if has_device_prefix(path) && end == 6 && path.get(5) == Some(&COLON) {
         return path.get(..7).unwrap_or(path);
     }
     path.get(..end).unwrap_or(path)
@@ -292,6 +292,7 @@ mod tests {
         assert_eq!(class(r"\\.\PhysicalDrive0"), PathClass::Device);
         assert_eq!(class(r"\\?\UNC\"), PathClass::Device);
         assert_eq!(class(r"\\?\UNC"), PathClass::Device);
+        assert_eq!(class(r"\\?\1:\a"), PathClass::Device);
     }
 
     #[test]
@@ -308,5 +309,7 @@ mod tests {
         assert_eq!(trim(r"\\srv\share\"), r"\\srv\share");
         assert_eq!(trim(""), "");
         assert_eq!(trim(r"\"), "");
+        assert_eq!(trim("C:"), "C:");
+        assert_eq!(trim(r"\\?\C:"), r"\\?\C:");
     }
 }

@@ -18,6 +18,8 @@ use super::sys::{
 
 /// `INFINITE`.
 const INFINITE: u32 = u32::MAX;
+/// The longest finite wait: one millisecond short of `INFINITE`.
+const MAX_WAIT_MS: u32 = 0xFFFF_FFFE;
 
 /// One dequeued completion.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -173,8 +175,8 @@ impl Iocp {
     /// The OS error for a failure other than a timeout.
     pub fn dequeue(&self, batch: &mut Batch, timeout: Option<Duration>) -> io::Result<usize> {
         let millis = timeout.map_or(INFINITE, |t| {
-            // INFINITE is u32::MAX: a long timeout stops one short of it.
-            u32::try_from(t.as_millis()).map_or(INFINITE - 1, |ms| ms.min(INFINITE - 1))
+            // A long timeout stops one short of INFINITE.
+            u32::try_from(t.as_millis()).map_or(MAX_WAIT_MS, |ms| ms.min(MAX_WAIT_MS))
         });
         let capacity = u32::try_from(batch.entries.len()).unwrap_or(u32::MAX);
         let mut removed = 0_u32;

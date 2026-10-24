@@ -9,9 +9,12 @@ use std::os::windows::io::AsRawHandle;
 
 use super::dir::DirHandle;
 use super::sys::{
-    FILE_NAME_NORMALIZED, GetFinalPathNameByHandleW, GetVolumeInformationByHandleW,
-    GetVolumeNameForVolumeMountPointW, GetVolumePathNameW, VOLUME_NAME_DOS,
+    GetFinalPathNameByHandleW, GetVolumeInformationByHandleW, GetVolumeNameForVolumeMountPointW,
+    GetVolumePathNameW,
 };
+
+/// `FILE_NAME_NORMALIZED | VOLUME_NAME_DOS`: both flags are 0.
+const FINAL_PATH_FLAGS: u32 = 0;
 
 /// Longest path in UTF-16 units, plus its NUL.
 const PATH_UNITS: usize = 32_768;
@@ -109,7 +112,7 @@ pub fn final_path(dir: &DirHandle) -> io::Result<Vec<u16>> {
             dir.as_raw_handle(),
             buffer.as_mut_ptr(),
             capacity,
-            FILE_NAME_NORMALIZED + VOLUME_NAME_DOS,
+            FINAL_PATH_FLAGS,
         )
     };
     let len = usize::try_from(len).unwrap_or(usize::MAX);
