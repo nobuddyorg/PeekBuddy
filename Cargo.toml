@@ -110,6 +110,15 @@ debug = false
 strip = "symbols"
 incremental = false
 
+# The shipped build with symbols (#28): release code, line tables, a separate
+# PDB that release jobs publish (built with /PDBALTPATH so the exe does not
+# carry the build machine's path). Adopted only if the exe grows by a few
+# bytes: see PERFORMANCE.md.
+[profile.dist]
+inherits = "release"
+debug = "line-tables-only"
+strip = "none"
+
 # Profiling builds (#22): release code with line tables and symbols, PDB
 # next to the exe. Switch `debug` to "full" for variable-level debugging.
 [profile.profiling]

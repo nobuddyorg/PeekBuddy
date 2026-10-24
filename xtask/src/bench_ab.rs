@@ -320,8 +320,21 @@ fn run_checked(command: &mut Command) -> Result<String, String> {
 /// Builds the benches in `source` into `target` and returns the executables
 /// (empty when the revision has no benches package).
 pub fn build(source: &Path, target: &Path) -> Result<Vec<PathBuf>, String> {
+    build_with(source, target, None)
+}
+
+/// Like [`build`], with `rustflags` replacing `RUSTFLAGS` for the build.
+pub fn build_with(
+    source: &Path,
+    target: &Path,
+    rustflags: Option<&str>,
+) -> Result<Vec<PathBuf>, String> {
     let cargo = std::env::var("CARGO").unwrap_or_else(|_| "cargo".to_owned());
-    let output = Command::new(cargo)
+    let mut command = Command::new(cargo);
+    if let Some(flags) = rustflags {
+        command.env("RUSTFLAGS", flags);
+    }
+    let output = command
         .current_dir(source)
         .env("CARGO_TARGET_DIR", target)
         .args([
