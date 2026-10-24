@@ -110,9 +110,9 @@ cancelled or is skipped. Jobs in `.github/workflows/ci.yml`:
 
 Perf (#23, #26, #27) and release-build (#28) jobs join as those issues land.
 `profiling.yml` builds the Tracy profiling exe weekly and on PRs that touch
-it (#22); it is not part of `ci-ok`. `bench-comment.yml` posts the bench A/B
-table on the PR after `ci`, and `bench-noop.yml` is the gate's
-false-positive check (#26); neither is part of `ci-ok`. The nightly
+it (#22); it is not part of `ci-ok`. The bench A/B table is in the job summary
+of `bench a/b (windows x64)` (no PR comment), and `bench-noop.yml` is the
+gate's false-positive check (#26); it is not part of `ci-ok`. The nightly
 `bench trend (windows x64)` job publishes bench medians to gh-pages.
 The `main` ruleset for the owner to apply is in `.github/rulesets/main.json`
 with `ci-ok` and `CodeQL (rust)` as required checks. `codeql.yml` runs CodeQL

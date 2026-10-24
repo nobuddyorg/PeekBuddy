@@ -244,12 +244,9 @@ Gate checks so far (Linux container, 4 CPUs, 10 rounds):
 | no-op (`--base HEAD`) | all ok; largest change +1.8 % |
 | context-switch parse done twice (2x slower) | `metrics/process_list_300` +105.9 % FAIL, exit 1; other benches ok |
 
-PR comment: `bench-comment.yml` runs after `ci` (`workflow_run`, default
-branch, `actions: read` and `pull-requests: write` only). It downloads the
-`bench-ab` artifact, checks that the PR number in it names an open PR whose
-head is the commit `ci` tested, and creates or updates one comment marked
-`<!-- bench-ab -->`. It never checks out or runs PR code, so fork PRs get the
-table too.
+Where to read it: the table is in the job summary of `bench a/b (windows x64)`
+on the Actions run page and in the `bench-ab` artifact (`report.md`). There is
+no PR comment: it mailed everyone subscribed to the PR.
 
 False-positive check: `bench-noop.yml` runs ten no-op A/B runs (`--base
 HEAD`) in parallel on windows-2025 and passes when at least 9 of 10 pass.
