@@ -1,0 +1,161 @@
+{"experiment":"env","cell":"sqlite","label":"windows-2025/stock","version":"3.53.2","cpus":4}
+{"experiment":"size","cell":"page4096-interned-2idx","label":"windows-2025/stock","rows":500000,"bytes_per_event":76.333056,"table_bytes_per_event":44.572672,"index_bytes_per_event":31.760384,"node_bytes_per_event":11.411456}
+{"experiment":"size","cell":"page4096-interned-no-idx","label":"windows-2025/stock","rows":500000,"bytes_per_event":44.572672,"table_bytes_per_event":44.572672,"index_bytes_per_event":0,"node_bytes_per_event":11.411456}
+{"experiment":"size","cell":"page4096-interned-node-idx","label":"windows-2025/stock","rows":500000,"bytes_per_event":61.308928,"table_bytes_per_event":44.572672,"index_bytes_per_event":16.736256,"node_bytes_per_event":11.411456}
+{"experiment":"size","cell":"page4096-interned-root-idx","label":"windows-2025/stock","rows":500000,"bytes_per_event":59.5968,"table_bytes_per_event":44.572672,"index_bytes_per_event":15.024128,"node_bytes_per_event":11.411456}
+{"experiment":"size","cell":"page4096-inline-path","label":"windows-2025/stock","rows":500000,"bytes_per_event":115.130368,"table_bytes_per_event":100.089856,"index_bytes_per_event":15.040512,"node_bytes_per_event":11.411456}
+{"experiment":"size","cell":"page8192-interned-2idx","label":"windows-2025/stock","rows":500000,"bytes_per_event":76.169216,"table_bytes_per_event":44.449792,"index_bytes_per_event":31.719424,"node_bytes_per_event":11.206656}
+{"experiment":"size","cell":"page8192-interned-no-idx","label":"windows-2025/stock","rows":500000,"bytes_per_event":44.449792,"table_bytes_per_event":44.449792,"index_bytes_per_event":0,"node_bytes_per_event":11.206656}
+{"experiment":"size","cell":"page8192-interned-node-idx","label":"windows-2025/stock","rows":500000,"bytes_per_event":61.19424,"table_bytes_per_event":44.449792,"index_bytes_per_event":16.744448,"node_bytes_per_event":11.206656}
+{"experiment":"size","cell":"page8192-interned-root-idx","label":"windows-2025/stock","rows":500000,"bytes_per_event":59.424768,"table_bytes_per_event":44.449792,"index_bytes_per_event":14.974976,"node_bytes_per_event":11.206656}
+{"experiment":"size","cell":"page8192-inline-path","label":"windows-2025/stock","rows":500000,"bytes_per_event":114.950144,"table_bytes_per_event":99.9424,"index_bytes_per_event":15.007744,"node_bytes_per_event":11.206656}
+{"experiment":"env","cell":"sqlite","label":"windows-2025/stock","version":"3.53.2","cpus":4}
+{"experiment":"checkpoint","cell":"auto1000","label":"windows-2025/stock","worst_commit_us":66143,"peak_wal_bytes":6571432,"events_per_s":35392}
+{"experiment":"checkpoint","cell":"auto4000","label":"windows-2025/stock","worst_commit_us":123705,"peak_wal_bytes":19693632,"events_per_s":44714}
+{"experiment":"checkpoint","cell":"off-passive-at-end","label":"windows-2025/stock","worst_commit_us":6355,"peak_wal_bytes":1447261272,"events_per_s":62687}
+{"experiment":"env","cell":"sqlite","label":"windows-2025/stock","version":"3.53.2","cpus":4}
+{"experiment":"commit","cell":"batch100-linger5ms","label":"windows-2025/stock","burst_events_per_s":64500,"paced10k_p50_us":3329,"paced10k_p99_us":195840,"paced10k_commits_per_s":170}
+{"experiment":"commit","cell":"batch100-linger10ms","label":"windows-2025/stock","burst_events_per_s":62107,"paced10k_p50_us":5964,"paced10k_p99_us":139436,"paced10k_commits_per_s":99}
+{"experiment":"commit","cell":"batch100-linger25ms","label":"windows-2025/stock","burst_events_per_s":63009,"paced10k_p50_us":5864,"paced10k_p99_us":136552,"paced10k_commits_per_s":99}
+{"experiment":"commit","cell":"batch1000-linger5ms","label":"windows-2025/stock","burst_events_per_s":127881,"paced10k_p50_us":3258,"paced10k_p99_us":95425,"paced10k_commits_per_s":167}
+{"experiment":"commit","cell":"batch1000-linger10ms","label":"windows-2025/stock","burst_events_per_s":141459,"paced10k_p50_us":6110,"paced10k_p99_us":97161,"paced10k_commits_per_s":87}
+{"experiment":"commit","cell":"batch1000-linger25ms","label":"windows-2025/stock","burst_events_per_s":137088,"paced10k_p50_us":13915,"paced10k_p99_us":72500,"paced10k_commits_per_s":37}
+{"experiment":"commit","cell":"batch10000-linger5ms","label":"windows-2025/stock","burst_events_per_s":149131,"paced10k_p50_us":3218,"paced10k_p99_us":96896,"paced10k_commits_per_s":163}
+{"experiment":"commit","cell":"batch10000-linger10ms","label":"windows-2025/stock","burst_events_per_s":156049,"paced10k_p50_us":6023,"paced10k_p99_us":100683,"paced10k_commits_per_s":88}
+{"experiment":"commit","cell":"batch10000-linger25ms","label":"windows-2025/stock","burst_events_per_s":187686,"paced10k_p50_us":13882,"paced10k_p99_us":80258,"paced10k_commits_per_s":37}
+{"experiment":"commit","cell":"batch1000-linger5ms-since-last-event","label":"windows-2025/stock","burst_events_per_s":142411,"paced10k_p50_us":50805,"paced10k_p99_us":99793,"paced10k_commits_per_s":9}
+{"experiment":"env","cell":"sqlite","label":"windows-2025/stock","version":"3.53.2","cpus":4}
+{"experiment":"readers","cell":"no-reader","label":"windows-2025/stock","writer_events_per_s":29062,"reader_pages":0,"reader_p50_us":0,"reader_p99_us":0,"peak_wal_bytes":9385392}
+{"experiment":"readers","cell":"reader-mmap0","label":"windows-2025/stock","writer_events_per_s":33364,"reader_pages":273044,"reader_p50_us":41,"reader_p99_us":81,"peak_wal_bytes":37883432}
+{"experiment":"readers","cell":"reader-mmap256m","label":"windows-2025/stock","writer_events_per_s":33029,"reader_pages":340420,"reader_p50_us":33,"reader_p99_us":59,"peak_wal_bytes":21296312}
+{"experiment":"readers","cell":"reader-pins-snapshot","label":"windows-2025/stock","writer_events_per_s":46088,"reader_pages":1641,"reader_p50_us":41,"reader_p99_us":102,"peak_wal_bytes":1371651032}
+{"experiment":"env","cell":"sqlite","label":"windows-2025/stock","version":"3.53.2","cpus":4}
+{"experiment":"memory","cell":"cache16000k","label":"windows-2025/stock","private_before":704512,"private_after_burst":23736320,"private_after_shrink":3436544,"delta_after_burst":23031808}
+{"experiment":"memory","cell":"allocs-per-1000-batch","label":"windows-2025/stock","allocs":1,"bytes":280}
+{"experiment":"env","cell":"sqlite","label":"windows-2025/stock","version":"3.53.2","cpus":4}
+{"experiment":"memory","cell":"cache4000k","label":"windows-2025/stock","private_before":708608,"private_after_burst":7827456,"private_after_shrink":3530752,"delta_after_burst":7118848}
+{"experiment":"memory","cell":"allocs-per-1000-batch","label":"windows-2025/stock","allocs":1,"bytes":280}
+{"experiment":"env","cell":"sqlite","label":"windows-2025/stock","version":"3.53.2","cpus":4}
+{"experiment":"memory","cell":"cache2000k","label":"windows-2025/stock","private_before":704512,"private_after_burst":5378048,"private_after_shrink":3092480,"delta_after_burst":4673536}
+{"experiment":"memory","cell":"allocs-per-1000-batch","label":"windows-2025/stock","allocs":1,"bytes":280}
+{"experiment":"env","cell":"sqlite","label":"windows-2025/stock","version":"3.53.2","cpus":4}
+{"experiment":"query","cell":"fill","label":"windows-2025/stock","rows":10000000,"events_per_s":55009,"db_bytes":843251712}
+{"experiment":"query","cell":"newest-all","label":"windows-2025/stock","p50_us":40,"p99_us":67,"rows":200}
+{"experiment":"query","cell":"root","label":"windows-2025/stock","p50_us":117,"p99_us":145,"rows":200}
+{"experiment":"query","cell":"kind-common","label":"windows-2025/stock","p50_us":117,"p99_us":141,"rows":200}
+{"experiment":"query","cell":"kind-rare","label":"windows-2025/stock","p50_us":7921,"p99_us":9347,"rows":200}
+{"experiment":"query","cell":"subtree-50-nodes","label":"windows-2025/stock","p50_us":475,"p99_us":2874,"rows":200}
+{"experiment":"query","cell":"fts-size","label":"windows-2025/stock","fts_bytes":26984448,"name_bytes":7606966,"ratio":3.5473338516302033}
+{"experiment":"query","cell":"fts-like-3-node_fts","label":"windows-2025/stock","p50_us":22577,"p99_us":31130,"found_per_query":116,"plan":"SCAN node_fts VIRTUAL TABLE INDEX 0:"}
+{"experiment":"query","cell":"fts-like-3-node","label":"windows-2025/stock","p50_us":13296,"p99_us":23619,"found_per_query":116,"plan":"SCAN node USING COVERING INDEX node_key"}
+{"experiment":"query","cell":"fts-like-5-node_fts","label":"windows-2025/stock","p50_us":22432,"p99_us":31843,"found_per_query":1,"plan":"SCAN node_fts VIRTUAL TABLE INDEX 0:"}
+{"experiment":"query","cell":"fts-like-5-node","label":"windows-2025/stock","p50_us":12834,"p99_us":27481,"found_per_query":1,"plan":"SCAN node USING COVERING INDEX node_key"}
+{"experiment":"query","cell":"fts-like-10-node_fts","label":"windows-2025/stock","p50_us":23274,"p99_us":31346,"found_per_query":1,"plan":"SCAN node_fts VIRTUAL TABLE INDEX 0:"}
+{"experiment":"query","cell":"fts-like-10-node","label":"windows-2025/stock","p50_us":14187,"p99_us":23455,"found_per_query":1,"plan":"SCAN node USING COVERING INDEX node_key"}
+{"experiment":"query","cell":"fts-column-like-3","label":"windows-2025/stock","index_bytes":27648000,"p50_us":21572,"p99_us":29520,"found_per_query":116,"error":false,"plan":"SCAN node_fts_column VIRTUAL TABLE INDEX 0:"}
+{"experiment":"query","cell":"fts-column-match-3","label":"windows-2025/stock","index_bytes":27648000,"p50_us":98,"p99_us":480,"found_per_query":116,"error":false,"plan":"SCAN node_fts_column VIRTUAL TABLE INDEX 0:M0"}
+{"experiment":"query","cell":"fts-column-like-5","label":"windows-2025/stock","index_bytes":27648000,"p50_us":20763,"p99_us":33351,"found_per_query":1,"error":false,"plan":"SCAN node_fts_column VIRTUAL TABLE INDEX 0:"}
+{"experiment":"query","cell":"fts-column-match-5","label":"windows-2025/stock","index_bytes":27648000,"p50_us":5,"p99_us":34,"found_per_query":0,"error":true,"plan":"SCAN node_fts_column VIRTUAL TABLE INDEX 0:M0"}
+{"experiment":"query","cell":"fts-column-like-10","label":"windows-2025/stock","index_bytes":27648000,"p50_us":21684,"p99_us":27942,"found_per_query":1,"error":false,"plan":"SCAN node_fts_column VIRTUAL TABLE INDEX 0:"}
+{"experiment":"query","cell":"fts-column-match-10","label":"windows-2025/stock","index_bytes":27648000,"p50_us":6,"p99_us":29,"found_per_query":0,"error":true,"plan":"SCAN node_fts_column VIRTUAL TABLE INDEX 0:M0"}
+{"experiment":"query","cell":"fts-full-like-3","label":"windows-2025/stock","index_bytes":27643904,"p50_us":22384,"p99_us":30235,"found_per_query":116,"error":false,"plan":"SCAN node_fts_full VIRTUAL TABLE INDEX 0:"}
+{"experiment":"query","cell":"fts-full-match-3","label":"windows-2025/stock","index_bytes":27643904,"p50_us":93,"p99_us":347,"found_per_query":116,"error":false,"plan":"SCAN node_fts_full VIRTUAL TABLE INDEX 0:M0"}
+{"experiment":"query","cell":"fts-full-like-5","label":"windows-2025/stock","index_bytes":27643904,"p50_us":21381,"p99_us":23967,"found_per_query":1,"error":false,"plan":"SCAN node_fts_full VIRTUAL TABLE INDEX 0:"}
+{"experiment":"query","cell":"fts-full-match-5","label":"windows-2025/stock","index_bytes":27643904,"p50_us":193,"p99_us":501,"found_per_query":1,"error":false,"plan":"SCAN node_fts_full VIRTUAL TABLE INDEX 0:M0"}
+{"experiment":"query","cell":"fts-full-like-10","label":"windows-2025/stock","index_bytes":27643904,"p50_us":21632,"p99_us":23920,"found_per_query":1,"error":false,"plan":"SCAN node_fts_full VIRTUAL TABLE INDEX 0:"}
+{"experiment":"query","cell":"fts-full-match-10","label":"windows-2025/stock","index_bytes":27643904,"p50_us":436,"p99_us":739,"found_per_query":1,"error":false,"plan":"SCAN node_fts_full VIRTUAL TABLE INDEX 0:M0"}
+{"experiment":"query","cell":"open-warm","label":"windows-2025/stock","p50_us":371,"max_us":702}
+{"experiment":"query","cell":"vacuum-into","label":"windows-2025/stock","seconds":4.0005523,"before_bytes":899833856,"after_bytes":868507648}
+{"experiment":"env","cell":"sqlite","label":"windows-2025/flags","version":"3.53.2","cpus":4}
+{"experiment":"size","cell":"page4096-interned-2idx","label":"windows-2025/flags","rows":500000,"bytes_per_event":76.333056,"table_bytes_per_event":44.572672,"index_bytes_per_event":31.760384,"node_bytes_per_event":11.411456}
+{"experiment":"size","cell":"page4096-interned-no-idx","label":"windows-2025/flags","rows":500000,"bytes_per_event":44.572672,"table_bytes_per_event":44.572672,"index_bytes_per_event":0,"node_bytes_per_event":11.411456}
+{"experiment":"size","cell":"page4096-interned-node-idx","label":"windows-2025/flags","rows":500000,"bytes_per_event":61.308928,"table_bytes_per_event":44.572672,"index_bytes_per_event":16.736256,"node_bytes_per_event":11.411456}
+{"experiment":"size","cell":"page4096-interned-root-idx","label":"windows-2025/flags","rows":500000,"bytes_per_event":59.5968,"table_bytes_per_event":44.572672,"index_bytes_per_event":15.024128,"node_bytes_per_event":11.411456}
+{"experiment":"size","cell":"page4096-inline-path","label":"windows-2025/flags","rows":500000,"bytes_per_event":115.130368,"table_bytes_per_event":100.089856,"index_bytes_per_event":15.040512,"node_bytes_per_event":11.411456}
+{"experiment":"size","cell":"page8192-interned-2idx","label":"windows-2025/flags","rows":500000,"bytes_per_event":76.169216,"table_bytes_per_event":44.449792,"index_bytes_per_event":31.719424,"node_bytes_per_event":11.206656}
+{"experiment":"size","cell":"page8192-interned-no-idx","label":"windows-2025/flags","rows":500000,"bytes_per_event":44.449792,"table_bytes_per_event":44.449792,"index_bytes_per_event":0,"node_bytes_per_event":11.206656}
+{"experiment":"size","cell":"page8192-interned-node-idx","label":"windows-2025/flags","rows":500000,"bytes_per_event":61.19424,"table_bytes_per_event":44.449792,"index_bytes_per_event":16.744448,"node_bytes_per_event":11.206656}
+{"experiment":"size","cell":"page8192-interned-root-idx","label":"windows-2025/flags","rows":500000,"bytes_per_event":59.424768,"table_bytes_per_event":44.449792,"index_bytes_per_event":14.974976,"node_bytes_per_event":11.206656}
+{"experiment":"size","cell":"page8192-inline-path","label":"windows-2025/flags","rows":500000,"bytes_per_event":114.950144,"table_bytes_per_event":99.9424,"index_bytes_per_event":15.007744,"node_bytes_per_event":11.206656}
+{"experiment":"env","cell":"sqlite","label":"windows-2025/flags","version":"3.53.2","cpus":4}
+{"experiment":"commit","cell":"batch100-linger5ms","label":"windows-2025/flags","burst_events_per_s":56626,"paced10k_p50_us":3304,"paced10k_p99_us":179739,"paced10k_commits_per_s":175}
+{"experiment":"commit","cell":"batch100-linger10ms","label":"windows-2025/flags","burst_events_per_s":48129,"paced10k_p50_us":5833,"paced10k_p99_us":126867,"paced10k_commits_per_s":99}
+{"experiment":"commit","cell":"batch100-linger25ms","label":"windows-2025/flags","burst_events_per_s":58720,"paced10k_p50_us":5808,"paced10k_p99_us":128596,"paced10k_commits_per_s":99}
+{"experiment":"commit","cell":"batch1000-linger5ms","label":"windows-2025/flags","burst_events_per_s":132817,"paced10k_p50_us":3277,"paced10k_p99_us":105277,"paced10k_commits_per_s":166}
+{"experiment":"commit","cell":"batch1000-linger10ms","label":"windows-2025/flags","burst_events_per_s":137788,"paced10k_p50_us":6108,"paced10k_p99_us":108629,"paced10k_commits_per_s":87}
+{"experiment":"commit","cell":"batch1000-linger25ms","label":"windows-2025/flags","burst_events_per_s":141373,"paced10k_p50_us":13951,"paced10k_p99_us":78690,"paced10k_commits_per_s":37}
+{"experiment":"commit","cell":"batch10000-linger5ms","label":"windows-2025/flags","burst_events_per_s":137880,"paced10k_p50_us":3266,"paced10k_p99_us":110603,"paced10k_commits_per_s":166}
+{"experiment":"commit","cell":"batch10000-linger10ms","label":"windows-2025/flags","burst_events_per_s":154755,"paced10k_p50_us":5999,"paced10k_p99_us":104244,"paced10k_commits_per_s":88}
+{"experiment":"commit","cell":"batch10000-linger25ms","label":"windows-2025/flags","burst_events_per_s":178381,"paced10k_p50_us":13899,"paced10k_p99_us":88507,"paced10k_commits_per_s":37}
+{"experiment":"commit","cell":"batch1000-linger5ms-since-last-event","label":"windows-2025/flags","burst_events_per_s":139620,"paced10k_p50_us":50842,"paced10k_p99_us":99840,"paced10k_commits_per_s":9}
+{"experiment":"env","cell":"sqlite","label":"windows-2025/flags","version":"3.53.2","cpus":4}
+{"experiment":"query","cell":"fill","label":"windows-2025/flags","rows":2000000,"events_per_s":161566,"db_bytes":205434880}
+{"experiment":"query","cell":"newest-all","label":"windows-2025/flags","p50_us":39,"p99_us":62,"rows":200}
+{"experiment":"query","cell":"root","label":"windows-2025/flags","p50_us":115,"p99_us":164,"rows":200}
+{"experiment":"query","cell":"kind-common","label":"windows-2025/flags","p50_us":95,"p99_us":140,"rows":200}
+{"experiment":"query","cell":"kind-rare","label":"windows-2025/flags","p50_us":8133,"p99_us":10284,"rows":200}
+{"experiment":"query","cell":"subtree-50-nodes","label":"windows-2025/flags","p50_us":194,"p99_us":803,"rows":200}
+{"experiment":"query","cell":"fts-size","label":"windows-2025/flags","fts_bytes":26984448,"name_bytes":7606966,"ratio":3.5473338516302033}
+{"experiment":"query","cell":"fts-like-3-node_fts","label":"windows-2025/flags","p50_us":20777,"p99_us":29416,"found_per_query":114,"plan":"SCAN node_fts VIRTUAL TABLE INDEX 0:"}
+{"experiment":"query","cell":"fts-like-3-node","label":"windows-2025/flags","p50_us":12582,"p99_us":23462,"found_per_query":114,"plan":"SCAN node USING COVERING INDEX node_key"}
+{"experiment":"query","cell":"fts-like-5-node_fts","label":"windows-2025/flags","p50_us":20985,"p99_us":30392,"found_per_query":1,"plan":"SCAN node_fts VIRTUAL TABLE INDEX 0:"}
+{"experiment":"query","cell":"fts-like-5-node","label":"windows-2025/flags","p50_us":12625,"p99_us":29307,"found_per_query":1,"plan":"SCAN node USING COVERING INDEX node_key"}
+{"experiment":"query","cell":"fts-like-10-node_fts","label":"windows-2025/flags","p50_us":20925,"p99_us":29600,"found_per_query":1,"plan":"SCAN node_fts VIRTUAL TABLE INDEX 0:"}
+{"experiment":"query","cell":"fts-like-10-node","label":"windows-2025/flags","p50_us":13640,"p99_us":24149,"found_per_query":1,"plan":"SCAN node USING COVERING INDEX node_key"}
+{"experiment":"query","cell":"fts-column-like-3","label":"windows-2025/flags","index_bytes":27648000,"p50_us":20533,"p99_us":28234,"found_per_query":114,"error":false,"plan":"SCAN node_fts_column VIRTUAL TABLE INDEX 0:"}
+{"experiment":"query","cell":"fts-column-match-3","label":"windows-2025/flags","index_bytes":27648000,"p50_us":96,"p99_us":352,"found_per_query":114,"error":false,"plan":"SCAN node_fts_column VIRTUAL TABLE INDEX 0:M0"}
+{"experiment":"query","cell":"fts-column-like-5","label":"windows-2025/flags","index_bytes":27648000,"p50_us":20633,"p99_us":22528,"found_per_query":1,"error":false,"plan":"SCAN node_fts_column VIRTUAL TABLE INDEX 0:"}
+{"experiment":"query","cell":"fts-column-match-5","label":"windows-2025/flags","index_bytes":27648000,"p50_us":4,"p99_us":30,"found_per_query":0,"error":true,"plan":"SCAN node_fts_column VIRTUAL TABLE INDEX 0:M0"}
+{"experiment":"query","cell":"fts-column-like-10","label":"windows-2025/flags","index_bytes":27648000,"p50_us":20184,"p99_us":32545,"found_per_query":1,"error":false,"plan":"SCAN node_fts_column VIRTUAL TABLE INDEX 0:"}
+{"experiment":"query","cell":"fts-column-match-10","label":"windows-2025/flags","index_bytes":27648000,"p50_us":5,"p99_us":21,"found_per_query":0,"error":true,"plan":"SCAN node_fts_column VIRTUAL TABLE INDEX 0:M0"}
+{"experiment":"query","cell":"fts-full-like-3","label":"windows-2025/flags","index_bytes":27643904,"p50_us":20207,"p99_us":27883,"found_per_query":114,"error":false,"plan":"SCAN node_fts_full VIRTUAL TABLE INDEX 0:"}
+{"experiment":"query","cell":"fts-full-match-3","label":"windows-2025/flags","index_bytes":27643904,"p50_us":65,"p99_us":366,"found_per_query":114,"error":false,"plan":"SCAN node_fts_full VIRTUAL TABLE INDEX 0:M0"}
+{"experiment":"query","cell":"fts-full-like-5","label":"windows-2025/flags","index_bytes":27643904,"p50_us":21830,"p99_us":24086,"found_per_query":1,"error":false,"plan":"SCAN node_fts_full VIRTUAL TABLE INDEX 0:"}
+{"experiment":"query","cell":"fts-full-match-5","label":"windows-2025/flags","index_bytes":27643904,"p50_us":117,"p99_us":268,"found_per_query":1,"error":false,"plan":"SCAN node_fts_full VIRTUAL TABLE INDEX 0:M0"}
+{"experiment":"query","cell":"fts-full-like-10","label":"windows-2025/flags","index_bytes":27643904,"p50_us":20480,"p99_us":23587,"found_per_query":1,"error":false,"plan":"SCAN node_fts_full VIRTUAL TABLE INDEX 0:"}
+{"experiment":"query","cell":"fts-full-match-10","label":"windows-2025/flags","index_bytes":27643904,"p50_us":262,"p99_us":505,"found_per_query":1,"error":false,"plan":"SCAN node_fts_full VIRTUAL TABLE INDEX 0:M0"}
+{"experiment":"query","cell":"open-warm","label":"windows-2025/flags","p50_us":339,"max_us":608}
+{"experiment":"query","cell":"vacuum-into","label":"windows-2025/flags","seconds":1.4158563,"before_bytes":262017024,"after_bytes":253448192}
+{"experiment":"env","cell":"sqlite","label":"windows-2025/stock-2M","version":"3.53.2","cpus":4}
+{"experiment":"query","cell":"fill","label":"windows-2025/stock-2M","rows":2000000,"events_per_s":162954,"db_bytes":205434880}
+{"experiment":"query","cell":"newest-all","label":"windows-2025/stock-2M","p50_us":36,"p99_us":61,"rows":200}
+{"experiment":"query","cell":"root","label":"windows-2025/stock-2M","p50_us":105,"p99_us":154,"rows":200}
+{"experiment":"query","cell":"kind-common","label":"windows-2025/stock-2M","p50_us":104,"p99_us":194,"rows":200}
+{"experiment":"query","cell":"kind-rare","label":"windows-2025/stock-2M","p50_us":7471,"p99_us":8919,"rows":200}
+{"experiment":"query","cell":"subtree-50-nodes","label":"windows-2025/stock-2M","p50_us":187,"p99_us":672,"rows":200}
+{"experiment":"query","cell":"fts-size","label":"windows-2025/stock-2M","fts_bytes":26984448,"name_bytes":7606966,"ratio":3.5473338516302033}
+{"experiment":"query","cell":"fts-like-3-node_fts","label":"windows-2025/stock-2M","p50_us":20481,"p99_us":33433,"found_per_query":114,"plan":"SCAN node_fts VIRTUAL TABLE INDEX 0:"}
+{"experiment":"query","cell":"fts-like-3-node","label":"windows-2025/stock-2M","p50_us":12063,"p99_us":22397,"found_per_query":114,"plan":"SCAN node USING COVERING INDEX node_key"}
+{"experiment":"query","cell":"fts-like-5-node_fts","label":"windows-2025/stock-2M","p50_us":20396,"p99_us":28737,"found_per_query":1,"plan":"SCAN node_fts VIRTUAL TABLE INDEX 0:"}
+{"experiment":"query","cell":"fts-like-5-node","label":"windows-2025/stock-2M","p50_us":12226,"p99_us":29235,"found_per_query":1,"plan":"SCAN node USING COVERING INDEX node_key"}
+{"experiment":"query","cell":"fts-like-10-node_fts","label":"windows-2025/stock-2M","p50_us":20424,"p99_us":29158,"found_per_query":1,"plan":"SCAN node_fts VIRTUAL TABLE INDEX 0:"}
+{"experiment":"query","cell":"fts-like-10-node","label":"windows-2025/stock-2M","p50_us":12117,"p99_us":22294,"found_per_query":1,"plan":"SCAN node USING COVERING INDEX node_key"}
+{"experiment":"query","cell":"fts-column-like-3","label":"windows-2025/stock-2M","index_bytes":27648000,"p50_us":21332,"p99_us":28287,"found_per_query":114,"error":false,"plan":"SCAN node_fts_column VIRTUAL TABLE INDEX 0:"}
+{"experiment":"query","cell":"fts-column-match-3","label":"windows-2025/stock-2M","index_bytes":27648000,"p50_us":64,"p99_us":427,"found_per_query":114,"error":false,"plan":"SCAN node_fts_column VIRTUAL TABLE INDEX 0:M0"}
+{"experiment":"query","cell":"fts-column-like-5","label":"windows-2025/stock-2M","index_bytes":27648000,"p50_us":21886,"p99_us":26894,"found_per_query":1,"error":false,"plan":"SCAN node_fts_column VIRTUAL TABLE INDEX 0:"}
+{"experiment":"query","cell":"fts-column-match-5","label":"windows-2025/stock-2M","index_bytes":27648000,"p50_us":4,"p99_us":32,"found_per_query":0,"error":true,"plan":"SCAN node_fts_column VIRTUAL TABLE INDEX 0:M0"}
+{"experiment":"query","cell":"fts-column-like-10","label":"windows-2025/stock-2M","index_bytes":27648000,"p50_us":20985,"p99_us":22861,"found_per_query":1,"error":false,"plan":"SCAN node_fts_column VIRTUAL TABLE INDEX 0:"}
+{"experiment":"query","cell":"fts-column-match-10","label":"windows-2025/stock-2M","index_bytes":27648000,"p50_us":5,"p99_us":26,"found_per_query":0,"error":true,"plan":"SCAN node_fts_column VIRTUAL TABLE INDEX 0:M0"}
+{"experiment":"query","cell":"fts-full-like-3","label":"windows-2025/stock-2M","index_bytes":27643904,"p50_us":22108,"p99_us":29494,"found_per_query":114,"error":false,"plan":"SCAN node_fts_full VIRTUAL TABLE INDEX 0:"}
+{"experiment":"query","cell":"fts-full-match-3","label":"windows-2025/stock-2M","index_bytes":27643904,"p50_us":61,"p99_us":287,"found_per_query":114,"error":false,"plan":"SCAN node_fts_full VIRTUAL TABLE INDEX 0:M0"}
+{"experiment":"query","cell":"fts-full-like-5","label":"windows-2025/stock-2M","index_bytes":27643904,"p50_us":22053,"p99_us":24668,"found_per_query":1,"error":false,"plan":"SCAN node_fts_full VIRTUAL TABLE INDEX 0:"}
+{"experiment":"query","cell":"fts-full-match-5","label":"windows-2025/stock-2M","index_bytes":27643904,"p50_us":122,"p99_us":310,"found_per_query":1,"error":false,"plan":"SCAN node_fts_full VIRTUAL TABLE INDEX 0:M0"}
+{"experiment":"query","cell":"fts-full-like-10","label":"windows-2025/stock-2M","index_bytes":27643904,"p50_us":22017,"p99_us":26256,"found_per_query":1,"error":false,"plan":"SCAN node_fts_full VIRTUAL TABLE INDEX 0:"}
+{"experiment":"query","cell":"fts-full-match-10","label":"windows-2025/stock-2M","index_bytes":27643904,"p50_us":279,"p99_us":586,"found_per_query":1,"error":false,"plan":"SCAN node_fts_full VIRTUAL TABLE INDEX 0:M0"}
+{"experiment":"query","cell":"open-warm","label":"windows-2025/stock-2M","p50_us":351,"max_us":611}
+{"experiment":"query","cell":"vacuum-into","label":"windows-2025/stock-2M","seconds":1.4820603,"before_bytes":262017024,"after_bytes":253448192}
+{"experiment":"env","cell":"sqlite","label":"windows-2025/stock-defender-excluded","version":"3.53.2","cpus":4}
+{"experiment":"checkpoint","cell":"auto1000","label":"windows-2025/stock-defender-excluded","worst_commit_us":65088,"peak_wal_bytes":6719752,"events_per_s":35713}
+{"experiment":"checkpoint","cell":"auto4000","label":"windows-2025/stock-defender-excluded","worst_commit_us":127940,"peak_wal_bytes":19063272,"events_per_s":43005}
+{"experiment":"checkpoint","cell":"off-passive-at-end","label":"windows-2025/stock-defender-excluded","worst_commit_us":12555,"peak_wal_bytes":1457491232,"events_per_s":61388}
+{"experiment":"env","cell":"sqlite","label":"windows-2025/stock-defender-excluded","version":"3.53.2","cpus":4}
+{"experiment":"commit","cell":"batch100-linger5ms","label":"windows-2025/stock-defender-excluded","burst_events_per_s":64194,"paced10k_p50_us":3291,"paced10k_p99_us":173543,"paced10k_commits_per_s":175}
+{"experiment":"commit","cell":"batch100-linger10ms","label":"windows-2025/stock-defender-excluded","burst_events_per_s":51896,"paced10k_p50_us":5887,"paced10k_p99_us":134244,"paced10k_commits_per_s":99}
+{"experiment":"commit","cell":"batch100-linger25ms","label":"windows-2025/stock-defender-excluded","burst_events_per_s":60736,"paced10k_p50_us":5835,"paced10k_p99_us":127194,"paced10k_commits_per_s":99}
+{"experiment":"commit","cell":"batch1000-linger5ms","label":"windows-2025/stock-defender-excluded","burst_events_per_s":127257,"paced10k_p50_us":3303,"paced10k_p99_us":101333,"paced10k_commits_per_s":164}
+{"experiment":"commit","cell":"batch1000-linger10ms","label":"windows-2025/stock-defender-excluded","burst_events_per_s":134145,"paced10k_p50_us":6058,"paced10k_p99_us":104164,"paced10k_commits_per_s":88}
+{"experiment":"commit","cell":"batch1000-linger25ms","label":"windows-2025/stock-defender-excluded","burst_events_per_s":111811,"paced10k_p50_us":13880,"paced10k_p99_us":71924,"paced10k_commits_per_s":37}
+{"experiment":"commit","cell":"batch10000-linger5ms","label":"windows-2025/stock-defender-excluded","burst_events_per_s":149257,"paced10k_p50_us":3182,"paced10k_p99_us":102884,"paced10k_commits_per_s":170}
+{"experiment":"commit","cell":"batch10000-linger10ms","label":"windows-2025/stock-defender-excluded","burst_events_per_s":155220,"paced10k_p50_us":6003,"paced10k_p99_us":105448,"paced10k_commits_per_s":88}
+{"experiment":"commit","cell":"batch10000-linger25ms","label":"windows-2025/stock-defender-excluded","burst_events_per_s":190513,"paced10k_p50_us":13768,"paced10k_p99_us":77798,"paced10k_commits_per_s":37}
+{"experiment":"commit","cell":"batch1000-linger5ms-since-last-event","label":"windows-2025/stock-defender-excluded","burst_events_per_s":141340,"paced10k_p50_us":50918,"paced10k_p99_us":99917,"paced10k_commits_per_s":9}

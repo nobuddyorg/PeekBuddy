@@ -1,6 +1,7 @@
 # 0005. SQLite ingest and query performance on Windows NTFS
 
-- Issue: #35. Status: first data (windows-2025), ARM64 and owner-PC runs pending.
+- Issue: #35. Status: x64 and ARM64 data in; owner-PC run pending (needs
+  hardware, see open items).
 - Harness: `spikes/store-bench`, workflow `store-bench`.
 - Raw data: `docs/spikes/data/0005/` (one JSON object per cell).
 - Machine: GitHub-hosted `windows-2025`, 4 vCPU, Defender real-time off,
@@ -31,9 +32,13 @@ write pattern for the `event(node_id, id)` index.
    with the 25 ms linger and a 10k cap). The writer falls behind by about
    17k events/s, so the ring must hold roughly 170k records or spill; #52 sizes
    the ring and the spill threshold from this.
-5. **Change `node_fts` to `detail='column'` in #53.** With `detail='none'`
-   a multi-trigram `MATCH` is rejected, and `LIKE` is a virtual-table scan
-   that is slower than scanning `node` (see below).
+5. **Change `node_fts` to `detail='full'` in #53** (merged in #139). With
+   `detail='none'` and also with `detail='column'` a phrase `MATCH` longer than
+   one trigram (5 and 10 characters) is rejected with "phrase queries are not
+   supported"; only `full` answers it. `LIKE` is a virtual-table scan that is
+   slower than scanning `node`. The first version of this report said `column`
+   works; that was a harness bug (errors were counted as rows), corrected by
+   the rerun below.
 6. **Keep 4096-byte pages and interned paths.** 8192 saves nothing; inline
    paths cost 115 B/event against 76 B.
 7. **`LIBSQLITE3_FLAGS` speed set: no measurable gain** in the commit cells
@@ -107,15 +112,15 @@ events/s on average (100k/s at 2M rows): once the `node_id` index outgrows the
 | Index | Size | `LIKE` 3/5/10 chars | `MATCH "needle"` 3/5/10 chars |
 | --- | --- | --- | --- |
 | `detail='none'` (current) | 12.6 MB (1.7x the names) | 39 ms, a full scan | rejected: phrase queries need detail |
-| `detail='column'` | 27.6 MB (3.6x) | 39 ms, a full scan | 107 µs / 17 µs / 25 µs |
-| `detail='full'` | 27.6 MB (3.6x) | 39 ms, a full scan | 107 µs / 215 µs / 464 µs |
+| `detail='column'` | 27.6 MB (3.6x) | 39 ms, a full scan | 3 chars only; 5 and 10 chars rejected (errors) |
+| `detail='full'` | 27.6 MB (3.6x) | 39 ms, a full scan | 93 µs / 193 µs / 436 µs |
 | plain scan of `node` | 0 | 21 ms | not applicable |
 
 `LIKE` never uses the trigram index in this build, with any `detail`, so the
-answer is `MATCH` on a quoted phrase with `detail='column'`. Below 3
+answer is `MATCH` on a quoted phrase with `detail='full'`. Below 3
 characters a scan of `node` (21 ms at 200k nodes) is the fallback. The sizes
-of `column` and `full` are within 4 KB of each other, which is odd and worth
-rechecking with a differently shaped corpus.
+of `column` and `full` are within 4 KB of each other (the corpus is one column
+of short names, so there is nothing for `full` to add).
 
 ## Q5 and Q10 open cost and sealing
 
@@ -159,9 +164,58 @@ viewer is open.
   1 allocation of 280 bytes. K for the F10 writer gate starts at 1; SQLite's
   own heap is outside the counting allocator.
 
+## Rerun after the corrections (24 Oct 2026): x64 and ARM64
+
+Raw data: `data/0005/windows-2025-rerun.jsonl` and
+`data/0005/windows-11-vs2026-arm.jsonl` (workflow run 40133757148, PR #144).
+The ARM64 query cells use 2M rows (a 10M-row fill does not fit the job
+time there); x64 `stock` uses 10M rows.
+
+| Cell | x64 `windows-2025` | ARM64 `windows-11-vs2026-arm` |
+| --- | --- | --- |
+| burst, batch 1,000 / 5 ms | 127.9k events/s | 59.3k events/s |
+| burst, batch 10,000 / 25 ms | 187.7k events/s | 116.3k events/s |
+| paced 10k/s p50 / p99, batch 1,000 / 5 ms | 3.3 ms / 95 ms | 3.3 ms / 15.3 ms |
+| `wal_autocheckpoint=1000` | 35.4k events/s, worst commit 66 ms | **1.8k events/s, worst commit 1,284 ms** |
+| `wal_autocheckpoint=4000` | 44.7k events/s, 124 ms | **4.1k events/s, 1,978 ms** |
+| checkpoint off, `PASSIVE` at the end | 62.7k events/s, 6.4 ms | 36.4k events/s, 9.5 ms |
+| fill, 2M rows (x64 10M rows: 55k events/s) | 163k events/s | 20.9k events/s |
+| newest page p50 / p99 | 40 / 67 µs | 51 / 78 µs |
+| root filter p50 | 117 µs | 150 µs |
+| rare kind (no index) p50 | 7.9 ms | 12.4 ms |
+| `MATCH` `detail='full'` 3 / 5 / 10 chars p50 | 93 / 193 / 436 µs | 102 / 201 / 453 µs |
+| open a segment, warm | 0.37 ms | 0.77 ms |
+| `VACUUM INTO` (x64 10M rows; ARM 2M rows) | 4.0 s | 2.3 s |
+
+Findings that change decisions:
+
+- **ARM64 checkpoint stalls are the big difference**: with an autocheckpoint
+  a commit blocks for 1.3 to 2.0 s and throughput falls to 2 to 4k events/s.
+  Excluding the data directory from Defender does not change it
+  (1,323 ms and 1,815 events/s excluded), so the cost is the runner's disk
+  sync, not real-time scanning. This confirms decision 3 harder: no
+  autocheckpoint, a size-triggered `PASSIVE` checkpoint, and #52 must measure
+  that checkpoint's stall on ARM before the threshold is fixed.
+- **The x64 numbers moved between the two runs on the same image**: the first
+  run measured a burst of 77k to 99k events/s and a paced p99 of 6 to 7 ms,
+  this run 128k to 188k events/s and a paced p99 of 95 ms. The runner's
+  data disk (`D:`) varies from run to run, so single-run burst and p99
+  figures are not budget material. The p50 (3.3 ms) is stable. Decision 4
+  ("100k/s burst not met") is therefore *inconclusive on x64*: met in one run,
+  not in the other; ARM64 reaches 60k to 116k. #52 keeps the ring sized for
+  the worse case, and the budget row stays `nightly-trend` rather than
+  gating. A 50 ms p99 is only safe with the commit off the capture thread
+  (it is, decision 1) and a ring that rides out a 100 ms stall.
+- Memory, size and decision 6 are identical on both architectures
+  (bytes per event are equal to the digit).
+- The speed flags are again no gain on either architecture (burst and query
+  cells within noise), decision 7 stands.
+- Defender: the x64 image has it off; on ARM64 it is on and makes no
+  difference to the stalls, so the owner-PC run is for the NVMe numbers
+  rather than for Defender.
+
 ## Open items
 
-- ARM64 (Defender on) numbers: the same workflow, to be added here.
 - The owner run on the Win11 PC (NVMe, Defender on and excluded), HDD, and a
   cold-cache open: `scripts/owner/store-bench.ps1` (follow-up).
 - Stall of a size-triggered `PASSIVE` checkpoint, replay of the #25 corpus for
