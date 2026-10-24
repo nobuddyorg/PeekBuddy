@@ -1,0 +1,38 @@
+---
+source: crates/peekbuddy-core/src/filter/presets.rs
+expression: "preset.rules(Scope::Global)"
+---
+[
+    Rule {
+        scope: Global,
+        pattern: Glob(
+            "~$*",
+        ),
+        polarity: Exclude,
+        action: HideInView,
+    },
+    Rule {
+        scope: Global,
+        pattern: Glob(
+            "*.tmp",
+        ),
+        polarity: Exclude,
+        action: HideInView,
+    },
+    Rule {
+        scope: Global,
+        pattern: Glob(
+            "*.swp",
+        ),
+        polarity: Exclude,
+        action: HideInView,
+    },
+    Rule {
+        scope: Global,
+        pattern: Glob(
+            ".~lock.*#",
+        ),
+        polarity: Exclude,
+        action: HideInView,
+    },
+]

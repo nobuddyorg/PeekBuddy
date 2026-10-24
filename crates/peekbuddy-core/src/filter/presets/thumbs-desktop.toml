@@ -1,0 +1,9 @@
+version = 1
+name = "thumbs-desktop"
+title = "Thumbnail caches and folder settings"
+
+[[rule]]
+glob = "Thumbs.db"
+
+[[rule]]
+glob = "desktop.ini"

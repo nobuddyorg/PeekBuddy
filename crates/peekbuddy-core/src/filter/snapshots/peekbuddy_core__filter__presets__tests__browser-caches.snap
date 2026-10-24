@@ -1,0 +1,38 @@
+---
+source: crates/peekbuddy-core/src/filter/presets.rs
+expression: "preset.rules(Scope::Global)"
+---
+[
+    Rule {
+        scope: Global,
+        pattern: Glob(
+            "Cache/",
+        ),
+        polarity: Exclude,
+        action: HideInView,
+    },
+    Rule {
+        scope: Global,
+        pattern: Glob(
+            "Code Cache/",
+        ),
+        polarity: Exclude,
+        action: HideInView,
+    },
+    Rule {
+        scope: Global,
+        pattern: Glob(
+            "GPUCache/",
+        ),
+        polarity: Exclude,
+        action: HideInView,
+    },
+    Rule {
+        scope: Global,
+        pattern: Glob(
+            "cache2/",
+        ),
+        polarity: Exclude,
+        action: HideInView,
+    },
+]

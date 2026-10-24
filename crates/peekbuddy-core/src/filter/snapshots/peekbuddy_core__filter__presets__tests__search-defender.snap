@@ -1,0 +1,46 @@
+---
+source: crates/peekbuddy-core/src/filter/presets.rs
+expression: "preset.rules(Scope::Global)"
+---
+[
+    Rule {
+        scope: Global,
+        pattern: Glob(
+            "Windows.edb",
+        ),
+        polarity: Exclude,
+        action: HideInView,
+    },
+    Rule {
+        scope: Global,
+        pattern: Glob(
+            "tmp.edb",
+        ),
+        polarity: Exclude,
+        action: HideInView,
+    },
+    Rule {
+        scope: Global,
+        pattern: Glob(
+            "edb.chk",
+        ),
+        polarity: Exclude,
+        action: HideInView,
+    },
+    Rule {
+        scope: Global,
+        pattern: Glob(
+            "edb*.jrs",
+        ),
+        polarity: Exclude,
+        action: HideInView,
+    },
+    Rule {
+        scope: Global,
+        pattern: Glob(
+            "Windows Defender/Scans/",
+        ),
+        polarity: Exclude,
+        action: HideInView,
+    },
+]

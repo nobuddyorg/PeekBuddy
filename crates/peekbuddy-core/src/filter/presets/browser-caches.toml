@@ -1,0 +1,18 @@
+version = 1
+name = "browser-caches"
+title = "Browser caches"
+
+# Chromium-based browsers and Firefox. Best effort: the folder names are the
+# usual ones, not a guarantee.
+
+[[rule]]
+glob = "Cache/"
+
+[[rule]]
+glob = "Code Cache/"
+
+[[rule]]
+glob = "GPUCache/"
+
+[[rule]]
+glob = "cache2/"

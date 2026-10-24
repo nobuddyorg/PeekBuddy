@@ -1,0 +1,21 @@
+version = 1
+name = "search-defender"
+title = "Windows Search and Defender churn"
+
+# Best effort: the usual index and scan folders. To be checked against the
+# edge-case lab fixtures (#36).
+
+[[rule]]
+glob = "Windows.edb"
+
+[[rule]]
+glob = "tmp.edb"
+
+[[rule]]
+glob = "edb.chk"
+
+[[rule]]
+glob = "edb*.jrs"
+
+[[rule]]
+glob = "Windows Defender/Scans/"

@@ -1,0 +1,16 @@
+---
+source: crates/peekbuddy-core/src/filter/presets.rs
+expression: "preset.rules(Scope::Global)"
+---
+[
+    Rule {
+        scope: Global,
+        pattern: Flags(
+            Flags(
+                1,
+            ),
+        ),
+        polarity: Exclude,
+        action: HideInView,
+    },
+]

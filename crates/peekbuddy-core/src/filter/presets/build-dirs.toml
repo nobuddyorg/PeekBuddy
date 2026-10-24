@@ -1,0 +1,12 @@
+version = 1
+name = "build-dirs"
+title = "Dependency and build output folders"
+
+[[rule]]
+glob = "node_modules/"
+
+[[rule]]
+glob = "target/"
+
+[[rule]]
+glob = "build/"
