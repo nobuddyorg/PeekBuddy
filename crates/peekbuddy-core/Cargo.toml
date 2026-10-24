@@ -18,6 +18,7 @@ toml.workspace = true
 insta.workspace = true
 peekbuddy-alloc.workspace = true
 proptest.workspace = true
+proptest-state-machine.workspace = true
 rstest.workspace = true
 
 [lints]

@@ -1,0 +1,5 @@
+---
+source: crates/peekbuddy-core/src/derive/tests.rs
+expression: "render(&run(Config::default(), &rows).0)"
+---
+Saved [1, 2, 3, 4, 5, 6, 7, 8, 9] report.docx (raw events: 9)

@@ -1,0 +1,5 @@
+---
+source: crates/peekbuddy-core/src/derive/tests.rs
+expression: "render(&run(compact(), &rows).0)"
+---
+Coalesced [1, 2, 3] notes.txt (raw events: 3)
