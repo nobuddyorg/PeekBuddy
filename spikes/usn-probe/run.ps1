@@ -17,6 +17,9 @@ $probe = 'C:\usn-probe\bin\usn-probe.exe'
 icacls 'C:\usn-probe' /grant 'Everyone:(OI)(CI)RX' | Out-Null
 icacls $OutDir /grant 'Everyone:(OI)(CI)M' | Out-Null
 
+$os = Get-CimInstance Win32_OperatingSystem
+$osLine = [ordered]@{ spike = 'usn'; label = $Label; cell = 'os'; caption = $os.Caption; version = $os.Version; build = $os.BuildNumber; arch = $os.OSArchitecture; cpus = [Environment]::ProcessorCount } | ConvertTo-Json -Compress
+$osLine | Tee-Object -FilePath (Join-Path $OutDir "$Label-os.jsonl")
 net user $userName $password /add /y | Out-Null
 net localgroup Users $userName /add 2>$null | Out-Null
 "standard user: $((net user $userName | Select-String 'Local Group Memberships').ToString().Trim())"
