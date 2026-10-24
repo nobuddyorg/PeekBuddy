@@ -93,6 +93,47 @@ pub fn has_short_name(short_path: &[u16], long: &str) -> bool {
     !name.iter().copied().eq(long.encode_utf16())
 }
 
+/// How `OpenFileById` wants a file id (#39).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FileIdKind {
+    /// A 64-bit id (`FileIdType`), as NTFS reports it.
+    Narrow(i64),
+    /// A 128-bit id (`ExtendedFileIdType`), as `ReFS` reports it.
+    Extended([u8; 16]),
+}
+
+/// The descriptor kind for a widened file id: ids that fit a positive `i64`
+/// are narrow, everything else is passed as the full 128 bits.
+#[must_use]
+pub fn file_id_kind(id: u128) -> FileIdKind {
+    i64::try_from(id).map_or_else(
+        |_| FileIdKind::Extended(id.to_le_bytes()),
+        FileIdKind::Narrow,
+    )
+}
+
+/// `FILE_CS_FLAG_CASE_SENSITIVE_DIR`.
+const FILE_CS_FLAG_CASE_SENSITIVE_DIR: u32 = 1;
+
+/// The case rule for the `Flags` of `FILE_CASE_SENSITIVE_INFO`.
+#[must_use]
+pub fn case_mode_from_flags(flags: u32) -> peekbuddy_core::name::CaseMode {
+    if flags & FILE_CS_FLAG_CASE_SENSITIVE_DIR == 0 {
+        peekbuddy_core::name::CaseMode::Insensitive
+    } else {
+        peekbuddy_core::name::CaseMode::Sensitive
+    }
+}
+
+/// Whether a failed case-sensitivity query only means that the volume has no
+/// per-directory case sensitivity (`ERROR_INVALID_FUNCTION`,
+/// `ERROR_NOT_SUPPORTED` or `ERROR_INVALID_PARAMETER`): such a directory is
+/// case-insensitive.
+#[must_use]
+pub const fn means_no_case_sensitivity(os_error: i32) -> bool {
+    matches!(os_error, 1 | 50 | 87)
+}
+
 /// The junction names for an absolute target: the NT substitute name
 /// (`\??\` + path) and the print name (the path without any `\\?\`).
 #[must_use]
@@ -113,9 +154,12 @@ pub fn junction_names(absolute_target: &[u16]) -> (Vec<u16>, Vec<u16>) {
     reason = "tests index buffers of known size; a panic is a test failure"
 )]
 mod tests {
+    use peekbuddy_core::name::CaseMode;
+
     use super::{
-        ATTRIBUTE_ARCHIVE, ATTRIBUTE_NORMAL, IO_REPARSE_TAG_MOUNT_POINT, has_short_name,
-        junction_names, mount_point_buffer, toggled_archive, verbatim,
+        ATTRIBUTE_ARCHIVE, ATTRIBUTE_NORMAL, FileIdKind, IO_REPARSE_TAG_MOUNT_POINT,
+        case_mode_from_flags, file_id_kind, has_short_name, junction_names,
+        means_no_case_sensitivity, mount_point_buffer, toggled_archive, verbatim,
     };
 
     fn w(text: &str) -> Vec<u16> {
@@ -208,5 +252,34 @@ mod tests {
             junction_names(&w(r"\\?\C:\t\d1")),
             (w(r"\??\C:\t\d1"), w(r"C:\t\d1"))
         );
+    }
+
+    #[test]
+    fn file_ids_pick_the_narrow_form_when_they_fit() {
+        assert_eq!(file_id_kind(0), FileIdKind::Narrow(0));
+        assert_eq!(file_id_kind(5), FileIdKind::Narrow(5));
+        assert_eq!(
+            file_id_kind(u128::from(i64::MAX.unsigned_abs())),
+            FileIdKind::Narrow(i64::MAX)
+        );
+        let wide = 1_u128 << 63;
+        assert_eq!(file_id_kind(wide), FileIdKind::Extended(wide.to_le_bytes()));
+        let refs = (7_u128 << 64) | 9;
+        assert_eq!(file_id_kind(refs), FileIdKind::Extended(refs.to_le_bytes()));
+        assert_eq!(file_id_kind(u128::MAX), FileIdKind::Extended([0xFF; 16]));
+    }
+
+    #[test]
+    fn case_flags_and_unsupported_errors() {
+        assert_eq!(case_mode_from_flags(0), CaseMode::Insensitive);
+        assert_eq!(case_mode_from_flags(1), CaseMode::Sensitive);
+        assert_eq!(case_mode_from_flags(0xFFFF_FFFE), CaseMode::Insensitive);
+        assert_eq!(case_mode_from_flags(0xFFFF_FFFF), CaseMode::Sensitive);
+        for code in [1, 50, 87] {
+            assert!(means_no_case_sensitivity(code));
+        }
+        for code in [0, 2, 3, 5, 122] {
+            assert!(!means_no_case_sensitivity(code));
+        }
     }
 }

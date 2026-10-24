@@ -5,8 +5,13 @@ use std::os::windows::fs::MetadataExt as _;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
+use std::io::Write as _;
+use std::os::windows::ffi::{OsStrExt as _, OsStringExt as _};
+
+use peekbuddy_core::name::CaseMode;
 use peekbuddy_win::fs::{
-    ATTRIBUTE_ARCHIVE, create_junction, file_system_name, short_names_generated, toggle_archive,
+    ATTRIBUTE_ARCHIVE, case_mode, create_junction, file_id, file_system_name, open_directory,
+    resolve_long_name, short_names_generated, toggle_archive,
 };
 use peekbuddy_win::timer::HighResTimer;
 
@@ -129,4 +134,91 @@ fn the_high_resolution_timer_sleeps_about_as_asked() {
     assert!(elapsed >= Duration::from_millis(9), "{elapsed:?}");
     // Not the 15.6 ms default tick per sleep.
     assert!(elapsed < Duration::from_millis(70), "{elapsed:?}");
+}
+
+/// Resolves `path` through its file id on the volume of `dir`.
+fn resolve(dir: &Path, path: &Path) -> std::io::Result<Vec<u16>> {
+    let hint = open_directory(dir)?;
+    let mut out = vec![0_u16; 1024];
+    let len = resolve_long_name(&hint, file_id(path)?, &mut out)?;
+    out.truncate(len);
+    Ok(out)
+}
+
+#[test]
+fn a_file_id_resolves_to_the_long_name() {
+    let dir = Dir::new("resolve").unwrap();
+    let path = dir.path().join("PeekBuddy resolution probe.txt");
+    std::fs::write(&path, b"x").unwrap();
+    let resolved = String::from_utf16(&resolve(dir.path(), &path).unwrap()).unwrap();
+    assert!(resolved.starts_with('\\'), "volume-relative: {resolved}");
+    assert!(
+        resolved.ends_with("\\PeekBuddy resolution probe.txt"),
+        "{resolved}"
+    );
+}
+
+#[test]
+fn a_lone_surrogate_name_survives_resolution_exactly() {
+    let dir = Dir::new("surrogate").unwrap();
+    let units: Vec<u16> = "lone-"
+        .encode_utf16()
+        .chain([0xD800])
+        .chain("-end.txt".encode_utf16())
+        .collect();
+    let path = dir.path().join(std::ffi::OsString::from_wide(&units));
+    std::fs::write(&path, b"x").unwrap();
+    let resolved = resolve(dir.path(), &path).unwrap();
+    assert!(resolved.ends_with(&units), "{resolved:04X?}");
+    // The directory listing carries the same exact units.
+    let listed: Vec<Vec<u16>> = std::fs::read_dir(dir.path())
+        .unwrap()
+        .map(|entry| entry.unwrap().file_name().encode_wide().collect())
+        .collect();
+    assert_eq!(listed, vec![units]);
+}
+
+#[test]
+fn a_deleted_file_does_not_resolve() {
+    let dir = Dir::new("gone").unwrap();
+    let path = dir.path().join("gone.txt");
+    std::fs::write(&path, b"x").unwrap();
+    let id = file_id(&path).unwrap();
+    std::fs::remove_file(&path).unwrap();
+    let hint = open_directory(dir.path()).unwrap();
+    let mut out = vec![0_u16; 1024];
+    assert!(resolve_long_name(&hint, id, &mut out).is_err());
+}
+
+#[test]
+fn a_small_buffer_reports_insufficient_buffer() {
+    let dir = Dir::new("small").unwrap();
+    let path = dir.path().join("PeekBuddy small buffer probe.txt");
+    std::fs::write(&path, b"x").unwrap();
+    let hint = open_directory(dir.path()).unwrap();
+    let mut out = [0_u16; 4];
+    let error = resolve_long_name(&hint, file_id(&path).unwrap(), &mut out).unwrap_err();
+    assert_eq!(error.raw_os_error(), Some(122));
+}
+
+#[test]
+fn directories_are_case_insensitive_unless_flagged() {
+    let dir = Dir::new("case").unwrap();
+    assert_eq!(case_mode(dir.path()).unwrap(), CaseMode::Insensitive);
+    let status = std::process::Command::new("fsutil.exe")
+        .args(["file", "setCaseSensitiveInfo"])
+        .arg(dir.path())
+        .arg("enable")
+        .output();
+    match status {
+        Ok(output) if output.status.success() => {
+            assert_eq!(case_mode(dir.path()).unwrap(), CaseMode::Sensitive);
+        }
+        other => {
+            let _ = writeln!(
+                std::io::stderr(),
+                "skipped: fsutil could not enable case sensitivity: {other:?}"
+            );
+        }
+    }
 }
