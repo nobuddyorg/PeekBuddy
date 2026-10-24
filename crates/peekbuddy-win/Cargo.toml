@@ -30,7 +30,11 @@ windows-sys = { workspace = true, features = [
 peekbuddy-alloc = { workspace = true }
 
 [target.'cfg(windows)'.dev-dependencies]
-windows-sys = { workspace = true, features = ["Win32_Graphics_Gdi"] }
+proptest = { workspace = true }
+windows-sys = { workspace = true, features = [
+  "Win32_Globalization",
+  "Win32_Graphics_Gdi",
+] }
 
 [[test]]
 name = "alloc_perf"

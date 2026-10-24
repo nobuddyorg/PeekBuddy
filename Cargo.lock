@@ -516,6 +516,7 @@ name = "peekbuddy-core"
 version = "0.0.0"
 dependencies = [
  "proptest",
+ "serde_json",
 ]
 
 [[package]]
@@ -547,6 +548,7 @@ version = "0.0.0"
 dependencies = [
  "peekbuddy-alloc",
  "peekbuddy-core",
+ "proptest",
  "tracelogging",
  "windows-sys",
 ]
