@@ -1,0 +1,39 @@
+{"arch":"aarch64","label":"windows-11-vs2026-arm/ntfs","os_build":26200,"qpc_freq":10000000,"rdcw_class":"Full","rep":0,"root":"P:\\fslab\\N3-0","scenario":"N3","settle_s":3,"src":"header","volume":"P:"}
+{"error":"The volume change journal is not active. (os error 1179)","src":"error","what":"usn query"}
+{"src":"note","value":"exit Some(0): Case sensitive attribute on directory P:\\fslab\\N3-0\\cs is enabled.","what":"fsutil file setCaseSensitiveInfo P:\\fslab\\N3-0\\cs enable"}
+{"src":"note","value":true,"what":"second name created"}
+{"label":"scenario start","src":"op","t":8341181156}
+{"action":"Added","allocated_length":0,"attributes":16,"file_id":1970324836974632,"file_size":0,"name":"cs","name_flags":3,"name_u16":[99,115],"parent_file_id":1970324836974631,"reparse_tag":0,"src":"rdcw","t":8341183582}
+{"label":"enable per-directory case sensitivity","src":"op","t":8341184483}
+{"label":"create two names differing only by case","src":"op","t":8344432056}
+{"action":"Added","allocated_length":0,"attributes":32,"file_id":1125899906842665,"file_size":0,"name":"cs\\file.txt","name_flags":3,"name_u16":[99,115,92,102,105,108,101,46,116,120,116],"parent_file_id":1970324836974632,"reparse_tag":0,"src":"rdcw","t":8344434482}
+{"action":"Modified","allocated_length":8,"attributes":32,"file_id":1125899906842665,"file_size":5,"name":"cs\\file.txt","name_flags":3,"name_u16":[99,115,92,102,105,108,101,46,116,120,116],"parent_file_id":1970324836974632,"reparse_tag":0,"src":"rdcw","t":8344436943}
+{"action":"Added","allocated_length":0,"attributes":32,"file_id":281474976710698,"file_size":0,"name":"cs\\FILE.txt","name_flags":3,"name_u16":[99,115,92,70,73,76,69,46,116,120,116],"parent_file_id":1970324836974632,"reparse_tag":0,"src":"rdcw","t":8344437300}
+{"error":null,"label":"scenario end","src":"op","t":8344439068}
+{"action":"Modified","allocated_length":8,"attributes":32,"file_id":281474976710698,"file_size":5,"name":"cs\\FILE.txt","name_flags":3,"name_u16":[99,115,92,70,73,76,69,46,116,120,116],"parent_file_id":1970324836974632,"reparse_tag":0,"src":"rdcw","t":8344439272}
+{"arch":"aarch64","label":"windows-11-vs2026-arm/ntfs","os_build":26200,"qpc_freq":10000000,"rdcw_class":"Full","rep":1,"root":"P:\\fslab\\N3-1","scenario":"N3","settle_s":3,"src":"header","volume":"P:"}
+{"error":"The volume change journal is not active. (os error 1179)","src":"error","what":"usn query"}
+{"src":"note","value":"exit Some(0): Case sensitive attribute on directory P:\\fslab\\N3-1\\cs is enabled.","what":"fsutil file setCaseSensitiveInfo P:\\fslab\\N3-1\\cs enable"}
+{"src":"note","value":true,"what":"second name created"}
+{"label":"scenario start","src":"op","t":8389663037}
+{"action":"Added","allocated_length":0,"attributes":16,"file_id":2251799813685288,"file_size":0,"name":"cs","name_flags":3,"name_u16":[99,115],"parent_file_id":2251799813685287,"reparse_tag":0,"src":"rdcw","t":8389665356}
+{"label":"enable per-directory case sensitivity","src":"op","t":8389666013}
+{"label":"create two names differing only by case","src":"op","t":8392825133}
+{"action":"Added","allocated_length":0,"attributes":32,"file_id":1407374883553321,"file_size":0,"name":"cs\\file.txt","name_flags":3,"name_u16":[99,115,92,102,105,108,101,46,116,120,116],"parent_file_id":2251799813685288,"reparse_tag":0,"src":"rdcw","t":8392828415}
+{"action":"Modified","allocated_length":8,"attributes":32,"file_id":1407374883553321,"file_size":5,"name":"cs\\file.txt","name_flags":3,"name_u16":[99,115,92,102,105,108,101,46,116,120,116],"parent_file_id":2251799813685288,"reparse_tag":0,"src":"rdcw","t":8392829669}
+{"action":"Added","allocated_length":0,"attributes":32,"file_id":562949953421354,"file_size":0,"name":"cs\\FILE.txt","name_flags":3,"name_u16":[99,115,92,70,73,76,69,46,116,120,116],"parent_file_id":2251799813685288,"reparse_tag":0,"src":"rdcw","t":8392830793}
+{"action":"Modified","allocated_length":8,"attributes":32,"file_id":562949953421354,"file_size":5,"name":"cs\\FILE.txt","name_flags":3,"name_u16":[99,115,92,70,73,76,69,46,116,120,116],"parent_file_id":2251799813685288,"reparse_tag":0,"src":"rdcw","t":8392833012}
+{"error":null,"label":"scenario end","src":"op","t":8392833041}
+{"arch":"aarch64","label":"windows-11-vs2026-arm/ntfs","os_build":26200,"qpc_freq":10000000,"rdcw_class":"Full","rep":2,"root":"P:\\fslab\\N3-2","scenario":"N3","settle_s":3,"src":"header","volume":"P:"}
+{"error":"The volume change journal is not active. (os error 1179)","src":"error","what":"usn query"}
+{"src":"note","value":"exit Some(0): Case sensitive attribute on directory P:\\fslab\\N3-2\\cs is enabled.","what":"fsutil file setCaseSensitiveInfo P:\\fslab\\N3-2\\cs enable"}
+{"src":"note","value":true,"what":"second name created"}
+{"label":"scenario start","src":"op","t":8438081445}
+{"action":"Added","allocated_length":0,"attributes":16,"file_id":2533274790395944,"file_size":0,"name":"cs","name_flags":3,"name_u16":[99,115],"parent_file_id":2533274790395943,"reparse_tag":0,"src":"rdcw","t":8438083718}
+{"label":"enable per-directory case sensitivity","src":"op","t":8438084397}
+{"label":"create two names differing only by case","src":"op","t":8441249218}
+{"action":"Added","allocated_length":0,"attributes":32,"file_id":1688849860263977,"file_size":0,"name":"cs\\file.txt","name_flags":3,"name_u16":[99,115,92,102,105,108,101,46,116,120,116],"parent_file_id":2533274790395944,"reparse_tag":0,"src":"rdcw","t":8441251409}
+{"action":"Modified","allocated_length":8,"attributes":32,"file_id":1688849860263977,"file_size":5,"name":"cs\\file.txt","name_flags":3,"name_u16":[99,115,92,102,105,108,101,46,116,120,116],"parent_file_id":2533274790395944,"reparse_tag":0,"src":"rdcw","t":8441254124}
+{"action":"Added","allocated_length":0,"attributes":32,"file_id":844424930132010,"file_size":0,"name":"cs\\FILE.txt","name_flags":3,"name_u16":[99,115,92,70,73,76,69,46,116,120,116],"parent_file_id":2533274790395944,"reparse_tag":0,"src":"rdcw","t":8441254564}
+{"error":null,"label":"scenario end","src":"op","t":8441255608}
+{"action":"Modified","allocated_length":8,"attributes":32,"file_id":844424930132010,"file_size":5,"name":"cs\\FILE.txt","name_flags":3,"name_u16":[99,115,92,70,73,76,69,46,116,120,116],"parent_file_id":2533274790395944,"reparse_tag":0,"src":"rdcw","t":8441255649}

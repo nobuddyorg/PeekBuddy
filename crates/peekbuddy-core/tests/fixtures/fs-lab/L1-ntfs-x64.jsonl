@@ -1,0 +1,17 @@
+{"src":"header","scenario":"L1","fs":"ntfs","arch":"x86_64","os_build":26100,"rdcw_class":"Full","qpc_freq":10000000}
+{"src":"op","label":"scenario start","t":0}
+{"src":"rdcw","t":3259,"action":"Added","name_u16":[111,114,105,103,46,116,120,116],"attributes":32,"reparse_tag":0,"file_id":3659174697238568,"parent_file_id":3659174697238567,"name_flags":3,"file_size":0,"allocated_length":0}
+{"src":"rdcw","t":4656,"action":"Modified","name_u16":[111,114,105,103,46,116,120,116],"attributes":32,"reparse_tag":0,"file_id":3659174697238568,"parent_file_id":3659174697238567,"name_flags":3,"file_size":4,"allocated_length":8}
+{"src":"op","label":"create hard link","t":3008707}
+{"src":"rdcw","t":3010613,"action":"Added","name_u16":[108,105,110,107,46,116,120,116],"attributes":32,"reparse_tag":0,"file_id":3659174697238568,"parent_file_id":3659174697238567,"name_flags":128,"file_size":4,"allocated_length":8}
+{"src":"op","label":"write through the link","t":6012948}
+{"src":"rdcw","t":6015558,"action":"Modified","name_u16":[108,105,110,107,46,116,120,116],"attributes":32,"reparse_tag":0,"file_id":3659174697238568,"parent_file_id":3659174697238567,"name_flags":0,"file_size":0,"allocated_length":0}
+{"src":"rdcw","t":6016222,"action":"Modified","name_u16":[108,105,110,107,46,116,120,116],"attributes":32,"reparse_tag":0,"file_id":3659174697238568,"parent_file_id":3659174697238567,"name_flags":0,"file_size":9,"allocated_length":16}
+{"src":"op","label":"write through the original","t":9020750}
+{"src":"rdcw","t":9024079,"action":"Modified","name_u16":[111,114,105,103,46,116,120,116],"attributes":32,"reparse_tag":0,"file_id":3659174697238568,"parent_file_id":3659174697238567,"name_flags":3,"file_size":0,"allocated_length":0}
+{"src":"rdcw","t":9024934,"action":"Modified","name_u16":[111,114,105,103,46,116,120,116],"attributes":32,"reparse_tag":0,"file_id":3659174697238568,"parent_file_id":3659174697238567,"name_flags":3,"file_size":14,"allocated_length":16}
+{"src":"op","label":"delete the link","t":12028959}
+{"src":"rdcw","t":12031071,"action":"Removed","name_u16":[108,105,110,107,46,116,120,116],"attributes":32,"reparse_tag":0,"file_id":3659174697238568,"parent_file_id":3659174697238567,"name_flags":0,"file_size":14,"allocated_length":16}
+{"src":"op","label":"delete the original","t":12031193}
+{"src":"rdcw","t":12032363,"action":"Removed","name_u16":[111,114,105,103,46,116,120,116],"attributes":32,"reparse_tag":0,"file_id":3659174697238568,"parent_file_id":3659174697238567,"name_flags":3,"file_size":14,"allocated_length":16}
+{"src":"op","label":"scenario end","t":12032714}

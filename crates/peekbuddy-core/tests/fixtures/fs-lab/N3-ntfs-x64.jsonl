@@ -1,0 +1,11 @@
+{"src":"header","scenario":"N3","fs":"ntfs","arch":"x86_64","os_build":26100,"rdcw_class":"Full","qpc_freq":10000000}
+{"src":"op","label":"scenario start","t":0}
+{"src":"rdcw","t":2780,"action":"Added","name_u16":[99,115],"attributes":16,"reparse_tag":0,"file_id":1970324836974632,"parent_file_id":1970324836974631,"name_flags":3,"file_size":0,"allocated_length":0}
+{"src":"op","label":"enable per-directory case sensitivity","t":3087}
+{"src":"op","label":"create two names differing only by case","t":3126744}
+{"src":"rdcw","t":3129413,"action":"Added","name_u16":[99,115,92,102,105,108,101,46,116,120,116],"attributes":32,"reparse_tag":0,"file_id":1125899906842665,"parent_file_id":1970324836974632,"name_flags":3,"file_size":0,"allocated_length":0}
+{"src":"rdcw","t":3130763,"action":"Modified","name_u16":[99,115,92,102,105,108,101,46,116,120,116],"attributes":32,"reparse_tag":0,"file_id":1125899906842665,"parent_file_id":1970324836974632,"name_flags":3,"file_size":5,"allocated_length":8}
+{"src":"rdcw","t":3131653,"action":"Modified","name_u16":[99,115],"attributes":16,"reparse_tag":0,"file_id":1970324836974632,"parent_file_id":1970324836974631,"name_flags":3,"file_size":0,"allocated_length":0}
+{"src":"rdcw","t":3132276,"action":"Added","name_u16":[99,115,92,70,73,76,69,46,116,120,116],"attributes":32,"reparse_tag":0,"file_id":281474976710698,"parent_file_id":1970324836974632,"name_flags":3,"file_size":0,"allocated_length":0}
+{"src":"rdcw","t":3133266,"action":"Modified","name_u16":[99,115,92,70,73,76,69,46,116,120,116],"attributes":32,"reparse_tag":0,"file_id":281474976710698,"parent_file_id":1970324836974632,"name_flags":3,"file_size":5,"allocated_length":8}
+{"src":"op","label":"scenario end","t":3133324}

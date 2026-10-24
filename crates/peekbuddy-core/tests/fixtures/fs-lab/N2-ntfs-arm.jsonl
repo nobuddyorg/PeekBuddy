@@ -1,0 +1,14 @@
+{"src":"header","scenario":"N2","fs":"ntfs","arch":"aarch64","os_build":26200,"rdcw_class":"Full","qpc_freq":10000000}
+{"src":"op","label":"scenario start","t":0}
+{"src":"rdcw","t":2428,"action":"Added","name_u16":[97,46,116,120,116],"attributes":32,"reparse_tag":0,"file_id":1125899906842664,"parent_file_id":1125899906842663,"name_flags":3,"file_size":0,"allocated_length":0}
+{"src":"rdcw","t":4443,"action":"Modified","name_u16":[97,46,116,120,116],"attributes":32,"reparse_tag":0,"file_id":1125899906842664,"parent_file_id":1125899906842663,"name_flags":3,"file_size":1,"allocated_length":8}
+{"src":"op","label":"case-only rename a.txt -> A.txt","t":3004894}
+{"src":"rdcw","t":3007709,"action":"Removed","name_u16":[97,46,116,120,116],"attributes":32,"reparse_tag":0,"file_id":1125899906842664,"parent_file_id":1125899906842663,"name_flags":128,"file_size":1,"allocated_length":8}
+{"src":"rdcw","t":3008414,"action":"RenamedOldName","name_u16":[97,46,116,120,116],"attributes":32,"reparse_tag":0,"file_id":1125899906842664,"parent_file_id":1125899906842663,"name_flags":128,"file_size":1,"allocated_length":8}
+{"src":"rdcw","t":3008414,"action":"RenamedNewName","name_u16":[65,46,116,120,116],"attributes":32,"reparse_tag":0,"file_id":1125899906842664,"parent_file_id":1125899906842663,"name_flags":128,"file_size":1,"allocated_length":8}
+{"src":"op","label":"case-only rename of a directory","t":6010790}
+{"src":"rdcw","t":6013113,"action":"Added","name_u16":[100,105,114],"attributes":16,"reparse_tag":0,"file_id":281474976710697,"parent_file_id":1125899906842663,"name_flags":3,"file_size":0,"allocated_length":0}
+{"src":"rdcw","t":9019583,"action":"Removed","name_u16":[100,105,114],"attributes":16,"reparse_tag":0,"file_id":281474976710697,"parent_file_id":1125899906842663,"name_flags":128,"file_size":0,"allocated_length":0}
+{"src":"rdcw","t":9020758,"action":"RenamedOldName","name_u16":[100,105,114],"attributes":16,"reparse_tag":0,"file_id":281474976710697,"parent_file_id":1125899906842663,"name_flags":128,"file_size":0,"allocated_length":0}
+{"src":"rdcw","t":9020758,"action":"RenamedNewName","name_u16":[68,73,82],"attributes":16,"reparse_tag":0,"file_id":281474976710697,"parent_file_id":1125899906842663,"name_flags":128,"file_size":0,"allocated_length":0}
+{"src":"op","label":"scenario end","t":9021180}

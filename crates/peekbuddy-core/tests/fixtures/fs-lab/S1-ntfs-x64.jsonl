@@ -1,0 +1,10 @@
+{"src":"header","scenario":"S1","fs":"ntfs","arch":"x86_64","os_build":26100,"rdcw_class":"Full","qpc_freq":10000000}
+{"src":"op","label":"scenario start","t":0}
+{"src":"rdcw","t":2983,"action":"Added","name_u16":[102,105,108,101,46,116,120,116],"attributes":32,"reparse_tag":0,"file_id":6192449487634472,"parent_file_id":7036874417766439,"name_flags":3,"file_size":0,"allocated_length":0}
+{"src":"rdcw","t":4494,"action":"Modified","name_u16":[102,105,108,101,46,116,120,116],"attributes":32,"reparse_tag":0,"file_id":6192449487634472,"parent_file_id":7036874417766439,"name_flags":3,"file_size":4,"allocated_length":8}
+{"src":"op","label":"create an alternate data stream","t":3007164}
+{"src":"rdcw","t":3011061,"action":"Modified","name_u16":[102,105,108,101,46,116,120,116],"attributes":32,"reparse_tag":0,"file_id":6192449487634472,"parent_file_id":7036874417766439,"name_flags":3,"file_size":4,"allocated_length":8}
+{"src":"op","label":"append to the stream","t":6014463}
+{"src":"rdcw","t":6016762,"action":"Modified","name_u16":[102,105,108,101,46,116,120,116],"attributes":32,"reparse_tag":0,"file_id":6192449487634472,"parent_file_id":7036874417766439,"name_flags":3,"file_size":4,"allocated_length":8}
+{"src":"op","label":"delete the stream (file stays)","t":9019423}
+{"src":"op","label":"scenario end","t":9022366}

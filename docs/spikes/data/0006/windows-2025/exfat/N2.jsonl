@@ -1,0 +1,21 @@
+{"arch":"x86_64","label":"windows-2025/exfat","os_build":26100,"qpc_freq":10000000,"rdcw_class":"Full","rep":0,"root":"R:\\fslab\\N2-0","scenario":"N2","settle_s":3,"src":"header","volume":"R:"}
+{"error":"Incorrect function. (os error 1)","src":"error","what":"ReadDirectoryChangesExW"}
+{"error":"Incorrect function. (os error 1)","src":"error","what":"usn query"}
+{"label":"scenario start","src":"op","t":15820811614}
+{"label":"case-only rename a.txt -> A.txt","src":"op","t":15823840189}
+{"label":"case-only rename of a directory","src":"op","t":15826846935}
+{"error":null,"label":"scenario end","src":"op","t":15829950397}
+{"arch":"x86_64","label":"windows-2025/exfat","os_build":26100,"qpc_freq":10000000,"rdcw_class":"Full","rep":1,"root":"R:\\fslab\\N2-1","scenario":"N2","settle_s":3,"src":"header","volume":"R:"}
+{"error":"Incorrect function. (os error 1)","src":"error","what":"ReadDirectoryChangesExW"}
+{"error":"Incorrect function. (os error 1)","src":"error","what":"usn query"}
+{"label":"scenario start","src":"op","t":15875134421}
+{"label":"case-only rename a.txt -> A.txt","src":"op","t":15878143174}
+{"label":"case-only rename of a directory","src":"op","t":15881147340}
+{"error":null,"label":"scenario end","src":"op","t":15884196270}
+{"arch":"x86_64","label":"windows-2025/exfat","os_build":26100,"qpc_freq":10000000,"rdcw_class":"Full","rep":2,"root":"R:\\fslab\\N2-2","scenario":"N2","settle_s":3,"src":"header","volume":"R:"}
+{"error":"Incorrect function. (os error 1)","src":"error","what":"ReadDirectoryChangesExW"}
+{"error":"Incorrect function. (os error 1)","src":"error","what":"usn query"}
+{"label":"scenario start","src":"op","t":15929302113}
+{"label":"case-only rename a.txt -> A.txt","src":"op","t":15932306567}
+{"label":"case-only rename of a directory","src":"op","t":15935313047}
+{"error":null,"label":"scenario end","src":"op","t":15938364566}

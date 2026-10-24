@@ -1,0 +1,14 @@
+{"src":"header","scenario":"N1","fs":"ntfs","arch":"x86_64","os_build":26100,"rdcw_class":"Full","qpc_freq":10000000}
+{"src":"op","label":"scenario start","t":0}
+{"src":"op","label":"create long name","t":540908}
+{"src":"rdcw","t":542943,"action":"Added","name_u16":[65,32,108,111,110,103,32,102,105,108,101,32,110,97,109,101,32,102,111,114,32,116,104,101,32,115,104,111,114,116,32,110,97,109,101,32,116,101,115,116,46,116,120,116],"attributes":32,"reparse_tag":0,"file_id":281474976710696,"parent_file_id":281474976710695,"name_flags":1,"file_size":0,"allocated_length":0}
+{"src":"rdcw","t":544124,"action":"Modified","name_u16":[65,32,108,111,110,103,32,102,105,108,101,32,110,97,109,101,32,102,111,114,32,116,104,101,32,115,104,111,114,116,32,110,97,109,101,32,116,101,115,116,46,116,120,116],"attributes":32,"reparse_tag":0,"file_id":281474976710696,"parent_file_id":281474976710695,"name_flags":1,"file_size":3,"allocated_length":8}
+{"src":"op","label":"write through the short name","t":3548812}
+{"src":"rdcw","t":3551459,"action":"Modified","name_u16":[65,76,79,78,71,70,126,49,46,84,88,84],"attributes":32,"reparse_tag":0,"file_id":281474976710696,"parent_file_id":281474976710695,"name_flags":2,"file_size":0,"allocated_length":0}
+{"src":"rdcw","t":3552146,"action":"Modified","name_u16":[65,76,79,78,71,70,126,49,46,84,88,84],"attributes":32,"reparse_tag":0,"file_id":281474976710696,"parent_file_id":281474976710695,"name_flags":2,"file_size":7,"allocated_length":8}
+{"src":"op","label":"rename through the short name","t":6553741}
+{"src":"rdcw","t":6556221,"action":"RenamedOldName","name_u16":[65,76,79,78,71,70,126,49,46,84,88,84],"attributes":32,"reparse_tag":0,"file_id":281474976710696,"parent_file_id":281474976710695,"name_flags":128,"file_size":7,"allocated_length":8}
+{"src":"rdcw","t":6556221,"action":"RenamedNewName","name_u16":[114,101,110,97,109,101,100,45,118,105,97,45,115,104,111,114,116,46,116,120,116],"attributes":32,"reparse_tag":0,"file_id":281474976710696,"parent_file_id":281474976710695,"name_flags":128,"file_size":7,"allocated_length":8}
+{"src":"op","label":"delete","t":9561216}
+{"src":"rdcw","t":9563861,"action":"Removed","name_u16":[114,101,110,97,109,101,100,45,118,105,97,45,115,104,111,114,116,46,116,120,116],"attributes":32,"reparse_tag":0,"file_id":281474976710696,"parent_file_id":281474976710695,"name_flags":1,"file_size":7,"allocated_length":8}
+{"src":"op","label":"scenario end","t":9564374}

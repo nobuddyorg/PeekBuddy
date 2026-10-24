@@ -1,0 +1,30 @@
+{"arch":"aarch64","label":"windows-11-vs2026-arm/refs","os_build":26200,"qpc_freq":10000000,"rdcw_class":"Full","rep":0,"root":"Q:\\fslab\\D1-0","scenario":"D1","settle_s":35,"src":"header","volume":"Q:"}
+{"error":"The volume change journal is not active. (os error 1179)","src":"error","what":"usn query"}
+{"error":"Incorrect function. (os error 1)","src":"error","what":"ReadDirectoryChangesExW"}
+{"src":"note","value":"ok","what":"duplicate extents"}
+{"label":"scenario start","src":"op","t":15098555185}
+{"label":"create a 16 MiB file","src":"op","t":15098555529}
+{"label":"fs::copy (CopyFile2, clones on ReFS where supported)","src":"op","t":15103616935}
+{"label":"explicit FSCTL_DUPLICATE_EXTENTS_TO_FILE","src":"op","t":15109509680}
+{"label":"write into the copy","src":"op","t":15114516804}
+{"error":null,"label":"scenario end","src":"op","t":15114521170}
+{"arch":"aarch64","label":"windows-11-vs2026-arm/refs","os_build":26200,"qpc_freq":10000000,"rdcw_class":"Full","rep":1,"root":"Q:\\fslab\\D1-1","scenario":"D1","settle_s":35,"src":"header","volume":"Q:"}
+{"error":"Incorrect function. (os error 1)","src":"error","what":"ReadDirectoryChangesExW"}
+{"error":"The volume change journal is not active. (os error 1179)","src":"error","what":"usn query"}
+{"src":"note","value":"ok","what":"duplicate extents"}
+{"label":"scenario start","src":"op","t":15479588978}
+{"label":"create a 16 MiB file","src":"op","t":15479589112}
+{"label":"fs::copy (CopyFile2, clones on ReFS where supported)","src":"op","t":15484643627}
+{"label":"explicit FSCTL_DUPLICATE_EXTENTS_TO_FILE","src":"op","t":15490492162}
+{"label":"write into the copy","src":"op","t":15495499029}
+{"error":null,"label":"scenario end","src":"op","t":15495503229}
+{"arch":"aarch64","label":"windows-11-vs2026-arm/refs","os_build":26200,"qpc_freq":10000000,"rdcw_class":"Full","rep":2,"root":"Q:\\fslab\\D1-2","scenario":"D1","settle_s":35,"src":"header","volume":"Q:"}
+{"error":"Incorrect function. (os error 1)","src":"error","what":"ReadDirectoryChangesExW"}
+{"error":"The volume change journal is not active. (os error 1179)","src":"error","what":"usn query"}
+{"src":"note","value":"ok","what":"duplicate extents"}
+{"label":"scenario start","src":"op","t":15860551876}
+{"label":"create a 16 MiB file","src":"op","t":15860552016}
+{"label":"fs::copy (CopyFile2, clones on ReFS where supported)","src":"op","t":15865610000}
+{"label":"explicit FSCTL_DUPLICATE_EXTENTS_TO_FILE","src":"op","t":15871438880}
+{"label":"write into the copy","src":"op","t":15876450108}
+{"error":null,"label":"scenario end","src":"op","t":15876453966}

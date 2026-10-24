@@ -1,0 +1,37 @@
+{"caption":"Microsoft Windows 11 Enterprise","ubr":9711,"version":"10.0.26200","kind":"env","label":"windows-11-vs2026-arm","arch":"ARM64"}
+{"ok":true,"fs":"ntfs","kind":"volume","log":"Microsoft DiskPart version 10.0.26100.1\r\n\r\nCopyright (C) Microsoft Corporation.\r\nOn computer: <runner>\r\n\r\n\r\n    0 percent completed\r\n  100 percent completed\r\n\r\n\r\nDiskPart successfully created the virtual disk file.\r\n\r\nDiskPart successfully selected the virtual disk file.\r\n\r\n  100 percent completed\r\n\r\n\r\nDiskPart successfully attached the virtual disk file.\r\n\r\nDiskPart succeeded in creating the specified partition.\r\n\r\n    0 percent completed\r\n    0 percent completed\r\n    0 percent completed\r\n    0 percent completed\r\n  100 percent completed\r\n\r\n\r\nDiskPart successfully formatted the volume.\r\n\r\nDiskPart successfully assigned the drive letter or mount point.","name":"ntfs"}
+{"ok":true,"fs":"refs","kind":"volume","log":"Microsoft DiskPart version 10.0.26100.1\r\n\r\nCopyright (C) Microsoft Corporation.\r\nOn computer: <runner>\r\n\r\n\r\n    0 percent completed\r\n  100 percent completed\r\n\r\n\r\nDiskPart successfully created the virtual disk file.\r\n\r\nDiskPart successfully selected the virtual disk file.\r\n\r\n  100 percent completed\r\n\r\n\r\nDiskPart successfully attached the virtual disk file.\r\n\r\nDiskPart succeeded in creating the specified partition.\r\n\r\n    0 percent completed\r\n    0 percent completed\r\n    0 percent completed\r\n    0 percent completed\r\n    0 percent completed\r\n    0 percent completed\r\n    0 percent completed\r\n  100 percent completed\r\n\r\n\r\nDiskPart successfully formatted the volume.\r\n\r\nDiskPart successfully assigned the drive letter or mount point.","name":"refs"}
+{"ok":true,"kind":"volume","name":"devdrive"}
+{"ok":true,"fs":"exfat","kind":"volume","log":"Microsoft DiskPart version 10.0.26100.1\r\n\r\nCopyright (C) Microsoft Corporation.\r\nOn computer: <runner>\r\n\r\n\r\n    0 percent completed\r\n  100 percent completed\r\n\r\n\r\nDiskPart successfully created the virtual disk file.\r\n\r\nDiskPart successfully selected the virtual disk file.\r\n\r\n  100 percent completed\r\n\r\n\r\nDiskPart successfully attached the virtual disk file.\r\n\r\nDiskPart succeeded in creating the specified partition.\r\n\r\n    0 percent completed\r\n  100 percent completed\r\n\r\n\r\nDiskPart successfully formatted the volume.\r\n\r\nDiskPart successfully assigned the drive letter or mount point.","name":"exfat"}
+{"ok":true,"fs":"fat32","kind":"volume","log":"Microsoft DiskPart version 10.0.26100.1\r\n\r\nCopyright (C) Microsoft Corporation.\r\nOn computer: <runner>\r\n\r\n\r\n    0 percent completed\r\n  100 percent completed\r\n\r\n\r\nDiskPart successfully created the virtual disk file.\r\n\r\nDiskPart successfully selected the virtual disk file.\r\n\r\n  100 percent completed\r\n\r\n\r\nDiskPart successfully attached the virtual disk file.\r\n\r\nDiskPart succeeded in creating the specified partition.\r\n\r\n    0 percent completed\r\n  100 percent completed\r\n\r\n\r\nDiskPart successfully formatted the volume.\r\n\r\nDiskPart successfully assigned the drive letter or mount point.","name":"fat32"}
+{"fs":"c","exit":0,"kind":"scenario","scenario":"N2","seconds":101.8,"lines":117}
+{"fs":"c","exit":0,"kind":"scenario","scenario":"N4","seconds":41.6,"lines":101}
+{"fs":"c","exit":0,"kind":"scenario","scenario":"L1","seconds":72.6,"lines":105}
+{"fs":"c","exit":0,"kind":"scenario","scenario":"L3","seconds":47.0,"lines":141}
+{"fs":"c","exit":0,"kind":"scenario","scenario":"S1","seconds":78.8,"lines":179}
+{"fs":"ntfs","exit":0,"kind":"scenario","scenario":"N1","seconds":16.5,"lines":54}
+{"fs":"ntfs","exit":0,"kind":"scenario","scenario":"N2","seconds":16.3,"lines":45}
+{"fs":"ntfs","exit":0,"kind":"scenario","scenario":"N3","seconds":14.6,"lines":39}
+{"fs":"ntfs","exit":0,"kind":"scenario","scenario":"N4","seconds":15.4,"lines":57}
+{"fs":"ntfs","exit":0,"kind":"scenario","scenario":"L1","seconds":17.2,"lines":54}
+{"fs":"ntfs","exit":0,"kind":"scenario","scenario":"L2","seconds":17.5,"lines":54}
+{"fs":"ntfs","exit":0,"kind":"scenario","scenario":"L3","seconds":18.1,"lines":72}
+{"fs":"ntfs","exit":0,"kind":"scenario","scenario":"L4","seconds":13.6,"lines":15}
+{"fs":"ntfs","exit":0,"kind":"scenario","scenario":"S1","seconds":16.4,"lines":33}
+{"fs":"refs","exit":0,"kind":"scenario","scenario":"N2","seconds":112.2,"lines":21}
+{"fs":"refs","exit":0,"kind":"scenario","scenario":"N4","seconds":111.3,"lines":30}
+{"fs":"refs","exit":0,"kind":"scenario","scenario":"L1","seconds":113.1,"lines":30}
+{"fs":"refs","exit":0,"kind":"scenario","scenario":"L3","seconds":114.0,"lines":36}
+{"fs":"refs","exit":0,"kind":"scenario","scenario":"S1","seconds":112.2,"lines":24}
+{"fs":"refs","exit":0,"kind":"scenario","scenario":"D1","seconds":114.3,"lines":30}
+{"fs":"devdrive","exit":0,"kind":"scenario","scenario":"N2","seconds":112.2,"lines":21}
+{"fs":"devdrive","exit":0,"kind":"scenario","scenario":"S1","seconds":112.2,"lines":24}
+{"fs":"devdrive","exit":0,"kind":"scenario","scenario":"D1","seconds":114.5,"lines":30}
+{"fs":"exfat","exit":0,"kind":"scenario","scenario":"N2","seconds":16.3,"lines":21}
+{"fs":"exfat","exit":0,"kind":"scenario","scenario":"N4","seconds":15.4,"lines":30}
+{"fs":"exfat","exit":0,"kind":"scenario","scenario":"S1","seconds":14.4,"lines":18}
+{"fs":"fat32","exit":0,"kind":"scenario","scenario":"N1","seconds":16.4,"lines":36}
+{"fs":"fat32","exit":0,"kind":"scenario","scenario":"N2","seconds":16.3,"lines":21}
+{"fs":"fat32","exit":0,"kind":"scenario","scenario":"N4","seconds":15.4,"lines":30}
+{"scenario":"B1","fs":"c","kind":"scenario","exit":0,"lines":78}
+{"scenario":"B1","fs":"ntfs","kind":"scenario","exit":0,"lines":6}

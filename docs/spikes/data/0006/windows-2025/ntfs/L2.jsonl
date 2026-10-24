@@ -1,0 +1,54 @@
+{"arch":"x86_64","label":"windows-2025/ntfs","os_build":26100,"qpc_freq":10000000,"rdcw_class":"Full","rep":0,"root":"P:\\fslab\\L2-0","scenario":"L2","settle_s":3,"src":"header","volume":"P:"}
+{"error":"The volume change journal is not active. (os error 1179)","src":"error","what":"usn query"}
+{"src":"note","value":"exit Some(0): Junction created for P:\\fslab\\L2-0\\junction <<===>> P:\\fslab\\L2-0-target","what":"cmd /c mklink /J P:\\fslab\\L2-0\\junction P:\\fslab\\L2-0-target"}
+{"src":"note","value":"exit Some(0): Junction created for P:\\fslab\\L2-0\\junction <<===>> P:\\fslab\\L2-0-target2","what":"cmd /c mklink /J P:\\fslab\\L2-0\\junction P:\\fslab\\L2-0-target2"}
+{"label":"scenario start","src":"op","t":5003520747}
+{"label":"create junction","src":"op","t":5003525046}
+{"action":"Added","allocated_length":0,"attributes":16,"file_id":1125899906842666,"file_size":0,"name":"junction","name_flags":3,"name_u16":[106,117,110,99,116,105,111,110],"parent_file_id":4503599627370535,"reparse_tag":0,"src":"rdcw","t":5003606539}
+{"action":"Modified","allocated_length":0,"attributes":1040,"file_id":1125899906842666,"file_size":0,"name":"junction","name_flags":3,"name_u16":[106,117,110,99,116,105,111,110],"parent_file_id":4503599627370535,"reparse_tag":2684354563,"src":"rdcw","t":5003607517}
+{"label":"create a file under the target through the junction","src":"op","t":5006627397}
+{"label":"create a file directly in the target","src":"op","t":5009635808}
+{"label":"retarget: remove the junction","src":"op","t":5012642210}
+{"action":"Removed","allocated_length":0,"attributes":1040,"file_id":1125899906842666,"file_size":0,"name":"junction","name_flags":3,"name_u16":[106,117,110,99,116,105,111,110],"parent_file_id":4503599627370535,"reparse_tag":2684354563,"src":"rdcw","t":5012645017}
+{"label":"retarget: create it again to the other target","src":"op","t":5012645341}
+{"action":"Added","allocated_length":0,"attributes":16,"file_id":1407374883553322,"file_size":0,"name":"junction","name_flags":3,"name_u16":[106,117,110,99,116,105,111,110],"parent_file_id":4503599627370535,"reparse_tag":0,"src":"rdcw","t":5012718059}
+{"action":"Modified","allocated_length":0,"attributes":1040,"file_id":1407374883553322,"file_size":0,"name":"junction","name_flags":3,"name_u16":[106,117,110,99,116,105,111,110],"parent_file_id":4503599627370535,"reparse_tag":2684354563,"src":"rdcw","t":5012719128}
+{"label":"delete the junction","src":"op","t":5015738722}
+{"action":"Removed","allocated_length":0,"attributes":1040,"file_id":1407374883553322,"file_size":0,"name":"junction","name_flags":3,"name_u16":[106,117,110,99,116,105,111,110],"parent_file_id":4503599627370535,"reparse_tag":2684354563,"src":"rdcw","t":5015740932}
+{"error":null,"label":"scenario end","src":"op","t":5015747209}
+{"arch":"x86_64","label":"windows-2025/ntfs","os_build":26100,"qpc_freq":10000000,"rdcw_class":"Full","rep":1,"root":"P:\\fslab\\L2-1","scenario":"L2","settle_s":3,"src":"header","volume":"P:"}
+{"error":"The volume change journal is not active. (os error 1179)","src":"error","what":"usn query"}
+{"src":"note","value":"exit Some(0): Junction created for P:\\fslab\\L2-1\\junction <<===>> P:\\fslab\\L2-1-target","what":"cmd /c mklink /J P:\\fslab\\L2-1\\junction P:\\fslab\\L2-1-target"}
+{"src":"note","value":"exit Some(0): Junction created for P:\\fslab\\L2-1\\junction <<===>> P:\\fslab\\L2-1-target2","what":"cmd /c mklink /J P:\\fslab\\L2-1\\junction P:\\fslab\\L2-1-target2"}
+{"label":"scenario start","src":"op","t":5061155590}
+{"label":"create junction","src":"op","t":5061161317}
+{"action":"Added","allocated_length":0,"attributes":16,"file_id":1688849860263978,"file_size":0,"name":"junction","name_flags":3,"name_u16":[106,117,110,99,116,105,111,110],"parent_file_id":4785074604081191,"reparse_tag":0,"src":"rdcw","t":5061252230}
+{"action":"Modified","allocated_length":0,"attributes":1040,"file_id":1688849860263978,"file_size":0,"name":"junction","name_flags":3,"name_u16":[106,117,110,99,116,105,111,110],"parent_file_id":4785074604081191,"reparse_tag":2684354563,"src":"rdcw","t":5061253188}
+{"label":"create a file under the target through the junction","src":"op","t":5064275981}
+{"label":"create a file directly in the target","src":"op","t":5067281795}
+{"label":"retarget: remove the junction","src":"op","t":5070288631}
+{"action":"Removed","allocated_length":0,"attributes":1040,"file_id":1688849860263978,"file_size":0,"name":"junction","name_flags":3,"name_u16":[106,117,110,99,116,105,111,110],"parent_file_id":4785074604081191,"reparse_tag":2684354563,"src":"rdcw","t":5070290251}
+{"label":"retarget: create it again to the other target","src":"op","t":5070290537}
+{"action":"Added","allocated_length":0,"attributes":16,"file_id":1970324836974634,"file_size":0,"name":"junction","name_flags":3,"name_u16":[106,117,110,99,116,105,111,110],"parent_file_id":4785074604081191,"reparse_tag":0,"src":"rdcw","t":5070360689}
+{"action":"Modified","allocated_length":0,"attributes":1040,"file_id":1970324836974634,"file_size":0,"name":"junction","name_flags":3,"name_u16":[106,117,110,99,116,105,111,110],"parent_file_id":4785074604081191,"reparse_tag":2684354563,"src":"rdcw","t":5070361587}
+{"label":"delete the junction","src":"op","t":5073379923}
+{"action":"Removed","allocated_length":0,"attributes":1040,"file_id":1970324836974634,"file_size":0,"name":"junction","name_flags":3,"name_u16":[106,117,110,99,116,105,111,110],"parent_file_id":4785074604081191,"reparse_tag":2684354563,"src":"rdcw","t":5073382535}
+{"error":null,"label":"scenario end","src":"op","t":5073388560}
+{"arch":"x86_64","label":"windows-2025/ntfs","os_build":26100,"qpc_freq":10000000,"rdcw_class":"Full","rep":2,"root":"P:\\fslab\\L2-2","scenario":"L2","settle_s":3,"src":"header","volume":"P:"}
+{"error":"The volume change journal is not active. (os error 1179)","src":"error","what":"usn query"}
+{"src":"note","value":"exit Some(0): Junction created for P:\\fslab\\L2-2\\junction <<===>> P:\\fslab\\L2-2-target","what":"cmd /c mklink /J P:\\fslab\\L2-2\\junction P:\\fslab\\L2-2-target"}
+{"src":"note","value":"exit Some(0): Junction created for P:\\fslab\\L2-2\\junction <<===>> P:\\fslab\\L2-2-target2","what":"cmd /c mklink /J P:\\fslab\\L2-2\\junction P:\\fslab\\L2-2-target2"}
+{"label":"scenario start","src":"op","t":5118914574}
+{"label":"create junction","src":"op","t":5118918089}
+{"action":"Added","allocated_length":0,"attributes":16,"file_id":2251799813685290,"file_size":0,"name":"junction","name_flags":3,"name_u16":[106,117,110,99,116,105,111,110],"parent_file_id":5066549580791847,"reparse_tag":0,"src":"rdcw","t":5118989062}
+{"action":"Modified","allocated_length":0,"attributes":1040,"file_id":2251799813685290,"file_size":0,"name":"junction","name_flags":3,"name_u16":[106,117,110,99,116,105,111,110],"parent_file_id":5066549580791847,"reparse_tag":2684354563,"src":"rdcw","t":5118989926}
+{"label":"create a file under the target through the junction","src":"op","t":5122008877}
+{"label":"create a file directly in the target","src":"op","t":5125016946}
+{"label":"retarget: remove the junction","src":"op","t":5128093694}
+{"action":"Removed","allocated_length":0,"attributes":1040,"file_id":2251799813685290,"file_size":0,"name":"junction","name_flags":3,"name_u16":[106,117,110,99,116,105,111,110],"parent_file_id":5066549580791847,"reparse_tag":2684354563,"src":"rdcw","t":5128095967}
+{"label":"retarget: create it again to the other target","src":"op","t":5128096274}
+{"action":"Added","allocated_length":0,"attributes":16,"file_id":2533274790395946,"file_size":0,"name":"junction","name_flags":3,"name_u16":[106,117,110,99,116,105,111,110],"parent_file_id":5066549580791847,"reparse_tag":0,"src":"rdcw","t":5128166159}
+{"action":"Modified","allocated_length":0,"attributes":1040,"file_id":2533274790395946,"file_size":0,"name":"junction","name_flags":3,"name_u16":[106,117,110,99,116,105,111,110],"parent_file_id":5066549580791847,"reparse_tag":2684354563,"src":"rdcw","t":5128167290}
+{"label":"delete the junction","src":"op","t":5131190056}
+{"action":"Removed","allocated_length":0,"attributes":1040,"file_id":2533274790395946,"file_size":0,"name":"junction","name_flags":3,"name_u16":[106,117,110,99,116,105,111,110],"parent_file_id":5066549580791847,"reparse_tag":2684354563,"src":"rdcw","t":5131192360}
+{"error":null,"label":"scenario end","src":"op","t":5131197720}

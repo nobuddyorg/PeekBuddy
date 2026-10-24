@@ -1,0 +1,18 @@
+{"arch":"aarch64","label":"windows-11-vs2026-arm/exfat","os_build":26200,"qpc_freq":10000000,"rdcw_class":"Full","rep":0,"root":"R:\\fslab\\S1-0","scenario":"S1","settle_s":3,"src":"header","volume":"R:"}
+{"error":"Incorrect function. (os error 1)","src":"error","what":"ReadDirectoryChangesExW"}
+{"error":"Incorrect function. (os error 1)","src":"error","what":"usn query"}
+{"label":"scenario start","src":"op","t":19947717848}
+{"label":"create an alternate data stream","src":"op","t":19950721824}
+{"error":"The filename, directory name, or volume label syntax is incorrect. (os error 123)","label":"scenario end","src":"op","t":19950722884}
+{"arch":"aarch64","label":"windows-11-vs2026-arm/exfat","os_build":26200,"qpc_freq":10000000,"rdcw_class":"Full","rep":1,"root":"R:\\fslab\\S1-1","scenario":"S1","settle_s":3,"src":"header","volume":"R:"}
+{"error":"Incorrect function. (os error 1)","src":"error","what":"ReadDirectoryChangesExW"}
+{"error":"Incorrect function. (os error 1)","src":"error","what":"usn query"}
+{"label":"scenario start","src":"op","t":19995826172}
+{"label":"create an alternate data stream","src":"op","t":19998832650}
+{"error":"The filename, directory name, or volume label syntax is incorrect. (os error 123)","label":"scenario end","src":"op","t":19998833812}
+{"arch":"aarch64","label":"windows-11-vs2026-arm/exfat","os_build":26200,"qpc_freq":10000000,"rdcw_class":"Full","rep":2,"root":"R:\\fslab\\S1-2","scenario":"S1","settle_s":3,"src":"header","volume":"R:"}
+{"error":"Incorrect function. (os error 1)","src":"error","what":"ReadDirectoryChangesExW"}
+{"error":"Incorrect function. (os error 1)","src":"error","what":"usn query"}
+{"label":"scenario start","src":"op","t":20043921316}
+{"label":"create an alternate data stream","src":"op","t":20046926651}
+{"error":"The filename, directory name, or volume label syntax is incorrect. (os error 123)","label":"scenario end","src":"op","t":20046927683}

@@ -1,0 +1,45 @@
+{"arch":"x86_64","label":"windows-2025/ntfs","os_build":26100,"qpc_freq":10000000,"rdcw_class":"Full","rep":0,"root":"P:\\fslab\\N2-0","scenario":"N2","settle_s":3,"src":"header","volume":"P:"}
+{"error":"The volume change journal is not active. (os error 1179)","src":"error","what":"usn query"}
+{"label":"scenario start","src":"op","t":4368663104}
+{"action":"Added","allocated_length":0,"attributes":32,"file_id":1125899906842664,"file_size":0,"name":"a.txt","name_flags":3,"name_u16":[97,46,116,120,116],"parent_file_id":1125899906842663,"reparse_tag":0,"src":"rdcw","t":4368665717}
+{"action":"Modified","allocated_length":8,"attributes":32,"file_id":1125899906842664,"file_size":1,"name":"a.txt","name_flags":3,"name_u16":[97,46,116,120,116],"parent_file_id":1125899906842663,"reparse_tag":0,"src":"rdcw","t":4368667323}
+{"label":"case-only rename a.txt -> A.txt","src":"op","t":4371672265}
+{"action":"Removed","allocated_length":8,"attributes":32,"file_id":1125899906842664,"file_size":1,"name":"a.txt","name_flags":128,"name_u16":[97,46,116,120,116],"parent_file_id":1125899906842663,"reparse_tag":0,"src":"rdcw","t":4371674415}
+{"action":"RenamedOldName","allocated_length":8,"attributes":32,"file_id":1125899906842664,"file_size":1,"name":"a.txt","name_flags":128,"name_u16":[97,46,116,120,116],"parent_file_id":1125899906842663,"reparse_tag":0,"src":"rdcw","t":4371675008}
+{"action":"RenamedNewName","allocated_length":8,"attributes":32,"file_id":1125899906842664,"file_size":1,"name":"A.txt","name_flags":128,"name_u16":[65,46,116,120,116],"parent_file_id":1125899906842663,"reparse_tag":0,"src":"rdcw","t":4371675008}
+{"label":"case-only rename of a directory","src":"op","t":4374678561}
+{"action":"Added","allocated_length":0,"attributes":16,"file_id":281474976710697,"file_size":0,"name":"dir","name_flags":3,"name_u16":[100,105,114],"parent_file_id":1125899906842663,"reparse_tag":0,"src":"rdcw","t":4374681025}
+{"action":"Removed","allocated_length":0,"attributes":16,"file_id":281474976710697,"file_size":0,"name":"dir","name_flags":128,"name_u16":[100,105,114],"parent_file_id":1125899906842663,"reparse_tag":0,"src":"rdcw","t":4377685327}
+{"action":"RenamedOldName","allocated_length":0,"attributes":16,"file_id":281474976710697,"file_size":0,"name":"dir","name_flags":128,"name_u16":[100,105,114],"parent_file_id":1125899906842663,"reparse_tag":0,"src":"rdcw","t":4377685945}
+{"action":"RenamedNewName","allocated_length":0,"attributes":16,"file_id":281474976710697,"file_size":0,"name":"DIR","name_flags":128,"name_u16":[68,73,82],"parent_file_id":1125899906842663,"reparse_tag":0,"src":"rdcw","t":4377685945}
+{"error":null,"label":"scenario end","src":"op","t":4377686095}
+{"arch":"x86_64","label":"windows-2025/ntfs","os_build":26100,"qpc_freq":10000000,"rdcw_class":"Full","rep":1,"root":"P:\\fslab\\N2-1","scenario":"N2","settle_s":3,"src":"header","volume":"P:"}
+{"error":"The volume change journal is not active. (os error 1179)","src":"error","what":"usn query"}
+{"label":"scenario start","src":"op","t":4422883597}
+{"action":"Added","allocated_length":0,"attributes":32,"file_id":1407374883553320,"file_size":0,"name":"a.txt","name_flags":3,"name_u16":[97,46,116,120,116],"parent_file_id":1407374883553319,"reparse_tag":0,"src":"rdcw","t":4422886168}
+{"action":"Modified","allocated_length":8,"attributes":32,"file_id":1407374883553320,"file_size":1,"name":"a.txt","name_flags":3,"name_u16":[97,46,116,120,116],"parent_file_id":1407374883553319,"reparse_tag":0,"src":"rdcw","t":4422887409}
+{"label":"case-only rename a.txt -> A.txt","src":"op","t":4425892735}
+{"action":"Removed","allocated_length":8,"attributes":32,"file_id":1407374883553320,"file_size":1,"name":"a.txt","name_flags":128,"name_u16":[97,46,116,120,116],"parent_file_id":1407374883553319,"reparse_tag":0,"src":"rdcw","t":4425894922}
+{"action":"RenamedOldName","allocated_length":8,"attributes":32,"file_id":1407374883553320,"file_size":1,"name":"a.txt","name_flags":128,"name_u16":[97,46,116,120,116],"parent_file_id":1407374883553319,"reparse_tag":0,"src":"rdcw","t":4425895338}
+{"action":"RenamedNewName","allocated_length":8,"attributes":32,"file_id":1407374883553320,"file_size":1,"name":"A.txt","name_flags":128,"name_u16":[65,46,116,120,116],"parent_file_id":1407374883553319,"reparse_tag":0,"src":"rdcw","t":4425895338}
+{"label":"case-only rename of a directory","src":"op","t":4428900957}
+{"action":"Added","allocated_length":0,"attributes":16,"file_id":562949953421353,"file_size":0,"name":"dir","name_flags":3,"name_u16":[100,105,114],"parent_file_id":1407374883553319,"reparse_tag":0,"src":"rdcw","t":4428903389}
+{"action":"Removed","allocated_length":0,"attributes":16,"file_id":562949953421353,"file_size":0,"name":"dir","name_flags":128,"name_u16":[100,105,114],"parent_file_id":1407374883553319,"reparse_tag":0,"src":"rdcw","t":4431906905}
+{"action":"RenamedOldName","allocated_length":0,"attributes":16,"file_id":562949953421353,"file_size":0,"name":"dir","name_flags":128,"name_u16":[100,105,114],"parent_file_id":1407374883553319,"reparse_tag":0,"src":"rdcw","t":4431907674}
+{"action":"RenamedNewName","allocated_length":0,"attributes":16,"file_id":562949953421353,"file_size":0,"name":"DIR","name_flags":128,"name_u16":[68,73,82],"parent_file_id":1407374883553319,"reparse_tag":0,"src":"rdcw","t":4431907674}
+{"error":null,"label":"scenario end","src":"op","t":4431907996}
+{"arch":"x86_64","label":"windows-2025/ntfs","os_build":26100,"qpc_freq":10000000,"rdcw_class":"Full","rep":2,"root":"P:\\fslab\\N2-2","scenario":"N2","settle_s":3,"src":"header","volume":"P:"}
+{"error":"The volume change journal is not active. (os error 1179)","src":"error","what":"usn query"}
+{"label":"scenario start","src":"op","t":4477262294}
+{"action":"Added","allocated_length":0,"attributes":32,"file_id":1688849860263976,"file_size":0,"name":"a.txt","name_flags":3,"name_u16":[97,46,116,120,116],"parent_file_id":1688849860263975,"reparse_tag":0,"src":"rdcw","t":4477265319}
+{"action":"Modified","allocated_length":8,"attributes":32,"file_id":1688849860263976,"file_size":1,"name":"a.txt","name_flags":3,"name_u16":[97,46,116,120,116],"parent_file_id":1688849860263975,"reparse_tag":0,"src":"rdcw","t":4477266646}
+{"label":"case-only rename a.txt -> A.txt","src":"op","t":4480267874}
+{"action":"Removed","allocated_length":8,"attributes":32,"file_id":1688849860263976,"file_size":1,"name":"a.txt","name_flags":128,"name_u16":[97,46,116,120,116],"parent_file_id":1688849860263975,"reparse_tag":0,"src":"rdcw","t":4480269956}
+{"action":"RenamedOldName","allocated_length":8,"attributes":32,"file_id":1688849860263976,"file_size":1,"name":"a.txt","name_flags":128,"name_u16":[97,46,116,120,116],"parent_file_id":1688849860263975,"reparse_tag":0,"src":"rdcw","t":4480270711}
+{"action":"RenamedNewName","allocated_length":8,"attributes":32,"file_id":1688849860263976,"file_size":1,"name":"A.txt","name_flags":128,"name_u16":[65,46,116,120,116],"parent_file_id":1688849860263975,"reparse_tag":0,"src":"rdcw","t":4480270711}
+{"label":"case-only rename of a directory","src":"op","t":4483272222}
+{"action":"Added","allocated_length":0,"attributes":16,"file_id":844424930132009,"file_size":0,"name":"dir","name_flags":3,"name_u16":[100,105,114],"parent_file_id":1688849860263975,"reparse_tag":0,"src":"rdcw","t":4483275144}
+{"action":"Removed","allocated_length":0,"attributes":16,"file_id":844424930132009,"file_size":0,"name":"dir","name_flags":128,"name_u16":[100,105,114],"parent_file_id":1688849860263975,"reparse_tag":0,"src":"rdcw","t":4486278999}
+{"action":"RenamedOldName","allocated_length":0,"attributes":16,"file_id":844424930132009,"file_size":0,"name":"dir","name_flags":128,"name_u16":[100,105,114],"parent_file_id":1688849860263975,"reparse_tag":0,"src":"rdcw","t":4486279779}
+{"action":"RenamedNewName","allocated_length":0,"attributes":16,"file_id":844424930132009,"file_size":0,"name":"DIR","name_flags":128,"name_u16":[68,73,82],"parent_file_id":1688849860263975,"reparse_tag":0,"src":"rdcw","t":4486279779}
+{"error":null,"label":"scenario end","src":"op","t":4486280161}

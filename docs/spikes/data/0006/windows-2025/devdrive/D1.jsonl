@@ -1,0 +1,30 @@
+{"arch":"x86_64","label":"windows-2025/devdrive","os_build":26100,"qpc_freq":10000000,"rdcw_class":"Full","rep":0,"root":"T:\\fslab\\D1-0","scenario":"D1","settle_s":35,"src":"header","volume":"T:"}
+{"error":"Incorrect function. (os error 1)","src":"error","what":"ReadDirectoryChangesExW"}
+{"error":"The volume change journal is not active. (os error 1179)","src":"error","what":"usn query"}
+{"src":"note","value":"ok","what":"duplicate extents"}
+{"label":"scenario start","src":"op","t":14674892909}
+{"label":"create a 16 MiB file","src":"op","t":14674893131}
+{"label":"fs::copy (CopyFile2, clones on ReFS where supported)","src":"op","t":14679944794}
+{"label":"explicit FSCTL_DUPLICATE_EXTENTS_TO_FILE","src":"op","t":14688899052}
+{"label":"write into the copy","src":"op","t":14693908662}
+{"error":null,"label":"scenario end","src":"op","t":14693911366}
+{"arch":"x86_64","label":"windows-2025/devdrive","os_build":26100,"qpc_freq":10000000,"rdcw_class":"Full","rep":1,"root":"T:\\fslab\\D1-1","scenario":"D1","settle_s":35,"src":"header","volume":"T:"}
+{"error":"Incorrect function. (os error 1)","src":"error","what":"ReadDirectoryChangesExW"}
+{"error":"The volume change journal is not active. (os error 1179)","src":"error","what":"usn query"}
+{"src":"note","value":"ok","what":"duplicate extents"}
+{"label":"scenario start","src":"op","t":15058964277}
+{"label":"create a 16 MiB file","src":"op","t":15058964353}
+{"label":"fs::copy (CopyFile2, clones on ReFS where supported)","src":"op","t":15064018370}
+{"label":"explicit FSCTL_DUPLICATE_EXTENTS_TO_FILE","src":"op","t":15069676361}
+{"label":"write into the copy","src":"op","t":15074681881}
+{"error":null,"label":"scenario end","src":"op","t":15074685214}
+{"arch":"x86_64","label":"windows-2025/devdrive","os_build":26100,"qpc_freq":10000000,"rdcw_class":"Full","rep":2,"root":"T:\\fslab\\D1-2","scenario":"D1","settle_s":35,"src":"header","volume":"T:"}
+{"error":"The volume change journal is not active. (os error 1179)","src":"error","what":"usn query"}
+{"error":"Incorrect function. (os error 1)","src":"error","what":"ReadDirectoryChangesExW"}
+{"src":"note","value":"ok","what":"duplicate extents"}
+{"label":"scenario start","src":"op","t":15439722821}
+{"label":"create a 16 MiB file","src":"op","t":15439722896}
+{"label":"fs::copy (CopyFile2, clones on ReFS where supported)","src":"op","t":15444777969}
+{"label":"explicit FSCTL_DUPLICATE_EXTENTS_TO_FILE","src":"op","t":15450475358}
+{"label":"write into the copy","src":"op","t":15455480261}
+{"error":null,"label":"scenario end","src":"op","t":15455483141}

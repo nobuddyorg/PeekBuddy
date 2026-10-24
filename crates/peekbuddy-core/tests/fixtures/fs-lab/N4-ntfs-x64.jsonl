@@ -1,0 +1,18 @@
+{"src":"header","scenario":"N4","fs":"ntfs","arch":"x86_64","os_build":26100,"rdcw_class":"Full","qpc_freq":10000000}
+{"src":"op","label":"scenario start","t":0}
+{"src":"op","label":"create name with a lone high surrogate","t":182}
+{"src":"rdcw","t":2679,"action":"Added","name_u16":[97,55296,98],"attributes":32,"reparse_tag":0,"file_id":2814749767106600,"parent_file_id":2814749767106599,"name_flags":1,"file_size":0,"allocated_length":0}
+{"src":"rdcw","t":3888,"action":"Modified","name_u16":[97,55296,98],"attributes":32,"reparse_tag":0,"file_id":2814749767106600,"parent_file_id":2814749767106599,"name_flags":1,"file_size":1,"allocated_length":8}
+{"src":"op","label":"create name with a lone low surrogate","t":3911}
+{"src":"rdcw","t":5070,"action":"Added","name_u16":[97,56320,98],"attributes":32,"reparse_tag":0,"file_id":1970324836974633,"parent_file_id":2814749767106599,"name_flags":1,"file_size":0,"allocated_length":0}
+{"src":"rdcw","t":5949,"action":"Modified","name_u16":[97,56320,98],"attributes":32,"reparse_tag":0,"file_id":1970324836974633,"parent_file_id":2814749767106599,"name_flags":1,"file_size":1,"allocated_length":8}
+{"src":"op","label":"write the first","t":3008114}
+{"src":"rdcw","t":3011087,"action":"Modified","name_u16":[97,55296,98],"attributes":32,"reparse_tag":0,"file_id":2814749767106600,"parent_file_id":2814749767106599,"name_flags":1,"file_size":0,"allocated_length":0}
+{"src":"rdcw","t":3011854,"action":"Modified","name_u16":[97,55296,98],"attributes":32,"reparse_tag":0,"file_id":2814749767106600,"parent_file_id":2814749767106599,"name_flags":1,"file_size":2,"allocated_length":8}
+{"src":"op","label":"rename the first to a normal name","t":6014970}
+{"src":"rdcw","t":6017563,"action":"RenamedOldName","name_u16":[97,55296,98],"attributes":32,"reparse_tag":0,"file_id":2814749767106600,"parent_file_id":2814749767106599,"name_flags":128,"file_size":2,"allocated_length":8}
+{"src":"rdcw","t":6017563,"action":"RenamedNewName","name_u16":[110,111,114,109,97,108,46,116,120,116],"attributes":32,"reparse_tag":0,"file_id":2814749767106600,"parent_file_id":2814749767106599,"name_flags":128,"file_size":2,"allocated_length":8}
+{"src":"op","label":"delete both","t":6018139}
+{"src":"rdcw","t":6019376,"action":"Removed","name_u16":[97,56320,98],"attributes":32,"reparse_tag":0,"file_id":1970324836974633,"parent_file_id":2814749767106599,"name_flags":1,"file_size":1,"allocated_length":8}
+{"src":"rdcw","t":6020976,"action":"Removed","name_u16":[110,111,114,109,97,108,46,116,120,116],"attributes":32,"reparse_tag":0,"file_id":2814749767106600,"parent_file_id":2814749767106599,"name_flags":3,"file_size":2,"allocated_length":8}
+{"src":"op","label":"scenario end","t":6021191}

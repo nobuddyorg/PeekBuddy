@@ -1,0 +1,72 @@
+{"arch":"aarch64","label":"windows-11-vs2026-arm/ntfs","os_build":26200,"qpc_freq":10000000,"rdcw_class":"Full","rep":0,"root":"P:\\fslab\\L3-0","scenario":"L3","settle_s":3,"src":"header","volume":"P:"}
+{"error":"The volume change journal is not active. (os error 1179)","src":"error","what":"usn query"}
+{"src":"note","value":null,"what":"file symlink"}
+{"src":"note","value":null,"what":"dir symlink"}
+{"label":"scenario start","src":"op","t":8987791274}
+{"action":"Added","allocated_length":0,"attributes":32,"file_id":5348024557502504,"file_size":0,"name":"target.txt","name_flags":3,"name_u16":[116,97,114,103,101,116,46,116,120,116],"parent_file_id":5348024557502503,"reparse_tag":0,"src":"rdcw","t":8987793812}
+{"action":"Modified","allocated_length":8,"attributes":32,"file_id":5348024557502504,"file_size":1,"name":"target.txt","name_flags":3,"name_u16":[116,97,114,103,101,116,46,116,120,116],"parent_file_id":5348024557502503,"reparse_tag":0,"src":"rdcw","t":8987795607}
+{"action":"Added","allocated_length":0,"attributes":16,"file_id":3659174697238569,"file_size":0,"name":"targetdir","name_flags":1,"name_u16":[116,97,114,103,101,116,100,105,114],"parent_file_id":5348024557502503,"reparse_tag":0,"src":"rdcw","t":8987796648}
+{"label":"create file symlink","src":"op","t":8990798226}
+{"action":"Added","allocated_length":0,"attributes":32,"file_id":2814749767106602,"file_size":0,"name":"filelink","name_flags":3,"name_u16":[102,105,108,101,108,105,110,107],"parent_file_id":5348024557502503,"reparse_tag":0,"src":"rdcw","t":8990801315}
+{"action":"Modified","allocated_length":0,"attributes":1056,"file_id":2814749767106602,"file_size":0,"name":"filelink","name_flags":3,"name_u16":[102,105,108,101,108,105,110,107],"parent_file_id":5348024557502503,"reparse_tag":2684354572,"src":"rdcw","t":8990802536}
+{"label":"create directory symlink","src":"op","t":8993809473}
+{"action":"Added","allocated_length":0,"attributes":16,"file_id":1125899906842667,"file_size":0,"name":"dirlink","name_flags":3,"name_u16":[100,105,114,108,105,110,107],"parent_file_id":5348024557502503,"reparse_tag":0,"src":"rdcw","t":8993812526}
+{"action":"Modified","allocated_length":0,"attributes":1040,"file_id":1125899906842667,"file_size":0,"name":"dirlink","name_flags":3,"name_u16":[100,105,114,108,105,110,107],"parent_file_id":5348024557502503,"reparse_tag":2684354572,"src":"rdcw","t":8993813695}
+{"label":"write through the file symlink","src":"op","t":8996817983}
+{"action":"Modified","allocated_length":0,"attributes":32,"file_id":5348024557502504,"file_size":0,"name":"target.txt","name_flags":3,"name_u16":[116,97,114,103,101,116,46,116,120,116],"parent_file_id":5348024557502503,"reparse_tag":0,"src":"rdcw","t":8996821130}
+{"action":"Modified","allocated_length":8,"attributes":32,"file_id":5348024557502504,"file_size":2,"name":"target.txt","name_flags":3,"name_u16":[116,97,114,103,101,116,46,116,120,116],"parent_file_id":5348024557502503,"reparse_tag":0,"src":"rdcw","t":8996822155}
+{"label":"create a file through the directory symlink","src":"op","t":8999823757}
+{"action":"Added","allocated_length":0,"attributes":32,"file_id":1125899906842668,"file_size":0,"name":"targetdir\\inside.txt","name_flags":3,"name_u16":[116,97,114,103,101,116,100,105,114,92,105,110,115,105,100,101,46,116,120,116],"parent_file_id":3659174697238569,"reparse_tag":0,"src":"rdcw","t":8999826635}
+{"action":"Modified","allocated_length":8,"attributes":32,"file_id":1125899906842668,"file_size":1,"name":"targetdir\\inside.txt","name_flags":3,"name_u16":[116,97,114,103,101,116,100,105,114,92,105,110,115,105,100,101,46,116,120,116],"parent_file_id":3659174697238569,"reparse_tag":0,"src":"rdcw","t":8999828470}
+{"label":"delete the symlinks","src":"op","t":9002832421}
+{"action":"Removed","allocated_length":0,"attributes":1056,"file_id":2814749767106602,"file_size":0,"name":"filelink","name_flags":3,"name_u16":[102,105,108,101,108,105,110,107],"parent_file_id":5348024557502503,"reparse_tag":2684354572,"src":"rdcw","t":9002835831}
+{"error":null,"label":"scenario end","src":"op","t":9002836596}
+{"action":"Removed","allocated_length":0,"attributes":1040,"file_id":1125899906842667,"file_size":0,"name":"dirlink","name_flags":3,"name_u16":[100,105,114,108,105,110,107],"parent_file_id":5348024557502503,"reparse_tag":2684354572,"src":"rdcw","t":9002836695}
+{"arch":"aarch64","label":"windows-11-vs2026-arm/ntfs","os_build":26200,"qpc_freq":10000000,"rdcw_class":"Full","rep":1,"root":"P:\\fslab\\L3-1","scenario":"L3","settle_s":3,"src":"header","volume":"P:"}
+{"error":"The volume change journal is not active. (os error 1179)","src":"error","what":"usn query"}
+{"src":"note","value":null,"what":"file symlink"}
+{"src":"note","value":null,"what":"dir symlink"}
+{"label":"scenario start","src":"op","t":9048199010}
+{"action":"Added","allocated_length":0,"attributes":32,"file_id":5629499534213160,"file_size":0,"name":"target.txt","name_flags":3,"name_u16":[116,97,114,103,101,116,46,116,120,116],"parent_file_id":5629499534213159,"reparse_tag":0,"src":"rdcw","t":9048202200}
+{"action":"Modified","allocated_length":8,"attributes":32,"file_id":5629499534213160,"file_size":1,"name":"target.txt","name_flags":3,"name_u16":[116,97,114,103,101,116,46,116,120,116],"parent_file_id":5629499534213159,"reparse_tag":0,"src":"rdcw","t":9048204297}
+{"action":"Added","allocated_length":0,"attributes":16,"file_id":3940649673949225,"file_size":0,"name":"targetdir","name_flags":1,"name_u16":[116,97,114,103,101,116,100,105,114],"parent_file_id":5629499534213159,"reparse_tag":0,"src":"rdcw","t":9048205299}
+{"label":"create file symlink","src":"op","t":9051206518}
+{"action":"Added","allocated_length":0,"attributes":32,"file_id":3096224743817258,"file_size":0,"name":"filelink","name_flags":3,"name_u16":[102,105,108,101,108,105,110,107],"parent_file_id":5629499534213159,"reparse_tag":0,"src":"rdcw","t":9051209318}
+{"action":"Modified","allocated_length":0,"attributes":1056,"file_id":3096224743817258,"file_size":0,"name":"filelink","name_flags":3,"name_u16":[102,105,108,101,108,105,110,107],"parent_file_id":5629499534213159,"reparse_tag":2684354572,"src":"rdcw","t":9051210805}
+{"label":"create directory symlink","src":"op","t":9054213570}
+{"action":"Added","allocated_length":0,"attributes":16,"file_id":1407374883553323,"file_size":0,"name":"dirlink","name_flags":3,"name_u16":[100,105,114,108,105,110,107],"parent_file_id":5629499534213159,"reparse_tag":0,"src":"rdcw","t":9054216443}
+{"action":"Modified","allocated_length":0,"attributes":1040,"file_id":1407374883553323,"file_size":0,"name":"dirlink","name_flags":3,"name_u16":[100,105,114,108,105,110,107],"parent_file_id":5629499534213159,"reparse_tag":2684354572,"src":"rdcw","t":9054217839}
+{"label":"write through the file symlink","src":"op","t":9057218185}
+{"action":"Modified","allocated_length":0,"attributes":32,"file_id":5629499534213160,"file_size":0,"name":"target.txt","name_flags":3,"name_u16":[116,97,114,103,101,116,46,116,120,116],"parent_file_id":5629499534213159,"reparse_tag":0,"src":"rdcw","t":9057221092}
+{"action":"Modified","allocated_length":8,"attributes":32,"file_id":5629499534213160,"file_size":2,"name":"target.txt","name_flags":3,"name_u16":[116,97,114,103,101,116,46,116,120,116],"parent_file_id":5629499534213159,"reparse_tag":0,"src":"rdcw","t":9057222106}
+{"label":"create a file through the directory symlink","src":"op","t":9060223090}
+{"action":"Added","allocated_length":0,"attributes":32,"file_id":1407374883553324,"file_size":0,"name":"targetdir\\inside.txt","name_flags":3,"name_u16":[116,97,114,103,101,116,100,105,114,92,105,110,115,105,100,101,46,116,120,116],"parent_file_id":3940649673949225,"reparse_tag":0,"src":"rdcw","t":9060225527}
+{"action":"Modified","allocated_length":8,"attributes":32,"file_id":1407374883553324,"file_size":1,"name":"targetdir\\inside.txt","name_flags":3,"name_u16":[116,97,114,103,101,116,100,105,114,92,105,110,115,105,100,101,46,116,120,116],"parent_file_id":3940649673949225,"reparse_tag":0,"src":"rdcw","t":9060227569}
+{"label":"delete the symlinks","src":"op","t":9063227859}
+{"action":"Removed","allocated_length":0,"attributes":1056,"file_id":3096224743817258,"file_size":0,"name":"filelink","name_flags":3,"name_u16":[102,105,108,101,108,105,110,107],"parent_file_id":5629499534213159,"reparse_tag":2684354572,"src":"rdcw","t":9063232365}
+{"error":null,"label":"scenario end","src":"op","t":9063233125}
+{"action":"Removed","allocated_length":0,"attributes":1040,"file_id":1407374883553323,"file_size":0,"name":"dirlink","name_flags":3,"name_u16":[100,105,114,108,105,110,107],"parent_file_id":5629499534213159,"reparse_tag":2684354572,"src":"rdcw","t":9063233252}
+{"arch":"aarch64","label":"windows-11-vs2026-arm/ntfs","os_build":26200,"qpc_freq":10000000,"rdcw_class":"Full","rep":2,"root":"P:\\fslab\\L3-2","scenario":"L3","settle_s":3,"src":"header","volume":"P:"}
+{"error":"The volume change journal is not active. (os error 1179)","src":"error","what":"usn query"}
+{"src":"note","value":null,"what":"file symlink"}
+{"src":"note","value":null,"what":"dir symlink"}
+{"label":"scenario start","src":"op","t":9108349511}
+{"action":"Added","allocated_length":0,"attributes":32,"file_id":5910974510923816,"file_size":0,"name":"target.txt","name_flags":3,"name_u16":[116,97,114,103,101,116,46,116,120,116],"parent_file_id":5910974510923815,"reparse_tag":0,"src":"rdcw","t":9108352000}
+{"action":"Modified","allocated_length":8,"attributes":32,"file_id":5910974510923816,"file_size":1,"name":"target.txt","name_flags":3,"name_u16":[116,97,114,103,101,116,46,116,120,116],"parent_file_id":5910974510923815,"reparse_tag":0,"src":"rdcw","t":9108353875}
+{"action":"Added","allocated_length":0,"attributes":16,"file_id":4222124650659881,"file_size":0,"name":"targetdir","name_flags":1,"name_u16":[116,97,114,103,101,116,100,105,114],"parent_file_id":5910974510923815,"reparse_tag":0,"src":"rdcw","t":9108355321}
+{"label":"create file symlink","src":"op","t":9111357304}
+{"action":"Added","allocated_length":0,"attributes":32,"file_id":3377699720527914,"file_size":0,"name":"filelink","name_flags":3,"name_u16":[102,105,108,101,108,105,110,107],"parent_file_id":5910974510923815,"reparse_tag":0,"src":"rdcw","t":9111360178}
+{"action":"Modified","allocated_length":0,"attributes":1056,"file_id":3377699720527914,"file_size":0,"name":"filelink","name_flags":3,"name_u16":[102,105,108,101,108,105,110,107],"parent_file_id":5910974510923815,"reparse_tag":2684354572,"src":"rdcw","t":9111361713}
+{"label":"create directory symlink","src":"op","t":9114367003}
+{"action":"Added","allocated_length":0,"attributes":16,"file_id":1688849860263979,"file_size":0,"name":"dirlink","name_flags":3,"name_u16":[100,105,114,108,105,110,107],"parent_file_id":5910974510923815,"reparse_tag":0,"src":"rdcw","t":9114370057}
+{"action":"Modified","allocated_length":0,"attributes":1040,"file_id":1688849860263979,"file_size":0,"name":"dirlink","name_flags":3,"name_u16":[100,105,114,108,105,110,107],"parent_file_id":5910974510923815,"reparse_tag":2684354572,"src":"rdcw","t":9114371557}
+{"label":"write through the file symlink","src":"op","t":9117374432}
+{"action":"Modified","allocated_length":0,"attributes":32,"file_id":5910974510923816,"file_size":0,"name":"target.txt","name_flags":3,"name_u16":[116,97,114,103,101,116,46,116,120,116],"parent_file_id":5910974510923815,"reparse_tag":0,"src":"rdcw","t":9117377542}
+{"action":"Modified","allocated_length":8,"attributes":32,"file_id":5910974510923816,"file_size":2,"name":"target.txt","name_flags":3,"name_u16":[116,97,114,103,101,116,46,116,120,116],"parent_file_id":5910974510923815,"reparse_tag":0,"src":"rdcw","t":9117378464}
+{"label":"create a file through the directory symlink","src":"op","t":9120381118}
+{"action":"Added","allocated_length":0,"attributes":32,"file_id":1688849860263980,"file_size":0,"name":"targetdir\\inside.txt","name_flags":3,"name_u16":[116,97,114,103,101,116,100,105,114,92,105,110,115,105,100,101,46,116,120,116],"parent_file_id":4222124650659881,"reparse_tag":0,"src":"rdcw","t":9120383553}
+{"action":"Modified","allocated_length":8,"attributes":32,"file_id":1688849860263980,"file_size":1,"name":"targetdir\\inside.txt","name_flags":3,"name_u16":[116,97,114,103,101,116,100,105,114,92,105,110,115,105,100,101,46,116,120,116],"parent_file_id":4222124650659881,"reparse_tag":0,"src":"rdcw","t":9120386250}
+{"label":"delete the symlinks","src":"op","t":9123387659}
+{"action":"Removed","allocated_length":0,"attributes":1056,"file_id":3377699720527914,"file_size":0,"name":"filelink","name_flags":3,"name_u16":[102,105,108,101,108,105,110,107],"parent_file_id":5910974510923815,"reparse_tag":2684354572,"src":"rdcw","t":9123391125}
+{"error":null,"label":"scenario end","src":"op","t":9123391866}
+{"action":"Removed","allocated_length":0,"attributes":1040,"file_id":1688849860263979,"file_size":0,"name":"dirlink","name_flags":3,"name_u16":[100,105,114,108,105,110,107],"parent_file_id":5910974510923815,"reparse_tag":2684354572,"src":"rdcw","t":9123392128}
