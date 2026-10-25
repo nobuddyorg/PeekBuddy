@@ -1,0 +1,30 @@
+{"arch":"aarch64","label":"windows-11-vs2026-arm/exfat","os_build":26200,"qpc_freq":10000000,"rdcw_class":"Full","rep":0,"root":"R:\\fslab\\S1-0","scenario":"S1","settle_s":3,"src":"header","volume":"R:"}
+{"code":1,"error":"Incorrect function. (os error 1)","src":"error","what":"ReadDirectoryChangesExW"}
+{"src":"note","value":"plain class","what":"rdcw fallback"}
+{"error":"Incorrect function. (os error 1)","src":"error","what":"usn query"}
+{"label":"scenario start","src":"op","t":20563429762}
+{"action":"Added","name":"file.txt","name_u16":[102,105,108,101,46,116,120,116],"src":"rdcw","t":20563432821}
+{"action":"Modified","name":"file.txt","name_u16":[102,105,108,101,46,116,120,116],"src":"rdcw","t":20563433313}
+{"action":"Modified","name":"file.txt","name_u16":[102,105,108,101,46,116,120,116],"src":"rdcw","t":20563434062}
+{"label":"create an alternate data stream","src":"op","t":20566439351}
+{"error":"The filename, directory name, or volume label syntax is incorrect. (os error 123)","label":"scenario end","src":"op","t":20566440504}
+{"arch":"aarch64","label":"windows-11-vs2026-arm/exfat","os_build":26200,"qpc_freq":10000000,"rdcw_class":"Full","rep":1,"root":"R:\\fslab\\S1-1","scenario":"S1","settle_s":3,"src":"header","volume":"R:"}
+{"code":1,"error":"Incorrect function. (os error 1)","src":"error","what":"ReadDirectoryChangesExW"}
+{"src":"note","value":"plain class","what":"rdcw fallback"}
+{"error":"Incorrect function. (os error 1)","src":"error","what":"usn query"}
+{"label":"scenario start","src":"op","t":20611956963}
+{"action":"Added","name":"file.txt","name_u16":[102,105,108,101,46,116,120,116],"src":"rdcw","t":20611960142}
+{"action":"Modified","name":"file.txt","name_u16":[102,105,108,101,46,116,120,116],"src":"rdcw","t":20611960619}
+{"action":"Modified","name":"file.txt","name_u16":[102,105,108,101,46,116,120,116],"src":"rdcw","t":20611960933}
+{"label":"create an alternate data stream","src":"op","t":20614966562}
+{"error":"The filename, directory name, or volume label syntax is incorrect. (os error 123)","label":"scenario end","src":"op","t":20614967715}
+{"arch":"aarch64","label":"windows-11-vs2026-arm/exfat","os_build":26200,"qpc_freq":10000000,"rdcw_class":"Full","rep":2,"root":"R:\\fslab\\S1-2","scenario":"S1","settle_s":3,"src":"header","volume":"R:"}
+{"code":1,"error":"Incorrect function. (os error 1)","src":"error","what":"ReadDirectoryChangesExW"}
+{"src":"note","value":"plain class","what":"rdcw fallback"}
+{"error":"Incorrect function. (os error 1)","src":"error","what":"usn query"}
+{"label":"scenario start","src":"op","t":20660488470}
+{"action":"Added","name":"file.txt","name_u16":[102,105,108,101,46,116,120,116],"src":"rdcw","t":20660491632}
+{"action":"Modified","name":"file.txt","name_u16":[102,105,108,101,46,116,120,116],"src":"rdcw","t":20660492017}
+{"action":"Modified","name":"file.txt","name_u16":[102,105,108,101,46,116,120,116],"src":"rdcw","t":20660492283}
+{"label":"create an alternate data stream","src":"op","t":20663497799}
+{"error":"The filename, directory name, or volume label syntax is incorrect. (os error 123)","label":"scenario end","src":"op","t":20663498810}

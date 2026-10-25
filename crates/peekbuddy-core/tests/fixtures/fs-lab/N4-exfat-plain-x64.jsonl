@@ -1,0 +1,20 @@
+{"src":"header","scenario":"N4","fs":"exfat","arch":"x86_64","os_build":26100,"qpc_freq":10000000,"rdcw_class":"Plain"}
+{"src":"op","label":"scenario start","t":0}
+{"src":"op","label":"create name with a lone high surrogate","t":273}
+{"src":"rdcw","t":3228,"action":"Added","name_u16":[97,55296,98]}
+{"src":"rdcw","t":4182,"action":"Modified","name_u16":[97,55296,98]}
+{"src":"op","label":"create name with a lone low surrogate","t":4324}
+{"src":"rdcw","t":4384,"action":"Modified","name_u16":[97,55296,98]}
+{"src":"rdcw","t":5252,"action":"Added","name_u16":[97,56320,98]}
+{"src":"rdcw","t":5840,"action":"Modified","name_u16":[97,56320,98]}
+{"src":"rdcw","t":6093,"action":"Modified","name_u16":[97,56320,98]}
+{"src":"op","label":"write the first","t":3006812}
+{"src":"rdcw","t":3009711,"action":"Modified","name_u16":[97,55296,98]}
+{"src":"rdcw","t":3010244,"action":"Modified","name_u16":[97,55296,98]}
+{"src":"op","label":"rename the first to a normal name","t":6015630}
+{"src":"rdcw","t":6017773,"action":"RenamedOldName","name_u16":[97,55296,98]}
+{"src":"rdcw","t":6017773,"action":"RenamedNewName","name_u16":[110,111,114,109,97,108,46,116,120,116]}
+{"src":"op","label":"delete both","t":6018123}
+{"src":"rdcw","t":6019010,"action":"Removed","name_u16":[97,56320,98]}
+{"src":"rdcw","t":6019744,"action":"Removed","name_u16":[110,111,114,109,97,108,46,116,120,116]}
+{"src":"op","label":"scenario end","t":6019787}

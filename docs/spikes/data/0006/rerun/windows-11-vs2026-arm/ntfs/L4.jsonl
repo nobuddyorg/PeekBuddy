@@ -1,0 +1,12 @@
+{"arch":"aarch64","label":"windows-11-vs2026-arm/ntfs","os_build":26200,"qpc_freq":10000000,"rdcw_class":"Full","rep":0,"root":"P:\\fslab\\L4-0","scenario":"L4","settle_s":3,"src":"header","volume":"P:"}
+{"src":"note","value":[{"attributes":1056,"name":"ActionsMcpHost.exe"},{"attributes":16,"name":"MicrosoftWindows.Client.CBS_cw5n1h2txyewy"},{"attributes":16,"name":"MicrosoftWindows.Client.Core_cw5n1h2txyewy"},{"attributes":1056,"name":"MicrosoftWindows.DesktopStickerEditorCentennial.exe"},{"attributes":1056,"name":"ShellMcpServers.Packaging.exe"}],"what":"WindowsApps entries (a Store app update cannot be triggered on a hosted runner)"}
+{"label":"scenario start","src":"op","t":9769575071}
+{"error":null,"label":"scenario end","src":"op","t":9769581172}
+{"arch":"aarch64","label":"windows-11-vs2026-arm/ntfs","os_build":26200,"qpc_freq":10000000,"rdcw_class":"Full","rep":1,"root":"P:\\fslab\\L4-1","scenario":"L4","settle_s":3,"src":"header","volume":"P:"}
+{"src":"note","value":[{"attributes":1056,"name":"ActionsMcpHost.exe"},{"attributes":16,"name":"MicrosoftWindows.Client.CBS_cw5n1h2txyewy"},{"attributes":16,"name":"MicrosoftWindows.Client.Core_cw5n1h2txyewy"},{"attributes":1056,"name":"MicrosoftWindows.DesktopStickerEditorCentennial.exe"},{"attributes":1056,"name":"ShellMcpServers.Packaging.exe"}],"what":"WindowsApps entries (a Store app update cannot be triggered on a hosted runner)"}
+{"label":"scenario start","src":"op","t":9815129930}
+{"error":null,"label":"scenario end","src":"op","t":9815134878}
+{"arch":"aarch64","label":"windows-11-vs2026-arm/ntfs","os_build":26200,"qpc_freq":10000000,"rdcw_class":"Full","rep":2,"root":"P:\\fslab\\L4-2","scenario":"L4","settle_s":3,"src":"header","volume":"P:"}
+{"src":"note","value":[{"attributes":1056,"name":"ActionsMcpHost.exe"},{"attributes":16,"name":"MicrosoftWindows.Client.CBS_cw5n1h2txyewy"},{"attributes":16,"name":"MicrosoftWindows.Client.Core_cw5n1h2txyewy"},{"attributes":1056,"name":"MicrosoftWindows.DesktopStickerEditorCentennial.exe"},{"attributes":1056,"name":"ShellMcpServers.Packaging.exe"}],"what":"WindowsApps entries (a Store app update cannot be triggered on a hosted runner)"}
+{"label":"scenario start","src":"op","t":9860471946}
+{"error":null,"label":"scenario end","src":"op","t":9860476373}

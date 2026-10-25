@@ -1,0 +1,60 @@
+{"arch":"aarch64","label":"windows-11-vs2026-arm/ntfs","os_build":26200,"qpc_freq":10000000,"rdcw_class":"Full","rep":0,"root":"P:\\fslab\\N3-0","scenario":"N3","settle_s":3,"src":"header","volume":"P:"}
+{"src":"note","value":"exit Some(0): Case sensitive attribute on directory P:\\fslab\\N3-0\\cs is enabled.","what":"fsutil file setCaseSensitiveInfo P:\\fslab\\N3-0\\cs enable"}
+{"src":"note","value":true,"what":"second name created"}
+{"label":"scenario start","src":"op","t":8941435234}
+{"action":"Added","allocated_length":0,"attributes":16,"file_id":1970324836974633,"file_size":0,"name":"cs","name_flags":3,"name_u16":[99,115],"parent_file_id":1970324836974632,"reparse_tag":0,"src":"rdcw","t":8941438070}
+{"label":"enable per-directory case sensitivity","src":"op","t":8941438269}
+{"attributes":16,"frn":"7000000000029","name":"cs","name_u16":[99,115],"parent":"7000000000028","reason":256,"source_info":0,"src":"usn","t":8941439561,"usn":10600,"version":3}
+{"attributes":16,"frn":"7000000000029","name":"cs","name_u16":[99,115],"parent":"7000000000028","reason":2147483904,"source_info":0,"src":"usn","t":8941439561,"usn":10664,"version":3}
+{"label":"create two names differing only by case","src":"op","t":8944882229}
+{"action":"Added","allocated_length":0,"attributes":32,"file_id":1125899906842666,"file_size":0,"name":"cs\\file.txt","name_flags":3,"name_u16":[99,115,92,102,105,108,101,46,116,120,116],"parent_file_id":1970324836974633,"reparse_tag":0,"src":"rdcw","t":8944884153}
+{"action":"Modified","allocated_length":8,"attributes":32,"file_id":1125899906842666,"file_size":5,"name":"cs\\file.txt","name_flags":3,"name_u16":[99,115,92,102,105,108,101,46,116,120,116],"parent_file_id":1970324836974633,"reparse_tag":0,"src":"rdcw","t":8944886552}
+{"action":"Added","allocated_length":0,"attributes":32,"file_id":281474976710699,"file_size":0,"name":"cs\\FILE.txt","name_flags":3,"name_u16":[99,115,92,70,73,76,69,46,116,120,116],"parent_file_id":1970324836974633,"reparse_tag":0,"src":"rdcw","t":8944886846}
+{"action":"Modified","allocated_length":8,"attributes":32,"file_id":281474976710699,"file_size":5,"name":"cs\\FILE.txt","name_flags":3,"name_u16":[99,115,92,70,73,76,69,46,116,120,116],"parent_file_id":1970324836974633,"reparse_tag":0,"src":"rdcw","t":8944887841}
+{"error":null,"label":"scenario end","src":"op","t":8944888045}
+{"attributes":32,"frn":"400000000002a","name":"file.txt","name_u16":[102,105,108,101,46,116,120,116],"parent":"7000000000029","reason":256,"source_info":0,"src":"usn","t":8944901473,"usn":10728,"version":3}
+{"attributes":32,"frn":"400000000002a","name":"file.txt","name_u16":[102,105,108,101,46,116,120,116],"parent":"7000000000029","reason":258,"source_info":0,"src":"usn","t":8944901473,"usn":10808,"version":3}
+{"attributes":32,"frn":"400000000002a","name":"file.txt","name_u16":[102,105,108,101,46,116,120,116],"parent":"7000000000029","reason":2147483906,"source_info":0,"src":"usn","t":8944901473,"usn":10888,"version":3}
+{"attributes":32,"frn":"100000000002b","name":"FILE.txt","name_u16":[70,73,76,69,46,116,120,116],"parent":"7000000000029","reason":256,"source_info":0,"src":"usn","t":8944901473,"usn":10968,"version":3}
+{"attributes":32,"frn":"100000000002b","name":"FILE.txt","name_u16":[70,73,76,69,46,116,120,116],"parent":"7000000000029","reason":258,"source_info":0,"src":"usn","t":8944901473,"usn":11048,"version":3}
+{"attributes":32,"frn":"100000000002b","name":"FILE.txt","name_u16":[70,73,76,69,46,116,120,116],"parent":"7000000000029","reason":2147483906,"source_info":0,"src":"usn","t":8944901473,"usn":11128,"version":3}
+{"arch":"aarch64","label":"windows-11-vs2026-arm/ntfs","os_build":26200,"qpc_freq":10000000,"rdcw_class":"Full","rep":1,"root":"P:\\fslab\\N3-1","scenario":"N3","settle_s":3,"src":"header","volume":"P:"}
+{"src":"note","value":"exit Some(0): Case sensitive attribute on directory P:\\fslab\\N3-1\\cs is enabled.","what":"fsutil file setCaseSensitiveInfo P:\\fslab\\N3-1\\cs enable"}
+{"src":"note","value":true,"what":"second name created"}
+{"label":"scenario start","src":"op","t":8990337605}
+{"label":"enable per-directory case sensitivity","src":"op","t":8990340535}
+{"action":"Added","allocated_length":0,"attributes":16,"file_id":2251799813685289,"file_size":0,"name":"cs","name_flags":3,"name_u16":[99,115],"parent_file_id":2251799813685288,"reparse_tag":0,"src":"rdcw","t":8990340656}
+{"attributes":16,"frn":"8000000000029","name":"cs","name_u16":[99,115],"parent":"8000000000028","reason":256,"source_info":0,"src":"usn","t":8990362787,"usn":12096,"version":3}
+{"attributes":16,"frn":"8000000000029","name":"cs","name_u16":[99,115],"parent":"8000000000028","reason":2147483904,"source_info":0,"src":"usn","t":8990362787,"usn":12160,"version":3}
+{"label":"create two names differing only by case","src":"op","t":8993497817}
+{"action":"Added","allocated_length":0,"attributes":32,"file_id":1407374883553322,"file_size":0,"name":"cs\\file.txt","name_flags":3,"name_u16":[99,115,92,102,105,108,101,46,116,120,116],"parent_file_id":2251799813685289,"reparse_tag":0,"src":"rdcw","t":8993500905}
+{"action":"Modified","allocated_length":8,"attributes":32,"file_id":1407374883553322,"file_size":5,"name":"cs\\file.txt","name_flags":3,"name_u16":[99,115,92,102,105,108,101,46,116,120,116],"parent_file_id":2251799813685289,"reparse_tag":0,"src":"rdcw","t":8993502478}
+{"action":"Added","allocated_length":0,"attributes":32,"file_id":562949953421355,"file_size":0,"name":"cs\\FILE.txt","name_flags":3,"name_u16":[99,115,92,70,73,76,69,46,116,120,116],"parent_file_id":2251799813685289,"reparse_tag":0,"src":"rdcw","t":8993503040}
+{"action":"Modified","allocated_length":8,"attributes":32,"file_id":562949953421355,"file_size":5,"name":"cs\\FILE.txt","name_flags":3,"name_u16":[99,115,92,70,73,76,69,46,116,120,116],"parent_file_id":2251799813685289,"reparse_tag":0,"src":"rdcw","t":8993504837}
+{"error":null,"label":"scenario end","src":"op","t":8993504928}
+{"attributes":32,"frn":"500000000002a","name":"file.txt","name_u16":[102,105,108,101,46,116,120,116],"parent":"8000000000029","reason":256,"source_info":0,"src":"usn","t":8993551020,"usn":12288,"version":3}
+{"attributes":32,"frn":"500000000002a","name":"file.txt","name_u16":[102,105,108,101,46,116,120,116],"parent":"8000000000029","reason":258,"source_info":0,"src":"usn","t":8993551020,"usn":12368,"version":3}
+{"attributes":32,"frn":"500000000002a","name":"file.txt","name_u16":[102,105,108,101,46,116,120,116],"parent":"8000000000029","reason":2147483906,"source_info":0,"src":"usn","t":8993551020,"usn":12448,"version":3}
+{"attributes":32,"frn":"200000000002b","name":"FILE.txt","name_u16":[70,73,76,69,46,116,120,116],"parent":"8000000000029","reason":256,"source_info":0,"src":"usn","t":8993551020,"usn":12528,"version":3}
+{"attributes":32,"frn":"200000000002b","name":"FILE.txt","name_u16":[70,73,76,69,46,116,120,116],"parent":"8000000000029","reason":258,"source_info":0,"src":"usn","t":8993551020,"usn":12608,"version":3}
+{"attributes":32,"frn":"200000000002b","name":"FILE.txt","name_u16":[70,73,76,69,46,116,120,116],"parent":"8000000000029","reason":2147483906,"source_info":0,"src":"usn","t":8993551020,"usn":12688,"version":3}
+{"arch":"aarch64","label":"windows-11-vs2026-arm/ntfs","os_build":26200,"qpc_freq":10000000,"rdcw_class":"Full","rep":2,"root":"P:\\fslab\\N3-2","scenario":"N3","settle_s":3,"src":"header","volume":"P:"}
+{"src":"note","value":"exit Some(0): Case sensitive attribute on directory P:\\fslab\\N3-2\\cs is enabled.","what":"fsutil file setCaseSensitiveInfo P:\\fslab\\N3-2\\cs enable"}
+{"src":"note","value":true,"what":"second name created"}
+{"label":"scenario start","src":"op","t":9039152645}
+{"action":"Added","allocated_length":0,"attributes":16,"file_id":2533274790395945,"file_size":0,"name":"cs","name_flags":3,"name_u16":[99,115],"parent_file_id":2533274790395944,"reparse_tag":0,"src":"rdcw","t":9039155360}
+{"label":"enable per-directory case sensitivity","src":"op","t":9039155420}
+{"attributes":16,"frn":"9000000000029","name":"cs","name_u16":[99,115],"parent":"9000000000028","reason":256,"source_info":0,"src":"usn","t":9039198134,"usn":13656,"version":3}
+{"attributes":16,"frn":"9000000000029","name":"cs","name_u16":[99,115],"parent":"9000000000028","reason":2147483904,"source_info":0,"src":"usn","t":9039198134,"usn":13720,"version":3}
+{"label":"create two names differing only by case","src":"op","t":9042317741}
+{"action":"Added","allocated_length":0,"attributes":32,"file_id":1688849860263978,"file_size":0,"name":"cs\\file.txt","name_flags":3,"name_u16":[99,115,92,102,105,108,101,46,116,120,116],"parent_file_id":2533274790395945,"reparse_tag":0,"src":"rdcw","t":9042320505}
+{"action":"Modified","allocated_length":8,"attributes":32,"file_id":1688849860263978,"file_size":5,"name":"cs\\file.txt","name_flags":3,"name_u16":[99,115,92,102,105,108,101,46,116,120,116],"parent_file_id":2533274790395945,"reparse_tag":0,"src":"rdcw","t":9042322355}
+{"action":"Added","allocated_length":0,"attributes":32,"file_id":844424930132011,"file_size":0,"name":"cs\\FILE.txt","name_flags":3,"name_u16":[99,115,92,70,73,76,69,46,116,120,116],"parent_file_id":2533274790395945,"reparse_tag":0,"src":"rdcw","t":9042322578}
+{"action":"Modified","allocated_length":8,"attributes":32,"file_id":844424930132011,"file_size":5,"name":"cs\\FILE.txt","name_flags":3,"name_u16":[99,115,92,70,73,76,69,46,116,120,116],"parent_file_id":2533274790395945,"reparse_tag":0,"src":"rdcw","t":9042323378}
+{"error":null,"label":"scenario end","src":"op","t":9042323384}
+{"attributes":32,"frn":"600000000002a","name":"file.txt","name_u16":[102,105,108,101,46,116,120,116],"parent":"9000000000029","reason":256,"source_info":0,"src":"usn","t":9042359281,"usn":13784,"version":3}
+{"attributes":32,"frn":"600000000002a","name":"file.txt","name_u16":[102,105,108,101,46,116,120,116],"parent":"9000000000029","reason":258,"source_info":0,"src":"usn","t":9042359281,"usn":13864,"version":3}
+{"attributes":32,"frn":"600000000002a","name":"file.txt","name_u16":[102,105,108,101,46,116,120,116],"parent":"9000000000029","reason":2147483906,"source_info":0,"src":"usn","t":9042359281,"usn":13944,"version":3}
+{"attributes":32,"frn":"300000000002b","name":"FILE.txt","name_u16":[70,73,76,69,46,116,120,116],"parent":"9000000000029","reason":256,"source_info":0,"src":"usn","t":9042359281,"usn":14024,"version":3}
+{"attributes":32,"frn":"300000000002b","name":"FILE.txt","name_u16":[70,73,76,69,46,116,120,116],"parent":"9000000000029","reason":258,"source_info":0,"src":"usn","t":9042359281,"usn":14104,"version":3}
+{"attributes":32,"frn":"300000000002b","name":"FILE.txt","name_u16":[70,73,76,69,46,116,120,116],"parent":"9000000000029","reason":2147483906,"source_info":0,"src":"usn","t":9042359281,"usn":14184,"version":3}

@@ -57,6 +57,38 @@ const FIXTURES: &[(&str, &str)] = &[
         "S1-ntfs-x64",
         include_str!("fixtures/fs-lab/S1-ntfs-x64.jsonl"),
     ),
+    (
+        "D1-refs-plain-x64",
+        include_str!("fixtures/fs-lab/D1-refs-plain-x64.jsonl"),
+    ),
+    (
+        "L1-refs-plain-x64",
+        include_str!("fixtures/fs-lab/L1-refs-plain-x64.jsonl"),
+    ),
+    (
+        "N1-ntfs-usn-x64",
+        include_str!("fixtures/fs-lab/N1-ntfs-usn-x64.jsonl"),
+    ),
+    (
+        "N2-fat32-plain-x64",
+        include_str!("fixtures/fs-lab/N2-fat32-plain-x64.jsonl"),
+    ),
+    (
+        "N2-refs-plain-arm",
+        include_str!("fixtures/fs-lab/N2-refs-plain-arm.jsonl"),
+    ),
+    (
+        "N2-refs-plain-x64",
+        include_str!("fixtures/fs-lab/N2-refs-plain-x64.jsonl"),
+    ),
+    (
+        "N4-exfat-plain-x64",
+        include_str!("fixtures/fs-lab/N4-exfat-plain-x64.jsonl"),
+    ),
+    (
+        "S1-devdrive-plain-x64",
+        include_str!("fixtures/fs-lab/S1-devdrive-plain-x64.jsonl"),
+    ),
 ];
 
 const USN_RENAME_OLD: u64 = 0x1000;
@@ -136,7 +168,16 @@ fn every_fixture_is_well_formed() {
         let f = load(id);
         assert_eq!(str_of(&f.header, "src"), "header", "{id}");
         assert!(num(&f.header, "os_build") >= 26_100, "{id}");
-        assert_eq!(str_of(&f.header, "rdcw_class"), "Full", "{id}");
+        let class = str_of(&f.header, "rdcw_class");
+        assert_eq!(
+            class,
+            if id.contains("-plain-") {
+                "Plain"
+            } else {
+                "Full"
+            },
+            "{id}"
+        );
         let (first, last) = (f.rows.first().expect("rows"), f.rows.last().expect("rows"));
         assert_eq!(str_of(first, "label"), "scenario start", "{id}");
         assert!(
@@ -148,10 +189,9 @@ fn every_fixture_is_well_formed() {
         let _ = last;
         for row in f.rows.iter().filter(|r| str_of(r, "src") == "rdcw") {
             assert!(!units(row).is_empty(), "{id}: empty name");
-            assert!(
-                row.get("file_id").is_some() && row.get("name_flags").is_some(),
-                "{id}: Full class fields"
-            );
+            // The plain class carries an action and a name, nothing else.
+            assert_eq!(row.get("file_id").is_some(), class == "Full", "{id}");
+            assert_eq!(row.get("name_flags").is_some(), class == "Full", "{id}");
         }
     }
 }
@@ -352,4 +392,92 @@ fn arm64_and_x64_agree_on_the_rdcw_action_sequence() {
         };
         assert_eq!(seq("x64"), seq("arm"), "{scenario}");
     }
+}
+
+#[test]
+fn ntfs_adds_no_usn_record_for_the_short_name_alias() {
+    let f = load("N1-ntfs-usn-x64");
+    let long = "A long file name for the short name test.txt";
+    // A write through the 8.3 name is reported by USN under the long name.
+    let write: Vec<&Value> = after(&f, "write through the short name")
+        .into_iter()
+        .filter(|r| str_of(r, "src") == "usn")
+        .collect();
+    assert!(!write.is_empty() && write.iter().all(|r| str_of(r, "name") == long));
+    // Every USN record before the rename carries the long name; the alias never appears.
+    let names: Vec<&str> = f
+        .rows
+        .iter()
+        .filter(|r| str_of(r, "src") == "usn")
+        .map(|r| str_of(r, "name"))
+        .collect();
+    assert!(
+        names
+            .iter()
+            .all(|n| *n == long || *n == "renamed-via-short.txt")
+    );
+}
+
+#[test]
+fn the_plain_class_has_no_file_id_but_keeps_exact_names() {
+    let f = load("N4-exfat-plain-x64");
+    let all: Vec<u16> = f
+        .rows
+        .iter()
+        .filter(|r| str_of(r, "src") == "rdcw")
+        .flat_map(units)
+        .collect();
+    assert!(all.contains(&0xD800) && all.contains(&0xDC00));
+}
+
+#[test]
+fn case_only_renames_are_lost_or_halved_off_ntfs() {
+    // exFAT and FAT32: no record at all for the file rename.
+    let f = load("N2-fat32-plain-x64");
+    assert_eq!(
+        actions(&after(&f, "case-only rename a.txt -> A.txt")).len(),
+        0
+    );
+    // ReFS: the old name and a Modified for the new one, never RenamedNewName.
+    for id in ["N2-refs-plain-x64", "N2-refs-plain-arm"] {
+        let f = load(id);
+        let rows = after(&f, "case-only rename a.txt -> A.txt");
+        let acts = actions(&rows);
+        assert!(acts.contains(&"RenamedOldName".to_string()), "{id}");
+        assert!(!acts.contains(&"RenamedNewName".to_string()), "{id}");
+    }
+}
+
+#[test]
+fn a_hard_link_on_refs_is_an_added_plus_a_modified_of_the_other_name() {
+    let f = load("L1-refs-plain-x64");
+    let rows = after(&f, "create hard link");
+    assert_eq!(actions(&rows), ["Added", "Modified"]);
+    assert_eq!(rdcw_name(rows.first().expect("added")), "link.txt");
+    assert_eq!(rdcw_name(rows.get(1).expect("modified")), "orig.txt");
+}
+
+#[test]
+fn deleting_a_stream_is_visible_on_a_dev_drive_but_not_on_ntfs() {
+    let f = load("S1-devdrive-plain-x64");
+    assert_eq!(
+        actions(&after(&f, "delete the stream (file stays)")),
+        ["Modified"]
+    );
+    let n = load("S1-ntfs-x64");
+    assert_eq!(after(&n, "delete the stream (file stays)").len(), 0);
+}
+
+#[test]
+fn a_copy_that_clones_sets_basic_info_and_sparse_on_the_copy() {
+    let f = load("D1-refs-plain-x64");
+    let copy: Vec<&Value> = after(&f, "fs::copy (CopyFile2, clones on ReFS where supported)")
+        .into_iter()
+        .filter(|r| str_of(r, "src") == "usn")
+        .collect();
+    // BASIC_INFO_CHANGE (0x8000) with the sparse attribute (0x200) on the new file.
+    assert!(
+        copy.iter()
+            .any(|r| num(r, "reason") & 0x8000 != 0 && num(r, "attributes") & 0x200 != 0)
+    );
 }

@@ -1,0 +1,88 @@
+{"arch":"aarch64","label":"windows-11-vs2026-arm/c","os_build":26200,"qpc_freq":10000000,"rdcw_class":"Full","rep":0,"root":"C:\\fslab-c\\N2-0","scenario":"N2","settle_s":3,"src":"header","volume":"C:"}
+{"label":"scenario start","src":"op","t":7776917374}
+{"action":"Added","allocated_length":0,"attributes":32,"file_id":562949954043061,"file_size":0,"name":"a.txt","name_flags":3,"name_u16":[97,46,116,120,116],"parent_file_id":562949954043060,"reparse_tag":0,"src":"rdcw","t":7776921248}
+{"action":"Modified","allocated_length":8,"attributes":32,"file_id":562949954043061,"file_size":1,"name":"a.txt","name_flags":3,"name_u16":[97,46,116,120,116],"parent_file_id":562949954043060,"reparse_tag":0,"src":"rdcw","t":7776923020}
+{"attributes":32,"frn":"2000000097cb5","name":"a.txt","name_u16":[97,46,116,120,116],"parent":"2000000097cb4","reason":256,"source_info":0,"src":"usn","t":7776961086,"usn":645901800,"version":3}
+{"attributes":32,"frn":"2000000097cb5","name":"a.txt","name_u16":[97,46,116,120,116],"parent":"2000000097cb4","reason":258,"source_info":0,"src":"usn","t":7776961086,"usn":645901872,"version":3}
+{"attributes":32,"frn":"2000000097cb5","name":"a.txt","name_u16":[97,46,116,120,116],"parent":"2000000097cb4","reason":2147483906,"source_info":0,"src":"usn","t":7776961086,"usn":645901944,"version":3}
+{"label":"case-only rename a.txt -> A.txt","src":"op","t":7779926352}
+{"action":"Removed","allocated_length":8,"attributes":32,"file_id":562949954043061,"file_size":1,"name":"a.txt","name_flags":128,"name_u16":[97,46,116,120,116],"parent_file_id":562949954043060,"reparse_tag":0,"src":"rdcw","t":7779931731}
+{"action":"RenamedOldName","allocated_length":8,"attributes":32,"file_id":562949954043061,"file_size":1,"name":"a.txt","name_flags":128,"name_u16":[97,46,116,120,116],"parent_file_id":562949954043060,"reparse_tag":0,"src":"rdcw","t":7779932235}
+{"action":"RenamedNewName","allocated_length":8,"attributes":32,"file_id":562949954043061,"file_size":1,"name":"A.txt","name_flags":128,"name_u16":[65,46,116,120,116],"parent_file_id":562949954043060,"reparse_tag":0,"src":"rdcw","t":7779932235}
+{"attributes":32,"frn":"2000000097cb5","name":"a.txt","name_u16":[97,46,116,120,116],"parent":"2000000097cb4","reason":4096,"source_info":0,"src":"usn","t":7779962903,"usn":645902016,"version":3}
+{"attributes":32,"frn":"2000000097cb5","name":"A.txt","name_u16":[65,46,116,120,116],"parent":"2000000097cb4","reason":8192,"source_info":0,"src":"usn","t":7779962903,"usn":645902088,"version":3}
+{"attributes":32,"frn":"2000000097cb5","name":"A.txt","name_u16":[65,46,116,120,116],"parent":"2000000097cb4","reason":2147491840,"source_info":0,"src":"usn","t":7779962903,"usn":645902160,"version":3}
+{"attributes":8224,"frn":"3000000096dc3","name":"SVCHOST.EXE-C82C6B72.pf","name_u16":[83,86,67,72,79,83,84,46,69,88,69,45,67,56,50,67,54,66,55,50,46,112,102],"parent":"60000000222c9","reason":4,"source_info":0,"src":"usn","t":7780269724,"usn":645902336,"version":3}
+{"attributes":8224,"frn":"3000000096dc3","name":"SVCHOST.EXE-C82C6B72.pf","name_u16":[83,86,67,72,79,83,84,46,69,88,69,45,67,56,50,67,54,66,55,50,46,112,102],"parent":"60000000222c9","reason":6,"source_info":0,"src":"usn","t":7780269724,"usn":645902448,"version":3}
+{"attributes":8224,"frn":"3000000096dc3","name":"SVCHOST.EXE-C82C6B72.pf","name_u16":[83,86,67,72,79,83,84,46,69,88,69,45,67,56,50,67,54,66,55,50,46,112,102],"parent":"60000000222c9","reason":2147483654,"source_info":0,"src":"usn","t":7780269724,"usn":645902560,"version":3}
+{"attributes":8224,"frn":"3000000096dd4","name":"DLLHOST.EXE-A8127979.pf","name_u16":[68,76,76,72,79,83,84,46,69,88,69,45,65,56,49,50,55,57,55,57,46,112,102],"parent":"60000000222c9","reason":4,"source_info":0,"src":"usn","t":7781029666,"usn":645902672,"version":3}
+{"attributes":8224,"frn":"3000000096dd4","name":"DLLHOST.EXE-A8127979.pf","name_u16":[68,76,76,72,79,83,84,46,69,88,69,45,65,56,49,50,55,57,55,57,46,112,102],"parent":"60000000222c9","reason":6,"source_info":0,"src":"usn","t":7781029666,"usn":645902784,"version":3}
+{"attributes":8224,"frn":"3000000096dd4","name":"DLLHOST.EXE-A8127979.pf","name_u16":[68,76,76,72,79,83,84,46,69,88,69,45,65,56,49,50,55,57,55,57,46,112,102],"parent":"60000000222c9","reason":2147483654,"source_info":0,"src":"usn","t":7781029666,"usn":645902896,"version":3}
+{"label":"case-only rename of a directory","src":"op","t":7782935580}
+{"action":"Added","allocated_length":0,"attributes":16,"file_id":562949954043062,"file_size":0,"name":"dir","name_flags":3,"name_u16":[100,105,114],"parent_file_id":562949954043060,"reparse_tag":0,"src":"rdcw","t":7782939820}
+{"attributes":16,"frn":"2000000097cb6","name":"dir","name_u16":[100,105,114],"parent":"2000000097cb4","reason":256,"source_info":0,"src":"usn","t":7782949672,"usn":645903008,"version":3}
+{"attributes":16,"frn":"2000000097cb6","name":"dir","name_u16":[100,105,114],"parent":"2000000097cb4","reason":2147483904,"source_info":0,"src":"usn","t":7782949672,"usn":645903080,"version":3}
+{"action":"Removed","allocated_length":0,"attributes":16,"file_id":562949954043062,"file_size":0,"name":"dir","name_flags":128,"name_u16":[100,105,114],"parent_file_id":562949954043060,"reparse_tag":0,"src":"rdcw","t":7785946824}
+{"action":"RenamedOldName","allocated_length":0,"attributes":16,"file_id":562949954043062,"file_size":0,"name":"dir","name_flags":128,"name_u16":[100,105,114],"parent_file_id":562949954043060,"reparse_tag":0,"src":"rdcw","t":7785947356}
+{"action":"RenamedNewName","allocated_length":0,"attributes":16,"file_id":562949954043062,"file_size":0,"name":"DIR","name_flags":128,"name_u16":[68,73,82],"parent_file_id":562949954043060,"reparse_tag":0,"src":"rdcw","t":7785947356}
+{"error":null,"label":"scenario end","src":"op","t":7785947810}
+{"attributes":16,"frn":"2000000097cb6","name":"dir","name_u16":[100,105,114],"parent":"2000000097cb4","reason":4096,"source_info":0,"src":"usn","t":7785994596,"usn":645903152,"version":3}
+{"attributes":16,"frn":"2000000097cb6","name":"DIR","name_u16":[68,73,82],"parent":"2000000097cb4","reason":8192,"source_info":0,"src":"usn","t":7785994596,"usn":645903224,"version":3}
+{"attributes":16,"frn":"2000000097cb6","name":"DIR","name_u16":[68,73,82],"parent":"2000000097cb4","reason":2147491840,"source_info":0,"src":"usn","t":7785994596,"usn":645903296,"version":3}
+{"attributes":8224,"frn":"800000006cd00","name":"DLLHOST.EXE-38926D07.pf","name_u16":[68,76,76,72,79,83,84,46,69,88,69,45,51,56,57,50,54,68,48,55,46,112,102],"parent":"60000000222c9","reason":4,"source_info":0,"src":"usn","t":7796672941,"usn":645903368,"version":3}
+{"attributes":8224,"frn":"800000006cd00","name":"DLLHOST.EXE-38926D07.pf","name_u16":[68,76,76,72,79,83,84,46,69,88,69,45,51,56,57,50,54,68,48,55,46,112,102],"parent":"60000000222c9","reason":6,"source_info":0,"src":"usn","t":7796672941,"usn":645903480,"version":3}
+{"attributes":8224,"frn":"800000006cd00","name":"DLLHOST.EXE-38926D07.pf","name_u16":[68,76,76,72,79,83,84,46,69,88,69,45,51,56,57,50,54,68,48,55,46,112,102],"parent":"60000000222c9","reason":2147483654,"source_info":0,"src":"usn","t":7796672941,"usn":645903592,"version":3}
+{"attributes":8224,"frn":"200000006764c","name":"VDSLDR.EXE-35269815.pf","name_u16":[86,68,83,76,68,82,46,69,88,69,45,51,53,50,54,57,56,49,53,46,112,102],"parent":"60000000222c9","reason":4,"source_info":0,"src":"usn","t":7800841153,"usn":645903704,"version":3}
+{"attributes":8224,"frn":"200000006764c","name":"VDSLDR.EXE-35269815.pf","name_u16":[86,68,83,76,68,82,46,69,88,69,45,51,53,50,54,57,56,49,53,46,112,102],"parent":"60000000222c9","reason":6,"source_info":0,"src":"usn","t":7800841153,"usn":645903808,"version":3}
+{"attributes":8224,"frn":"200000006764c","name":"VDSLDR.EXE-35269815.pf","name_u16":[86,68,83,76,68,82,46,69,88,69,45,51,53,50,54,57,56,49,53,46,112,102],"parent":"60000000222c9","reason":2147483654,"source_info":0,"src":"usn","t":7800841153,"usn":645903912,"version":3}
+{"arch":"aarch64","label":"windows-11-vs2026-arm/c","os_build":26200,"qpc_freq":10000000,"rdcw_class":"Full","rep":1,"root":"C:\\fslab-c\\N2-1","scenario":"N2","settle_s":3,"src":"header","volume":"C:"}
+{"label":"scenario start","src":"op","t":7831484024}
+{"action":"Added","allocated_length":0,"attributes":32,"file_id":844424930753717,"file_size":0,"name":"a.txt","name_flags":3,"name_u16":[97,46,116,120,116],"parent_file_id":844424930753716,"reparse_tag":0,"src":"rdcw","t":7831487962}
+{"action":"Modified","allocated_length":8,"attributes":32,"file_id":844424930753717,"file_size":1,"name":"a.txt","name_flags":3,"name_u16":[97,46,116,120,116],"parent_file_id":844424930753716,"reparse_tag":0,"src":"rdcw","t":7831489420}
+{"attributes":32,"frn":"3000000097cb5","name":"a.txt","name_u16":[97,46,116,120,116],"parent":"3000000097cb4","reason":256,"source_info":0,"src":"usn","t":7831508080,"usn":645904904,"version":3}
+{"attributes":32,"frn":"3000000097cb5","name":"a.txt","name_u16":[97,46,116,120,116],"parent":"3000000097cb4","reason":258,"source_info":0,"src":"usn","t":7831508080,"usn":645904976,"version":3}
+{"attributes":32,"frn":"3000000097cb5","name":"a.txt","name_u16":[97,46,116,120,116],"parent":"3000000097cb4","reason":2147483906,"source_info":0,"src":"usn","t":7831508080,"usn":645905048,"version":3}
+{"label":"case-only rename a.txt -> A.txt","src":"op","t":7834492305}
+{"action":"Removed","allocated_length":8,"attributes":32,"file_id":844424930753717,"file_size":1,"name":"a.txt","name_flags":128,"name_u16":[97,46,116,120,116],"parent_file_id":844424930753716,"reparse_tag":0,"src":"rdcw","t":7834496904}
+{"action":"RenamedOldName","allocated_length":8,"attributes":32,"file_id":844424930753717,"file_size":1,"name":"a.txt","name_flags":128,"name_u16":[97,46,116,120,116],"parent_file_id":844424930753716,"reparse_tag":0,"src":"rdcw","t":7834497143}
+{"action":"RenamedNewName","allocated_length":8,"attributes":32,"file_id":844424930753717,"file_size":1,"name":"A.txt","name_flags":128,"name_u16":[65,46,116,120,116],"parent_file_id":844424930753716,"reparse_tag":0,"src":"rdcw","t":7834497143}
+{"attributes":32,"frn":"3000000097cb5","name":"a.txt","name_u16":[97,46,116,120,116],"parent":"3000000097cb4","reason":4096,"source_info":0,"src":"usn","t":7834506426,"usn":645905120,"version":3}
+{"attributes":32,"frn":"3000000097cb5","name":"A.txt","name_u16":[65,46,116,120,116],"parent":"3000000097cb4","reason":8192,"source_info":0,"src":"usn","t":7834506426,"usn":645905192,"version":3}
+{"attributes":32,"frn":"3000000097cb5","name":"A.txt","name_u16":[65,46,116,120,116],"parent":"3000000097cb4","reason":2147491840,"source_info":0,"src":"usn","t":7834506426,"usn":645905264,"version":3}
+{"label":"case-only rename of a directory","src":"op","t":7837500453}
+{"action":"Added","allocated_length":0,"attributes":16,"file_id":844424930753718,"file_size":0,"name":"dir","name_flags":3,"name_u16":[100,105,114],"parent_file_id":844424930753716,"reparse_tag":0,"src":"rdcw","t":7837503884}
+{"attributes":16,"frn":"3000000097cb6","name":"dir","name_u16":[100,105,114],"parent":"3000000097cb4","reason":256,"source_info":0,"src":"usn","t":7837529922,"usn":645905336,"version":3}
+{"attributes":16,"frn":"3000000097cb6","name":"dir","name_u16":[100,105,114],"parent":"3000000097cb4","reason":2147483904,"source_info":0,"src":"usn","t":7837529922,"usn":645905408,"version":3}
+{"action":"Removed","allocated_length":0,"attributes":16,"file_id":844424930753718,"file_size":0,"name":"dir","name_flags":128,"name_u16":[100,105,114],"parent_file_id":844424930753716,"reparse_tag":0,"src":"rdcw","t":7840511987}
+{"error":null,"label":"scenario end","src":"op","t":7840512488}
+{"action":"RenamedOldName","allocated_length":0,"attributes":16,"file_id":844424930753718,"file_size":0,"name":"dir","name_flags":128,"name_u16":[100,105,114],"parent_file_id":844424930753716,"reparse_tag":0,"src":"rdcw","t":7840512530}
+{"action":"RenamedNewName","allocated_length":0,"attributes":16,"file_id":844424930753718,"file_size":0,"name":"DIR","name_flags":128,"name_u16":[68,73,82],"parent_file_id":844424930753716,"reparse_tag":0,"src":"rdcw","t":7840512530}
+{"attributes":16,"frn":"3000000097cb6","name":"dir","name_u16":[100,105,114],"parent":"3000000097cb4","reason":4096,"source_info":0,"src":"usn","t":7840520279,"usn":645905480,"version":3}
+{"attributes":16,"frn":"3000000097cb6","name":"DIR","name_u16":[68,73,82],"parent":"3000000097cb4","reason":8192,"source_info":0,"src":"usn","t":7840520279,"usn":645905552,"version":3}
+{"attributes":16,"frn":"3000000097cb6","name":"DIR","name_u16":[68,73,82],"parent":"3000000097cb4","reason":2147491840,"source_info":0,"src":"usn","t":7840520279,"usn":645905624,"version":3}
+{"arch":"aarch64","label":"windows-11-vs2026-arm/c","os_build":26200,"qpc_freq":10000000,"rdcw_class":"Full","rep":2,"root":"C:\\fslab-c\\N2-2","scenario":"N2","settle_s":3,"src":"header","volume":"C:"}
+{"label":"scenario start","src":"op","t":7885686824}
+{"action":"Added","allocated_length":0,"attributes":32,"file_id":1125899907464373,"file_size":0,"name":"a.txt","name_flags":3,"name_u16":[97,46,116,120,116],"parent_file_id":1125899907464372,"reparse_tag":0,"src":"rdcw","t":7885690374}
+{"action":"Modified","allocated_length":8,"attributes":32,"file_id":1125899907464373,"file_size":1,"name":"a.txt","name_flags":3,"name_u16":[97,46,116,120,116],"parent_file_id":1125899907464372,"reparse_tag":0,"src":"rdcw","t":7885691615}
+{"attributes":32,"frn":"4000000097cb5","name":"a.txt","name_u16":[97,46,116,120,116],"parent":"4000000097cb4","reason":256,"source_info":0,"src":"usn","t":7885711746,"usn":645906504,"version":3}
+{"attributes":32,"frn":"4000000097cb5","name":"a.txt","name_u16":[97,46,116,120,116],"parent":"4000000097cb4","reason":258,"source_info":0,"src":"usn","t":7885711746,"usn":645906576,"version":3}
+{"attributes":32,"frn":"4000000097cb5","name":"a.txt","name_u16":[97,46,116,120,116],"parent":"4000000097cb4","reason":2147483906,"source_info":0,"src":"usn","t":7885711746,"usn":645906648,"version":3}
+{"label":"case-only rename a.txt -> A.txt","src":"op","t":7888695687}
+{"action":"Removed","allocated_length":8,"attributes":32,"file_id":1125899907464373,"file_size":1,"name":"a.txt","name_flags":128,"name_u16":[97,46,116,120,116],"parent_file_id":1125899907464372,"reparse_tag":0,"src":"rdcw","t":7888700128}
+{"action":"RenamedOldName","allocated_length":8,"attributes":32,"file_id":1125899907464373,"file_size":1,"name":"a.txt","name_flags":128,"name_u16":[97,46,116,120,116],"parent_file_id":1125899907464372,"reparse_tag":0,"src":"rdcw","t":7888700365}
+{"action":"RenamedNewName","allocated_length":8,"attributes":32,"file_id":1125899907464373,"file_size":1,"name":"A.txt","name_flags":128,"name_u16":[65,46,116,120,116],"parent_file_id":1125899907464372,"reparse_tag":0,"src":"rdcw","t":7888700365}
+{"attributes":32,"frn":"4000000097cb5","name":"a.txt","name_u16":[97,46,116,120,116],"parent":"4000000097cb4","reason":4096,"source_info":0,"src":"usn","t":7888714773,"usn":645906720,"version":3}
+{"attributes":32,"frn":"4000000097cb5","name":"A.txt","name_u16":[65,46,116,120,116],"parent":"4000000097cb4","reason":8192,"source_info":0,"src":"usn","t":7888714773,"usn":645906792,"version":3}
+{"attributes":32,"frn":"4000000097cb5","name":"A.txt","name_u16":[65,46,116,120,116],"parent":"4000000097cb4","reason":2147491840,"source_info":0,"src":"usn","t":7888714773,"usn":645906864,"version":3}
+{"label":"case-only rename of a directory","src":"op","t":7891706239}
+{"action":"Added","allocated_length":0,"attributes":16,"file_id":1125899907464374,"file_size":0,"name":"dir","name_flags":3,"name_u16":[100,105,114],"parent_file_id":1125899907464372,"reparse_tag":0,"src":"rdcw","t":7891709614}
+{"attributes":16,"frn":"4000000097cb6","name":"dir","name_u16":[100,105,114],"parent":"4000000097cb4","reason":256,"source_info":0,"src":"usn","t":7891716780,"usn":645906936,"version":3}
+{"attributes":16,"frn":"4000000097cb6","name":"dir","name_u16":[100,105,114],"parent":"4000000097cb4","reason":2147483904,"source_info":0,"src":"usn","t":7891716780,"usn":645907008,"version":3}
+{"action":"Removed","allocated_length":0,"attributes":16,"file_id":1125899907464374,"file_size":0,"name":"dir","name_flags":128,"name_u16":[100,105,114],"parent_file_id":1125899907464372,"reparse_tag":0,"src":"rdcw","t":7894716825}
+{"action":"RenamedOldName","allocated_length":0,"attributes":16,"file_id":1125899907464374,"file_size":0,"name":"dir","name_flags":128,"name_u16":[100,105,114],"parent_file_id":1125899907464372,"reparse_tag":0,"src":"rdcw","t":7894717437}
+{"action":"RenamedNewName","allocated_length":0,"attributes":16,"file_id":1125899907464374,"file_size":0,"name":"DIR","name_flags":128,"name_u16":[68,73,82],"parent_file_id":1125899907464372,"reparse_tag":0,"src":"rdcw","t":7894717437}
+{"error":null,"label":"scenario end","src":"op","t":7894717558}
+{"attributes":16,"frn":"4000000097cb6","name":"dir","name_u16":[100,105,114],"parent":"4000000097cb4","reason":4096,"source_info":0,"src":"usn","t":7894763684,"usn":645907080,"version":3}
+{"attributes":16,"frn":"4000000097cb6","name":"DIR","name_u16":[68,73,82],"parent":"4000000097cb4","reason":8192,"source_info":0,"src":"usn","t":7894763684,"usn":645907152,"version":3}
+{"attributes":16,"frn":"4000000097cb6","name":"DIR","name_u16":[68,73,82],"parent":"4000000097cb4","reason":2147491840,"source_info":0,"src":"usn","t":7894763684,"usn":645907224,"version":3}
+{"attributes":38,"frn":"100000002226e","name":"BBI.LOG2","name_u16":[66,66,73,46,76,79,71,50],"parent":"10000000010ee","reason":3,"source_info":0,"src":"usn","t":7920832713,"usn":645907296,"version":3}

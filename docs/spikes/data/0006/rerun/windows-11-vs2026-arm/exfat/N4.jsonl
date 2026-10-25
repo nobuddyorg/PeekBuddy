@@ -1,0 +1,69 @@
+{"arch":"aarch64","label":"windows-11-vs2026-arm/exfat","os_build":26200,"qpc_freq":10000000,"rdcw_class":"Full","rep":0,"root":"R:\\fslab\\N4-0","scenario":"N4","settle_s":3,"src":"header","volume":"R:"}
+{"code":1,"error":"Incorrect function. (os error 1)","src":"error","what":"ReadDirectoryChangesExW"}
+{"src":"note","value":"plain class","what":"rdcw fallback"}
+{"error":"Incorrect function. (os error 1)","src":"error","what":"usn query"}
+{"label":"scenario start","src":"op","t":20408785471}
+{"label":"create name with a lone high surrogate","src":"op","t":20408785798}
+{"action":"Added","name":"a�b","name_u16":[97,55296,98],"src":"rdcw","t":20408787914}
+{"action":"Modified","name":"a�b","name_u16":[97,55296,98],"src":"rdcw","t":20408789224}
+{"label":"create name with a lone low surrogate","src":"op","t":20408789457}
+{"action":"Modified","name":"a�b","name_u16":[97,55296,98],"src":"rdcw","t":20408789830}
+{"action":"Added","name":"a�b","name_u16":[97,56320,98],"src":"rdcw","t":20408790698}
+{"action":"Modified","name":"a�b","name_u16":[97,56320,98],"src":"rdcw","t":20408792349}
+{"action":"Modified","name":"a�b","name_u16":[97,56320,98],"src":"rdcw","t":20408792523}
+{"label":"write the first","src":"op","t":20411794339}
+{"action":"Modified","name":"a�b","name_u16":[97,55296,98],"src":"rdcw","t":20411796665}
+{"action":"Modified","name":"a�b","name_u16":[97,55296,98],"src":"rdcw","t":20411797224}
+{"label":"rename the first to a normal name","src":"op","t":20414798750}
+{"action":"RenamedOldName","name":"a�b","name_u16":[97,55296,98],"src":"rdcw","t":20414801342}
+{"action":"RenamedNewName","name":"normal.txt","name_u16":[110,111,114,109,97,108,46,116,120,116],"src":"rdcw","t":20414801342}
+{"label":"delete both","src":"op","t":20414801875}
+{"action":"Removed","name":"a�b","name_u16":[97,56320,98],"src":"rdcw","t":20414803018}
+{"error":null,"label":"scenario end","src":"op","t":20414804027}
+{"action":"Removed","name":"normal.txt","name_u16":[110,111,114,109,97,108,46,116,120,116],"src":"rdcw","t":20414804159}
+{"arch":"aarch64","label":"windows-11-vs2026-arm/exfat","os_build":26200,"qpc_freq":10000000,"rdcw_class":"Full","rep":1,"root":"R:\\fslab\\N4-1","scenario":"N4","settle_s":3,"src":"header","volume":"R:"}
+{"code":1,"error":"Incorrect function. (os error 1)","src":"error","what":"ReadDirectoryChangesExW"}
+{"src":"note","value":"plain class","what":"rdcw fallback"}
+{"error":"Incorrect function. (os error 1)","src":"error","what":"usn query"}
+{"label":"scenario start","src":"op","t":20460392429}
+{"label":"create name with a lone high surrogate","src":"op","t":20460392556}
+{"action":"Added","name":"a�b","name_u16":[97,55296,98],"src":"rdcw","t":20460395570}
+{"action":"Modified","name":"a�b","name_u16":[97,55296,98],"src":"rdcw","t":20460395937}
+{"label":"create name with a lone low surrogate","src":"op","t":20460396297}
+{"action":"Modified","name":"a�b","name_u16":[97,55296,98],"src":"rdcw","t":20460397005}
+{"action":"Added","name":"a�b","name_u16":[97,56320,98],"src":"rdcw","t":20460397269}
+{"action":"Modified","name":"a�b","name_u16":[97,56320,98],"src":"rdcw","t":20460399182}
+{"action":"Modified","name":"a�b","name_u16":[97,56320,98],"src":"rdcw","t":20460399845}
+{"label":"write the first","src":"op","t":20463401080}
+{"action":"Modified","name":"a�b","name_u16":[97,55296,98],"src":"rdcw","t":20463403789}
+{"action":"Modified","name":"a�b","name_u16":[97,55296,98],"src":"rdcw","t":20463404201}
+{"label":"rename the first to a normal name","src":"op","t":20466405208}
+{"action":"RenamedOldName","name":"a�b","name_u16":[97,55296,98],"src":"rdcw","t":20466407823}
+{"action":"RenamedNewName","name":"normal.txt","name_u16":[110,111,114,109,97,108,46,116,120,116],"src":"rdcw","t":20466407823}
+{"label":"delete both","src":"op","t":20466408245}
+{"action":"Removed","name":"a�b","name_u16":[97,56320,98],"src":"rdcw","t":20466409348}
+{"error":null,"label":"scenario end","src":"op","t":20466410266}
+{"action":"Removed","name":"normal.txt","name_u16":[110,111,114,109,97,108,46,116,120,116],"src":"rdcw","t":20466410594}
+{"arch":"aarch64","label":"windows-11-vs2026-arm/exfat","os_build":26200,"qpc_freq":10000000,"rdcw_class":"Full","rep":2,"root":"R:\\fslab\\N4-2","scenario":"N4","settle_s":3,"src":"header","volume":"R:"}
+{"code":1,"error":"Incorrect function. (os error 1)","src":"error","what":"ReadDirectoryChangesExW"}
+{"src":"note","value":"plain class","what":"rdcw fallback"}
+{"error":"Incorrect function. (os error 1)","src":"error","what":"usn query"}
+{"label":"scenario start","src":"op","t":20512117063}
+{"label":"create name with a lone high surrogate","src":"op","t":20512117199}
+{"action":"Added","name":"a�b","name_u16":[97,55296,98],"src":"rdcw","t":20512119871}
+{"action":"Modified","name":"a�b","name_u16":[97,55296,98],"src":"rdcw","t":20512120425}
+{"label":"create name with a lone low surrogate","src":"op","t":20512121011}
+{"action":"Modified","name":"a�b","name_u16":[97,55296,98],"src":"rdcw","t":20512121127}
+{"action":"Added","name":"a�b","name_u16":[97,56320,98],"src":"rdcw","t":20512122199}
+{"action":"Modified","name":"a�b","name_u16":[97,56320,98],"src":"rdcw","t":20512123157}
+{"action":"Modified","name":"a�b","name_u16":[97,56320,98],"src":"rdcw","t":20512123524}
+{"label":"write the first","src":"op","t":20515128704}
+{"action":"Modified","name":"a�b","name_u16":[97,55296,98],"src":"rdcw","t":20515130783}
+{"action":"Modified","name":"a�b","name_u16":[97,55296,98],"src":"rdcw","t":20515131287}
+{"label":"rename the first to a normal name","src":"op","t":20518136228}
+{"label":"delete both","src":"op","t":20518139174}
+{"action":"RenamedOldName","name":"a�b","name_u16":[97,55296,98],"src":"rdcw","t":20518139547}
+{"action":"RenamedNewName","name":"normal.txt","name_u16":[110,111,114,109,97,108,46,116,120,116],"src":"rdcw","t":20518139547}
+{"action":"Removed","name":"a�b","name_u16":[97,56320,98],"src":"rdcw","t":20518140313}
+{"error":null,"label":"scenario end","src":"op","t":20518141375}
+{"action":"Removed","name":"normal.txt","name_u16":[110,111,114,109,97,108,46,116,120,116],"src":"rdcw","t":20518141567}

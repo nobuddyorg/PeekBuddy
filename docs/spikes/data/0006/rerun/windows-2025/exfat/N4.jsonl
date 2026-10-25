@@ -1,0 +1,69 @@
+{"arch":"x86_64","label":"windows-2025/exfat","os_build":26100,"qpc_freq":10000000,"rdcw_class":"Full","rep":0,"root":"R:\\fslab\\N4-0","scenario":"N4","settle_s":3,"src":"header","volume":"R:"}
+{"code":1,"error":"Incorrect function. (os error 1)","src":"error","what":"ReadDirectoryChangesExW"}
+{"src":"note","value":"plain class","what":"rdcw fallback"}
+{"error":"Incorrect function. (os error 1)","src":"error","what":"usn query"}
+{"label":"scenario start","src":"op","t":14386984617}
+{"label":"create name with a lone high surrogate","src":"op","t":14386984890}
+{"action":"Added","name":"a�b","name_u16":[97,55296,98],"src":"rdcw","t":14386987845}
+{"action":"Modified","name":"a�b","name_u16":[97,55296,98],"src":"rdcw","t":14386988799}
+{"label":"create name with a lone low surrogate","src":"op","t":14386988941}
+{"action":"Modified","name":"a�b","name_u16":[97,55296,98],"src":"rdcw","t":14386989001}
+{"action":"Added","name":"a�b","name_u16":[97,56320,98],"src":"rdcw","t":14386989869}
+{"action":"Modified","name":"a�b","name_u16":[97,56320,98],"src":"rdcw","t":14386990457}
+{"action":"Modified","name":"a�b","name_u16":[97,56320,98],"src":"rdcw","t":14386990710}
+{"label":"write the first","src":"op","t":14389991429}
+{"action":"Modified","name":"a�b","name_u16":[97,55296,98],"src":"rdcw","t":14389994328}
+{"action":"Modified","name":"a�b","name_u16":[97,55296,98],"src":"rdcw","t":14389994861}
+{"label":"rename the first to a normal name","src":"op","t":14393000247}
+{"action":"RenamedOldName","name":"a�b","name_u16":[97,55296,98],"src":"rdcw","t":14393002390}
+{"action":"RenamedNewName","name":"normal.txt","name_u16":[110,111,114,109,97,108,46,116,120,116],"src":"rdcw","t":14393002390}
+{"label":"delete both","src":"op","t":14393002740}
+{"action":"Removed","name":"a�b","name_u16":[97,56320,98],"src":"rdcw","t":14393003627}
+{"action":"Removed","name":"normal.txt","name_u16":[110,111,114,109,97,108,46,116,120,116],"src":"rdcw","t":14393004361}
+{"error":null,"label":"scenario end","src":"op","t":14393004404}
+{"arch":"x86_64","label":"windows-2025/exfat","os_build":26100,"qpc_freq":10000000,"rdcw_class":"Full","rep":1,"root":"R:\\fslab\\N4-1","scenario":"N4","settle_s":3,"src":"header","volume":"R:"}
+{"code":1,"error":"Incorrect function. (os error 1)","src":"error","what":"ReadDirectoryChangesExW"}
+{"src":"note","value":"plain class","what":"rdcw fallback"}
+{"error":"Incorrect function. (os error 1)","src":"error","what":"usn query"}
+{"label":"scenario start","src":"op","t":14438383668}
+{"label":"create name with a lone high surrogate","src":"op","t":14438383765}
+{"action":"Added","name":"a�b","name_u16":[97,55296,98],"src":"rdcw","t":14438386204}
+{"action":"Modified","name":"a�b","name_u16":[97,55296,98],"src":"rdcw","t":14438387155}
+{"action":"Modified","name":"a�b","name_u16":[97,55296,98],"src":"rdcw","t":14438387386}
+{"label":"create name with a lone low surrogate","src":"op","t":14438387394}
+{"action":"Added","name":"a�b","name_u16":[97,56320,98],"src":"rdcw","t":14438388220}
+{"action":"Modified","name":"a�b","name_u16":[97,56320,98],"src":"rdcw","t":14438388888}
+{"action":"Modified","name":"a�b","name_u16":[97,56320,98],"src":"rdcw","t":14438389183}
+{"label":"write the first","src":"op","t":14441393654}
+{"action":"Modified","name":"a�b","name_u16":[97,55296,98],"src":"rdcw","t":14441395711}
+{"action":"Modified","name":"a�b","name_u16":[97,55296,98],"src":"rdcw","t":14441396220}
+{"label":"rename the first to a normal name","src":"op","t":14444397746}
+{"action":"RenamedOldName","name":"a�b","name_u16":[97,55296,98],"src":"rdcw","t":14444400151}
+{"action":"RenamedNewName","name":"normal.txt","name_u16":[110,111,114,109,97,108,46,116,120,116],"src":"rdcw","t":14444400151}
+{"label":"delete both","src":"op","t":14444400417}
+{"action":"Removed","name":"a�b","name_u16":[97,56320,98],"src":"rdcw","t":14444401274}
+{"action":"Removed","name":"normal.txt","name_u16":[110,111,114,109,97,108,46,116,120,116],"src":"rdcw","t":14444401985}
+{"error":null,"label":"scenario end","src":"op","t":14444402042}
+{"arch":"x86_64","label":"windows-2025/exfat","os_build":26100,"qpc_freq":10000000,"rdcw_class":"Full","rep":2,"root":"R:\\fslab\\N4-2","scenario":"N4","settle_s":3,"src":"header","volume":"R:"}
+{"code":1,"error":"Incorrect function. (os error 1)","src":"error","what":"ReadDirectoryChangesExW"}
+{"src":"note","value":"plain class","what":"rdcw fallback"}
+{"error":"Incorrect function. (os error 1)","src":"error","what":"usn query"}
+{"label":"scenario start","src":"op","t":14489912984}
+{"label":"create name with a lone high surrogate","src":"op","t":14489913073}
+{"action":"Added","name":"a�b","name_u16":[97,55296,98],"src":"rdcw","t":14489915709}
+{"action":"Modified","name":"a�b","name_u16":[97,55296,98],"src":"rdcw","t":14489916682}
+{"label":"create name with a lone low surrogate","src":"op","t":14489916913}
+{"action":"Modified","name":"a�b","name_u16":[97,55296,98],"src":"rdcw","t":14489916987}
+{"action":"Added","name":"a�b","name_u16":[97,56320,98],"src":"rdcw","t":14489917855}
+{"action":"Modified","name":"a�b","name_u16":[97,56320,98],"src":"rdcw","t":14489918493}
+{"action":"Modified","name":"a�b","name_u16":[97,56320,98],"src":"rdcw","t":14489918592}
+{"label":"write the first","src":"op","t":14492922843}
+{"action":"Modified","name":"a�b","name_u16":[97,55296,98],"src":"rdcw","t":14492925367}
+{"action":"Modified","name":"a�b","name_u16":[97,55296,98],"src":"rdcw","t":14492925939}
+{"label":"rename the first to a normal name","src":"op","t":14495927584}
+{"action":"RenamedOldName","name":"a�b","name_u16":[97,55296,98],"src":"rdcw","t":14495929533}
+{"action":"RenamedNewName","name":"normal.txt","name_u16":[110,111,114,109,97,108,46,116,120,116],"src":"rdcw","t":14495929533}
+{"label":"delete both","src":"op","t":14495929725}
+{"action":"Removed","name":"a�b","name_u16":[97,56320,98],"src":"rdcw","t":14495930421}
+{"action":"Removed","name":"normal.txt","name_u16":[110,111,114,109,97,108,46,116,120,116],"src":"rdcw","t":14495931033}
+{"error":null,"label":"scenario end","src":"op","t":14495931050}

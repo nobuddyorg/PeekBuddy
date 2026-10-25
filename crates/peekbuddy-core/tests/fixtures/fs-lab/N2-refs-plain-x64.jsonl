@@ -1,0 +1,19 @@
+{"src":"header","scenario":"N2","fs":"refs","arch":"x86_64","os_build":26100,"qpc_freq":10000000,"rdcw_class":"Plain"}
+{"src":"op","label":"scenario start","t":0}
+{"src":"rdcw","t":3406,"action":"Added","name_u16":[97,46,116,120,116]}
+{"src":"rdcw","t":4963,"action":"Modified","name_u16":[97,46,116,120,116]}
+{"src":"usn","t":30553,"attributes":32,"frn":"7030000000000000002","name":"a.txt","name_u16":[97,46,116,120,116],"parent":"7030000000000000000","reason":256,"source_info":0,"usn":352,"version":3}
+{"src":"usn","t":30553,"attributes":32,"frn":"7030000000000000002","name":"a.txt","name_u16":[97,46,116,120,116],"parent":"7030000000000000000","reason":258,"source_info":0,"usn":440,"version":3}
+{"src":"usn","t":30553,"attributes":32,"frn":"7030000000000000002","name":"a.txt","name_u16":[97,46,116,120,116],"parent":"7030000000000000000","reason":2147483906,"source_info":0,"usn":528,"version":3}
+{"src":"op","label":"case-only rename a.txt -> A.txt","t":3013515}
+{"src":"rdcw","t":3016823,"action":"RenamedOldName","name_u16":[97,46,116,120,116]}
+{"src":"rdcw","t":3016823,"action":"Modified","name_u16":[65,46,116,120,116]}
+{"src":"usn","t":3018778,"attributes":32,"frn":"7030000000000000002","name":"a.txt","name_u16":[97,46,116,120,116],"parent":"7030000000000000000","reason":4096,"source_info":0,"usn":616,"version":3}
+{"src":"usn","t":3018778,"attributes":32,"frn":"7030000000000000002","name":"A.txt","name_u16":[65,46,116,120,116],"parent":"7030000000000000000","reason":8192,"source_info":0,"usn":704,"version":3}
+{"src":"usn","t":3018778,"attributes":32,"frn":"7030000000000000002","name":"A.txt","name_u16":[65,46,116,120,116],"parent":"7030000000000000000","reason":2147491840,"source_info":0,"usn":792,"version":3}
+{"src":"op","label":"case-only rename of a directory","t":6017877}
+{"src":"rdcw","t":6020908,"action":"Added","name_u16":[100,105,114]}
+{"src":"usn","t":6023164,"attributes":16,"frn":"7040000000000000000","name":"dir","name_u16":[100,105,114],"parent":"7030000000000000000","reason":256,"source_info":0,"usn":880,"version":3}
+{"src":"usn","t":6023164,"attributes":16,"frn":"7040000000000000000","name":"dir","name_u16":[100,105,114],"parent":"7030000000000000000","reason":2147483904,"source_info":0,"usn":968,"version":3}
+{"src":"op","label":"scenario end","t":9024890}
+{"src":"usn","t":9073024,"attributes":16,"frn":"7040000000000000000","name":"dir","name_u16":[100,105,114],"parent":"7030000000000000000","reason":4096,"source_info":0,"usn":1056,"version":3}

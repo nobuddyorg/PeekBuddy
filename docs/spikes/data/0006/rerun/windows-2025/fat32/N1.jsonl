@@ -1,0 +1,63 @@
+{"arch":"x86_64","label":"windows-2025/fat32","os_build":26100,"qpc_freq":10000000,"rdcw_class":"Full","rep":0,"root":"S:\\fslab\\N1-0","scenario":"N1","settle_s":3,"src":"header","volume":"S:"}
+{"code":1,"error":"Incorrect function. (os error 1)","src":"error","what":"ReadDirectoryChangesExW"}
+{"src":"note","value":"plain class","what":"rdcw fallback"}
+{"error":"Incorrect function. (os error 1)","src":"error","what":"usn query"}
+{"src":"note","value":"exit Some(1): Error -2147024895: Incorrect function.","what":"fsutil 8dot3name query S:"}
+{"src":"note","value":"exit Some(1): Error -2147024846: The request is not supported.","what":"fsutil 8dot3name set S: 0"}
+{"src":"note","value":"S:\\fslab\\N1-0\\ALONGF~1.TXT","what":"short path"}
+{"label":"scenario start","src":"op","t":14686845253}
+{"label":"create long name","src":"op","t":14687103383}
+{"action":"Added","name":"A long file name for the short name test.txt","name_u16":[65,32,108,111,110,103,32,102,105,108,101,32,110,97,109,101,32,102,111,114,32,116,104,101,32,115,104,111,114,116,32,110,97,109,101,32,116,101,115,116,46,116,120,116],"src":"rdcw","t":14687122280}
+{"action":"Modified","name":"A long file name for the short name test.txt","name_u16":[65,32,108,111,110,103,32,102,105,108,101,32,110,97,109,101,32,102,111,114,32,116,104,101,32,115,104,111,114,116,32,110,97,109,101,32,116,101,115,116,46,116,120,116],"src":"rdcw","t":14687123166}
+{"label":"write through the short name","src":"op","t":14690129890}
+{"action":"Modified","name":"A long file name for the short name test.txt","name_u16":[65,32,108,111,110,103,32,102,105,108,101,32,110,97,109,101,32,102,111,114,32,116,104,101,32,115,104,111,114,116,32,110,97,109,101,32,116,101,115,116,46,116,120,116],"src":"rdcw","t":14690131804}
+{"action":"Modified","name":"A long file name for the short name test.txt","name_u16":[65,32,108,111,110,103,32,102,105,108,101,32,110,97,109,101,32,102,111,114,32,116,104,101,32,115,104,111,114,116,32,110,97,109,101,32,116,101,115,116,46,116,120,116],"src":"rdcw","t":14690132287}
+{"label":"rename through the short name","src":"op","t":14693133531}
+{"action":"RenamedOldName","name":"A long file name for the short name test.txt","name_u16":[65,32,108,111,110,103,32,102,105,108,101,32,110,97,109,101,32,102,111,114,32,116,104,101,32,115,104,111,114,116,32,110,97,109,101,32,116,101,115,116,46,116,120,116],"src":"rdcw","t":14693135523}
+{"action":"RenamedNewName","name":"renamed-via-short.txt","name_u16":[114,101,110,97,109,101,100,45,118,105,97,45,115,104,111,114,116,46,116,120,116],"src":"rdcw","t":14693135523}
+{"action":"Modified","name":"renamed-via-short.txt","name_u16":[114,101,110,97,109,101,100,45,118,105,97,45,115,104,111,114,116,46,116,120,116],"src":"rdcw","t":14693135866}
+{"label":"delete","src":"op","t":14696139889}
+{"action":"Removed","name":"renamed-via-short.txt","name_u16":[114,101,110,97,109,101,100,45,118,105,97,45,115,104,111,114,116,46,116,120,116],"src":"rdcw","t":14696141573}
+{"error":null,"label":"scenario end","src":"op","t":14696141575}
+{"arch":"x86_64","label":"windows-2025/fat32","os_build":26100,"qpc_freq":10000000,"rdcw_class":"Full","rep":1,"root":"S:\\fslab\\N1-1","scenario":"N1","settle_s":3,"src":"header","volume":"S:"}
+{"code":1,"error":"Incorrect function. (os error 1)","src":"error","what":"ReadDirectoryChangesExW"}
+{"src":"note","value":"plain class","what":"rdcw fallback"}
+{"error":"Incorrect function. (os error 1)","src":"error","what":"usn query"}
+{"src":"note","value":"exit Some(1): Error -2147024895: Incorrect function.","what":"fsutil 8dot3name query S:"}
+{"src":"note","value":"exit Some(1): Error -2147024846: The request is not supported.","what":"fsutil 8dot3name set S: 0"}
+{"src":"note","value":"S:\\fslab\\N1-1\\ALONGF~1.TXT","what":"short path"}
+{"label":"scenario start","src":"op","t":14741270408}
+{"label":"create long name","src":"op","t":14741470069}
+{"action":"Added","name":"A long file name for the short name test.txt","name_u16":[65,32,108,111,110,103,32,102,105,108,101,32,110,97,109,101,32,102,111,114,32,116,104,101,32,115,104,111,114,116,32,110,97,109,101,32,116,101,115,116,46,116,120,116],"src":"rdcw","t":14741472081}
+{"action":"Modified","name":"A long file name for the short name test.txt","name_u16":[65,32,108,111,110,103,32,102,105,108,101,32,110,97,109,101,32,102,111,114,32,116,104,101,32,115,104,111,114,116,32,110,97,109,101,32,116,101,115,116,46,116,120,116],"src":"rdcw","t":14741472959}
+{"label":"write through the short name","src":"op","t":14744477099}
+{"action":"Modified","name":"A long file name for the short name test.txt","name_u16":[65,32,108,111,110,103,32,102,105,108,101,32,110,97,109,101,32,102,111,114,32,116,104,101,32,115,104,111,114,116,32,110,97,109,101,32,116,101,115,116,46,116,120,116],"src":"rdcw","t":14744478536}
+{"action":"Modified","name":"A long file name for the short name test.txt","name_u16":[65,32,108,111,110,103,32,102,105,108,101,32,110,97,109,101,32,102,111,114,32,116,104,101,32,115,104,111,114,116,32,110,97,109,101,32,116,101,115,116,46,116,120,116],"src":"rdcw","t":14744478934}
+{"label":"rename through the short name","src":"op","t":14747483385}
+{"action":"RenamedOldName","name":"A long file name for the short name test.txt","name_u16":[65,32,108,111,110,103,32,102,105,108,101,32,110,97,109,101,32,102,111,114,32,116,104,101,32,115,104,111,114,116,32,110,97,109,101,32,116,101,115,116,46,116,120,116],"src":"rdcw","t":14747485656}
+{"action":"RenamedNewName","name":"renamed-via-short.txt","name_u16":[114,101,110,97,109,101,100,45,118,105,97,45,115,104,111,114,116,46,116,120,116],"src":"rdcw","t":14747485656}
+{"action":"Modified","name":"renamed-via-short.txt","name_u16":[114,101,110,97,109,101,100,45,118,105,97,45,115,104,111,114,116,46,116,120,116],"src":"rdcw","t":14747485995}
+{"label":"delete","src":"op","t":14750491959}
+{"action":"Removed","name":"renamed-via-short.txt","name_u16":[114,101,110,97,109,101,100,45,118,105,97,45,115,104,111,114,116,46,116,120,116],"src":"rdcw","t":14750494100}
+{"error":null,"label":"scenario end","src":"op","t":14750494174}
+{"arch":"x86_64","label":"windows-2025/fat32","os_build":26100,"qpc_freq":10000000,"rdcw_class":"Full","rep":2,"root":"S:\\fslab\\N1-2","scenario":"N1","settle_s":3,"src":"header","volume":"S:"}
+{"code":1,"error":"Incorrect function. (os error 1)","src":"error","what":"ReadDirectoryChangesExW"}
+{"src":"note","value":"plain class","what":"rdcw fallback"}
+{"error":"Incorrect function. (os error 1)","src":"error","what":"usn query"}
+{"src":"note","value":"exit Some(1): Error -2147024895: Incorrect function.","what":"fsutil 8dot3name query S:"}
+{"src":"note","value":"exit Some(1): Error -2147024846: The request is not supported.","what":"fsutil 8dot3name set S: 0"}
+{"src":"note","value":"S:\\fslab\\N1-2\\ALONGF~1.TXT","what":"short path"}
+{"label":"scenario start","src":"op","t":14796057450}
+{"label":"create long name","src":"op","t":14796258358}
+{"action":"Added","name":"A long file name for the short name test.txt","name_u16":[65,32,108,111,110,103,32,102,105,108,101,32,110,97,109,101,32,102,111,114,32,116,104,101,32,115,104,111,114,116,32,110,97,109,101,32,116,101,115,116,46,116,120,116],"src":"rdcw","t":14796260208}
+{"action":"Modified","name":"A long file name for the short name test.txt","name_u16":[65,32,108,111,110,103,32,102,105,108,101,32,110,97,109,101,32,102,111,114,32,116,104,101,32,115,104,111,114,116,32,110,97,109,101,32,116,101,115,116,46,116,120,116],"src":"rdcw","t":14796261137}
+{"label":"write through the short name","src":"op","t":14799264598}
+{"action":"Modified","name":"A long file name for the short name test.txt","name_u16":[65,32,108,111,110,103,32,102,105,108,101,32,110,97,109,101,32,102,111,114,32,116,104,101,32,115,104,111,114,116,32,110,97,109,101,32,116,101,115,116,46,116,120,116],"src":"rdcw","t":14799266166}
+{"action":"Modified","name":"A long file name for the short name test.txt","name_u16":[65,32,108,111,110,103,32,102,105,108,101,32,110,97,109,101,32,102,111,114,32,116,104,101,32,115,104,111,114,116,32,110,97,109,101,32,116,101,115,116,46,116,120,116],"src":"rdcw","t":14799266692}
+{"label":"rename through the short name","src":"op","t":14802270735}
+{"action":"RenamedOldName","name":"A long file name for the short name test.txt","name_u16":[65,32,108,111,110,103,32,102,105,108,101,32,110,97,109,101,32,102,111,114,32,116,104,101,32,115,104,111,114,116,32,110,97,109,101,32,116,101,115,116,46,116,120,116],"src":"rdcw","t":14802272414}
+{"action":"RenamedNewName","name":"renamed-via-short.txt","name_u16":[114,101,110,97,109,101,100,45,118,105,97,45,115,104,111,114,116,46,116,120,116],"src":"rdcw","t":14802272414}
+{"action":"Modified","name":"renamed-via-short.txt","name_u16":[114,101,110,97,109,101,100,45,118,105,97,45,115,104,111,114,116,46,116,120,116],"src":"rdcw","t":14802272686}
+{"label":"delete","src":"op","t":14805276407}
+{"action":"Removed","name":"renamed-via-short.txt","name_u16":[114,101,110,97,109,101,100,45,118,105,97,45,115,104,111,114,116,46,116,120,116],"src":"rdcw","t":14805278499}
+{"error":null,"label":"scenario end","src":"op","t":14805278592}

@@ -1,0 +1,96 @@
+{"arch":"x86_64","label":"windows-2025/refs","os_build":26100,"qpc_freq":10000000,"rdcw_class":"Full","rep":0,"root":"Q:\\fslab\\L1-0","scenario":"L1","settle_s":35,"src":"header","volume":"Q:"}
+{"code":1,"error":"Incorrect function. (os error 1)","src":"error","what":"ReadDirectoryChangesExW"}
+{"src":"note","value":"plain class","what":"rdcw fallback"}
+{"label":"scenario start","src":"op","t":6291560231}
+{"action":"Added","name":"orig.txt","name_u16":[111,114,105,103,46,116,120,116],"src":"rdcw","t":6291562835}
+{"action":"Modified","name":"orig.txt","name_u16":[111,114,105,103,46,116,120,116],"src":"rdcw","t":6291564487}
+{"attributes":32,"frn":"70c0000000000000002","name":"orig.txt","name_u16":[111,114,105,103,46,116,120,116],"parent":"70c0000000000000000","reason":256,"source_info":0,"src":"usn","t":6291575865,"usn":9184,"version":3}
+{"attributes":32,"frn":"70c0000000000000002","name":"orig.txt","name_u16":[111,114,105,103,46,116,120,116],"parent":"70c0000000000000000","reason":258,"source_info":0,"src":"usn","t":6291575865,"usn":9280,"version":3}
+{"attributes":32,"frn":"70c0000000000000002","name":"orig.txt","name_u16":[111,114,105,103,46,116,120,116],"parent":"70c0000000000000000","reason":2147483906,"source_info":0,"src":"usn","t":6291575865,"usn":9376,"version":3}
+{"label":"create hard link","src":"op","t":6294568936}
+{"action":"Added","name":"link.txt","name_u16":[108,105,110,107,46,116,120,116],"src":"rdcw","t":6294571325}
+{"action":"Modified","name":"orig.txt","name_u16":[111,114,105,103,46,116,120,116],"src":"rdcw","t":6294572030}
+{"attributes":32,"frn":"70c0000000000000002","name":"link.txt","name_u16":[108,105,110,107,46,116,120,116],"parent":"70c0000000000000000","reason":2147549184,"source_info":0,"src":"usn","t":6294620465,"usn":9472,"version":3}
+{"label":"write through the link","src":"op","t":6297576551}
+{"action":"Modified","name":"link.txt","name_u16":[108,105,110,107,46,116,120,116],"src":"rdcw","t":6297579251}
+{"action":"Modified","name":"link.txt","name_u16":[108,105,110,107,46,116,120,116],"src":"rdcw","t":6297580057}
+{"attributes":32,"frn":"70c0000000000000002","name":"link.txt","name_u16":[108,105,110,107,46,116,120,116],"parent":"70c0000000000000000","reason":4,"source_info":0,"src":"usn","t":6297617220,"usn":9568,"version":3}
+{"attributes":32,"frn":"70c0000000000000002","name":"link.txt","name_u16":[108,105,110,107,46,116,120,116],"parent":"70c0000000000000000","reason":6,"source_info":0,"src":"usn","t":6297617220,"usn":9664,"version":3}
+{"attributes":32,"frn":"70c0000000000000002","name":"link.txt","name_u16":[108,105,110,107,46,116,120,116],"parent":"70c0000000000000000","reason":2147483654,"source_info":0,"src":"usn","t":6297617220,"usn":9760,"version":3}
+{"label":"write through the original","src":"op","t":6300583608}
+{"action":"Modified","name":"orig.txt","name_u16":[111,114,105,103,46,116,120,116],"src":"rdcw","t":6300586876}
+{"action":"Modified","name":"orig.txt","name_u16":[111,114,105,103,46,116,120,116],"src":"rdcw","t":6300587733}
+{"attributes":32,"frn":"70c0000000000000002","name":"link.txt","name_u16":[108,105,110,107,46,116,120,116],"parent":"70c0000000000000000","reason":4,"source_info":0,"src":"usn","t":6300634606,"usn":9856,"version":3}
+{"attributes":32,"frn":"70c0000000000000002","name":"link.txt","name_u16":[108,105,110,107,46,116,120,116],"parent":"70c0000000000000000","reason":6,"source_info":0,"src":"usn","t":6300634606,"usn":9952,"version":3}
+{"attributes":32,"frn":"70c0000000000000002","name":"link.txt","name_u16":[108,105,110,107,46,116,120,116],"parent":"70c0000000000000000","reason":2147483654,"source_info":0,"src":"usn","t":6300634606,"usn":10048,"version":3}
+{"label":"delete the link","src":"op","t":6303590453}
+{"action":"Removed","name":"link.txt","name_u16":[108,105,110,107,46,116,120,116],"src":"rdcw","t":6303592254}
+{"label":"delete the original","src":"op","t":6303592877}
+{"action":"Removed","name":"orig.txt","name_u16":[111,114,105,103,46,116,120,116],"src":"rdcw","t":6303594357}
+{"error":null,"label":"scenario end","src":"op","t":6303594697}
+{"attributes":32,"frn":"70c0000000000000002","name":"link.txt","name_u16":[108,105,110,107,46,116,120,116],"parent":"70c0000000000000000","reason":2147549184,"source_info":0,"src":"usn","t":6303636153,"usn":10144,"version":3}
+{"attributes":32,"frn":"70c0000000000000002","name":"orig.txt","name_u16":[111,114,105,103,46,116,120,116],"parent":"70c0000000000000000","reason":2147484160,"source_info":0,"src":"usn","t":6303636153,"usn":10240,"version":3}
+{"arch":"x86_64","label":"windows-2025/refs","os_build":26100,"qpc_freq":10000000,"rdcw_class":"Full","rep":1,"root":"Q:\\fslab\\L1-1","scenario":"L1","settle_s":35,"src":"header","volume":"Q:"}
+{"code":1,"error":"Incorrect function. (os error 1)","src":"error","what":"ReadDirectoryChangesExW"}
+{"src":"note","value":"plain class","what":"rdcw fallback"}
+{"label":"scenario start","src":"op","t":6668746461}
+{"action":"Added","name":"orig.txt","name_u16":[111,114,105,103,46,116,120,116],"src":"rdcw","t":6668749992}
+{"action":"Modified","name":"orig.txt","name_u16":[111,114,105,103,46,116,120,116],"src":"rdcw","t":6668751926}
+{"attributes":32,"frn":"70d0000000000000002","name":"orig.txt","name_u16":[111,114,105,103,46,116,120,116],"parent":"70d0000000000000000","reason":256,"source_info":0,"src":"usn","t":6668781938,"usn":10600,"version":3}
+{"attributes":32,"frn":"70d0000000000000002","name":"orig.txt","name_u16":[111,114,105,103,46,116,120,116],"parent":"70d0000000000000000","reason":258,"source_info":0,"src":"usn","t":6668781938,"usn":10696,"version":3}
+{"attributes":32,"frn":"70d0000000000000002","name":"orig.txt","name_u16":[111,114,105,103,46,116,120,116],"parent":"70d0000000000000000","reason":2147483906,"source_info":0,"src":"usn","t":6668781938,"usn":10792,"version":3}
+{"label":"create hard link","src":"op","t":6671753253}
+{"action":"Added","name":"link.txt","name_u16":[108,105,110,107,46,116,120,116],"src":"rdcw","t":6671755603}
+{"action":"Modified","name":"orig.txt","name_u16":[111,114,105,103,46,116,120,116],"src":"rdcw","t":6671756672}
+{"attributes":32,"frn":"70d0000000000000002","name":"link.txt","name_u16":[108,105,110,107,46,116,120,116],"parent":"70d0000000000000000","reason":2147549184,"source_info":0,"src":"usn","t":6671778771,"usn":10888,"version":3}
+{"label":"write through the link","src":"op","t":6674758685}
+{"action":"Modified","name":"link.txt","name_u16":[108,105,110,107,46,116,120,116],"src":"rdcw","t":6674761842}
+{"action":"Modified","name":"link.txt","name_u16":[108,105,110,107,46,116,120,116],"src":"rdcw","t":6674763016}
+{"attributes":32,"frn":"70d0000000000000002","name":"link.txt","name_u16":[108,105,110,107,46,116,120,116],"parent":"70d0000000000000000","reason":4,"source_info":0,"src":"usn","t":6674809262,"usn":10984,"version":3}
+{"attributes":32,"frn":"70d0000000000000002","name":"link.txt","name_u16":[108,105,110,107,46,116,120,116],"parent":"70d0000000000000000","reason":6,"source_info":0,"src":"usn","t":6674809262,"usn":11080,"version":3}
+{"attributes":32,"frn":"70d0000000000000002","name":"link.txt","name_u16":[108,105,110,107,46,116,120,116],"parent":"70d0000000000000000","reason":2147483654,"source_info":0,"src":"usn","t":6674809262,"usn":11176,"version":3}
+{"label":"write through the original","src":"op","t":6677764747}
+{"action":"Modified","name":"orig.txt","name_u16":[111,114,105,103,46,116,120,116],"src":"rdcw","t":6677767781}
+{"action":"Modified","name":"orig.txt","name_u16":[111,114,105,103,46,116,120,116],"src":"rdcw","t":6677769162}
+{"attributes":32,"frn":"70d0000000000000002","name":"link.txt","name_u16":[108,105,110,107,46,116,120,116],"parent":"70d0000000000000000","reason":4,"source_info":0,"src":"usn","t":6677790385,"usn":11272,"version":3}
+{"attributes":32,"frn":"70d0000000000000002","name":"link.txt","name_u16":[108,105,110,107,46,116,120,116],"parent":"70d0000000000000000","reason":6,"source_info":0,"src":"usn","t":6677790385,"usn":11368,"version":3}
+{"attributes":32,"frn":"70d0000000000000002","name":"link.txt","name_u16":[108,105,110,107,46,116,120,116],"parent":"70d0000000000000000","reason":2147483654,"source_info":0,"src":"usn","t":6677790385,"usn":11464,"version":3}
+{"label":"delete the link","src":"op","t":6680772441}
+{"action":"Removed","name":"link.txt","name_u16":[108,105,110,107,46,116,120,116],"src":"rdcw","t":6680774729}
+{"label":"delete the original","src":"op","t":6680774800}
+{"action":"Removed","name":"orig.txt","name_u16":[111,114,105,103,46,116,120,116],"src":"rdcw","t":6680776406}
+{"error":null,"label":"scenario end","src":"op","t":6680776604}
+{"attributes":32,"frn":"70d0000000000000002","name":"link.txt","name_u16":[108,105,110,107,46,116,120,116],"parent":"70d0000000000000000","reason":2147549184,"source_info":0,"src":"usn","t":6680812855,"usn":11560,"version":3}
+{"attributes":32,"frn":"70d0000000000000002","name":"orig.txt","name_u16":[111,114,105,103,46,116,120,116],"parent":"70d0000000000000000","reason":2147484160,"source_info":0,"src":"usn","t":6680812855,"usn":11656,"version":3}
+{"arch":"x86_64","label":"windows-2025/refs","os_build":26100,"qpc_freq":10000000,"rdcw_class":"Full","rep":2,"root":"Q:\\fslab\\L1-2","scenario":"L1","settle_s":35,"src":"header","volume":"Q:"}
+{"code":1,"error":"Incorrect function. (os error 1)","src":"error","what":"ReadDirectoryChangesExW"}
+{"src":"note","value":"plain class","what":"rdcw fallback"}
+{"label":"scenario start","src":"op","t":7046056797}
+{"action":"Added","name":"orig.txt","name_u16":[111,114,105,103,46,116,120,116],"src":"rdcw","t":7046060403}
+{"action":"Modified","name":"orig.txt","name_u16":[111,114,105,103,46,116,120,116],"src":"rdcw","t":7046062158}
+{"attributes":32,"frn":"70e0000000000000002","name":"orig.txt","name_u16":[111,114,105,103,46,116,120,116],"parent":"70e0000000000000000","reason":256,"source_info":0,"src":"usn","t":7046104569,"usn":12016,"version":3}
+{"attributes":32,"frn":"70e0000000000000002","name":"orig.txt","name_u16":[111,114,105,103,46,116,120,116],"parent":"70e0000000000000000","reason":258,"source_info":0,"src":"usn","t":7046104569,"usn":12112,"version":3}
+{"attributes":32,"frn":"70e0000000000000002","name":"orig.txt","name_u16":[111,114,105,103,46,116,120,116],"parent":"70e0000000000000000","reason":2147483906,"source_info":0,"src":"usn","t":7046104569,"usn":12288,"version":3}
+{"label":"create hard link","src":"op","t":7049066377}
+{"action":"Added","name":"link.txt","name_u16":[108,105,110,107,46,116,120,116],"src":"rdcw","t":7049068899}
+{"action":"Modified","name":"orig.txt","name_u16":[111,114,105,103,46,116,120,116],"src":"rdcw","t":7049069891}
+{"attributes":32,"frn":"70e0000000000000002","name":"link.txt","name_u16":[108,105,110,107,46,116,120,116],"parent":"70e0000000000000000","reason":2147549184,"source_info":0,"src":"usn","t":7049071671,"usn":12384,"version":3}
+{"label":"write through the link","src":"op","t":7052071068}
+{"action":"Modified","name":"link.txt","name_u16":[108,105,110,107,46,116,120,116],"src":"rdcw","t":7052074569}
+{"action":"Modified","name":"link.txt","name_u16":[108,105,110,107,46,116,120,116],"src":"rdcw","t":7052075917}
+{"attributes":32,"frn":"70e0000000000000002","name":"link.txt","name_u16":[108,105,110,107,46,116,120,116],"parent":"70e0000000000000000","reason":4,"source_info":0,"src":"usn","t":7052106885,"usn":12480,"version":3}
+{"attributes":32,"frn":"70e0000000000000002","name":"link.txt","name_u16":[108,105,110,107,46,116,120,116],"parent":"70e0000000000000000","reason":6,"source_info":0,"src":"usn","t":7052106885,"usn":12576,"version":3}
+{"attributes":32,"frn":"70e0000000000000002","name":"link.txt","name_u16":[108,105,110,107,46,116,120,116],"parent":"70e0000000000000000","reason":2147483654,"source_info":0,"src":"usn","t":7052106885,"usn":12672,"version":3}
+{"label":"write through the original","src":"op","t":7055080812}
+{"action":"Modified","name":"orig.txt","name_u16":[111,114,105,103,46,116,120,116],"src":"rdcw","t":7055084186}
+{"action":"Modified","name":"orig.txt","name_u16":[111,114,105,103,46,116,120,116],"src":"rdcw","t":7055085123}
+{"attributes":32,"frn":"70e0000000000000002","name":"link.txt","name_u16":[108,105,110,107,46,116,120,116],"parent":"70e0000000000000000","reason":4,"source_info":0,"src":"usn","t":7055131731,"usn":12768,"version":3}
+{"attributes":32,"frn":"70e0000000000000002","name":"link.txt","name_u16":[108,105,110,107,46,116,120,116],"parent":"70e0000000000000000","reason":6,"source_info":0,"src":"usn","t":7055131731,"usn":12864,"version":3}
+{"attributes":32,"frn":"70e0000000000000002","name":"link.txt","name_u16":[108,105,110,107,46,116,120,116],"parent":"70e0000000000000000","reason":2147483654,"source_info":0,"src":"usn","t":7055131731,"usn":12960,"version":3}
+{"label":"delete the link","src":"op","t":7058091113}
+{"action":"Removed","name":"link.txt","name_u16":[108,105,110,107,46,116,120,116],"src":"rdcw","t":7058093236}
+{"label":"delete the original","src":"op","t":7058093241}
+{"action":"Removed","name":"orig.txt","name_u16":[111,114,105,103,46,116,120,116],"src":"rdcw","t":7058094530}
+{"error":null,"label":"scenario end","src":"op","t":7058094728}
+{"attributes":32,"frn":"70e0000000000000002","name":"link.txt","name_u16":[108,105,110,107,46,116,120,116],"parent":"70e0000000000000000","reason":2147549184,"source_info":0,"src":"usn","t":7058116728,"usn":13056,"version":3}
+{"attributes":32,"frn":"70e0000000000000002","name":"orig.txt","name_u16":[111,114,105,103,46,116,120,116],"parent":"70e0000000000000000","reason":2147484160,"source_info":0,"src":"usn","t":7058116728,"usn":13152,"version":3}
