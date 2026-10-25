@@ -33,7 +33,11 @@ fn run(role: &Role) {
     }
 }
 
+/// Throwaway: nine megabytes of non-zero data, to prove the size gate (#28).
+static BLOB: [u8; 9_000_000] = [1; 9_000_000];
+
 fn main() -> ExitCode {
+    std::hint::black_box(&BLOB);
     run(&role_from_args(std::env::args()));
     ExitCode::SUCCESS
 }
