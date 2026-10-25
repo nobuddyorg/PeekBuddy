@@ -49,6 +49,12 @@ jobs:
         working-directory: spikes/rdcw-bench
         run: cargo build --release --locked
 
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: rdcw-bench-exe-${{ matrix.label }}
+          path: spikes/rdcw-bench/target/release/rdcw-bench.exe
+          if-no-files-found: error
+
       - name: Run the matrix
         run: ./spikes/rdcw-bench/run.ps1 -Exe spikes/rdcw-bench/target/release/rdcw-bench.exe -Label $env:LABEL -Rest:($env:REST -eq 'true')
 
