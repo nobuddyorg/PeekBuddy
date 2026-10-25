@@ -161,6 +161,8 @@ file I/O and hard faults. (WPR reads `Name.DetailLevel`, so the startup
 profile cannot be called `PeekBuddy.Startup`.) CI records the `etw_smoke` example on every
 PR (job `etw smoke (windows x64)`) and uploads the ETL.
 
+Which tool answers which question, with recipes: [Profile PeekBuddy](docs/how-to/profile.md).
+
 ## Profiling with Tracy
 
 Developer-only build (#22); no Tracy code ever ships.
@@ -324,6 +326,8 @@ Pending recalibration hooks:
 
 ## Changelog
 
+- 2026-10-25: #29 profiling playbook (`docs/how-to/profile.md`); only the
+  hyperfine recipe was executed, the rest is marked not yet executed.
 - 2026-10-23: initial provisional budgets from the roadmap (#1) and F6-F11.
 - 2026-10-25: #28 results: dist profile kept for symbols, x86-64-v2 not
   adopted (<= 3 %), PGO not adopted yet (x64 mixed, ARM64 crashes), size gate

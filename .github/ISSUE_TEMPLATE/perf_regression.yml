@@ -36,6 +36,6 @@ body:
     id: method
     attributes:
       label: How did you measure?
-      description: Tool (Task Manager, Process Explorer, WPR, ...) and what you did while measuring.
+      description: Tool (Task Manager, Process Explorer, WPR, ...) and what you did while measuring. See docs/how-to/profile.md.
     validations:
       required: true
