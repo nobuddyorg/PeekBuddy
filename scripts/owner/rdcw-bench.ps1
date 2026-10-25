@@ -11,7 +11,7 @@
     repetitions each (for the coefficient of variation), a few burst cells and
     the pool cost. It also records file name lengths of the user profile as
     aggregate numbers only (no names are stored): reparse points, which
-    includes OneDrive placeholders, are skipped. Takes about 12 minutes. Close
+    includes OneDrive placeholders, are skipped. Takes about 15 minutes. Close
     other heavy programs first. Writes rdcw-bench-report.json next to the
     script unless -OutFile is given.
 #>
@@ -53,21 +53,24 @@ function Invoke-Bench([string[]]$BenchArgs, [int]$TimeoutSec, [string]$Tag) {
 }
 
 function Get-NameStats {
-    $opts = [IO.EnumerationOptions]::new()
-    $opts.RecurseSubdirectories = $true
-    $opts.IgnoreInaccessible = $true
-    $opts.AttributesToSkip = [IO.FileAttributes]::ReparsePoint -bor [IO.FileAttributes]::System
     $lengths = [Collections.Generic.List[int]]::new()
     $roots = @($env:USERPROFILE, $env:ProgramData, $env:ProgramFiles) | Where-Object { $_ -and (Test-Path $_) }
     $deadline = (Get-Date).AddSeconds(120)
+    $reparse = [IO.FileAttributes]::ReparsePoint
+    $directory = [IO.FileAttributes]::Directory
     foreach ($root in $roots) {
-        try {
-            foreach ($entry in [IO.Directory]::EnumerateFileSystemEntries($root, '*', $opts)) {
-                $lengths.Add([IO.Path]::GetFileName($entry).Length)
-                if ($lengths.Count -ge $NameSampleLimit -or (Get-Date) -gt $deadline) { break }
-            }
-        } catch { }
-        if ($lengths.Count -ge $NameSampleLimit -or (Get-Date) -gt $deadline) { break }
+        $stack = [Collections.Generic.Stack[string]]::new()
+        $stack.Push($root)
+        while ($stack.Count -gt 0 -and $lengths.Count -lt $NameSampleLimit -and (Get-Date) -lt $deadline) {
+            $current = $stack.Pop()
+            try {
+                foreach ($entry in ([IO.DirectoryInfo]::new($current)).EnumerateFileSystemInfos()) {
+                    if ($entry.Attributes -band $reparse) { continue }
+                    $lengths.Add($entry.Name.Length)
+                    if ($entry.Attributes -band $directory) { $stack.Push($entry.FullName) }
+                }
+            } catch { }
+        }
     }
     if ($lengths.Count -eq 0) { return [ordered]@{ n = 0 } }
     $sorted = $lengths.ToArray() | Sort-Object
@@ -76,7 +79,7 @@ function Get-NameStats {
     return [ordered]@{
         n = $sorted.Count; meanUtf16Units = [math]::Round($sum / $sorted.Count, 2)
         p50 = (& $at 0.5); p90 = (& $at 0.9); p99 = (& $at 0.99); max = $sorted[-1]
-        roots = @($roots | ForEach-Object { Split-Path $_ -Leaf })
+        roots = 'userprofile, programdata, programfiles (in this order, until the limit)'
     }
 }
 

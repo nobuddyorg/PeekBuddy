@@ -35,3 +35,4 @@ Runs are batched: at most one owner run per week unless a release is due.
 | --- | --- | --- |
 | [`hello.ps1`](../../scripts/owner/hello.ps1) | OS, build, architecture, CPU, memory, elevation, Smart App Control state | #86 (example) |
 | [`viewer-bench.ps1`](../../scripts/owner/viewer-bench.ps1) | First frame, private bytes, frame times and idle wakeups of the egui viewer with wgpu/DX12 and glow on the real GPU (about 8 minutes; needs the `viewer-bench-exes-*` artifact of the viewer-bench workflow) | #33 |
+| [`rdcw-bench.ps1`](../../scripts/owner/rdcw-bench.ps1) | ReadDirectoryChangesExW class and buffer matrix, root lifecycle, throughput with 5 repetitions, burst and pool cost on the owner's local NTFS disk, plus file-name length aggregates (about 15 minutes, unelevated; needs the `rdcw-bench-exe-windows-2025` artifact of the rdcw-bench workflow) | #32 |
