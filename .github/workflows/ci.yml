@@ -145,6 +145,16 @@ jobs:
         env:
           PEEKBUDDY_RUNNER_LABEL: windows-2025
         run: cargo xtask churn --profile burst-100k --threads 4 --burst 50000 --within 1 --ledger target/churn/burst.jsonl
+      - name: Perf harness (#27)
+        env:
+          PEEKBUDDY_RUNNER_LABEL: windows-2025
+        run: cargo xtask perf --scenario all
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: perf-results-x64
+          path: target/perf/perf-results.json
+          if-no-files-found: warn
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
@@ -355,6 +365,16 @@ jobs:
         env:
           PEEKBUDDY_RUNNER_LABEL: windows-11-vs2026-arm
         run: cargo xtask churn --profile burst-100k --threads 4 --burst 50000 --within 1 --ledger target/churn/burst.jsonl
+      - name: Perf harness (#27)
+        env:
+          PEEKBUDDY_RUNNER_LABEL: windows-11-vs2026-arm
+        run: cargo xtask perf --scenario all
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: perf-results-arm64
+          path: target/perf/perf-results.json
+          if-no-files-found: warn
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:

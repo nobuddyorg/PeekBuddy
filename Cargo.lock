@@ -1893,6 +1893,7 @@ name = "xtask"
 version = "0.0.0"
 dependencies = [
  "peekbuddy-churn",
+ "peekbuddy-win",
  "serde",
  "serde_json",
  "toml",

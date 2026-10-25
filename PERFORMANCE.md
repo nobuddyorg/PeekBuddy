@@ -257,6 +257,32 @@ Not done: symbolising a WPR trace of the shipped exe against the published
 PDB (needs a running engine and a real trace), and the per-crate `cargo bloat`
 delta only becomes informative with real dependencies in the exe.
 
+## End-to-end harness (#27)
+
+`cargo xtask perf [--scenario startup|idle|memory|all] [--runs n] [--idle-secs n]
+[--ab <base-exe>]` runs the release `peekbuddy.exe` the way a user would and
+writes `target/perf/perf-results.json` (schema-versioned, with the runner
+label, OS build and UBR, vCPU count, architecture and Defender state) plus a
+job-summary table. Every launch runs in a job object that kills the whole
+tree when it closes, in a fresh data directory (`--data-dir`), so nothing
+survives a failure.
+
+| Scenario | How it measures | Budget rows |
+| --- | --- | --- |
+| startup | `--perf-probe 0` ten times after three warm-up runs; ready time, CPU and bytes read from the probe sample at `EngineReady` | `engine.ready.warm`, `engine.startup.cpu`, `engine.startup.disk_read` |
+| idle | `--perf-probe <idle-secs>`; CPU and context switches sampled from outside the process after a settle period and before the exit timer, memory and handles from the probe's closing sample | `engine.idle.cpu`, `engine.idle.wakes`, `engine.private_bytes.idle` |
+
+Gating follows F11: deterministic rows (`engine.idle.wakes`) are strict;
+timing rows only report an absolute number and are decided by `--ab`, which
+alternates base and head runs and compares medians (warn +15 %, fail +50 %);
+resource rows are reported.
+
+Not exercised yet, and listed as such in every result: `engine.ready.cold`
+(needs a reboot, owner-PC run #84), `engine.idle.periodic_timers` (no timer
+registry in the probe), `engine.handles.stable` (needs pause/resume, #63) and
+the ingest rows (need capture and the writer, #45, #52). Until the tray and
+the watchers exist, "ready" is the point where the window is up.
+
 ## Micro-benchmarks and the A/B gate
 
 criterion 0.8.2 benches live in `benches/benches/` (no plotters, no rayon).
