@@ -42,6 +42,11 @@ Apache-2.0:
   `dfa-build`, `dfa-search`, `std`, `syntax`, `unicode`.
 - `toml` 1.1.8 (`parse` and `serde` only) and `serde`: the embedded preset
   files.
+- `embed-manifest` 1.5.1 (build script of the exe: the manifest, no external
+  tool), `winresource` 0.1.34 (VERSIONINFO, needs `rc.exe`; skipped with a
+  warning where it is missing) and `known-folders` 1.4.2 (`LocalAppData` and
+  the protected folders of portable mode; its `windows-sys` range includes
+  0.61.2, so there is one copy) arrive with the engine skeleton (#59).
 - `rstest` 0.28.0, `insta` 1.49.0 and `proptest-state-machine` 0.9.0 are
   test-only.
 

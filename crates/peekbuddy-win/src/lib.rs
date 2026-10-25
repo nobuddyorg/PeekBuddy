@@ -13,15 +13,27 @@ pub mod metrics;
 pub mod perf;
 
 #[cfg(windows)]
+pub mod attrs;
+#[cfg(windows)]
+pub mod console;
+#[cfg(windows)]
+pub mod osinfo;
+#[cfg(windows)]
 pub mod process;
+#[cfg(windows)]
+pub mod resources;
 #[cfg(windows)]
 pub mod session;
 #[cfg(windows)]
 mod sid;
 #[cfg(windows)]
+pub mod single_instance;
+#[cfg(windows)]
 pub mod timer;
 #[cfg(windows)]
 pub mod token;
+#[cfg(windows)]
+pub mod window;
 
 #[cfg(test)]
 mod tests {
