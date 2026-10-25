@@ -23,12 +23,15 @@ $rows = Join-Path ([IO.Path]::GetTempPath()) "viewer-bench-$([guid]::NewGuid()).
 
 function Invoke-Bench([string]$Exe, [string[]]$BenchArgs, [int]$TimeoutSec, [string]$Tag) {
     $err = "$rows.err"
-    $p = Start-Process -FilePath $Exe -ArgumentList $BenchArgs -PassThru -NoNewWindow -RedirectStandardError $err -RedirectStandardOutput "$rows.out"
+    # Start-Process joins the array without quoting, and the temp path may contain spaces.
+    $argLine = ($BenchArgs | ForEach-Object { if ($_ -match '\s') { '"' + $_ + '"' } else { $_ } }) -join ' '
+    $p = Start-Process -FilePath $Exe -ArgumentList $argLine -PassThru -NoNewWindow -RedirectStandardError $err -RedirectStandardOutput "$rows.out"
+    $null = $p.Handle # keeps ExitCode readable in Windows PowerShell 5.1
     if (-not $p.WaitForExit($TimeoutSec * 1000)) {
         $p.Kill($true)
         Add-Content $rows ('{"experiment":"timeout","label":"' + $Tag + '"}')
     } elseif ($p.ExitCode -ne 0) {
-        $msg = ((Get-Content $err -Raw) -replace '[\r\n"\\]+', ' ')
+        $msg = (([string](Get-Content $err -Raw)) -replace '[\r\n"\\]+', ' ')
         Add-Content $rows ('{"experiment":"exit","label":"' + $Tag + '","code":' + $p.ExitCode + ',"stderr":"' + $msg.Substring(0, [math]::Min(400, $msg.Length)) + '"}')
     }
 }
