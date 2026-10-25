@@ -1,6 +1,6 @@
 # 0002. `ReadDirectoryChangesExW` throughput, overflow and lifecycle
 
-- Issue: #32. Status: complete for the hosted-runner matrix (NTFS, ReFS, exFAT, FAT32, SMB loopback); real UNC servers, Dev Drive and Windows 10 22H2 are untested.
+- Issue: #32. Status: complete for the hosted-runner matrix (NTFS, ReFS, exFAT, FAT32, SMB loopback) plus one physical Windows 11 PC (local NTFS, 5 repetitions); real UNC servers, Dev Drive and Windows 10 22H2 are untested.
 - Harness: `spikes/rdcw-bench` (benchmark) and `spikes/rdcw-bench/run.ps1` (orchestrator), workflow `rdcw-bench`.
 - Raw data: `docs/spikes/data/0002/` (one JSON object per cell): `windows-2025.jsonl` and `windows-2025-repeat.jsonl` (two full x64 runs), `windows-11-vs2026-arm.jsonl` (ARM64, throughput and the first burst cells; the job hit its 60-minute limit during the burst sweep), and the `-rest` files (the burst cells for 1 and 4 MiB, the pool cost and the detach case on both runners).
 
@@ -137,9 +137,70 @@ So a watch cannot detect volume loss by itself. The engine needs an independent 
 
 An armed watch costs at most a few KiB of non-paged pool (the zeros are runs where the counter did not move or fell) and the amount does not grow with the buffer size, so 100 watches are about 0.1 to 0.3 MiB of non-paged pool in total. The buffer itself is process memory, so the engine's own budget `engine.notify_buffers.total` is what counts.
 
+## Owner PC (Intel N150, SATA SSD, local NTFS)
+
+Machine: Windows 11 Pro 26200 x64, Intel N150 (4 logical CPUs), 512 GB SATA
+SSD, NTFS system volume `C:`, Defender real-time protection on, run unelevated
+with `scripts/owner/rdcw-bench.ps1` (exe of workflow run 40223950310) in a
+temp folder on `C:`. No VHDs, ReFS, exFAT or SMB (those need elevation). Raw
+data: `docs/spikes/data/0002/owner-n150.jsonl`. Five repetitions per
+throughput cell, so the coefficient of variation (CV) is available for the
+first time.
+
+| Cell (median of 5, 5 s each) | Records/s | CV | Overflows (sum of 5) | Re-arm p99 |
+| --- | --- | --- | --- | --- |
+| 64 KiB single, target 20k / 50k / 100k ops/s | 7.15k / 7.19k / 7.34k | 6.2 / 7.5 / 2.2 % | 4 / 2 / 0 | 195 / 181 / 169 us |
+| 1 MiB single, target 20k / 50k / 100k | 7.49k / 7.49k / 7.56k | 4.2 / 1.6 / 6.7 % | 0 / 0 / 0 | 228 / 206 / 222 us |
+| 64 KiB double, target 20k / 50k / 100k | 7.46k / 7.53k / 7.56k | 4.1 / 0.9 / 1.8 % | 4 / 0 / 0 | 184 / 195 / 186 us |
+| 1 MiB double, target 20k / 50k / 100k | 7.62k / 7.39k / 7.22k | 1.3 / 6.7 / 2.8 % | 0 / 0 / 0 | 236 / 201 / 217 us |
+
+- Matrix (3 classes x 2 buffer sizes) and the four lifecycle cells are
+  identical to the hosted NTFS result: class 1 returns 30 bytes, classes 2 and
+  3 return 102, a flood of 3,638 files gives a single record without an
+  overflow signal in the first read, `root-deleted` and
+  `root-deleted-and-recreated` fail to re-arm with `win32 5` (access denied),
+  rename of the root or its parent keeps the watch.
+- Throughput is writer-bound again: the achieved rate is 1.8k to 1.9k file ops
+  per second (7.2k to 7.6k records per second), a fifth of the hosted x64 runner
+  (about 9.5k ops, 36k records per second) and close to the ARM64 runner (6.5k).
+  The `ingest.burst` budget (100k events/s) therefore still cannot be produced
+  by this harness, and the writers, not the reader, are the limit on both
+  machines. The CV is 0.9 to 7.5 percent, so the cells are stable and the
+  runner-to-runner spread (about 30 percent on the hosted x64 repeat) is the
+  larger error.
+- Overflows appear only with the 64 KiB buffer (single: 4 and 2 in the five
+  runs at 20k and 50k targets; double: 4 at 20k; none with 1 MiB) at a record rate of only 7k per second,
+  far below the 16 ms rule of thumb at 36k per second. The 64 KiB buffer
+  therefore loses records on this machine with less load than the arithmetic
+  predicted; scheduling and Defender latency at re-arm (max 50 to 110 ms)
+  are the likely cause, not diagnosed. This supports the 1 MiB choice for local
+  NTFS watches.
+- Burst, 50k ops (about 199k records) with a reader stall of 0 and 50 ms: one
+  overflow with 64 KiB in both, none with 1 MiB.
+- Pool: 1 MiB buffers add no measurable non-paged pool for 1, 10 or 100
+  handles (delta 0 bytes per handle; the counter is system-wide, so noise
+  from other processes is not excluded).
+- Bytes per record: 105.3 for 64 KiB at 20k target, hosted 107. The harness
+  uses its own short names, so this is not the real-name figure below.
+
+Real name lengths (the last open item of the issue), UTF-16 code units of the
+leaf names in the user profile, ProgramData and Program Files, reparse points
+skipped, 56,820 names sampled (the walk stops at 120 s or 300k names and
+started with the profile, so it is weighted to it):
+
+| Mean | p50 | p90 | p99 | Max |
+| --- | --- | --- | --- | --- |
+| 22.2 | 17 | 40 | 64 | 135 |
+
+A mean name of 22 units is 44 bytes; the per-record size with real names is the
+class's fixed part plus twice the name length, rounded up by the record
+alignment. That was not re-derived here, so the engine's buffer arithmetic
+should use the measured 105 to 107 B plus the difference between this mean and
+the harness's own name length until it is.
+
 ## Not measured
 
-- Real UNC servers (the SMB loopback share goes through the redirector but not over a network), Dev Drive, Windows 10 22H2.
+- Real UNC servers (the SMB loopback share goes through the redirector but not over a network), Dev Drive, Windows 10 22H2, ReFS/exFAT/SMB on a physical machine.
 - Event rates above 36k records per second on x64 and above 6.5k on ARM64 (both writer-bound).
 - ARM64 burst cells for 256 KiB at 100 ms are from one run only, and the 1 and 4 MiB ARM64 cells ran 50k ops, not the 10k, 50k and 200k of x64.
 - ReFS lifecycle with the plain class.
