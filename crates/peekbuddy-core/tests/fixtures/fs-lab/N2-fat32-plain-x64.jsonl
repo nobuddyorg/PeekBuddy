@@ -1,0 +1,8 @@
+{"src":"header","scenario":"N2","fs":"fat32","arch":"x86_64","os_build":26100,"qpc_freq":10000000,"rdcw_class":"Plain"}
+{"src":"op","label":"scenario start","t":0}
+{"src":"rdcw","t":2671,"action":"Added","name_u16":[97,46,116,120,116]}
+{"src":"rdcw","t":3772,"action":"Modified","name_u16":[97,46,116,120,116]}
+{"src":"op","label":"case-only rename a.txt -> A.txt","t":3008771}
+{"src":"op","label":"case-only rename of a directory","t":6012020}
+{"src":"rdcw","t":6014824,"action":"Added","name_u16":[100,105,114]}
+{"src":"op","label":"scenario end","t":9091025}

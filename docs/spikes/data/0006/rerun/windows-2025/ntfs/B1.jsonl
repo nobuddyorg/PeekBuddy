@@ -1,0 +1,5 @@
+{"arch":"x86_64","label":"windows-2025/ntfs","os_build":26100,"qpc_freq":10000000,"rdcw_class":"Full","rep":0,"root":"P:\\fslab\\B1-0","scenario":"B1","settle_s":600,"src":"header","volume":"P:"}
+{"src":"note","value":"exit Some(0): scan done","what":"powershell -NoProfile -Command try { Start-MpScan -ScanType CustomScan -ScanPath 'P:\\fslab\\B1-0' ; 'scan done' } catch { \"scan unavailable: $_\" }"}
+{"label":"scenario start","src":"op","t":21213045271}
+{"label":"idle: no user action","src":"op","t":21213045392}
+{"error":null,"label":"scenario end","src":"op","t":21222163170}

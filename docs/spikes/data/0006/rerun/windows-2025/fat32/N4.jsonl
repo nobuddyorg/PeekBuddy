@@ -1,0 +1,66 @@
+{"arch":"x86_64","label":"windows-2025/fat32","os_build":26100,"qpc_freq":10000000,"rdcw_class":"Full","rep":0,"root":"S:\\fslab\\N4-0","scenario":"N4","settle_s":3,"src":"header","volume":"S:"}
+{"code":1,"error":"Incorrect function. (os error 1)","src":"error","what":"ReadDirectoryChangesExW"}
+{"src":"note","value":"plain class","what":"rdcw fallback"}
+{"error":"Incorrect function. (os error 1)","src":"error","what":"usn query"}
+{"label":"scenario start","src":"op","t":15014516516}
+{"label":"create name with a lone high surrogate","src":"op","t":15014516799}
+{"action":"Added","name":"a�b","name_u16":[97,55296,98],"src":"rdcw","t":15014519228}
+{"label":"create name with a lone low surrogate","src":"op","t":15014520237}
+{"action":"Modified","name":"a�b","name_u16":[97,55296,98],"src":"rdcw","t":15014520259}
+{"action":"Added","name":"a�b","name_u16":[97,56320,98],"src":"rdcw","t":15014521288}
+{"action":"Modified","name":"a�b","name_u16":[97,56320,98],"src":"rdcw","t":15014522022}
+{"label":"write the first","src":"op","t":15017527488}
+{"action":"Modified","name":"a�b","name_u16":[97,55296,98],"src":"rdcw","t":15017530166}
+{"action":"Modified","name":"a�b","name_u16":[97,55296,98],"src":"rdcw","t":15017530703}
+{"label":"rename the first to a normal name","src":"op","t":15020534349}
+{"action":"RenamedOldName","name":"a�b","name_u16":[97,55296,98],"src":"rdcw","t":15020536328}
+{"action":"RenamedNewName","name":"normal.txt","name_u16":[110,111,114,109,97,108,46,116,120,116],"src":"rdcw","t":15020536328}
+{"action":"Modified","name":"normal.txt","name_u16":[110,111,114,109,97,108,46,116,120,116],"src":"rdcw","t":15020536800}
+{"label":"delete both","src":"op","t":15020536890}
+{"action":"Removed","name":"a�b","name_u16":[97,56320,98],"src":"rdcw","t":15020537813}
+{"action":"Removed","name":"normal.txt","name_u16":[110,111,114,109,97,108,46,116,120,116],"src":"rdcw","t":15020538544}
+{"error":null,"label":"scenario end","src":"op","t":15020538583}
+{"arch":"x86_64","label":"windows-2025/fat32","os_build":26100,"qpc_freq":10000000,"rdcw_class":"Full","rep":1,"root":"S:\\fslab\\N4-1","scenario":"N4","settle_s":3,"src":"header","volume":"S:"}
+{"code":1,"error":"Incorrect function. (os error 1)","src":"error","what":"ReadDirectoryChangesExW"}
+{"src":"note","value":"plain class","what":"rdcw fallback"}
+{"error":"Incorrect function. (os error 1)","src":"error","what":"usn query"}
+{"label":"scenario start","src":"op","t":15065817383}
+{"label":"create name with a lone high surrogate","src":"op","t":15065817468}
+{"action":"Added","name":"a�b","name_u16":[97,55296,98],"src":"rdcw","t":15065819716}
+{"label":"create name with a lone low surrogate","src":"op","t":15065820753}
+{"action":"Modified","name":"a�b","name_u16":[97,55296,98],"src":"rdcw","t":15065820781}
+{"action":"Added","name":"a�b","name_u16":[97,56320,98],"src":"rdcw","t":15065821607}
+{"action":"Modified","name":"a�b","name_u16":[97,56320,98],"src":"rdcw","t":15065822314}
+{"label":"write the first","src":"op","t":15068824614}
+{"action":"Modified","name":"a�b","name_u16":[97,55296,98],"src":"rdcw","t":15068827319}
+{"action":"Modified","name":"a�b","name_u16":[97,55296,98],"src":"rdcw","t":15068827873}
+{"label":"rename the first to a normal name","src":"op","t":15071831203}
+{"action":"RenamedOldName","name":"a�b","name_u16":[97,55296,98],"src":"rdcw","t":15071833572}
+{"action":"RenamedNewName","name":"normal.txt","name_u16":[110,111,114,109,97,108,46,116,120,116],"src":"rdcw","t":15071833572}
+{"label":"delete both","src":"op","t":15071833825}
+{"action":"Modified","name":"normal.txt","name_u16":[110,111,114,109,97,108,46,116,120,116],"src":"rdcw","t":15071833930}
+{"action":"Removed","name":"a�b","name_u16":[97,56320,98],"src":"rdcw","t":15071834700}
+{"action":"Removed","name":"normal.txt","name_u16":[110,111,114,109,97,108,46,116,120,116],"src":"rdcw","t":15071835729}
+{"error":null,"label":"scenario end","src":"op","t":15071835770}
+{"arch":"x86_64","label":"windows-2025/fat32","os_build":26100,"qpc_freq":10000000,"rdcw_class":"Full","rep":2,"root":"S:\\fslab\\N4-2","scenario":"N4","settle_s":3,"src":"header","volume":"S:"}
+{"code":1,"error":"Incorrect function. (os error 1)","src":"error","what":"ReadDirectoryChangesExW"}
+{"src":"note","value":"plain class","what":"rdcw fallback"}
+{"error":"Incorrect function. (os error 1)","src":"error","what":"usn query"}
+{"label":"scenario start","src":"op","t":15117445148}
+{"label":"create name with a lone high surrogate","src":"op","t":15117445241}
+{"action":"Added","name":"a�b","name_u16":[97,55296,98],"src":"rdcw","t":15117451504}
+{"label":"create name with a lone low surrogate","src":"op","t":15117454040}
+{"action":"Modified","name":"a�b","name_u16":[97,55296,98],"src":"rdcw","t":15117454068}
+{"action":"Added","name":"a�b","name_u16":[97,56320,98],"src":"rdcw","t":15117456027}
+{"action":"Modified","name":"a�b","name_u16":[97,56320,98],"src":"rdcw","t":15117458490}
+{"label":"write the first","src":"op","t":15120461981}
+{"action":"Modified","name":"a�b","name_u16":[97,55296,98],"src":"rdcw","t":15120464840}
+{"action":"Modified","name":"a�b","name_u16":[97,55296,98],"src":"rdcw","t":15120465405}
+{"label":"rename the first to a normal name","src":"op","t":15123467760}
+{"action":"RenamedOldName","name":"a�b","name_u16":[97,55296,98],"src":"rdcw","t":15123469839}
+{"action":"RenamedNewName","name":"normal.txt","name_u16":[110,111,114,109,97,108,46,116,120,116],"src":"rdcw","t":15123469839}
+{"label":"delete both","src":"op","t":15123470071}
+{"action":"Modified","name":"normal.txt","name_u16":[110,111,114,109,97,108,46,116,120,116],"src":"rdcw","t":15123470238}
+{"action":"Removed","name":"a�b","name_u16":[97,56320,98],"src":"rdcw","t":15123470906}
+{"error":null,"label":"scenario end","src":"op","t":15123471560}
+{"action":"Removed","name":"normal.txt","name_u16":[110,111,114,109,97,108,46,116,120,116],"src":"rdcw","t":15123471563}

@@ -25,8 +25,8 @@
    NTFS-only. Capture on those volumes has to fall back to
    `ReadDirectoryChangesW` and the plain class (names and actions only: no
    file id, no sizes, no `FileNameFlags`). The `Class::Plain` parser exists;
-   the fs-lab harness now retries with the plain call and the rerun shows what
-   it returns (see "Rerun"). Owner of the change: #45/#46.
+   see "Rerun" for what the plain call returns (it works, with gaps). Owner of
+   the change: #45/#46.
 2. **A case-only rename is three records**: `Removed old`, `RenamedOldName old`,
    `RenamedNewName NEW` (all with `FileNameFlags` 0x80), same file id. A
    consumer that treats `Removed` as a delete reports a deletion that did not
@@ -64,8 +64,7 @@
    with `FileNameFlags` 2 (DOS) and a rename through it reports the old name
    as `ALONGF~1.TXT` with flag 0x80; the create is reported only under the
    long name (flag 1). There is no second record for the alias on create.
-   Whether USN adds records for the alias is **not answered yet**: the VHD
-   volume had no journal in this run (rerun).
+   USN adds no records for the alias (rerun, answer 3).
 8. **Per-directory case sensitivity** works as expected: two names differing
    by case in one directory are two files with two file ids (`N3`). One
    `Modified` record for the directory itself appeared in one architecture's
@@ -83,7 +82,7 @@ RDCW rows are `Action name (name flags)`; USN rows are reason masks.
 
 | ID | Scenario | RDCW Full class | USN (`C:`) | Proposed class | Confidence |
 | --- | --- | --- | --- | --- | --- |
-| N1 | write and rename through the 8.3 name | `Modified ALONGF~1.TXT (2)` x2, `RenamedOldName ALONGF~1.TXT (0x80)`, `RenamedNewName` | not captured | user write / rename; resolve alias via `GetLongPathName` | medium |
+| N1 | write and rename through the 8.3 name | `Modified ALONGF~1.TXT (2)` x2, `RenamedOldName ALONGF~1.TXT (0x80)`, `RenamedNewName` | long name only, no alias records (rerun) | user write / rename; resolve alias via `GetLongPathName` | medium |
 | N2 | `a.txt` to `A.txt`, also a directory | `Removed a.txt`, `RenamedOldName a.txt`, `RenamedNewName A.txt` (0x80) | `0x1000`, `0x2000`, `0x80002000` | rename (fold `Removed` into the pair) | high |
 | N3 | case-sensitive directory | two `Added` with different file ids | not captured | two files | high |
 | N4 | lone surrogates | exact u16 in `Added`, `Modified`, rename, `Removed` | name lossy in the capture | user create/write/rename/delete; keep u16 | high |
@@ -92,14 +91,15 @@ RDCW rows are `Action name (name flags)`; USN rows are reason masks.
 | L3 | symlinks | file link: `Added`, `Modified` tag `0xA000000C` (attr 0x420); dir link attr 0x410; writes at the target path | `0x100`, `0x100100` | reparse point; do not follow | high |
 | S1 | alternate data stream | `Modified file.txt` (size unchanged); delete of the stream: nothing | `0x200000`, `0x200020`, `0x20`, `0x200000` | stream change on the file; not a data write | high |
 | B1 | idle | none | 347 (x64), 73 (ARM64) records of runner agents | n/a | medium |
-| D1 | block cloning | `FSCTL_DUPLICATE_EXTENTS_TO_FILE` succeeded on ReFS and Dev Drive; records only in the rerun | n/a | n/a | pending |
+| D1 | block cloning | succeeded on ReFS and Dev Drive; plain-class records only (see "Rerun") | `BASIC_INFO_CHANGE` + sparse on the clone | not distinguishable from a write | medium |
 
 ## Exit criteria
 
 - **Every scenario has a fixture or a documented reason**: fixtures for N1 to
   N4, L1 to L3 and S1 (NTFS VHD, x64) plus `C:` USN cuts for N2, N4, L1, L3, S1
-  and ARM64 N2, N4, L3. Not reproducible: C1 to C8, L4 (below); D1 and the
-  non-NTFS cells pending the rerun.
+  and ARM64 N2, N4, L3; from the rerun the plain-class cells on ReFS, Dev
+  Drive, exFAT and FAT32 and the USN cut of N1. Not reproducible: C1 to C8, L4
+  (below).
 - **Test over all fixtures**: `fs_lab_fixtures` pins the signatures above on
   Linux. The assertion that classifier *rules* never hide create, delete,
   rename, security or hard-link records, and the 0-allocation replay, need the
@@ -107,7 +107,7 @@ RDCW rows are `Action name (name flags)`; USN rows are reason masks.
   listed as work for #49, with the fixtures as the corpus.
 - **OneDrive `SOURCE_CLIENT_REPLICATION_MANAGEMENT` and USN attributes**:
   not answerable on a runner (no OneDrive). Open.
-- **8.3 aliases in USN**: open until the rerun (journal now created).
+- **8.3 aliases in USN**: answered, no extra records (rerun, answer 3).
 - **Fixture tests on ubuntu**: yes (`cargo nextest run -p peekbuddy-core --test fs_lab_fixtures`).
 
 ## Not reproducible on hosted runners
@@ -128,9 +128,45 @@ RDCW rows are `Action name (name flags)`; USN rows are reason masks.
   stream deletes are only seen by the scan.
 - #45: capture has to open non-NTFS volumes with `ReadDirectoryChangesW`.
 
-## Rerun
+## Rerun (run 40178233250, 25 Oct 2026)
 
-The harness now falls back to the plain call and creates change journals on
-the NTFS, ReFS and Dev Drive volumes. The results (plain-class records on the
-four non-NTFS volume types, the 8.3 USN answer, D1 with records) are added
-here when run 40141250031's successor finishes.
+Raw data: `docs/spikes/data/0006/rerun/`. The harness now retries with the plain
+class on non-NTFS volumes, creates change journals on the NTFS, ReFS and Dev
+Drive volumes and polls the USN journal (the blocking read hung the first
+attempt, run 40145084089). No scenario timed out.
+
+1. **The plain class works on every non-NTFS volume** (ReFS, Dev Drive, exFAT,
+   FAT32): actions and exact names (lone surrogates survive as u16) but no
+   file id, no name flags, no sizes, no attributes, no reparse tag.
+2. **Case-only rename off NTFS**: FAT32 and exFAT deliver nothing at all for
+   `a.txt` to `A.txt` (file or directory). ReFS and Dev Drive deliver
+   `RenamedOldName a.txt` and a `Modified A.txt` but never `RenamedNewName`,
+   and nothing for a directory. A rename of the case alone is therefore not
+   detectable from RDCW off NTFS; the reconcile scan has to find it (#41).
+3. **8.3 aliases in USN (answer)**: NTFS writes no extra USN records for the
+   alias. A write through `ALONGF~1.TXT` is recorded under the long name, and
+   the rename through the alias is the usual OLD/NEW pair with the long name
+   first. RDCW reports the alias (flag 2) while USN reports the long name; the
+   consumer joins them by FRN, not by name. On FAT32 RDCW reports the long name
+   for a write through the short name.
+4. **Hard link on ReFS** is `Added link.txt` plus `Modified orig.txt` (the link
+   count change), a different shape from NTFS (`Added link.txt` with flag
+   0x80 only).
+5. **Symlinks and junctions on ReFS** give `Added` then `Modified` with no
+   reparse information in the plain class: reparse policy (#46) cannot rely on
+   the tag off NTFS; the attribute must be read when the record arrives.
+6. **Deleting a stream** produces a `Modified` for the file on a Dev Drive (ReFS)
+   and nothing on NTFS.
+7. **Block cloning (D1)**: `FSCTL_DUPLICATE_EXTENTS_TO_FILE` succeeded on ReFS
+   and Dev Drive. `CopyFile2` (a clone on ReFS) leaves the copy with
+   `BASIC_INFO_CHANGE` and the sparse attribute (0x200) in USN; the explicit
+   duplicate-extents call writes the same `DATA_EXTEND`/`DATA_OVERWRITE` mask as
+   an ordinary write (`0x103`). Neither is distinguishable from a normal write
+   in RDCW.
+8. USN on ReFS and Dev Drive reports 128-bit file ids (FRN version 3 records).
+9. ARM64 and x64 agree on every sequence that is not a timing interleaving of
+   independent records.
+
+Fixtures from the rerun: `N1-ntfs-usn-x64`, `N2-refs-plain-{x64,arm}`,
+`N2-fat32-plain-x64`, `N4-exfat-plain-x64`, `L1-refs-plain-x64`,
+`S1-devdrive-plain-x64`, `D1-refs-plain-x64`.
