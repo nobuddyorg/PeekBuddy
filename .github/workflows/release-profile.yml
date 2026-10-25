@@ -78,6 +78,7 @@ jobs:
             '```', $debugdir.Trim(), '```'
           )
           $md -join "`n" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+          $md -join "`n" | Write-Host # the agent containers read the log, not the summary
           cargo xtask size target/release/peekbuddy.exe target-dist/dist/peekbuddy.exe
 
       - name: Per-crate size deltas against the base (cargo bloat)
