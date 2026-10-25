@@ -36,6 +36,8 @@ criterion = { version = "0.8.2", default-features = false, features = [
 # folders for the data dir (ADR 0010).
 embed-manifest = "1.5.1"
 insta = "1.49.0"
+# Validates --perf-probe output against perf/probe.schema.json (#161); test-only.
+jsonschema = { version = "0.60.1", default-features = false }
 known-folders = "1.4.2"
 peekbuddy-alloc = { path = "crates/peekbuddy-alloc" }
 peekbuddy-churn = { path = "crates/peekbuddy-churn" }

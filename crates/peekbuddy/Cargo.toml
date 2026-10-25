@@ -52,7 +52,9 @@ embed-manifest = { workspace = true }
 winresource = { workspace = true }
 
 [dev-dependencies]
+jsonschema = { workspace = true }
 peekbuddy-testkit = { workspace = true }
+serde_json = { workspace = true }
 
 [lints]
 workspace = true

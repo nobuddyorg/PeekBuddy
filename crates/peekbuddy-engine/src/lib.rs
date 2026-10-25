@@ -8,11 +8,17 @@
 #![forbid(unsafe_code)]
 
 pub mod crash;
+pub mod diagnostics;
 pub mod portable;
+pub mod probe;
 pub mod shutdown;
 
 #[cfg(windows)]
 pub mod datadir;
+#[cfg(windows)]
+pub mod diag_collect;
+#[cfg(windows)]
+mod sample;
 
 use std::path::PathBuf;
 
@@ -68,9 +74,20 @@ pub struct Options {
     pub headless: bool,
     /// Data directory override, accepted only together with `headless`.
     pub data_dir: Option<PathBuf>,
+    /// `--perf-probe`: stay up for a while, then print the JSON report (#24).
+    pub probe: Option<ProbeOptions>,
     /// Panic right after "ready", to test the crash log.
     #[cfg(feature = "test-panic")]
     pub panic_after_ready: bool,
+}
+
+/// `--perf-probe <seconds> [--perf-probe-out <file>]`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ProbeOptions {
+    /// Seconds to stay up after "ready"; 0 exits right after it.
+    pub seconds: u64,
+    /// Write the report here instead of standard output.
+    pub out: Option<PathBuf>,
 }
 
 /// How an engine run ended.
@@ -110,7 +127,8 @@ mod run {
     use std::rc::Rc;
 
     use peekbuddy_core::perf::{Milestone, MilestoneTable, Role};
-    use peekbuddy_win::console::close_window_on_ctrl_c;
+    use peekbuddy_win::console::{attach_output, close_window_on_ctrl_c};
+    use peekbuddy_win::metrics::ContextSwitches;
     use peekbuddy_win::osinfo;
     use peekbuddy_win::perf::{etw, record, since_process_create_us};
     use peekbuddy_win::single_instance::SingleInstance;
@@ -119,6 +137,7 @@ mod run {
     use crate::crash::{self, BuildInfo};
     use crate::datadir::{self, DataDir};
     use crate::portable::Decision;
+    use crate::probe::{self, Report, Sample};
     use crate::shutdown::{Reason, Shutdown};
     use crate::{Exit, Names, Options};
 
@@ -155,16 +174,30 @@ mod run {
             },
         );
 
+        // The writer (#52) feeds both; until it exists they stay empty.
+        let counters = peekbuddy_core::perf::Counters::new();
+        let commits = probe::CommitLog::new();
         let shutdown = Rc::new(RefCell::new(Shutdown::new()));
         let handler = Rc::clone(&shutdown);
-        let hidden = HiddenWindow::create(&names.window_class, move |event| match event {
+        // The probe's closing sample is taken when its timer fires, before
+        // the shutdown starts: teardown wakeups are not idle wakeups.
+        let switches = Rc::new(RefCell::new(ContextSwitches::new()));
+        let closing: Rc<RefCell<Option<Sample>>> = Rc::new(RefCell::new(None));
+        let (timer_switches, timer_sample) = (Rc::clone(&switches), Rc::clone(&closing));
+        let hidden = HiddenWindow::create(&names.window_class, move |event, window| match event {
             WindowEvent::Close => handler.borrow_mut().run(Reason::Quit),
+            // The probe's one-shot exit timer.
+            WindowEvent::Timer => {
+                *timer_sample.borrow_mut() =
+                    Some(crate::sample::take(&mut timer_switches.borrow_mut()));
+                let _ = window.post_close();
+            }
             WindowEvent::EndSession { ending: true } => {
                 handler.borrow_mut().run(Reason::EndSession);
             }
             WindowEvent::QueryEndSession | WindowEvent::EndSession { ending: false } => {}
         })?;
-        if options.headless {
+        if options.headless || options.probe.is_some() {
             close_window_on_ctrl_c(hidden.handle())?;
         }
 
@@ -175,10 +208,51 @@ mod run {
         if options.panic_after_ready {
             test_panic();
         }
+        let start = crate::sample::take(&mut switches.borrow_mut());
+        if let Some(probe) = &options.probe {
+            if probe.seconds == 0 {
+                hidden.handle().post_close()?;
+            } else {
+                let millis = u32::try_from(probe.seconds.saturating_mul(1_000)).unwrap_or(u32::MAX);
+                hidden.set_one_shot_timer(millis)?;
+            }
+        }
         let _ = hidden.run_message_loop();
+        if let Some(probe) = &options.probe {
+            let report = Report {
+                version: env!("CARGO_PKG_VERSION").to_owned(),
+                arch: if cfg!(target_arch = "aarch64") {
+                    "aarch64"
+                } else {
+                    "x86_64"
+                },
+                requested_seconds: probe.seconds,
+                milestones: probe::milestone_rows(milestones),
+                start,
+                end: closing
+                    .borrow_mut()
+                    .take()
+                    .unwrap_or_else(|| crate::sample::take(&mut switches.borrow_mut())),
+                counters: counters.snapshot(),
+                batch_commits: commits.to_vec(),
+            };
+            emit(&report, probe.out.as_deref())?;
+        }
         Ok(Exit::Ran {
             abnormal_termination,
         })
+    }
+
+    /// Writes the report to `out`, or to standard output.
+    fn emit(report: &Report, out: Option<&std::path::Path>) -> std::io::Result<()> {
+        let json = report.to_json();
+        if let Some(path) = out {
+            return std::fs::write(path, json);
+        }
+        attach_output();
+        let mut stdout = std::io::stdout().lock();
+        std::io::Write::write_all(&mut stdout, json.as_bytes())?;
+        std::io::Write::flush(&mut stdout)
     }
 
     #[cfg(feature = "test-panic")]

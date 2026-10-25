@@ -9,6 +9,7 @@
 use std::process::ExitCode;
 
 use peekbuddy_core::perf::MilestoneTable;
+use peekbuddy_engine::diagnostics::Facts;
 
 mod cli;
 #[cfg(feature = "profile-tracy")]
@@ -27,7 +28,7 @@ fn process_start(role: &Role, table: &MilestoneTable) {
     use peekbuddy_win::perf::{record, since_process_create_us};
 
     let role = match role {
-        Role::Engine => PerfRole::Engine,
+        Role::Engine | Role::Diagnostics => PerfRole::Engine,
         Role::Viewer => PerfRole::Viewer,
     };
     record(
@@ -58,6 +59,38 @@ fn run_viewer() -> std::io::Result<()> {
     Ok(())
 }
 
+/// What the build script recorded: version, git SHA, compiler, key
+/// dependency versions.
+fn facts() -> Facts {
+    Facts {
+        version: env!("CARGO_PKG_VERSION").to_owned(),
+        git_sha: option_env!("PEEKBUDDY_GIT_SHA")
+            .unwrap_or("unknown")
+            .to_owned(),
+        rustc: option_env!("PEEKBUDDY_RUSTC")
+            .unwrap_or("unknown")
+            .to_owned(),
+        dependencies: Facts::parse_dependencies(option_env!("PEEKBUDDY_DEPS").unwrap_or("")),
+    }
+}
+
+/// Prints the diagnostics text to standard output.
+#[cfg(windows)]
+fn run_diagnostics(full: bool) -> std::io::Result<()> {
+    use std::io::Write as _;
+
+    peekbuddy_win::console::attach_output();
+    let text = peekbuddy_engine::diag_collect::collect(facts(), full).render();
+    let mut stdout = std::io::stdout().lock();
+    stdout.write_all(text.as_bytes())?;
+    stdout.flush()
+}
+
+#[cfg(not(windows))]
+fn run_diagnostics(_full: bool) -> std::io::Result<()> {
+    Ok(())
+}
+
 /// Runs the invoked role to completion; in profiling builds inside one Tracy
 /// zone.
 fn run(invocation: &Invocation, table: &MilestoneTable) -> std::io::Result<()> {
@@ -66,6 +99,7 @@ fn run(invocation: &Invocation, table: &MilestoneTable) -> std::io::Result<()> {
     match invocation.role {
         Role::Engine => peekbuddy_engine::run(&invocation.engine, table).map(drop),
         Role::Viewer => run_viewer(),
+        Role::Diagnostics => run_diagnostics(invocation.full),
     }
 }
 
@@ -92,6 +126,7 @@ mod tests {
         let invocation = Invocation {
             role: Role::Viewer,
             engine: peekbuddy_engine::Options::default(),
+            full: false,
         };
         run(&invocation, &MilestoneTable::new()).unwrap();
         #[cfg(feature = "profile-tracy")]

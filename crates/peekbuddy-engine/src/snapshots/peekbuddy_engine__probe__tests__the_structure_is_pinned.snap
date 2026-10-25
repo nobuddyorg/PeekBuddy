@@ -1,0 +1,79 @@
+---
+source: crates/peekbuddy-engine/src/probe.rs
+expression: skeleton(&document)
+---
+{
+  "arch": "x86_64",
+  "batchCommits": [
+    {
+      "atUs": 0,
+      "rows": 0
+    },
+    {
+      "atUs": 0,
+      "rows": 0
+    }
+  ],
+  "counters": {
+    "eventsReceived": 0,
+    "gaps": 0,
+    "lastBatchSize": 0,
+    "overflows": 0,
+    "ringDepthHighWater": 0,
+    "rowsPersisted": 0
+  },
+  "milestones": [
+    {
+      "count": 0,
+      "firstUs": 0,
+      "lastUs": 0,
+      "name": "ProcessStart"
+    },
+    {
+      "count": 0,
+      "firstUs": 0,
+      "lastUs": 0,
+      "name": "WatcherArmed"
+    }
+  ],
+  "requestedSeconds": 0,
+  "role": "engine",
+  "samples": {
+    "end": {
+      "atUs": 0,
+      "contextSwitches": null,
+      "gdiObjects": 0,
+      "handles": 0,
+      "kernelTicks": 0,
+      "pageFaults": 0,
+      "peakWorkingSet": 0,
+      "privateBytes": 0,
+      "readBytes": 0,
+      "readOps": 0,
+      "userObjects": 0,
+      "userTicks": 0,
+      "workingSet": 0,
+      "writeBytes": 0,
+      "writeOps": 0
+    },
+    "start": {
+      "atUs": 0,
+      "contextSwitches": 0,
+      "gdiObjects": 0,
+      "handles": 0,
+      "kernelTicks": 0,
+      "pageFaults": 0,
+      "peakWorkingSet": 0,
+      "privateBytes": 0,
+      "readBytes": 0,
+      "readOps": 0,
+      "userObjects": 0,
+      "userTicks": 0,
+      "workingSet": 0,
+      "writeBytes": 0,
+      "writeOps": 0
+    }
+  },
+  "schemaVersion": 0,
+  "version": "0.0.0"
+}

@@ -133,6 +133,20 @@ Milestones (each recorded in the in-process table read by `--perf-probe`
 `SinceProcessCreateUs` is computed in-process from `GetProcessTimes`
 creation time. ETW is diagnostics only: it can drop events under pressure.
 
+`peekbuddy --perf-probe <seconds> [--perf-probe-out <file>] [--data-dir <dir>]`
+(#24, #161) starts the engine without a viewer, waits for "engine ready", stays
+up with one one-shot exit timer and no other timer, then prints one JSON
+document (schema `perf/probe.schema.json`, `schemaVersion` 1): the milestone
+table, a process sample at ready and one at exit (Private Bytes and Working
+Set separate, CPU ticks, handles, GDI and USER objects, context switches,
+I/O), the counters and the bounded ring of batch commits (empty until the
+writer exists, #52). `--perf-probe 0` exits right after ready, for hyperfine.
+Output goes to a redirected stdout, to the parent console, or to the file;
+started from Explorer only the file is reachable. `peekbuddy --diagnostics
+[--full]` prints version, git SHA, compiler, key dependency versions, OS build
+with UBR, architecture (native or emulated), the viewer's last renderer, the
+data directory (redacted unless `--full`), engine state and Defender state.
+
 Process metrics (`peekbuddy_win::metrics`, #24) take any process handle
 opened with `PROCESS_QUERY_LIMITED_INFORMATION`, so the harness samples the
 engine from outside without waking it:

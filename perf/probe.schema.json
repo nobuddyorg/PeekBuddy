@@ -1,0 +1,138 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/nobuddyorg/PeekBuddy/blob/main/perf/probe.schema.json",
+  "title": "peekbuddy --perf-probe output",
+  "description": "One document per run (#24). Times are microseconds since process creation; CPU ticks are 100 ns units. Bump schemaVersion with every change.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "role",
+    "version",
+    "arch",
+    "requestedSeconds",
+    "milestones",
+    "samples",
+    "counters",
+    "batchCommits"
+  ],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "role": { "const": "engine" },
+    "version": { "type": "string" },
+    "arch": { "enum": ["x86_64", "aarch64"] },
+    "requestedSeconds": { "type": "integer", "minimum": 0 },
+    "milestones": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "firstUs", "lastUs", "count"],
+        "properties": {
+          "name": {
+            "enum": [
+              "ProcessStart",
+              "SettingsLoaded",
+              "StoreOpened",
+              "WatcherArmed",
+              "TrayShown",
+              "EngineReady",
+              "ViewerSpawn",
+              "ViewerFirstFrame",
+              "Overflow",
+              "Gap",
+              "ReconcileStart",
+              "ReconcileEnd",
+              "SegmentRotate"
+            ]
+          },
+          "firstUs": { "type": "integer", "minimum": 0 },
+          "lastUs": { "type": "integer", "minimum": 0 },
+          "count": { "type": "integer", "minimum": 1 }
+        }
+      }
+    },
+    "samples": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["start", "end"],
+      "properties": {
+        "start": { "$ref": "#/$defs/sample" },
+        "end": { "$ref": "#/$defs/sample" }
+      }
+    },
+    "counters": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "eventsReceived",
+        "rowsPersisted",
+        "overflows",
+        "gaps",
+        "ringDepthHighWater",
+        "lastBatchSize"
+      ],
+      "properties": {
+        "eventsReceived": { "type": "integer", "minimum": 0 },
+        "rowsPersisted": { "type": "integer", "minimum": 0 },
+        "overflows": { "type": "integer", "minimum": 0 },
+        "gaps": { "type": "integer", "minimum": 0 },
+        "ringDepthHighWater": { "type": "integer", "minimum": 0 },
+        "lastBatchSize": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "batchCommits": {
+      "type": "array",
+      "maxItems": 4096,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["atUs", "rows"],
+        "properties": {
+          "atUs": { "type": "integer", "minimum": 0 },
+          "rows": { "type": "integer", "minimum": 0 }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "sample": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "atUs",
+        "privateBytes",
+        "workingSet",
+        "peakWorkingSet",
+        "pageFaults",
+        "kernelTicks",
+        "userTicks",
+        "handles",
+        "gdiObjects",
+        "userObjects",
+        "contextSwitches",
+        "readBytes",
+        "writeBytes",
+        "readOps",
+        "writeOps"
+      ],
+      "properties": {
+        "atUs": { "type": "integer", "minimum": 0 },
+        "privateBytes": { "type": "integer", "minimum": 0 },
+        "workingSet": { "type": "integer", "minimum": 0 },
+        "peakWorkingSet": { "type": "integer", "minimum": 0 },
+        "pageFaults": { "type": "integer", "minimum": 0 },
+        "kernelTicks": { "type": "integer", "minimum": 0 },
+        "userTicks": { "type": "integer", "minimum": 0 },
+        "handles": { "type": "integer", "minimum": 0 },
+        "gdiObjects": { "type": "integer", "minimum": 0 },
+        "userObjects": { "type": "integer", "minimum": 0 },
+        "contextSwitches": { "type": ["integer", "null"], "minimum": 0 },
+        "readBytes": { "type": "integer", "minimum": 0 },
+        "writeBytes": { "type": "integer", "minimum": 0 },
+        "readOps": { "type": "integer", "minimum": 0 },
+        "writeOps": { "type": "integer", "minimum": 0 }
+      }
+    }
+  }
+}
