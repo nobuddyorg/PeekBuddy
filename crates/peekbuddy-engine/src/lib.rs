@@ -137,7 +137,7 @@ mod run {
     use crate::crash::{self, BuildInfo};
     use crate::datadir::{self, DataDir};
     use crate::portable::Decision;
-    use crate::probe::{self, Report};
+    use crate::probe::{self, Report, Sample};
     use crate::shutdown::{Reason, Shutdown};
     use crate::{Exit, Names, Options};
 
@@ -179,10 +179,17 @@ mod run {
         let commits = probe::CommitLog::new();
         let shutdown = Rc::new(RefCell::new(Shutdown::new()));
         let handler = Rc::clone(&shutdown);
+        // The probe's closing sample is taken when its timer fires, before
+        // the shutdown starts: teardown wakeups are not idle wakeups.
+        let switches = Rc::new(RefCell::new(ContextSwitches::new()));
+        let closing: Rc<RefCell<Option<Sample>>> = Rc::new(RefCell::new(None));
+        let (timer_switches, timer_sample) = (Rc::clone(&switches), Rc::clone(&closing));
         let hidden = HiddenWindow::create(&names.window_class, move |event, window| match event {
             WindowEvent::Close => handler.borrow_mut().run(Reason::Quit),
             // The probe's one-shot exit timer.
             WindowEvent::Timer => {
+                *timer_sample.borrow_mut() =
+                    Some(crate::sample::take(&mut timer_switches.borrow_mut()));
                 let _ = window.post_close();
             }
             WindowEvent::EndSession { ending: true } => {
@@ -201,8 +208,7 @@ mod run {
         if options.panic_after_ready {
             test_panic();
         }
-        let mut switches = ContextSwitches::new();
-        let start = crate::sample::take(&mut switches);
+        let start = crate::sample::take(&mut switches.borrow_mut());
         if let Some(probe) = &options.probe {
             if probe.seconds == 0 {
                 hidden.handle().post_close()?;
@@ -223,7 +229,10 @@ mod run {
                 requested_seconds: probe.seconds,
                 milestones: probe::milestone_rows(milestones),
                 start,
-                end: crate::sample::take(&mut switches),
+                end: closing
+                    .borrow_mut()
+                    .take()
+                    .unwrap_or_else(|| crate::sample::take(&mut switches.borrow_mut())),
                 counters: counters.snapshot(),
                 batch_commits: commits.to_vec(),
             };
