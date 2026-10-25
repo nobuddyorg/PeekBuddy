@@ -219,9 +219,27 @@ numbers come from the shipped code generation.
 reported. MB here is 1,000,000 bytes. CI runs it on the release exe in
 `test (windows x64)` (part of `ci-ok`) and in the arm64 job.
 
-Still to do (#28): the `dist` profile (line tables, separate PDB,
-`/PDBALTPATH`) and its size decision; `cargo bloat` per-crate deltas in the
-job summary; the x86-64-v2 benchmark; the monthly PGO experiment.
+### `dist` profile, CPU baseline and PGO (#28)
+
+`[profile.dist]` inherits release and keeps `debug = "line-tables-only"` and
+`strip = "none"` so a separate PDB exists for WPR/PerfView symbolisation; the
+shipped exe is built with `release`. `release-profile.yml` (manual, monthly
+and on PRs that touch it) builds both, compares sizes, prints per-crate
+`cargo bloat` deltas and runs the two experiments below. Results of 24/25
+Oct 2026 (runs 40135633554 and 40184372781 on `windows-2025` and
+`windows-11-vs2026-arm`):
+
+| Question | Result | Decision |
+| --- | --- | --- |
+| exe size, release vs dist | both 0.11 MB with `strip = symbols` vs line tables in the PDB (the exe is still the role stub, so the comparison is only meaningful once the engine exists) | ship `release`; keep `dist` for symbolised traces; re-measure with #59 |
+| `-Ctarget-cpu=x86-64-v2` (10 alternating rounds, 11 benches) | all within -3.0 % to +0.8 % | **not adopted** (bar: >= 5 %); the baseline stays plain x86-64 (ADR 0013) |
+| PGO (x64, instrumented run of the benches) | two runs: `store/intern_hit_1000` -45 / -52 %, `filter/eval_6_names` -28 / -16 %, `notify_parse/*` between -6 % and +11 % (noise on the 3 us benches), the rest within 4 % | **not adopted yet**: the trained workload is the micro-benches, not the engine; revisit with the engine (#59); the monthly job keeps measuring |
+| PGO (ARM64) | `rustc` crashes with `STATUS_ACCESS_VIOLATION` compiling `half` under `-Cprofile-generate` plus `linker-plugin-lto` | PGO is x64-only for now |
+| size gate | a throwaway PR (#154) adding a 9 MB static failed `test (windows x64)` in the step "Release build without Tracy (#22) and within the size budget (#28)" (`binary.size.cap`, 8 MB) and so `ci-ok`; closed unmerged | gate verified |
+
+Not done: symbolising a WPR trace of the shipped exe against the published
+PDB (needs a running engine and a real trace), and the per-crate `cargo bloat`
+delta only becomes informative with real dependencies in the exe.
 
 ## Micro-benchmarks and the A/B gate
 
@@ -307,6 +325,9 @@ Pending recalibration hooks:
 ## Changelog
 
 - 2026-10-23: initial provisional budgets from the roadmap (#1) and F6-F11.
+- 2026-10-25: #28 results: dist profile kept for symbols, x86-64-v2 not
+  adopted (<= 3 %), PGO not adopted yet (x64 mixed, ARM64 crashes), size gate
+  verified with a throwaway PR (#154).
 - 2026-10-23: bench A/B false-positive check on windows-2025: 10 of 10
   no-op runs passed (`bench-noop.yml` on #118); the A/B job joins `ci-ok`
   (#26).
