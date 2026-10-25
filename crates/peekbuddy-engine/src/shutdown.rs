@@ -29,6 +29,10 @@ pub enum Stage {
     CloseDatabase,
     /// Remove the tray icon.
     RemoveTray,
+    /// Unregister the ETW provider: the last thing before the process ends,
+    /// also on `WM_ENDSESSION`, where the OS may end the process right after
+    /// the handler returns.
+    ReleaseProvider,
 }
 
 type Step = Box<dyn FnMut(Reason)>;
@@ -98,6 +102,7 @@ mod tests {
     fn stages_run_in_order_whatever_the_registration_order() {
         let (log, mut shutdown) = recorder();
         for (stage, name) in [
+            (Stage::ReleaseProvider, "provider"),
             (Stage::RemoveTray, "tray"),
             (Stage::CloseDatabase, "close"),
             (Stage::StopCapture, "stop"),
@@ -111,7 +116,15 @@ mod tests {
         shutdown.run(Reason::Quit);
         assert_eq!(
             *log.borrow(),
-            ["stop", "drain", "commit", "checkpoints", "close", "tray"]
+            [
+                "stop",
+                "drain",
+                "commit",
+                "checkpoints",
+                "close",
+                "tray",
+                "provider"
+            ]
         );
     }
 

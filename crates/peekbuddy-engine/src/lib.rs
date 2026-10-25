@@ -138,7 +138,7 @@ mod run {
     use crate::datadir::{self, DataDir};
     use crate::portable::Decision;
     use crate::probe::{self, Report, Sample};
-    use crate::shutdown::{Reason, Shutdown};
+    use crate::shutdown::{Reason, Shutdown, Stage};
     use crate::{Exit, Names, Options};
 
     fn mark(table: &MilestoneTable, milestone: Milestone) {
@@ -151,7 +151,9 @@ mod run {
     ///
     /// Returns the error that stopped the engine from starting.
     pub fn run(options: &Options, milestones: &MilestoneTable) -> std::io::Result<Exit> {
-        let _provider = etw::register();
+        // Held in a cell so the shutdown path can release it explicitly: on
+        // `WM_ENDSESSION` the OS may end the process before `run` returns.
+        let provider = Rc::new(RefCell::new(Some(etw::register())));
         let names = Names::new(options.data_dir.as_deref());
         let Some(_instance) = SingleInstance::acquire(&names.mutex)? else {
             return Ok(Exit::AlreadyRunning);
@@ -178,6 +180,9 @@ mod run {
         let counters = peekbuddy_core::perf::Counters::new();
         let commits = probe::CommitLog::new();
         let shutdown = Rc::new(RefCell::new(Shutdown::new()));
+        shutdown
+            .borrow_mut()
+            .register(Stage::ReleaseProvider, release_provider(&provider));
         let handler = Rc::clone(&shutdown);
         // The probe's closing sample is taken when its timer fires, before
         // the shutdown starts: teardown wakeups are not idle wakeups.
@@ -243,6 +248,14 @@ mod run {
         })
     }
 
+    /// The shutdown step that unregisters the ETW provider.
+    pub(crate) fn release_provider(
+        provider: &Rc<RefCell<Option<etw::Registration>>>,
+    ) -> impl FnMut(Reason) + 'static {
+        let provider = Rc::clone(provider);
+        move |_| drop(provider.borrow_mut().take())
+    }
+
     /// Writes the report to `out`, or to standard output.
     fn emit(report: &Report, out: Option<&std::path::Path>) -> std::io::Result<()> {
         let json = report.to_json();
@@ -283,5 +296,29 @@ mod tests {
         assert_ne!(a, Names::new(None));
         // Case does not matter on Windows paths.
         assert_eq!(a, Names::new(Some(Path::new(r"c:\T\A"))));
+    }
+}
+
+#[cfg(all(test, windows))]
+mod windows_tests {
+    use std::cell::RefCell;
+    use std::rc::Rc;
+
+    use peekbuddy_win::perf::etw;
+
+    use crate::shutdown::{Reason, Shutdown, Stage};
+
+    #[test]
+    fn the_shutdown_path_unregisters_the_provider() {
+        let provider = Rc::new(RefCell::new(Some(etw::register())));
+        let mut shutdown = Shutdown::new();
+        shutdown.register(
+            Stage::ReleaseProvider,
+            super::run::release_provider(&provider),
+        );
+        assert!(etw::is_registered());
+        shutdown.run(Reason::EndSession);
+        assert!(!etw::is_registered());
+        assert!(provider.borrow().is_none());
     }
 }

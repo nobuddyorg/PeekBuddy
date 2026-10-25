@@ -188,11 +188,29 @@ jobs:
           $hits = ([regex]::Matches($xml, '69eb5350-8420-5c03-5c05-1a6dafc0df73', 'IgnoreCase')).Count
           "PeekBuddy provider events in the ETL: $hits"
           if ($hits -lt 7) { throw "expected at least 7 PeekBuddy events (6 milestones + counters), found $hits" }
+      - run: cargo build -p peekbuddy --locked
+      - name: Record the real engine with the PeekBuddy.Light profile (#21, #162)
+        shell: pwsh
+        run: |
+          wpr -start 'perf\peekbuddy.wprp!PeekBuddy.Light' -filemode
+          if ($LASTEXITCODE -ne 0) { throw "wpr -start failed: $LASTEXITCODE" }
+          $engine = Start-Process target/debug/peekbuddy.exe -ArgumentList '--perf-probe', '0', '--data-dir', "$env:RUNNER_TEMP\pb-etw" -Wait -PassThru
+          if ($engine.ExitCode -ne 0) { throw "engine exit code $($engine.ExitCode)" }
+          wpr -stop "$env:RUNNER_TEMP\etw-engine.etl"
+          if ($LASTEXITCODE -ne 0) { throw "wpr -stop failed: $LASTEXITCODE" }
+          tracerpt "$env:RUNNER_TEMP\etw-engine.etl" -o "$env:RUNNER_TEMP\etw-engine.xml" -of XML -y | Out-Null
+          $xml = Get-Content "$env:RUNNER_TEMP\etw-engine.xml" -Raw
+          $hits = ([regex]::Matches($xml, '69eb5350-8420-5c03-5c05-1a6dafc0df73', 'IgnoreCase')).Count
+          "PeekBuddy provider events from the engine: $hits"
+          # ProcessStart and EngineReady at least.
+          if ($hits -lt 2) { throw "expected at least 2 PeekBuddy events from the engine, found $hits" }
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
           name: etw-smoke
-          path: ${{ runner.temp }}/etw-smoke.etl
+          path: |
+            ${{ runner.temp }}/etw-smoke.etl
+            ${{ runner.temp }}/etw-engine.etl
           if-no-files-found: warn
 
   coverage:

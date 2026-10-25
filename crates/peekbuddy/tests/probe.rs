@@ -64,7 +64,18 @@ fn the_probe_prints_a_valid_document_to_a_redirected_stdout() {
         "ProcessStart {start} after EngineReady {ready}"
     );
     assert!(ready > 0 && ready < 5_000_000, "ready after {ready} us");
-    assert_eq!(milestone(&document, "EngineReady")["count"], 1);
+    // Every milestone appears exactly once per occurrence: the engine marks
+    // each of these once per run.
+    for name in ["ProcessStart", "EngineReady"] {
+        assert_eq!(milestone(&document, name)["count"], 1, "{name}");
+    }
+    let times: Vec<u64> = document["milestones"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|row| row["firstUs"].as_u64().unwrap())
+        .collect();
+    assert!(times.windows(2).all(|pair| pair[0] <= pair[1]), "{times:?}");
 
     let (first, last) = (&document["samples"]["start"], &document["samples"]["end"]);
     assert!(first["privateBytes"].as_u64().unwrap() > 0);

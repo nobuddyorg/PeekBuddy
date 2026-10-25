@@ -58,6 +58,12 @@ impl Drop for Registration {
     }
 }
 
+/// Whether the provider is registered in this process.
+#[must_use]
+pub fn is_registered() -> bool {
+    REGISTERED.load(Ordering::Acquire)
+}
+
 /// Whether a session is listening for milestones.
 #[must_use]
 pub fn milestones_enabled() -> bool {
