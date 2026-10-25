@@ -1,5 +1,11 @@
+# Raw captures (file names from the runners, hashes) are not prose.
 [files]
-extend-exclude = ["Cargo.lock", "LICENSE"]
+extend-exclude = [
+  "Cargo.lock",
+  "LICENSE",
+  "docs/spikes/data/**",
+  "crates/peekbuddy-core/tests/fixtures/**",
+]
 
 [default.extend-words]
 # Windows and file-system terms.

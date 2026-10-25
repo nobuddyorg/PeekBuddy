@@ -1,0 +1,54 @@
+{"arch":"aarch64","label":"windows-11-vs2026-arm/ntfs","os_build":26200,"qpc_freq":10000000,"rdcw_class":"Full","rep":0,"root":"P:\\fslab\\N1-0","scenario":"N1","settle_s":3,"src":"header","volume":"P:"}
+{"error":"The volume change journal is not active. (os error 1179)","src":"error","what":"usn query"}
+{"src":"note","value":"exit Some(0): The volume state is: 1 (8dot3 name creation is DISABLED)\r\nThe registry state is: 2 (Per volume setting - the default)\r\n\r\nBased on the above settings, 8dot3 name creation is DISABLED on \"P:\"","what":"fsutil 8dot3name query P:"}
+{"src":"note","value":"exit Some(0): Successfully ENABLED 8dot3name generation on \"P:\"","what":"fsutil 8dot3name set P: 0"}
+{"src":"note","value":"P:\\fslab\\N1-0\\ALONGF~1.TXT","what":"short path"}
+{"label":"scenario start","src":"op","t":8013762309}
+{"label":"create long name","src":"op","t":8014542641}
+{"action":"Added","allocated_length":0,"attributes":32,"file_id":281474976710696,"file_size":0,"name":"A long file name for the short name test.txt","name_flags":1,"name_u16":[65,32,108,111,110,103,32,102,105,108,101,32,110,97,109,101,32,102,111,114,32,116,104,101,32,115,104,111,114,116,32,110,97,109,101,32,116,101,115,116,46,116,120,116],"parent_file_id":281474976710695,"reparse_tag":0,"src":"rdcw","t":8014544658}
+{"action":"Modified","allocated_length":8,"attributes":32,"file_id":281474976710696,"file_size":3,"name":"A long file name for the short name test.txt","name_flags":1,"name_u16":[65,32,108,111,110,103,32,102,105,108,101,32,110,97,109,101,32,102,111,114,32,116,104,101,32,115,104,111,114,116,32,110,97,109,101,32,116,101,115,116,46,116,120,116],"parent_file_id":281474976710695,"reparse_tag":0,"src":"rdcw","t":8014546462}
+{"label":"write through the short name","src":"op","t":8017549283}
+{"action":"Modified","allocated_length":0,"attributes":32,"file_id":281474976710696,"file_size":0,"name":"ALONGF~1.TXT","name_flags":2,"name_u16":[65,76,79,78,71,70,126,49,46,84,88,84],"parent_file_id":281474976710695,"reparse_tag":0,"src":"rdcw","t":8017551827}
+{"action":"Modified","allocated_length":8,"attributes":32,"file_id":281474976710696,"file_size":7,"name":"ALONGF~1.TXT","name_flags":2,"name_u16":[65,76,79,78,71,70,126,49,46,84,88,84],"parent_file_id":281474976710695,"reparse_tag":0,"src":"rdcw","t":8017552353}
+{"label":"rename through the short name","src":"op","t":8020555729}
+{"action":"RenamedOldName","allocated_length":8,"attributes":32,"file_id":281474976710696,"file_size":7,"name":"ALONGF~1.TXT","name_flags":128,"name_u16":[65,76,79,78,71,70,126,49,46,84,88,84],"parent_file_id":281474976710695,"reparse_tag":0,"src":"rdcw","t":8020558900}
+{"action":"RenamedNewName","allocated_length":8,"attributes":32,"file_id":281474976710696,"file_size":7,"name":"renamed-via-short.txt","name_flags":128,"name_u16":[114,101,110,97,109,101,100,45,118,105,97,45,115,104,111,114,116,46,116,120,116],"parent_file_id":281474976710695,"reparse_tag":0,"src":"rdcw","t":8020558900}
+{"label":"delete","src":"op","t":8023560227}
+{"error":null,"label":"scenario end","src":"op","t":8023563438}
+{"action":"Removed","allocated_length":8,"attributes":32,"file_id":281474976710696,"file_size":7,"name":"renamed-via-short.txt","name_flags":1,"name_u16":[114,101,110,97,109,101,100,45,118,105,97,45,115,104,111,114,116,46,116,120,116],"parent_file_id":281474976710695,"reparse_tag":0,"src":"rdcw","t":8023563538}
+{"arch":"aarch64","label":"windows-11-vs2026-arm/ntfs","os_build":26200,"qpc_freq":10000000,"rdcw_class":"Full","rep":1,"root":"P:\\fslab\\N1-1","scenario":"N1","settle_s":3,"src":"header","volume":"P:"}
+{"error":"The volume change journal is not active. (os error 1179)","src":"error","what":"usn query"}
+{"src":"note","value":"exit Some(0): The volume state is: 0 (8dot3 name creation is ENABLED)\r\nThe registry state is: 2 (Per volume setting - the default)\r\n\r\nBased on the above settings, 8dot3 name creation is ENABLED on \"P:\"","what":"fsutil 8dot3name query P:"}
+{"src":"note","value":"exit Some(0): Successfully ENABLED 8dot3name generation on \"P:\"","what":"fsutil 8dot3name set P: 0"}
+{"src":"note","value":"P:\\fslab\\N1-1\\ALONGF~1.TXT","what":"short path"}
+{"label":"scenario start","src":"op","t":8068775916}
+{"label":"create long name","src":"op","t":8069027263}
+{"action":"Added","allocated_length":0,"attributes":32,"file_id":562949953421352,"file_size":0,"name":"A long file name for the short name test.txt","name_flags":1,"name_u16":[65,32,108,111,110,103,32,102,105,108,101,32,110,97,109,101,32,102,111,114,32,116,104,101,32,115,104,111,114,116,32,110,97,109,101,32,116,101,115,116,46,116,120,116],"parent_file_id":562949953421351,"reparse_tag":0,"src":"rdcw","t":8069029073}
+{"action":"Modified","allocated_length":8,"attributes":32,"file_id":562949953421352,"file_size":3,"name":"A long file name for the short name test.txt","name_flags":1,"name_u16":[65,32,108,111,110,103,32,102,105,108,101,32,110,97,109,101,32,102,111,114,32,116,104,101,32,115,104,111,114,116,32,110,97,109,101,32,116,101,115,116,46,116,120,116],"parent_file_id":562949953421351,"reparse_tag":0,"src":"rdcw","t":8069030872}
+{"label":"write through the short name","src":"op","t":8072060195}
+{"action":"Modified","allocated_length":0,"attributes":32,"file_id":562949953421352,"file_size":0,"name":"ALONGF~1.TXT","name_flags":2,"name_u16":[65,76,79,78,71,70,126,49,46,84,88,84],"parent_file_id":562949953421351,"reparse_tag":0,"src":"rdcw","t":8072062535}
+{"action":"Modified","allocated_length":8,"attributes":32,"file_id":562949953421352,"file_size":7,"name":"ALONGF~1.TXT","name_flags":2,"name_u16":[65,76,79,78,71,70,126,49,46,84,88,84],"parent_file_id":562949953421351,"reparse_tag":0,"src":"rdcw","t":8072063161}
+{"label":"rename through the short name","src":"op","t":8075089459}
+{"action":"RenamedOldName","allocated_length":8,"attributes":32,"file_id":562949953421352,"file_size":7,"name":"ALONGF~1.TXT","name_flags":128,"name_u16":[65,76,79,78,71,70,126,49,46,84,88,84],"parent_file_id":562949953421351,"reparse_tag":0,"src":"rdcw","t":8075092783}
+{"action":"RenamedNewName","allocated_length":8,"attributes":32,"file_id":562949953421352,"file_size":7,"name":"renamed-via-short.txt","name_flags":128,"name_u16":[114,101,110,97,109,101,100,45,118,105,97,45,115,104,111,114,116,46,116,120,116],"parent_file_id":562949953421351,"reparse_tag":0,"src":"rdcw","t":8075092783}
+{"label":"delete","src":"op","t":8078095390}
+{"error":null,"label":"scenario end","src":"op","t":8078098777}
+{"action":"Removed","allocated_length":8,"attributes":32,"file_id":562949953421352,"file_size":7,"name":"renamed-via-short.txt","name_flags":1,"name_u16":[114,101,110,97,109,101,100,45,118,105,97,45,115,104,111,114,116,46,116,120,116],"parent_file_id":562949953421351,"reparse_tag":0,"src":"rdcw","t":8078099089}
+{"arch":"aarch64","label":"windows-11-vs2026-arm/ntfs","os_build":26200,"qpc_freq":10000000,"rdcw_class":"Full","rep":2,"root":"P:\\fslab\\N1-2","scenario":"N1","settle_s":3,"src":"header","volume":"P:"}
+{"error":"The volume change journal is not active. (os error 1179)","src":"error","what":"usn query"}
+{"src":"note","value":"exit Some(0): The volume state is: 0 (8dot3 name creation is ENABLED)\r\nThe registry state is: 2 (Per volume setting - the default)\r\n\r\nBased on the above settings, 8dot3 name creation is ENABLED on \"P:\"","what":"fsutil 8dot3name query P:"}
+{"src":"note","value":"exit Some(0): Successfully ENABLED 8dot3name generation on \"P:\"","what":"fsutil 8dot3name set P: 0"}
+{"src":"note","value":"P:\\fslab\\N1-2\\ALONGF~1.TXT","what":"short path"}
+{"label":"scenario start","src":"op","t":8123290277}
+{"label":"create long name","src":"op","t":8123540736}
+{"action":"Added","allocated_length":0,"attributes":32,"file_id":844424930132008,"file_size":0,"name":"A long file name for the short name test.txt","name_flags":1,"name_u16":[65,32,108,111,110,103,32,102,105,108,101,32,110,97,109,101,32,102,111,114,32,116,104,101,32,115,104,111,114,116,32,110,97,109,101,32,116,101,115,116,46,116,120,116],"parent_file_id":844424930132007,"reparse_tag":0,"src":"rdcw","t":8123542126}
+{"action":"Modified","allocated_length":8,"attributes":32,"file_id":844424930132008,"file_size":3,"name":"A long file name for the short name test.txt","name_flags":1,"name_u16":[65,32,108,111,110,103,32,102,105,108,101,32,110,97,109,101,32,102,111,114,32,116,104,101,32,115,104,111,114,116,32,110,97,109,101,32,116,101,115,116,46,116,120,116],"parent_file_id":844424930132007,"reparse_tag":0,"src":"rdcw","t":8123543875}
+{"label":"write through the short name","src":"op","t":8126546493}
+{"action":"Modified","allocated_length":0,"attributes":32,"file_id":844424930132008,"file_size":0,"name":"ALONGF~1.TXT","name_flags":2,"name_u16":[65,76,79,78,71,70,126,49,46,84,88,84],"parent_file_id":844424930132007,"reparse_tag":0,"src":"rdcw","t":8126549002}
+{"action":"Modified","allocated_length":8,"attributes":32,"file_id":844424930132008,"file_size":7,"name":"ALONGF~1.TXT","name_flags":2,"name_u16":[65,76,79,78,71,70,126,49,46,84,88,84],"parent_file_id":844424930132007,"reparse_tag":0,"src":"rdcw","t":8126549533}
+{"label":"rename through the short name","src":"op","t":8129550319}
+{"action":"RenamedOldName","allocated_length":8,"attributes":32,"file_id":844424930132008,"file_size":7,"name":"ALONGF~1.TXT","name_flags":128,"name_u16":[65,76,79,78,71,70,126,49,46,84,88,84],"parent_file_id":844424930132007,"reparse_tag":0,"src":"rdcw","t":8129554437}
+{"action":"RenamedNewName","allocated_length":8,"attributes":32,"file_id":844424930132008,"file_size":7,"name":"renamed-via-short.txt","name_flags":128,"name_u16":[114,101,110,97,109,101,100,45,118,105,97,45,115,104,111,114,116,46,116,120,116],"parent_file_id":844424930132007,"reparse_tag":0,"src":"rdcw","t":8129554437}
+{"label":"delete","src":"op","t":8132554671}
+{"error":null,"label":"scenario end","src":"op","t":8132558136}
+{"action":"Removed","allocated_length":8,"attributes":32,"file_id":844424930132008,"file_size":7,"name":"renamed-via-short.txt","name_flags":1,"name_u16":[114,101,110,97,109,101,100,45,118,105,97,45,115,104,111,114,116,46,116,120,116],"parent_file_id":844424930132007,"reparse_tag":0,"src":"rdcw","t":8132558448}

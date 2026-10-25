@@ -1,0 +1,36 @@
+{"arch":"x86_64","label":"windows-2025/fat32","os_build":26100,"qpc_freq":10000000,"rdcw_class":"Full","rep":0,"root":"S:\\fslab\\N1-0","scenario":"N1","settle_s":3,"src":"header","volume":"S:"}
+{"error":"Incorrect function. (os error 1)","src":"error","what":"ReadDirectoryChangesExW"}
+{"error":"Incorrect function. (os error 1)","src":"error","what":"usn query"}
+{"src":"note","value":"exit Some(1): Error -2147024895: Incorrect function.","what":"fsutil 8dot3name query S:"}
+{"src":"note","value":"exit Some(1): Error -2147024846: The request is not supported.","what":"fsutil 8dot3name set S: 0"}
+{"src":"note","value":"S:\\fslab\\N1-0\\ALONGF~1.TXT","what":"short path"}
+{"label":"scenario start","src":"op","t":16281673020}
+{"label":"create long name","src":"op","t":16281993441}
+{"label":"write through the short name","src":"op","t":16285020795}
+{"label":"rename through the short name","src":"op","t":16288023394}
+{"label":"delete","src":"op","t":16291028757}
+{"error":null,"label":"scenario end","src":"op","t":16291030307}
+{"arch":"x86_64","label":"windows-2025/fat32","os_build":26100,"qpc_freq":10000000,"rdcw_class":"Full","rep":1,"root":"S:\\fslab\\N1-1","scenario":"N1","settle_s":3,"src":"header","volume":"S:"}
+{"error":"Incorrect function. (os error 1)","src":"error","what":"ReadDirectoryChangesExW"}
+{"error":"Incorrect function. (os error 1)","src":"error","what":"usn query"}
+{"src":"note","value":"exit Some(1): Error -2147024895: Incorrect function.","what":"fsutil 8dot3name query S:"}
+{"src":"note","value":"exit Some(1): Error -2147024846: The request is not supported.","what":"fsutil 8dot3name set S: 0"}
+{"src":"note","value":"S:\\fslab\\N1-1\\ALONGF~1.TXT","what":"short path"}
+{"label":"scenario start","src":"op","t":16336144626}
+{"label":"create long name","src":"op","t":16336344290}
+{"label":"write through the short name","src":"op","t":16339351259}
+{"label":"rename through the short name","src":"op","t":16342357211}
+{"label":"delete","src":"op","t":16345361054}
+{"error":null,"label":"scenario end","src":"op","t":16345362662}
+{"arch":"x86_64","label":"windows-2025/fat32","os_build":26100,"qpc_freq":10000000,"rdcw_class":"Full","rep":2,"root":"S:\\fslab\\N1-2","scenario":"N1","settle_s":3,"src":"header","volume":"S:"}
+{"error":"Incorrect function. (os error 1)","src":"error","what":"ReadDirectoryChangesExW"}
+{"error":"Incorrect function. (os error 1)","src":"error","what":"usn query"}
+{"src":"note","value":"exit Some(1): Error -2147024895: Incorrect function.","what":"fsutil 8dot3name query S:"}
+{"src":"note","value":"exit Some(1): Error -2147024846: The request is not supported.","what":"fsutil 8dot3name set S: 0"}
+{"src":"note","value":"S:\\fslab\\N1-2\\ALONGF~1.TXT","what":"short path"}
+{"label":"scenario start","src":"op","t":16390455597}
+{"label":"create long name","src":"op","t":16390649220}
+{"label":"write through the short name","src":"op","t":16393656016}
+{"label":"rename through the short name","src":"op","t":16396663316}
+{"label":"delete","src":"op","t":16399667575}
+{"error":null,"label":"scenario end","src":"op","t":16399669406}

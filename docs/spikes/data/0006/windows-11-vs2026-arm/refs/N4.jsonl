@@ -1,0 +1,30 @@
+{"arch":"aarch64","label":"windows-11-vs2026-arm/refs","os_build":26200,"qpc_freq":10000000,"rdcw_class":"Full","rep":0,"root":"Q:\\fslab\\N4-0","scenario":"N4","settle_s":35,"src":"header","volume":"Q:"}
+{"error":"The volume change journal is not active. (os error 1179)","src":"error","what":"usn query"}
+{"error":"Incorrect function. (os error 1)","src":"error","what":"ReadDirectoryChangesExW"}
+{"label":"scenario start","src":"op","t":10590898465}
+{"label":"create name with a lone high surrogate","src":"op","t":10590898803}
+{"label":"create name with a lone low surrogate","src":"op","t":10590902467}
+{"label":"write the first","src":"op","t":10593908745}
+{"label":"rename the first to a normal name","src":"op","t":10596916711}
+{"label":"delete both","src":"op","t":10596920509}
+{"error":null,"label":"scenario end","src":"op","t":10596922421}
+{"arch":"aarch64","label":"windows-11-vs2026-arm/refs","os_build":26200,"qpc_freq":10000000,"rdcw_class":"Full","rep":1,"root":"Q:\\fslab\\N4-1","scenario":"N4","settle_s":35,"src":"header","volume":"Q:"}
+{"error":"The volume change journal is not active. (os error 1179)","src":"error","what":"usn query"}
+{"error":"Incorrect function. (os error 1)","src":"error","what":"ReadDirectoryChangesExW"}
+{"label":"scenario start","src":"op","t":10961975508}
+{"label":"create name with a lone high surrogate","src":"op","t":10961975675}
+{"label":"create name with a lone low surrogate","src":"op","t":10961979442}
+{"label":"write the first","src":"op","t":10964982366}
+{"label":"rename the first to a normal name","src":"op","t":10967990954}
+{"label":"delete both","src":"op","t":10967994305}
+{"error":null,"label":"scenario end","src":"op","t":10967996364}
+{"arch":"aarch64","label":"windows-11-vs2026-arm/refs","os_build":26200,"qpc_freq":10000000,"rdcw_class":"Full","rep":2,"root":"Q:\\fslab\\N4-2","scenario":"N4","settle_s":35,"src":"header","volume":"Q:"}
+{"error":"The volume change journal is not active. (os error 1179)","src":"error","what":"usn query"}
+{"error":"Incorrect function. (os error 1)","src":"error","what":"ReadDirectoryChangesExW"}
+{"label":"scenario start","src":"op","t":11333027792}
+{"label":"create name with a lone high surrogate","src":"op","t":11333027965}
+{"label":"create name with a lone low surrogate","src":"op","t":11333031794}
+{"label":"write the first","src":"op","t":11336035303}
+{"label":"rename the first to a normal name","src":"op","t":11339040107}
+{"label":"delete both","src":"op","t":11339043699}
+{"error":null,"label":"scenario end","src":"op","t":11339046096}

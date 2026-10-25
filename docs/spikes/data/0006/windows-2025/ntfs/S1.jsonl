@@ -1,0 +1,33 @@
+{"arch":"x86_64","label":"windows-2025/ntfs","os_build":26100,"qpc_freq":10000000,"rdcw_class":"Full","rep":0,"root":"P:\\fslab\\S1-0","scenario":"S1","settle_s":3,"src":"header","volume":"P:"}
+{"error":"The volume change journal is not active. (os error 1179)","src":"error","what":"usn query"}
+{"label":"scenario start","src":"op","t":5494577623}
+{"action":"Added","allocated_length":0,"attributes":32,"file_id":6192449487634472,"file_size":0,"name":"file.txt","name_flags":3,"name_u16":[102,105,108,101,46,116,120,116],"parent_file_id":7036874417766439,"reparse_tag":0,"src":"rdcw","t":5494580606}
+{"action":"Modified","allocated_length":8,"attributes":32,"file_id":6192449487634472,"file_size":4,"name":"file.txt","name_flags":3,"name_u16":[102,105,108,101,46,116,120,116],"parent_file_id":7036874417766439,"reparse_tag":0,"src":"rdcw","t":5494582117}
+{"label":"create an alternate data stream","src":"op","t":5497584787}
+{"action":"Modified","allocated_length":8,"attributes":32,"file_id":6192449487634472,"file_size":4,"name":"file.txt","name_flags":3,"name_u16":[102,105,108,101,46,116,120,116],"parent_file_id":7036874417766439,"reparse_tag":0,"src":"rdcw","t":5497588684}
+{"label":"append to the stream","src":"op","t":5500592086}
+{"action":"Modified","allocated_length":8,"attributes":32,"file_id":6192449487634472,"file_size":4,"name":"file.txt","name_flags":3,"name_u16":[102,105,108,101,46,116,120,116],"parent_file_id":7036874417766439,"reparse_tag":0,"src":"rdcw","t":5500594385}
+{"label":"delete the stream (file stays)","src":"op","t":5503597046}
+{"error":null,"label":"scenario end","src":"op","t":5503599989}
+{"arch":"x86_64","label":"windows-2025/ntfs","os_build":26100,"qpc_freq":10000000,"rdcw_class":"Full","rep":1,"root":"P:\\fslab\\S1-1","scenario":"S1","settle_s":3,"src":"header","volume":"P:"}
+{"error":"The volume change journal is not active. (os error 1179)","src":"error","what":"usn query"}
+{"label":"scenario start","src":"op","t":5548709093}
+{"action":"Added","allocated_length":0,"attributes":32,"file_id":6473924464345128,"file_size":0,"name":"file.txt","name_flags":3,"name_u16":[102,105,108,101,46,116,120,116],"parent_file_id":7318349394477095,"reparse_tag":0,"src":"rdcw","t":5548711095}
+{"action":"Modified","allocated_length":8,"attributes":32,"file_id":6473924464345128,"file_size":4,"name":"file.txt","name_flags":3,"name_u16":[102,105,108,101,46,116,120,116],"parent_file_id":7318349394477095,"reparse_tag":0,"src":"rdcw","t":5548712172}
+{"label":"create an alternate data stream","src":"op","t":5551713980}
+{"action":"Modified","allocated_length":8,"attributes":32,"file_id":6473924464345128,"file_size":4,"name":"file.txt","name_flags":3,"name_u16":[102,105,108,101,46,116,120,116],"parent_file_id":7318349394477095,"reparse_tag":0,"src":"rdcw","t":5551717824}
+{"label":"append to the stream","src":"op","t":5554718516}
+{"action":"Modified","allocated_length":8,"attributes":32,"file_id":6473924464345128,"file_size":4,"name":"file.txt","name_flags":3,"name_u16":[102,105,108,101,46,116,120,116],"parent_file_id":7318349394477095,"reparse_tag":0,"src":"rdcw","t":5554721109}
+{"label":"delete the stream (file stays)","src":"op","t":5557725143}
+{"error":null,"label":"scenario end","src":"op","t":5557727948}
+{"arch":"x86_64","label":"windows-2025/ntfs","os_build":26100,"qpc_freq":10000000,"rdcw_class":"Full","rep":2,"root":"P:\\fslab\\S1-2","scenario":"S1","settle_s":3,"src":"header","volume":"P:"}
+{"error":"The volume change journal is not active. (os error 1179)","src":"error","what":"usn query"}
+{"label":"scenario start","src":"op","t":5603057704}
+{"action":"Added","allocated_length":0,"attributes":32,"file_id":6755399441055784,"file_size":0,"name":"file.txt","name_flags":3,"name_u16":[102,105,108,101,46,116,120,116],"parent_file_id":7599824371187751,"reparse_tag":0,"src":"rdcw","t":5603060428}
+{"action":"Modified","allocated_length":8,"attributes":32,"file_id":6755399441055784,"file_size":4,"name":"file.txt","name_flags":3,"name_u16":[102,105,108,101,46,116,120,116],"parent_file_id":7599824371187751,"reparse_tag":0,"src":"rdcw","t":5603061837}
+{"label":"create an alternate data stream","src":"op","t":5606066903}
+{"action":"Modified","allocated_length":8,"attributes":32,"file_id":6755399441055784,"file_size":4,"name":"file.txt","name_flags":3,"name_u16":[102,105,108,101,46,116,120,116],"parent_file_id":7599824371187751,"reparse_tag":0,"src":"rdcw","t":5606070988}
+{"label":"append to the stream","src":"op","t":5609071761}
+{"action":"Modified","allocated_length":8,"attributes":32,"file_id":6755399441055784,"file_size":4,"name":"file.txt","name_flags":3,"name_u16":[102,105,108,101,46,116,120,116],"parent_file_id":7599824371187751,"reparse_tag":0,"src":"rdcw","t":5609074016}
+{"label":"delete the stream (file stays)","src":"op","t":5612076328}
+{"error":null,"label":"scenario end","src":"op","t":5612078411}

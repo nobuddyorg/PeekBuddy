@@ -1,0 +1,30 @@
+{"arch":"aarch64","label":"windows-11-vs2026-arm/fat32","os_build":26200,"qpc_freq":10000000,"rdcw_class":"Full","rep":0,"root":"S:\\fslab\\N4-0","scenario":"N4","settle_s":3,"src":"header","volume":"S:"}
+{"error":"Incorrect function. (os error 1)","src":"error","what":"ReadDirectoryChangesExW"}
+{"error":"Incorrect function. (os error 1)","src":"error","what":"usn query"}
+{"label":"scenario start","src":"op","t":20418328504}
+{"label":"create name with a lone high surrogate","src":"op","t":20418328874}
+{"label":"create name with a lone low surrogate","src":"op","t":20418331995}
+{"label":"write the first","src":"op","t":20421336522}
+{"label":"rename the first to a normal name","src":"op","t":20424344405}
+{"label":"delete both","src":"op","t":20424347163}
+{"error":null,"label":"scenario end","src":"op","t":20424348459}
+{"arch":"aarch64","label":"windows-11-vs2026-arm/fat32","os_build":26200,"qpc_freq":10000000,"rdcw_class":"Full","rep":1,"root":"S:\\fslab\\N4-1","scenario":"N4","settle_s":3,"src":"header","volume":"S:"}
+{"error":"Incorrect function. (os error 1)","src":"error","what":"ReadDirectoryChangesExW"}
+{"error":"Incorrect function. (os error 1)","src":"error","what":"usn query"}
+{"label":"scenario start","src":"op","t":20469501809}
+{"label":"create name with a lone high surrogate","src":"op","t":20469501978}
+{"label":"create name with a lone low surrogate","src":"op","t":20469505260}
+{"label":"write the first","src":"op","t":20472508394}
+{"label":"rename the first to a normal name","src":"op","t":20475511444}
+{"label":"delete both","src":"op","t":20475513911}
+{"error":null,"label":"scenario end","src":"op","t":20475514957}
+{"arch":"aarch64","label":"windows-11-vs2026-arm/fat32","os_build":26200,"qpc_freq":10000000,"rdcw_class":"Full","rep":2,"root":"S:\\fslab\\N4-2","scenario":"N4","settle_s":3,"src":"header","volume":"S:"}
+{"error":"Incorrect function. (os error 1)","src":"error","what":"ReadDirectoryChangesExW"}
+{"error":"Incorrect function. (os error 1)","src":"error","what":"usn query"}
+{"label":"scenario start","src":"op","t":20520591294}
+{"label":"create name with a lone high surrogate","src":"op","t":20520591459}
+{"label":"create name with a lone low surrogate","src":"op","t":20520594504}
+{"label":"write the first","src":"op","t":20523601522}
+{"label":"rename the first to a normal name","src":"op","t":20526626454}
+{"label":"delete both","src":"op","t":20526628821}
+{"error":null,"label":"scenario end","src":"op","t":20526629591}

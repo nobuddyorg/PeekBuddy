@@ -23,6 +23,8 @@ function New-TestVolume($Name, $Fs, $SizeMB, $Letter) {
     $log = (diskpart /s $dp 2>&1 | Out-String)
     $ok = Test-Path "${Letter}:\"
     Add-Row @{ kind = 'volume'; name = $Name; fs = $Fs; ok = $ok; log = $log.Trim() }
+    # A new volume has no change journal; USN needs one (NTFS and ReFS only).
+    if ($ok -and $Fs -in 'ntfs', 'refs') { fsutil usn createjournal m=33554432 a=8388608 "${Letter}:" | Out-Null }
     return $ok
 }
 
@@ -35,6 +37,7 @@ function New-DevDrive($Letter) {
         Initialize-Disk -Number $disk.Number -PartitionStyle GPT -ErrorAction Stop
         New-Partition -DiskNumber $disk.Number -UseMaximumSize -DriveLetter $Letter -ErrorAction Stop | Out-Null
         Format-Volume -DriveLetter $Letter -DevDrive -FileSystem ReFS -Confirm:$false -ErrorAction Stop | Out-Null
+        fsutil usn createjournal m=33554432 a=8388608 "${Letter}:" | Out-Null
         Add-Row @{ kind = 'volume'; name = 'devdrive'; ok = $true }
         return $true
     } catch {

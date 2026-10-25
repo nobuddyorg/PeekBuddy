@@ -1,0 +1,21 @@
+{"arch":"x86_64","label":"windows-2025/refs","os_build":26100,"qpc_freq":10000000,"rdcw_class":"Full","rep":0,"root":"Q:\\fslab\\N2-0","scenario":"N2","settle_s":35,"src":"header","volume":"Q:"}
+{"error":"Incorrect function. (os error 1)","src":"error","what":"ReadDirectoryChangesExW"}
+{"error":"The volume change journal is not active. (os error 1179)","src":"error","what":"usn query"}
+{"label":"scenario start","src":"op","t":5657526998}
+{"label":"case-only rename a.txt -> A.txt","src":"op","t":5660534505}
+{"label":"case-only rename of a directory","src":"op","t":5663538492}
+{"error":null,"label":"scenario end","src":"op","t":5666547710}
+{"arch":"x86_64","label":"windows-2025/refs","os_build":26100,"qpc_freq":10000000,"rdcw_class":"Full","rep":1,"root":"Q:\\fslab\\N2-1","scenario":"N2","settle_s":35,"src":"header","volume":"Q:"}
+{"error":"Incorrect function. (os error 1)","src":"error","what":"ReadDirectoryChangesExW"}
+{"error":"The volume change journal is not active. (os error 1179)","src":"error","what":"usn query"}
+{"label":"scenario start","src":"op","t":6031582030}
+{"label":"case-only rename a.txt -> A.txt","src":"op","t":6034589119}
+{"label":"case-only rename of a directory","src":"op","t":6037595899}
+{"error":null,"label":"scenario end","src":"op","t":6040606048}
+{"arch":"x86_64","label":"windows-2025/refs","os_build":26100,"qpc_freq":10000000,"rdcw_class":"Full","rep":2,"root":"Q:\\fslab\\N2-2","scenario":"N2","settle_s":35,"src":"header","volume":"Q:"}
+{"error":"Incorrect function. (os error 1)","src":"error","what":"ReadDirectoryChangesExW"}
+{"error":"The volume change journal is not active. (os error 1179)","src":"error","what":"usn query"}
+{"label":"scenario start","src":"op","t":6405641845}
+{"label":"case-only rename a.txt -> A.txt","src":"op","t":6408650010}
+{"label":"case-only rename of a directory","src":"op","t":6411656602}
+{"error":null,"label":"scenario end","src":"op","t":6414668424}

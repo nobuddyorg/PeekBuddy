@@ -1,0 +1,21 @@
+{"arch":"x86_64","label":"windows-2025/fat32","os_build":26100,"qpc_freq":10000000,"rdcw_class":"Full","rep":0,"root":"S:\\fslab\\N2-0","scenario":"N2","settle_s":3,"src":"header","volume":"S:"}
+{"error":"Incorrect function. (os error 1)","src":"error","what":"ReadDirectoryChangesExW"}
+{"error":"Incorrect function. (os error 1)","src":"error","what":"usn query"}
+{"label":"scenario start","src":"op","t":16444886931}
+{"label":"case-only rename a.txt -> A.txt","src":"op","t":16447895374}
+{"label":"case-only rename of a directory","src":"op","t":16450900189}
+{"error":null,"label":"scenario end","src":"op","t":16453959482}
+{"arch":"x86_64","label":"windows-2025/fat32","os_build":26100,"qpc_freq":10000000,"rdcw_class":"Full","rep":1,"root":"S:\\fslab\\N2-1","scenario":"N2","settle_s":3,"src":"header","volume":"S:"}
+{"error":"Incorrect function. (os error 1)","src":"error","what":"ReadDirectoryChangesExW"}
+{"error":"Incorrect function. (os error 1)","src":"error","what":"usn query"}
+{"label":"scenario start","src":"op","t":16499067901}
+{"label":"case-only rename a.txt -> A.txt","src":"op","t":16502074592}
+{"label":"case-only rename of a directory","src":"op","t":16505080366}
+{"error":null,"label":"scenario end","src":"op","t":16508106955}
+{"arch":"x86_64","label":"windows-2025/fat32","os_build":26100,"qpc_freq":10000000,"rdcw_class":"Full","rep":2,"root":"S:\\fslab\\N2-2","scenario":"N2","settle_s":3,"src":"header","volume":"S:"}
+{"error":"Incorrect function. (os error 1)","src":"error","what":"ReadDirectoryChangesExW"}
+{"error":"Incorrect function. (os error 1)","src":"error","what":"usn query"}
+{"label":"scenario start","src":"op","t":16553207710}
+{"label":"case-only rename a.txt -> A.txt","src":"op","t":16556212424}
+{"label":"case-only rename of a directory","src":"op","t":16559216339}
+{"error":null,"label":"scenario end","src":"op","t":16562245200}

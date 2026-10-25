@@ -1,0 +1,36 @@
+{"arch":"x86_64","label":"windows-2025/refs","os_build":26100,"qpc_freq":10000000,"rdcw_class":"Full","rep":0,"root":"Q:\\fslab\\L3-0","scenario":"L3","settle_s":35,"src":"header","volume":"Q:"}
+{"error":"Incorrect function. (os error 1)","src":"error","what":"ReadDirectoryChangesExW"}
+{"error":"The volume change journal is not active. (os error 1179)","src":"error","what":"usn query"}
+{"src":"note","value":null,"what":"file symlink"}
+{"src":"note","value":null,"what":"dir symlink"}
+{"label":"scenario start","src":"op","t":9025307203}
+{"label":"create file symlink","src":"op","t":9028317103}
+{"label":"create directory symlink","src":"op","t":9031323292}
+{"label":"write through the file symlink","src":"op","t":9034328536}
+{"label":"create a file through the directory symlink","src":"op","t":9037335762}
+{"label":"delete the symlinks","src":"op","t":9040342388}
+{"error":null,"label":"scenario end","src":"op","t":9040345716}
+{"arch":"x86_64","label":"windows-2025/refs","os_build":26100,"qpc_freq":10000000,"rdcw_class":"Full","rep":1,"root":"Q:\\fslab\\L3-1","scenario":"L3","settle_s":35,"src":"header","volume":"Q:"}
+{"error":"Incorrect function. (os error 1)","src":"error","what":"ReadDirectoryChangesExW"}
+{"error":"The volume change journal is not active. (os error 1179)","src":"error","what":"usn query"}
+{"src":"note","value":null,"what":"file symlink"}
+{"src":"note","value":null,"what":"dir symlink"}
+{"label":"scenario start","src":"op","t":9405393116}
+{"label":"create file symlink","src":"op","t":9408401959}
+{"label":"create directory symlink","src":"op","t":9411408122}
+{"label":"write through the file symlink","src":"op","t":9414416327}
+{"label":"create a file through the directory symlink","src":"op","t":9417425457}
+{"label":"delete the symlinks","src":"op","t":9420433624}
+{"error":null,"label":"scenario end","src":"op","t":9420437286}
+{"arch":"x86_64","label":"windows-2025/refs","os_build":26100,"qpc_freq":10000000,"rdcw_class":"Full","rep":2,"root":"Q:\\fslab\\L3-2","scenario":"L3","settle_s":35,"src":"header","volume":"Q:"}
+{"error":"Incorrect function. (os error 1)","src":"error","what":"ReadDirectoryChangesExW"}
+{"error":"The volume change journal is not active. (os error 1179)","src":"error","what":"usn query"}
+{"src":"note","value":null,"what":"file symlink"}
+{"src":"note","value":null,"what":"dir symlink"}
+{"label":"scenario start","src":"op","t":9785466299}
+{"label":"create file symlink","src":"op","t":9788475237}
+{"label":"create directory symlink","src":"op","t":9791481130}
+{"label":"write through the file symlink","src":"op","t":9794491078}
+{"label":"create a file through the directory symlink","src":"op","t":9797497414}
+{"label":"delete the symlinks","src":"op","t":9800506194}
+{"error":null,"label":"scenario end","src":"op","t":9800509515}

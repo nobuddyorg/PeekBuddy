@@ -1,0 +1,42 @@
+{"arch":"x86_64","label":"windows-2025/ntfs","os_build":26100,"qpc_freq":10000000,"rdcw_class":"Full","rep":0,"root":"P:\\fslab\\N3-0","scenario":"N3","settle_s":3,"src":"header","volume":"P:"}
+{"error":"The volume change journal is not active. (os error 1179)","src":"error","what":"usn query"}
+{"src":"note","value":"exit Some(0): Case sensitive attribute on directory P:\\fslab\\N3-0\\cs is enabled.","what":"fsutil file setCaseSensitiveInfo P:\\fslab\\N3-0\\cs enable"}
+{"src":"note","value":true,"what":"second name created"}
+{"label":"scenario start","src":"op","t":4531479448}
+{"action":"Added","allocated_length":0,"attributes":16,"file_id":1970324836974632,"file_size":0,"name":"cs","name_flags":3,"name_u16":[99,115],"parent_file_id":1970324836974631,"reparse_tag":0,"src":"rdcw","t":4531482228}
+{"label":"enable per-directory case sensitivity","src":"op","t":4531482535}
+{"label":"create two names differing only by case","src":"op","t":4534606192}
+{"action":"Added","allocated_length":0,"attributes":32,"file_id":1125899906842665,"file_size":0,"name":"cs\\file.txt","name_flags":3,"name_u16":[99,115,92,102,105,108,101,46,116,120,116],"parent_file_id":1970324836974632,"reparse_tag":0,"src":"rdcw","t":4534608861}
+{"action":"Modified","allocated_length":8,"attributes":32,"file_id":1125899906842665,"file_size":5,"name":"cs\\file.txt","name_flags":3,"name_u16":[99,115,92,102,105,108,101,46,116,120,116],"parent_file_id":1970324836974632,"reparse_tag":0,"src":"rdcw","t":4534610211}
+{"action":"Modified","allocated_length":0,"attributes":16,"file_id":1970324836974632,"file_size":0,"name":"cs","name_flags":3,"name_u16":[99,115],"parent_file_id":1970324836974631,"reparse_tag":0,"src":"rdcw","t":4534611101}
+{"action":"Added","allocated_length":0,"attributes":32,"file_id":281474976710698,"file_size":0,"name":"cs\\FILE.txt","name_flags":3,"name_u16":[99,115,92,70,73,76,69,46,116,120,116],"parent_file_id":1970324836974632,"reparse_tag":0,"src":"rdcw","t":4534611724}
+{"action":"Modified","allocated_length":8,"attributes":32,"file_id":281474976710698,"file_size":5,"name":"cs\\FILE.txt","name_flags":3,"name_u16":[99,115,92,70,73,76,69,46,116,120,116],"parent_file_id":1970324836974632,"reparse_tag":0,"src":"rdcw","t":4534612714}
+{"error":null,"label":"scenario end","src":"op","t":4534612772}
+{"arch":"x86_64","label":"windows-2025/ntfs","os_build":26100,"qpc_freq":10000000,"rdcw_class":"Full","rep":1,"root":"P:\\fslab\\N3-1","scenario":"N3","settle_s":3,"src":"header","volume":"P:"}
+{"error":"The volume change journal is not active. (os error 1179)","src":"error","what":"usn query"}
+{"src":"note","value":"exit Some(0): Case sensitive attribute on directory P:\\fslab\\N3-1\\cs is enabled.","what":"fsutil file setCaseSensitiveInfo P:\\fslab\\N3-1\\cs enable"}
+{"src":"note","value":true,"what":"second name created"}
+{"label":"scenario start","src":"op","t":4579971480}
+{"action":"Added","allocated_length":0,"attributes":16,"file_id":2251799813685288,"file_size":0,"name":"cs","name_flags":3,"name_u16":[99,115],"parent_file_id":2251799813685287,"reparse_tag":0,"src":"rdcw","t":4579973859}
+{"label":"enable per-directory case sensitivity","src":"op","t":4579974146}
+{"label":"create two names differing only by case","src":"op","t":4583078903}
+{"action":"Added","allocated_length":0,"attributes":32,"file_id":1407374883553321,"file_size":0,"name":"cs\\file.txt","name_flags":3,"name_u16":[99,115,92,102,105,108,101,46,116,120,116],"parent_file_id":2251799813685288,"reparse_tag":0,"src":"rdcw","t":4583081880}
+{"action":"Modified","allocated_length":8,"attributes":32,"file_id":1407374883553321,"file_size":5,"name":"cs\\file.txt","name_flags":3,"name_u16":[99,115,92,102,105,108,101,46,116,120,116],"parent_file_id":2251799813685288,"reparse_tag":0,"src":"rdcw","t":4583083117}
+{"action":"Modified","allocated_length":0,"attributes":16,"file_id":2251799813685288,"file_size":0,"name":"cs","name_flags":3,"name_u16":[99,115],"parent_file_id":2251799813685287,"reparse_tag":0,"src":"rdcw","t":4583083881}
+{"action":"Added","allocated_length":0,"attributes":32,"file_id":562949953421354,"file_size":0,"name":"cs\\FILE.txt","name_flags":3,"name_u16":[99,115,92,70,73,76,69,46,116,120,116],"parent_file_id":2251799813685288,"reparse_tag":0,"src":"rdcw","t":4583084340}
+{"action":"Modified","allocated_length":8,"attributes":32,"file_id":562949953421354,"file_size":5,"name":"cs\\FILE.txt","name_flags":3,"name_u16":[99,115,92,70,73,76,69,46,116,120,116],"parent_file_id":2251799813685288,"reparse_tag":0,"src":"rdcw","t":4583085162}
+{"error":null,"label":"scenario end","src":"op","t":4583085222}
+{"arch":"x86_64","label":"windows-2025/ntfs","os_build":26100,"qpc_freq":10000000,"rdcw_class":"Full","rep":2,"root":"P:\\fslab\\N3-2","scenario":"N3","settle_s":3,"src":"header","volume":"P:"}
+{"error":"The volume change journal is not active. (os error 1179)","src":"error","what":"usn query"}
+{"src":"note","value":"exit Some(0): Case sensitive attribute on directory P:\\fslab\\N3-2\\cs is enabled.","what":"fsutil file setCaseSensitiveInfo P:\\fslab\\N3-2\\cs enable"}
+{"src":"note","value":true,"what":"second name created"}
+{"label":"scenario start","src":"op","t":4628345899}
+{"action":"Added","allocated_length":0,"attributes":16,"file_id":2533274790395944,"file_size":0,"name":"cs","name_flags":3,"name_u16":[99,115],"parent_file_id":2533274790395943,"reparse_tag":0,"src":"rdcw","t":4628348389}
+{"label":"enable per-directory case sensitivity","src":"op","t":4628348710}
+{"label":"create two names differing only by case","src":"op","t":4631455072}
+{"action":"Added","allocated_length":0,"attributes":32,"file_id":1688849860263977,"file_size":0,"name":"cs\\file.txt","name_flags":3,"name_u16":[99,115,92,102,105,108,101,46,116,120,116],"parent_file_id":2533274790395944,"reparse_tag":0,"src":"rdcw","t":4631457395}
+{"action":"Modified","allocated_length":8,"attributes":32,"file_id":1688849860263977,"file_size":5,"name":"cs\\file.txt","name_flags":3,"name_u16":[99,115,92,102,105,108,101,46,116,120,116],"parent_file_id":2533274790395944,"reparse_tag":0,"src":"rdcw","t":4631458609}
+{"action":"Modified","allocated_length":0,"attributes":16,"file_id":2533274790395944,"file_size":0,"name":"cs","name_flags":3,"name_u16":[99,115],"parent_file_id":2533274790395943,"reparse_tag":0,"src":"rdcw","t":4631459342}
+{"action":"Added","allocated_length":0,"attributes":32,"file_id":844424930132010,"file_size":0,"name":"cs\\FILE.txt","name_flags":3,"name_u16":[99,115,92,70,73,76,69,46,116,120,116],"parent_file_id":2533274790395944,"reparse_tag":0,"src":"rdcw","t":4631459818}
+{"action":"Modified","allocated_length":8,"attributes":32,"file_id":844424930132010,"file_size":5,"name":"cs\\FILE.txt","name_flags":3,"name_u16":[99,115,92,70,73,76,69,46,116,120,116],"parent_file_id":2533274790395944,"reparse_tag":0,"src":"rdcw","t":4631460617}
+{"error":null,"label":"scenario end","src":"op","t":4631460652}

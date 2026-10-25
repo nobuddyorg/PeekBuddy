@@ -1,0 +1,30 @@
+{"arch":"x86_64","label":"windows-2025/refs","os_build":26100,"qpc_freq":10000000,"rdcw_class":"Full","rep":0,"root":"Q:\\fslab\\L1-0","scenario":"L1","settle_s":35,"src":"header","volume":"Q:"}
+{"error":"The volume change journal is not active. (os error 1179)","src":"error","what":"usn query"}
+{"error":"Incorrect function. (os error 1)","src":"error","what":"ReadDirectoryChangesExW"}
+{"label":"scenario start","src":"op","t":7894043411}
+{"label":"create hard link","src":"op","t":7897048327}
+{"label":"write through the link","src":"op","t":7900051874}
+{"label":"write through the original","src":"op","t":7903056587}
+{"label":"delete the link","src":"op","t":7906061709}
+{"label":"delete the original","src":"op","t":7906063672}
+{"error":null,"label":"scenario end","src":"op","t":7906064868}
+{"arch":"x86_64","label":"windows-2025/refs","os_build":26100,"qpc_freq":10000000,"rdcw_class":"Full","rep":1,"root":"Q:\\fslab\\L1-1","scenario":"L1","settle_s":35,"src":"header","volume":"Q:"}
+{"error":"The volume change journal is not active. (os error 1179)","src":"error","what":"usn query"}
+{"error":"Incorrect function. (os error 1)","src":"error","what":"ReadDirectoryChangesExW"}
+{"label":"scenario start","src":"op","t":8271105004}
+{"label":"create hard link","src":"op","t":8274113042}
+{"label":"write through the link","src":"op","t":8277117410}
+{"label":"write through the original","src":"op","t":8280125857}
+{"label":"delete the link","src":"op","t":8283131696}
+{"label":"delete the original","src":"op","t":8283133528}
+{"error":null,"label":"scenario end","src":"op","t":8283134994}
+{"arch":"x86_64","label":"windows-2025/refs","os_build":26100,"qpc_freq":10000000,"rdcw_class":"Full","rep":2,"root":"Q:\\fslab\\L1-2","scenario":"L1","settle_s":35,"src":"header","volume":"Q:"}
+{"error":"Incorrect function. (os error 1)","src":"error","what":"ReadDirectoryChangesExW"}
+{"error":"The volume change journal is not active. (os error 1179)","src":"error","what":"usn query"}
+{"label":"scenario start","src":"op","t":8648159679}
+{"label":"create hard link","src":"op","t":8651166924}
+{"label":"write through the link","src":"op","t":8654172349}
+{"label":"write through the original","src":"op","t":8657176416}
+{"label":"delete the link","src":"op","t":8660181496}
+{"label":"delete the original","src":"op","t":8660183235}
+{"error":null,"label":"scenario end","src":"op","t":8660184246}

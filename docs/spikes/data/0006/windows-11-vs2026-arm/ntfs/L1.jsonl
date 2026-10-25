@@ -1,0 +1,54 @@
+{"arch":"aarch64","label":"windows-11-vs2026-arm/ntfs","os_build":26200,"qpc_freq":10000000,"rdcw_class":"Full","rep":0,"root":"P:\\fslab\\L1-0","scenario":"L1","settle_s":3,"src":"header","volume":"P:"}
+{"error":"The volume change journal is not active. (os error 1179)","src":"error","what":"usn query"}
+{"label":"scenario start","src":"op","t":8641032761}
+{"action":"Added","allocated_length":0,"attributes":32,"file_id":3659174697238568,"file_size":0,"name":"orig.txt","name_flags":3,"name_u16":[111,114,105,103,46,116,120,116],"parent_file_id":3659174697238567,"reparse_tag":0,"src":"rdcw","t":8641036134}
+{"action":"Modified","allocated_length":8,"attributes":32,"file_id":3659174697238568,"file_size":4,"name":"orig.txt","name_flags":3,"name_u16":[111,114,105,103,46,116,120,116],"parent_file_id":3659174697238567,"reparse_tag":0,"src":"rdcw","t":8641037208}
+{"label":"create hard link","src":"op","t":8644038711}
+{"action":"Added","allocated_length":8,"attributes":32,"file_id":3659174697238568,"file_size":4,"name":"link.txt","name_flags":128,"name_u16":[108,105,110,107,46,116,120,116],"parent_file_id":3659174697238567,"reparse_tag":0,"src":"rdcw","t":8644042710}
+{"label":"write through the link","src":"op","t":8647050099}
+{"action":"Modified","allocated_length":0,"attributes":32,"file_id":3659174697238568,"file_size":0,"name":"link.txt","name_flags":0,"name_u16":[108,105,110,107,46,116,120,116],"parent_file_id":3659174697238567,"reparse_tag":0,"src":"rdcw","t":8647052711}
+{"action":"Modified","allocated_length":16,"attributes":32,"file_id":3659174697238568,"file_size":9,"name":"link.txt","name_flags":0,"name_u16":[108,105,110,107,46,116,120,116],"parent_file_id":3659174697238567,"reparse_tag":0,"src":"rdcw","t":8647053995}
+{"label":"write through the original","src":"op","t":8650059551}
+{"action":"Modified","allocated_length":0,"attributes":32,"file_id":3659174697238568,"file_size":0,"name":"orig.txt","name_flags":3,"name_u16":[111,114,105,103,46,116,120,116],"parent_file_id":3659174697238567,"reparse_tag":0,"src":"rdcw","t":8650063070}
+{"action":"Modified","allocated_length":16,"attributes":32,"file_id":3659174697238568,"file_size":14,"name":"orig.txt","name_flags":3,"name_u16":[111,114,105,103,46,116,120,116],"parent_file_id":3659174697238567,"reparse_tag":0,"src":"rdcw","t":8650063657}
+{"label":"delete the link","src":"op","t":8653067745}
+{"label":"delete the original","src":"op","t":8653070998}
+{"action":"Removed","allocated_length":16,"attributes":32,"file_id":3659174697238568,"file_size":14,"name":"link.txt","name_flags":0,"name_u16":[108,105,110,107,46,116,120,116],"parent_file_id":3659174697238567,"reparse_tag":0,"src":"rdcw","t":8653071564}
+{"error":null,"label":"scenario end","src":"op","t":8653073109}
+{"action":"Removed","allocated_length":16,"attributes":32,"file_id":3659174697238568,"file_size":14,"name":"orig.txt","name_flags":3,"name_u16":[111,114,105,103,46,116,120,116],"parent_file_id":3659174697238567,"reparse_tag":0,"src":"rdcw","t":8653073148}
+{"arch":"aarch64","label":"windows-11-vs2026-arm/ntfs","os_build":26200,"qpc_freq":10000000,"rdcw_class":"Full","rep":1,"root":"P:\\fslab\\L1-1","scenario":"L1","settle_s":3,"src":"header","volume":"P:"}
+{"error":"The volume change journal is not active. (os error 1179)","src":"error","what":"usn query"}
+{"label":"scenario start","src":"op","t":8698552098}
+{"action":"Added","allocated_length":0,"attributes":32,"file_id":3940649673949224,"file_size":0,"name":"orig.txt","name_flags":3,"name_u16":[111,114,105,103,46,116,120,116],"parent_file_id":3940649673949223,"reparse_tag":0,"src":"rdcw","t":8698554915}
+{"action":"Modified","allocated_length":8,"attributes":32,"file_id":3940649673949224,"file_size":4,"name":"orig.txt","name_flags":3,"name_u16":[111,114,105,103,46,116,120,116],"parent_file_id":3940649673949223,"reparse_tag":0,"src":"rdcw","t":8698556804}
+{"label":"create hard link","src":"op","t":8701561646}
+{"action":"Added","allocated_length":8,"attributes":32,"file_id":3940649673949224,"file_size":4,"name":"link.txt","name_flags":128,"name_u16":[108,105,110,107,46,116,120,116],"parent_file_id":3940649673949223,"reparse_tag":0,"src":"rdcw","t":8701564317}
+{"label":"write through the link","src":"op","t":8704566848}
+{"action":"Modified","allocated_length":0,"attributes":32,"file_id":3940649673949224,"file_size":0,"name":"link.txt","name_flags":0,"name_u16":[108,105,110,107,46,116,120,116],"parent_file_id":3940649673949223,"reparse_tag":0,"src":"rdcw","t":8704570535}
+{"action":"Modified","allocated_length":16,"attributes":32,"file_id":3940649673949224,"file_size":9,"name":"link.txt","name_flags":0,"name_u16":[108,105,110,107,46,116,120,116],"parent_file_id":3940649673949223,"reparse_tag":0,"src":"rdcw","t":8704570953}
+{"label":"write through the original","src":"op","t":8707571266}
+{"action":"Modified","allocated_length":0,"attributes":32,"file_id":3940649673949224,"file_size":0,"name":"orig.txt","name_flags":3,"name_u16":[111,114,105,103,46,116,120,116],"parent_file_id":3940649673949223,"reparse_tag":0,"src":"rdcw","t":8707574923}
+{"action":"Modified","allocated_length":16,"attributes":32,"file_id":3940649673949224,"file_size":14,"name":"orig.txt","name_flags":3,"name_u16":[111,114,105,103,46,116,120,116],"parent_file_id":3940649673949223,"reparse_tag":0,"src":"rdcw","t":8707575328}
+{"label":"delete the link","src":"op","t":8710587208}
+{"label":"delete the original","src":"op","t":8710590278}
+{"action":"Removed","allocated_length":16,"attributes":32,"file_id":3940649673949224,"file_size":14,"name":"link.txt","name_flags":0,"name_u16":[108,105,110,107,46,116,120,116],"parent_file_id":3940649673949223,"reparse_tag":0,"src":"rdcw","t":8710590812}
+{"action":"Removed","allocated_length":16,"attributes":32,"file_id":3940649673949224,"file_size":14,"name":"orig.txt","name_flags":3,"name_u16":[111,114,105,103,46,116,120,116],"parent_file_id":3940649673949223,"reparse_tag":0,"src":"rdcw","t":8710591405}
+{"error":null,"label":"scenario end","src":"op","t":8710591560}
+{"arch":"aarch64","label":"windows-11-vs2026-arm/ntfs","os_build":26200,"qpc_freq":10000000,"rdcw_class":"Full","rep":2,"root":"P:\\fslab\\L1-2","scenario":"L1","settle_s":3,"src":"header","volume":"P:"}
+{"error":"The volume change journal is not active. (os error 1179)","src":"error","what":"usn query"}
+{"label":"scenario start","src":"op","t":8755768711}
+{"action":"Added","allocated_length":0,"attributes":32,"file_id":4222124650659880,"file_size":0,"name":"orig.txt","name_flags":3,"name_u16":[111,114,105,103,46,116,120,116],"parent_file_id":4222124650659879,"reparse_tag":0,"src":"rdcw","t":8755771957}
+{"action":"Modified","allocated_length":8,"attributes":32,"file_id":4222124650659880,"file_size":4,"name":"orig.txt","name_flags":3,"name_u16":[111,114,105,103,46,116,120,116],"parent_file_id":4222124650659879,"reparse_tag":0,"src":"rdcw","t":8755773144}
+{"label":"create hard link","src":"op","t":8758775565}
+{"action":"Added","allocated_length":8,"attributes":32,"file_id":4222124650659880,"file_size":4,"name":"link.txt","name_flags":128,"name_u16":[108,105,110,107,46,116,120,116],"parent_file_id":4222124650659879,"reparse_tag":0,"src":"rdcw","t":8758778062}
+{"label":"write through the link","src":"op","t":8761784739}
+{"action":"Modified","allocated_length":0,"attributes":32,"file_id":4222124650659880,"file_size":0,"name":"link.txt","name_flags":0,"name_u16":[108,105,110,107,46,116,120,116],"parent_file_id":4222124650659879,"reparse_tag":0,"src":"rdcw","t":8761788371}
+{"action":"Modified","allocated_length":16,"attributes":32,"file_id":4222124650659880,"file_size":9,"name":"link.txt","name_flags":0,"name_u16":[108,105,110,107,46,116,120,116],"parent_file_id":4222124650659879,"reparse_tag":0,"src":"rdcw","t":8761788790}
+{"label":"write through the original","src":"op","t":8764789478}
+{"action":"Modified","allocated_length":0,"attributes":32,"file_id":4222124650659880,"file_size":0,"name":"orig.txt","name_flags":3,"name_u16":[111,114,105,103,46,116,120,116],"parent_file_id":4222124650659879,"reparse_tag":0,"src":"rdcw","t":8764792343}
+{"action":"Modified","allocated_length":16,"attributes":32,"file_id":4222124650659880,"file_size":14,"name":"orig.txt","name_flags":3,"name_u16":[111,114,105,103,46,116,120,116],"parent_file_id":4222124650659879,"reparse_tag":0,"src":"rdcw","t":8764793497}
+{"label":"delete the link","src":"op","t":8767797377}
+{"label":"delete the original","src":"op","t":8767800418}
+{"action":"Removed","allocated_length":16,"attributes":32,"file_id":4222124650659880,"file_size":14,"name":"link.txt","name_flags":0,"name_u16":[108,105,110,107,46,116,120,116],"parent_file_id":4222124650659879,"reparse_tag":0,"src":"rdcw","t":8767800817}
+{"action":"Removed","allocated_length":16,"attributes":32,"file_id":4222124650659880,"file_size":14,"name":"orig.txt","name_flags":3,"name_u16":[111,114,105,103,46,116,120,116],"parent_file_id":4222124650659879,"reparse_tag":0,"src":"rdcw","t":8767801779}
+{"error":null,"label":"scenario end","src":"op","t":8767802552}

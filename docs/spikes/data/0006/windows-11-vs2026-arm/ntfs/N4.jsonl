@@ -1,0 +1,57 @@
+{"arch":"aarch64","label":"windows-11-vs2026-arm/ntfs","os_build":26200,"qpc_freq":10000000,"rdcw_class":"Full","rep":0,"root":"P:\\fslab\\N4-0","scenario":"N4","settle_s":3,"src":"header","volume":"P:"}
+{"error":"The volume change journal is not active. (os error 1179)","src":"error","what":"usn query"}
+{"label":"scenario start","src":"op","t":8486749817}
+{"label":"create name with a lone high surrogate","src":"op","t":8486750074}
+{"action":"Added","allocated_length":0,"attributes":32,"file_id":2814749767106600,"file_size":0,"name":"a�b","name_flags":1,"name_u16":[97,55296,98],"parent_file_id":2814749767106599,"reparse_tag":0,"src":"rdcw","t":8486753136}
+{"action":"Modified","allocated_length":8,"attributes":32,"file_id":2814749767106600,"file_size":1,"name":"a�b","name_flags":1,"name_u16":[97,55296,98],"parent_file_id":2814749767106599,"reparse_tag":0,"src":"rdcw","t":8486754322}
+{"label":"create name with a lone low surrogate","src":"op","t":8486754653}
+{"action":"Added","allocated_length":0,"attributes":32,"file_id":1970324836974633,"file_size":0,"name":"a�b","name_flags":1,"name_u16":[97,56320,98],"parent_file_id":2814749767106599,"reparse_tag":0,"src":"rdcw","t":8486755994}
+{"action":"Modified","allocated_length":8,"attributes":32,"file_id":1970324836974633,"file_size":1,"name":"a�b","name_flags":1,"name_u16":[97,56320,98],"parent_file_id":2814749767106599,"reparse_tag":0,"src":"rdcw","t":8486757618}
+{"label":"write the first","src":"op","t":8489763457}
+{"action":"Modified","allocated_length":0,"attributes":32,"file_id":2814749767106600,"file_size":0,"name":"a�b","name_flags":1,"name_u16":[97,55296,98],"parent_file_id":2814749767106599,"reparse_tag":0,"src":"rdcw","t":8489766878}
+{"action":"Modified","allocated_length":8,"attributes":32,"file_id":2814749767106600,"file_size":2,"name":"a�b","name_flags":1,"name_u16":[97,55296,98],"parent_file_id":2814749767106599,"reparse_tag":0,"src":"rdcw","t":8489767577}
+{"label":"rename the first to a normal name","src":"op","t":8492768663}
+{"label":"delete both","src":"op","t":8492772604}
+{"action":"RenamedOldName","allocated_length":8,"attributes":32,"file_id":2814749767106600,"file_size":2,"name":"a�b","name_flags":128,"name_u16":[97,55296,98],"parent_file_id":2814749767106599,"reparse_tag":0,"src":"rdcw","t":8492772622}
+{"action":"RenamedNewName","allocated_length":8,"attributes":32,"file_id":2814749767106600,"file_size":2,"name":"normal.txt","name_flags":128,"name_u16":[110,111,114,109,97,108,46,116,120,116],"parent_file_id":2814749767106599,"reparse_tag":0,"src":"rdcw","t":8492772622}
+{"action":"Removed","allocated_length":8,"attributes":32,"file_id":1970324836974633,"file_size":1,"name":"a�b","name_flags":1,"name_u16":[97,56320,98],"parent_file_id":2814749767106599,"reparse_tag":0,"src":"rdcw","t":8492773931}
+{"action":"Removed","allocated_length":8,"attributes":32,"file_id":2814749767106600,"file_size":2,"name":"normal.txt","name_flags":3,"name_u16":[110,111,114,109,97,108,46,116,120,116],"parent_file_id":2814749767106599,"reparse_tag":0,"src":"rdcw","t":8492774967}
+{"error":null,"label":"scenario end","src":"op","t":8492775347}
+{"arch":"aarch64","label":"windows-11-vs2026-arm/ntfs","os_build":26200,"qpc_freq":10000000,"rdcw_class":"Full","rep":1,"root":"P:\\fslab\\N4-1","scenario":"N4","settle_s":3,"src":"header","volume":"P:"}
+{"error":"The volume change journal is not active. (os error 1179)","src":"error","what":"usn query"}
+{"label":"scenario start","src":"op","t":8537959253}
+{"label":"create name with a lone high surrogate","src":"op","t":8537959413}
+{"action":"Added","allocated_length":0,"attributes":32,"file_id":3096224743817256,"file_size":0,"name":"a�b","name_flags":1,"name_u16":[97,55296,98],"parent_file_id":3096224743817255,"reparse_tag":0,"src":"rdcw","t":8537961498}
+{"action":"Modified","allocated_length":8,"attributes":32,"file_id":3096224743817256,"file_size":1,"name":"a�b","name_flags":1,"name_u16":[97,55296,98],"parent_file_id":3096224743817255,"reparse_tag":0,"src":"rdcw","t":8537963543}
+{"label":"create name with a lone low surrogate","src":"op","t":8537963557}
+{"action":"Added","allocated_length":0,"attributes":32,"file_id":2251799813685289,"file_size":0,"name":"a�b","name_flags":1,"name_u16":[97,56320,98],"parent_file_id":3096224743817255,"reparse_tag":0,"src":"rdcw","t":8537965016}
+{"action":"Modified","allocated_length":8,"attributes":32,"file_id":2251799813685289,"file_size":1,"name":"a�b","name_flags":1,"name_u16":[97,56320,98],"parent_file_id":3096224743817255,"reparse_tag":0,"src":"rdcw","t":8537966603}
+{"label":"write the first","src":"op","t":8540971767}
+{"action":"Modified","allocated_length":0,"attributes":32,"file_id":3096224743817256,"file_size":0,"name":"a�b","name_flags":1,"name_u16":[97,55296,98],"parent_file_id":3096224743817255,"reparse_tag":0,"src":"rdcw","t":8540974401}
+{"action":"Modified","allocated_length":8,"attributes":32,"file_id":3096224743817256,"file_size":2,"name":"a�b","name_flags":1,"name_u16":[97,55296,98],"parent_file_id":3096224743817255,"reparse_tag":0,"src":"rdcw","t":8540975461}
+{"label":"rename the first to a normal name","src":"op","t":8543980953}
+{"action":"RenamedOldName","allocated_length":8,"attributes":32,"file_id":3096224743817256,"file_size":2,"name":"a�b","name_flags":128,"name_u16":[97,55296,98],"parent_file_id":3096224743817255,"reparse_tag":0,"src":"rdcw","t":8543984714}
+{"action":"RenamedNewName","allocated_length":8,"attributes":32,"file_id":3096224743817256,"file_size":2,"name":"normal.txt","name_flags":128,"name_u16":[110,111,114,109,97,108,46,116,120,116],"parent_file_id":3096224743817255,"reparse_tag":0,"src":"rdcw","t":8543984714}
+{"label":"delete both","src":"op","t":8543984716}
+{"action":"Removed","allocated_length":8,"attributes":32,"file_id":2251799813685289,"file_size":1,"name":"a�b","name_flags":1,"name_u16":[97,56320,98],"parent_file_id":3096224743817255,"reparse_tag":0,"src":"rdcw","t":8543986211}
+{"action":"Removed","allocated_length":8,"attributes":32,"file_id":3096224743817256,"file_size":2,"name":"normal.txt","name_flags":3,"name_u16":[110,111,114,109,97,108,46,116,120,116],"parent_file_id":3096224743817255,"reparse_tag":0,"src":"rdcw","t":8543987928}
+{"error":null,"label":"scenario end","src":"op","t":8543988284}
+{"arch":"aarch64","label":"windows-11-vs2026-arm/ntfs","os_build":26200,"qpc_freq":10000000,"rdcw_class":"Full","rep":2,"root":"P:\\fslab\\N4-2","scenario":"N4","settle_s":3,"src":"header","volume":"P:"}
+{"error":"The volume change journal is not active. (os error 1179)","src":"error","what":"usn query"}
+{"label":"scenario start","src":"op","t":8589660123}
+{"label":"create name with a lone high surrogate","src":"op","t":8589660258}
+{"action":"Added","allocated_length":0,"attributes":32,"file_id":3377699720527912,"file_size":0,"name":"a�b","name_flags":1,"name_u16":[97,55296,98],"parent_file_id":3377699720527911,"reparse_tag":0,"src":"rdcw","t":8589662240}
+{"action":"Modified","allocated_length":8,"attributes":32,"file_id":3377699720527912,"file_size":1,"name":"a�b","name_flags":1,"name_u16":[97,55296,98],"parent_file_id":3377699720527911,"reparse_tag":0,"src":"rdcw","t":8589664171}
+{"label":"create name with a lone low surrogate","src":"op","t":8589664417}
+{"action":"Added","allocated_length":0,"attributes":32,"file_id":2533274790395945,"file_size":0,"name":"a�b","name_flags":1,"name_u16":[97,56320,98],"parent_file_id":3377699720527911,"reparse_tag":0,"src":"rdcw","t":8589665818}
+{"action":"Modified","allocated_length":8,"attributes":32,"file_id":2533274790395945,"file_size":1,"name":"a�b","name_flags":1,"name_u16":[97,56320,98],"parent_file_id":3377699720527911,"reparse_tag":0,"src":"rdcw","t":8589667268}
+{"label":"write the first","src":"op","t":8592668463}
+{"action":"Modified","allocated_length":0,"attributes":32,"file_id":3377699720527912,"file_size":0,"name":"a�b","name_flags":1,"name_u16":[97,55296,98],"parent_file_id":3377699720527911,"reparse_tag":0,"src":"rdcw","t":8592670368}
+{"action":"Modified","allocated_length":8,"attributes":32,"file_id":3377699720527912,"file_size":2,"name":"a�b","name_flags":1,"name_u16":[97,55296,98],"parent_file_id":3377699720527911,"reparse_tag":0,"src":"rdcw","t":8592671276}
+{"label":"rename the first to a normal name","src":"op","t":8595672999}
+{"action":"RenamedOldName","allocated_length":8,"attributes":32,"file_id":3377699720527912,"file_size":2,"name":"a�b","name_flags":128,"name_u16":[97,55296,98],"parent_file_id":3377699720527911,"reparse_tag":0,"src":"rdcw","t":8595676026}
+{"action":"RenamedNewName","allocated_length":8,"attributes":32,"file_id":3377699720527912,"file_size":2,"name":"normal.txt","name_flags":128,"name_u16":[110,111,114,109,97,108,46,116,120,116],"parent_file_id":3377699720527911,"reparse_tag":0,"src":"rdcw","t":8595676026}
+{"label":"delete both","src":"op","t":8595676813}
+{"action":"Removed","allocated_length":8,"attributes":32,"file_id":2533274790395945,"file_size":1,"name":"a�b","name_flags":1,"name_u16":[97,56320,98],"parent_file_id":3377699720527911,"reparse_tag":0,"src":"rdcw","t":8595679224}
+{"action":"Removed","allocated_length":8,"attributes":32,"file_id":3377699720527912,"file_size":2,"name":"normal.txt","name_flags":3,"name_u16":[110,111,114,109,97,108,46,116,120,116],"parent_file_id":3377699720527911,"reparse_tag":0,"src":"rdcw","t":8595680287}
+{"error":null,"label":"scenario end","src":"op","t":8595680360}

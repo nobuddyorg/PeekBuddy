@@ -41,7 +41,7 @@ mod imp {
     use windows_sys::Win32::Foundation::{CloseHandle, HANDLE, INVALID_HANDLE_VALUE};
     use windows_sys::Win32::Storage::FileSystem::{
         CreateFileW, FILE_FLAG_BACKUP_SEMANTICS, FILE_FLAG_OVERLAPPED, FILE_SHARE_DELETE, FILE_SHARE_READ,
-        FILE_SHARE_WRITE, GetShortPathNameW, OPEN_EXISTING, ReadDirectoryChangesExW,
+        FILE_SHARE_WRITE, GetShortPathNameW, OPEN_EXISTING, ReadDirectoryChangesExW, ReadDirectoryChangesW,
         ReadDirectoryNotifyFullInformation,
     };
     use windows_sys::Win32::System::IO::{CancelIoEx, DeviceIoControl, GetOverlappedResult, OVERLAPPED};
@@ -142,6 +142,9 @@ mod imp {
         let event = unsafe { CreateEventW(null(), 1, 0, null()) };
         let mut buf = vec![0u64; 32 * 1024]; // 256 KiB, 8-byte aligned
         let mut first = true;
+        // The Ex call fails with ERROR_INVALID_FUNCTION (1) on ReFS, Dev Drive,
+        // exFAT and FAT32; retry once with the plain call and class.
+        let mut plain = false;
         loop {
             // SAFETY: plain data.
             let mut ov: OVERLAPPED = unsafe { std::mem::zeroed() };
@@ -152,10 +155,20 @@ mod imp {
             // SAFETY: `buf` and `ov` stay alive until the request has completed
             // or been cancelled and waited for below.
             let ok = unsafe {
-                ReadDirectoryChangesExW(h.0, buf.as_mut_ptr().cast::<c_void>(), (buf.len() * 8) as u32, 1, NOTIFY_ALL, &mut n, &mut ov, None, ReadDirectoryNotifyFullInformation)
+                if plain {
+                    ReadDirectoryChangesW(h.0, buf.as_mut_ptr().cast::<c_void>(), (buf.len() * 8) as u32, 1, NOTIFY_ALL, &mut n, &mut ov, None)
+                } else {
+                    ReadDirectoryChangesExW(h.0, buf.as_mut_ptr().cast::<c_void>(), (buf.len() * 8) as u32, 1, NOTIFY_ALL, &mut n, &mut ov, None, ReadDirectoryNotifyFullInformation)
+                }
             };
             if ok == 0 {
-                let _ = tx.send(json!({ "src": "error", "what": "ReadDirectoryChangesExW", "error": io::Error::last_os_error().to_string() }));
+                let err = io::Error::last_os_error();
+                let _ = tx.send(json!({ "src": "error", "what": if plain { "ReadDirectoryChangesW" } else { "ReadDirectoryChangesExW" }, "error": err.to_string(), "code": err.raw_os_error() }));
+                if !plain && err.raw_os_error() == Some(1) {
+                    plain = true;
+                    let _ = tx.send(json!({ "src": "note", "what": "rdcw fallback", "value": "plain class" }));
+                    continue;
+                }
                 if first {
                     let _ = ready.send(());
                 }
@@ -194,7 +207,7 @@ mod imp {
             }
             // SAFETY: the buffer holds `n` valid bytes written by the kernel.
             let bytes = unsafe { std::slice::from_raw_parts(buf.as_ptr().cast::<u8>(), n as usize) };
-            for rec in notify::parse(bytes, n as usize, Class::Full) {
+            for rec in notify::parse(bytes, n as usize, if plain { Class::Plain } else { Class::Full }) {
                 match rec {
                     Ok(r) => {
                         let units: Vec<u16> = r.name.units().collect();

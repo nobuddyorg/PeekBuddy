@@ -1,0 +1,15 @@
+{"src":"header","scenario":"L2","fs":"ntfs","arch":"x86_64","os_build":26100,"rdcw_class":"Full","qpc_freq":10000000}
+{"src":"op","label":"scenario start","t":0}
+{"src":"op","label":"create junction","t":4299}
+{"src":"rdcw","t":85792,"action":"Added","name_u16":[106,117,110,99,116,105,111,110],"attributes":16,"reparse_tag":0,"file_id":1125899906842666,"parent_file_id":4503599627370535,"name_flags":3,"file_size":0,"allocated_length":0}
+{"src":"rdcw","t":86770,"action":"Modified","name_u16":[106,117,110,99,116,105,111,110],"attributes":1040,"reparse_tag":2684354563,"file_id":1125899906842666,"parent_file_id":4503599627370535,"name_flags":3,"file_size":0,"allocated_length":0}
+{"src":"op","label":"create a file under the target through the junction","t":3106650}
+{"src":"op","label":"create a file directly in the target","t":6115061}
+{"src":"op","label":"retarget: remove the junction","t":9121463}
+{"src":"rdcw","t":9124270,"action":"Removed","name_u16":[106,117,110,99,116,105,111,110],"attributes":1040,"reparse_tag":2684354563,"file_id":1125899906842666,"parent_file_id":4503599627370535,"name_flags":3,"file_size":0,"allocated_length":0}
+{"src":"op","label":"retarget: create it again to the other target","t":9124594}
+{"src":"rdcw","t":9197312,"action":"Added","name_u16":[106,117,110,99,116,105,111,110],"attributes":16,"reparse_tag":0,"file_id":1407374883553322,"parent_file_id":4503599627370535,"name_flags":3,"file_size":0,"allocated_length":0}
+{"src":"rdcw","t":9198381,"action":"Modified","name_u16":[106,117,110,99,116,105,111,110],"attributes":1040,"reparse_tag":2684354563,"file_id":1407374883553322,"parent_file_id":4503599627370535,"name_flags":3,"file_size":0,"allocated_length":0}
+{"src":"op","label":"delete the junction","t":12217975}
+{"src":"rdcw","t":12220185,"action":"Removed","name_u16":[106,117,110,99,116,105,111,110],"attributes":1040,"reparse_tag":2684354563,"file_id":1407374883553322,"parent_file_id":4503599627370535,"name_flags":3,"file_size":0,"allocated_length":0}
+{"src":"op","label":"scenario end","t":12226462}

@@ -1,0 +1,24 @@
+{"arch":"x86_64","label":"windows-2025/refs","os_build":26100,"qpc_freq":10000000,"rdcw_class":"Full","rep":0,"root":"Q:\\fslab\\S1-0","scenario":"S1","settle_s":35,"src":"header","volume":"Q:"}
+{"error":"The volume change journal is not active. (os error 1179)","src":"error","what":"usn query"}
+{"error":"Incorrect function. (os error 1)","src":"error","what":"ReadDirectoryChangesExW"}
+{"label":"scenario start","src":"op","t":10165636021}
+{"label":"create an alternate data stream","src":"op","t":10168640725}
+{"label":"append to the stream","src":"op","t":10171647963}
+{"label":"delete the stream (file stays)","src":"op","t":10174653678}
+{"error":null,"label":"scenario end","src":"op","t":10174655652}
+{"arch":"x86_64","label":"windows-2025/refs","os_build":26100,"qpc_freq":10000000,"rdcw_class":"Full","rep":1,"root":"Q:\\fslab\\S1-1","scenario":"S1","settle_s":35,"src":"header","volume":"Q:"}
+{"error":"Incorrect function. (os error 1)","src":"error","what":"ReadDirectoryChangesExW"}
+{"error":"The volume change journal is not active. (os error 1179)","src":"error","what":"usn query"}
+{"label":"scenario start","src":"op","t":10539696595}
+{"label":"create an alternate data stream","src":"op","t":10542705531}
+{"label":"append to the stream","src":"op","t":10545712513}
+{"label":"delete the stream (file stays)","src":"op","t":10548719769}
+{"error":null,"label":"scenario end","src":"op","t":10548722521}
+{"arch":"x86_64","label":"windows-2025/refs","os_build":26100,"qpc_freq":10000000,"rdcw_class":"Full","rep":2,"root":"Q:\\fslab\\S1-2","scenario":"S1","settle_s":35,"src":"header","volume":"Q:"}
+{"error":"Incorrect function. (os error 1)","src":"error","what":"ReadDirectoryChangesExW"}
+{"error":"The volume change journal is not active. (os error 1179)","src":"error","what":"usn query"}
+{"label":"scenario start","src":"op","t":10913759087}
+{"label":"create an alternate data stream","src":"op","t":10916764574}
+{"label":"append to the stream","src":"op","t":10919771475}
+{"label":"delete the stream (file stays)","src":"op","t":10922778177}
+{"error":null,"label":"scenario end","src":"op","t":10922780484}
