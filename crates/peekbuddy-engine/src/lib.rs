@@ -103,6 +103,30 @@ pub enum Exit {
     },
 }
 
+/// Keeps the ETW provider registered. `main` registers it before the first
+/// milestone, so `ProcessStart` is not written to an unregistered provider,
+/// and hands it to the engine, whose shutdown path releases it.
+#[cfg(windows)]
+pub type Provider = peekbuddy_win::perf::etw::Registration;
+
+/// Placeholder where there is no ETW.
+#[cfg(not(windows))]
+#[derive(Debug)]
+pub struct Provider;
+
+/// Registers the ETW provider (a no-op off Windows).
+#[must_use]
+pub fn register_provider() -> Provider {
+    #[cfg(windows)]
+    {
+        peekbuddy_win::perf::etw::register()
+    }
+    #[cfg(not(windows))]
+    {
+        Provider
+    }
+}
+
 #[cfg(windows)]
 pub use run::run;
 
@@ -115,6 +139,7 @@ pub use run::run;
 pub fn run(
     _options: &Options,
     _milestones: &peekbuddy_core::perf::MilestoneTable,
+    _provider: Provider,
 ) -> std::io::Result<Exit> {
     Ok(Exit::Ran {
         abnormal_termination: None,
@@ -130,7 +155,7 @@ mod run {
     use peekbuddy_win::console::{attach_output, close_window_on_ctrl_c};
     use peekbuddy_win::metrics::ContextSwitches;
     use peekbuddy_win::osinfo;
-    use peekbuddy_win::perf::{etw, record, since_process_create_us};
+    use peekbuddy_win::perf::{record, since_process_create_us};
     use peekbuddy_win::single_instance::SingleInstance;
     use peekbuddy_win::window::{HiddenWindow, WindowEvent};
 
@@ -139,7 +164,7 @@ mod run {
     use crate::portable::Decision;
     use crate::probe::{self, Report, Sample};
     use crate::shutdown::{Reason, Shutdown, Stage};
-    use crate::{Exit, Names, Options};
+    use crate::{Exit, Names, Options, Provider};
 
     fn mark(table: &MilestoneTable, milestone: Milestone) {
         record(table, milestone, Role::Engine, since_process_create_us());
@@ -150,10 +175,14 @@ mod run {
     /// # Errors
     ///
     /// Returns the error that stopped the engine from starting.
-    pub fn run(options: &Options, milestones: &MilestoneTable) -> std::io::Result<Exit> {
+    pub fn run(
+        options: &Options,
+        milestones: &MilestoneTable,
+        provider: Provider,
+    ) -> std::io::Result<Exit> {
         // Held in a cell so the shutdown path can release it explicitly: on
         // `WM_ENDSESSION` the OS may end the process before `run` returns.
-        let provider = Rc::new(RefCell::new(Some(etw::register())));
+        let provider = Rc::new(RefCell::new(Some(provider)));
         let names = Names::new(options.data_dir.as_deref());
         let Some(_instance) = SingleInstance::acquire(&names.mutex)? else {
             return Ok(Exit::AlreadyRunning);
@@ -250,7 +279,7 @@ mod run {
 
     /// The shutdown step that unregisters the ETW provider.
     pub(crate) fn release_provider(
-        provider: &Rc<RefCell<Option<etw::Registration>>>,
+        provider: &Rc<RefCell<Option<Provider>>>,
     ) -> impl FnMut(Reason) + 'static {
         let provider = Rc::clone(provider);
         move |_| drop(provider.borrow_mut().take())

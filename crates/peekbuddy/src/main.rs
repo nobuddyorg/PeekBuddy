@@ -9,6 +9,7 @@
 use std::process::ExitCode;
 
 use peekbuddy_core::perf::MilestoneTable;
+use peekbuddy_engine::Provider;
 use peekbuddy_engine::diagnostics::Facts;
 
 mod cli;
@@ -93,11 +94,11 @@ fn run_diagnostics(_full: bool) -> std::io::Result<()> {
 
 /// Runs the invoked role to completion; in profiling builds inside one Tracy
 /// zone.
-fn run(invocation: &Invocation, table: &MilestoneTable) -> std::io::Result<()> {
+fn run(invocation: &Invocation, table: &MilestoneTable, provider: Provider) -> std::io::Result<()> {
     #[cfg(feature = "profile-tracy")]
     let _zone = tracy::start(&invocation.role);
     match invocation.role {
-        Role::Engine => peekbuddy_engine::run(&invocation.engine, table).map(drop),
+        Role::Engine => peekbuddy_engine::run(&invocation.engine, table, provider).map(drop),
         Role::Viewer => run_viewer(),
         Role::Diagnostics => run_diagnostics(invocation.full),
     }
@@ -105,11 +106,13 @@ fn run(invocation: &Invocation, table: &MilestoneTable) -> std::io::Result<()> {
 
 fn main() -> ExitCode {
     let table = MilestoneTable::new();
+    // Registered first, so the very first milestone reaches ETW listeners.
+    let provider = peekbuddy_engine::register_provider();
     let Ok(invocation) = cli::parse(std::env::args().skip(1)) else {
         return ExitCode::from(2);
     };
     process_start(&invocation.role, &table);
-    match run(&invocation, &table) {
+    match run(&invocation, &table, provider) {
         Ok(()) => ExitCode::SUCCESS,
         Err(_) => ExitCode::FAILURE,
     }
@@ -128,7 +131,12 @@ mod tests {
             engine: peekbuddy_engine::Options::default(),
             full: false,
         };
-        run(&invocation, &MilestoneTable::new()).unwrap();
+        run(
+            &invocation,
+            &MilestoneTable::new(),
+            peekbuddy_engine::register_provider(),
+        )
+        .unwrap();
         #[cfg(feature = "profile-tracy")]
         assert!(tracy_client::Client::is_running());
     }
