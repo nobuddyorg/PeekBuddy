@@ -361,6 +361,33 @@ fn rows_json(rows: &[Row]) -> Value {
     )
 }
 
+/// What an outside observer saw of the engine while it idled.
+#[derive(Debug, Clone, Copy)]
+struct External {
+    /// Seconds between the two observations.
+    seconds: f64,
+    /// CPU time (user + kernel) used in between, 100 ns ticks.
+    cpu_ticks: u64,
+    /// Context switches of all its threads in between, when reported.
+    switches: Option<u64>,
+}
+
+/// Launching needs job objects and `NtQuerySystemInformation`: Windows only.
+#[cfg(not(windows))]
+mod launch {
+    use serde_json::Value;
+
+    use super::External;
+
+    pub fn probe(_exe: &std::path::Path, _seconds: u64, _tag: &str) -> Result<Value, String> {
+        Err(String::from("cargo xtask perf runs on Windows only"))
+    }
+
+    pub fn idle(_exe: &std::path::Path, _seconds: u64) -> Result<(Value, External), String> {
+        Err(String::from("cargo xtask perf runs on Windows only"))
+    }
+}
+
 #[cfg(windows)]
 mod launch {
     use std::os::windows::io::AsHandle as _;
@@ -371,6 +398,8 @@ mod launch {
     use peekbuddy_win::job::Job;
     use peekbuddy_win::metrics::{self, ContextSwitches};
     use serde_json::Value;
+
+    use super::External;
 
     fn scratch(tag: &str) -> Result<PathBuf, String> {
         let dir = std::env::temp_dir().join(format!("pbperf-{}-{tag}", std::process::id()));
@@ -387,17 +416,6 @@ mod launch {
         let result = launch(exe, seconds, &dir, &out, &mut |_| Ok(()));
         let _ = std::fs::remove_dir_all(&dir);
         result
-    }
-
-    /// What an outside observer saw of the engine while it idled.
-    #[derive(Debug, Clone, Copy)]
-    pub struct External {
-        /// Seconds between the two observations.
-        pub seconds: f64,
-        /// CPU time (user + kernel) used in between, 100 ns ticks.
-        pub cpu_ticks: u64,
-        /// Context switches of all its threads in between, when reported.
-        pub switches: Option<u64>,
     }
 
     /// Like [`probe`], and samples the engine from this process after a
@@ -495,7 +513,6 @@ fn runner_info() -> Value {
     })
 }
 
-#[cfg(windows)]
 fn startup_runs(options: &Options, exe: &Path, tag: &str) -> Result<Vec<Startup>, String> {
     let mut runs = Vec::new();
     for index in 0..options.warmup + options.runs {
@@ -507,7 +524,6 @@ fn startup_runs(options: &Options, exe: &Path, tag: &str) -> Result<Vec<Startup>
     Ok(runs)
 }
 
-#[cfg(windows)]
 type Detail = serde_json::Map<String, Value>;
 
 /// Converts tick and byte counts to `f64` for the report; a count above 2^52
@@ -520,7 +536,6 @@ const fn as_f64(count: u64) -> f64 {
     count as f64
 }
 
-#[cfg(windows)]
 fn measure_startup(
     options: &Options,
     budgets: &[Budget],
@@ -584,7 +599,6 @@ fn measure_startup(
     Ok(())
 }
 
-#[cfg(windows)]
 fn measure_idle(
     options: &Options,
     budgets: &[Budget],
@@ -633,7 +647,6 @@ fn measure_idle(
     Ok(())
 }
 
-#[cfg(windows)]
 fn measure(options: &Options) -> Result<(Vec<Row>, Value), String> {
     let budgets = budgets::load()?;
     let mut rows = Vec::new();
@@ -653,11 +666,6 @@ fn measure(options: &Options) -> Result<(Vec<Row>, Value), String> {
         "no capture backend or writer yet (#45, #52)",
     ));
     Ok((rows, Value::Object(detail)))
-}
-
-#[cfg(not(windows))]
-fn measure(_options: &Options) -> Result<(Vec<Row>, Value), String> {
-    Err(String::from("cargo xtask perf runs on Windows only"))
 }
 
 #[cfg(not(windows))]

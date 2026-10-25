@@ -41,6 +41,11 @@ mod tests {
     #[test]
     fn a_sample_of_this_process_has_plausible_numbers() {
         let mut switches = ContextSwitches::new();
+        // CPU time ticks at about 15 ms: burn a little so it is non-zero.
+        let started = std::time::Instant::now();
+        while started.elapsed() < std::time::Duration::from_millis(40) {
+            std::hint::black_box(0_u64);
+        }
         let sample = take(&mut switches);
         assert!(sample.at_us > 0);
         assert!(sample.private_bytes > 0);
