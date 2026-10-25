@@ -1,8 +1,8 @@
 # 0003. Viewer renderer and footprint
 
-- Issue: #33. Status: hosted-runner cells done (WARP, x64 and ARM64); the
-  real-GPU cells and the glow comparison on x64 need the owner PC
-  (`scripts/owner/viewer-bench.ps1`).
+- Issue: #33. Status: hosted-runner cells done (WARP, x64 and ARM64) and the
+  owner-PC run done on one machine (Intel N150 iGPU, x64); cold start, VRAM
+  and ARM64 hardware are still open.
 - Harness: `spikes/viewer-bench` (eframe =0.37.0, egui_table =0.11.0), workflow
   `viewer-bench` (input `quick` for a 3-minute smoke run).
 - Raw data: `docs/spikes/data/0003/` (one JSON line per run; the workflow log
@@ -46,14 +46,67 @@ therefore not reachable with wgpu *on WARP*. WARP allocates its own heap, so
 this says nothing about a real adapter; the budget stays provisional until the
 owner run measures wgpu on a GPU. Working set stays at 55 to 69 MB.
 
+## Owner PC (Intel N150, real GPU)
+
+Machine: Windows 11 Pro 26200 x64, Intel N150 with the integrated "Intel(R)
+Graphics" adapter (wgpu reports `Dx12 / IntegratedGpu`), run with
+`scripts/owner/viewer-bench.ps1` on the executables of run 40183465603. Raw
+data: `docs/spikes/data/0003/owner-n150.jsonl`. This is a low-end iGPU: treat
+CPU time and first frame as a worst case for x64, not as the typical owner PC.
+One machine, one run; the five first-frame runs are not warmed up in a
+controlled way, so cold and warm are not separated.
+
+| Metric | wgpu/DX12 | glow |
+| --- | --- | --- |
+| Exe size | 13.6 MB | 6.45 MB |
+| Private bytes, first frame | 317 MB | 51 to 58 MB |
+| Private bytes after scroll / tail / wiggle | 317 to 319 MB | 52 to 62 MB |
+| Working set | 327 to 336 MB | 92 to 103 MB |
+| First frame (5 runs) | 435, 437, 512, 522, 619 ms | 243, 250, 270, 362, 745 ms |
+| First frame with data | 442 to 692 ms | 250 to 832 ms |
+| UI pass p95 / max (scroll, tail) | 2.7 to 2.8 / 5.5 to 6.1 ms | 2.3 / 4.4 to 4.9 ms |
+| Frame interval p95 / p99 / max (scroll) | 20.5 / 21.0 / 74 ms | 20.3 / 20.6 / 48 ms |
+| Frame interval max (tail, wiggle) | 87 ms, 85 ms | 73 ms, 60 ms |
+| CPU time, 30 s scroll | 6.0 s | 9.3 s |
+| CPU time, 30 s tail / 20 s wiggle | 4.8 s / 2.5 s | 8.5 s / 4.8 s |
+| Idle frames/s open / minimized / hidden | 1.19 / 0.10 / 0.30 | 1.09 / 0.10 / 0.30 |
+| Engine-role private bytes | 1.8 MB | 1.6 MB |
+
+Reading:
+
+- The unify rule (wgpu within about 15 MB private bytes of glow) fails on
+  this machine by a wide margin: about 260 MB. How much of the 317 MB is
+  Intel user-mode driver and shader cache rather than wgpu itself was not
+  separated (the module list shows `igd12umd64`, `igc64`, `d3d12core` and
+  more). The same 80 MB budget problem as on WARP.
+- wgpu first frame is above the 250 ms warm budget here (435 to 619 ms);
+  glow mostly meets it (243 to 362 ms, one 745 ms outlier).
+- The frame interval sits at about 20 ms for both renderers and every
+  scenario, including `wiggle`, while the UI pass stays at 2 to
+  3 ms. That looks like display or compositor pacing and not rendering cost;
+  it was not diagnosed (refresh rate of the attached display not recorded).
+  Max values of 48 to 87 ms are over the 33 ms limit in every scroll, tail
+  and wiggle scenario; whether they come from the harness or the driver is
+  open.
+- The 5 ms page-fetch latency does not change the scroll frame times
+  (p95 20.6 ms).
+- Glow costs more CPU than wgpu in every animated scenario (scroll 9.3 s
+  against 6.0 s), the opposite of the footprint ranking.
+- Engine role: the same GPU libraries as on the runners load (`dxgi.dll`,
+  `opengl32.dll`, `glu32.dll`, `dxcore.dll`), confirming decision 4.
+
 ## Decisions
 
 1. **arm64: wgpu with the DX12 backend only.** Decided (glow cannot run there);
    ADR 0005.
-2. **x64: not decided.** The unify rule needs the glow private-bytes number,
-   which only the owner PC can produce. Until then the code base keeps both
-   cargo features (`wgpu` default, `glow` x64 only) and `#65` implements the
-   viewer against the wgpu path first. The owner run settles it.
+2. **x64: unify rule not met, owner to decide.** The owner-PC run gives the
+   glow number: about 260 MB less private bytes and 7 MB less exe size than
+   wgpu, but more CPU and no ARM64 support. The code base keeps both cargo
+   features (`wgpu` default, `glow` x64 only) and `#65` implements the viewer
+   against the wgpu path first. Proposed for the owner to veto: ship glow on
+   x64 and wgpu on ARM64 only if the 260 MB is confirmed as wgpu cost on a
+   second GPU (for example a discrete or AMD adapter); otherwise unify on
+   wgpu and recalibrate the memory budget.
 3. **Table widget: `egui_table`**, no `TableBuilder` fallback and no
    `LVS_OWNERDATA` escape hatch (the UI pass is two orders of magnitude below
    the frame budget; the escape hatch triggers only on a real-GPU miss).
@@ -68,23 +121,27 @@ owner run measures wgpu on a GPU. Working set stays at 55 to 69 MB.
 
 | Row | Measurement | Action |
 | --- | --- | --- |
-| `viewer.first_frame.warm` (250 ms) | 90 ms x64, 160 ms ARM64 (WARP, 10M-row source, first 200 rows) | stays provisional, recalibrate on the owner PC |
+| `viewer.first_frame.warm` (250 ms) | 90 ms x64, 160 ms ARM64 (WARP, 10M-row source, first 200 rows); owner N150: wgpu 435 to 619 ms, glow 243 to 362 ms (one 745 ms) | stays provisional; wgpu misses it on a low-end iGPU, recalibrate once a second GPU is measured |
 | `viewer.first_frame.cold` (600 ms) | not measured | unchanged, owner PC only |
-| `viewer.private_bytes.10m_rows` (80 MB) | 295 to 304 MB on WARP | stays provisional; the ARM64 limit from #33 cannot be derived without an Adreno device |
-| `viewer.frame.p95/p99/max` | UI pass only: p95 <= 1.5 ms, p99 <= 2.0 ms, max 12.5 ms | stays provisional until the frame interval is measured on a real GPU |
+| `viewer.private_bytes.10m_rows` (80 MB) | 295 to 304 MB on WARP; owner N150: wgpu 317 to 319 MB, glow 51 to 62 MB | stays provisional; the ARM64 limit from #33 cannot be derived without an Adreno device |
+| `viewer.frame.p95/p99/max` | UI pass only: p95 <= 1.5 ms, p99 <= 2.0 ms, max 12.5 ms on WARP; owner N150: UI p95 2.3 to 2.8 ms, frame interval p95 20.5 ms, max 48 to 87 ms | stays provisional; the interval is about 20 ms for both renderers and its cause is undiagnosed |
 | exe size | wgpu 13.6 MB (x64), 11.7 MB (ARM64); glow 6.45 MB (x64) | over the 5 MB / 8 MB budget for the single exe with only the viewer in it; #28 and #65 own the trade-off |
 
 ## Not measured
 
-- Real GPU (the owner PC), cold start, VRAM, glow numbers: owner run
-  (`scripts/owner/viewer-bench.ps1`, executables from the
-  `viewer-bench-exes-*` workflow artifacts).
+- Cold start (first run after boot or after clearing the shader cache) and
+  VRAM on the owner PC; a second, stronger GPU; the display refresh rate
+  behind the 20 ms frame interval; real Adreno hardware.
 - ETW context-switch counts per phase, the steady-state allocations per frame
   (the K constant for the viewer, #23), Tracy frame marks.
 - The hover-gate decision (needs a GPU adapter where a repaint costs the GPU).
 
 ## Harness notes
 
+- `scripts/owner/viewer-bench.ps1` crashed on Windows PowerShell 5.1 when the
+  temp path had a space (unquoted `Start-Process` arguments, then a null
+  `ExitCode` and a `Substring` on empty stderr). Fixed; the run above used the
+  fixed script.
 - eframe repaints only on events: the `idle` and `first-frame` scenarios need
   a helper thread that wakes the loop, and a watchdog per run (the first run
   of this spike hung for 52 minutes without a result row).
