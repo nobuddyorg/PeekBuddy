@@ -47,12 +47,12 @@ tracy-client-sys = { workspace = true, optional = true }
 [target.'cfg(windows)'.dependencies]
 peekbuddy-win = { workspace = true }
 
-[dev-dependencies]
-peekbuddy-testkit = { workspace = true }
-
 [build-dependencies]
 embed-manifest = { workspace = true }
 winresource = { workspace = true }
+
+[dev-dependencies]
+peekbuddy-testkit = { workspace = true }
 
 [lints]
 workspace = true
