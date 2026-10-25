@@ -17,6 +17,8 @@ pub mod attrs;
 #[cfg(windows)]
 pub mod console;
 #[cfg(windows)]
+pub mod job;
+#[cfg(windows)]
 pub mod osinfo;
 #[cfg(windows)]
 pub mod process;

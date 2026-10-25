@@ -10,6 +10,7 @@ mod churn;
 mod deps;
 mod dist;
 mod metadata;
+mod perf;
 mod size;
 mod tracy;
 mod unsafe_code;
@@ -31,6 +32,7 @@ commands:
   check-release  no Tracy in the release feature set [--features f] [--exe path]
   dist-extras    third-party licences and CycloneDX SBOM for the release
   size           binary-size gate for release exes against perf/budgets.toml
+  perf           end-to-end startup and idle measurements of the release exe [--scenario s] [--ab base-exe]
   profile        --tracy [--alloc] [--role engine|viewer]: Tracy profiling build";
 
 fn main() -> ExitCode {
@@ -48,6 +50,7 @@ fn main() -> ExitCode {
         Some("check-deps") => deps::run(),
         Some("check-release") => tracy::check_release(&rest),
         Some("dist-extras") => dist::run(),
+        Some("perf") => perf::run(&rest),
         Some("profile") => tracy::profile(&rest),
         Some("size") => size::run(&rest),
         _ => Err(USAGE.to_owned()),
