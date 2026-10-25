@@ -4,6 +4,11 @@ name: viewer-bench
 
 on:
   workflow_dispatch:
+    inputs:
+      quick:
+        description: "Smoke run: wgpu only, one first-frame run, 5 s scenarios (about 5 minutes)"
+        type: boolean
+        default: false
   pull_request:
     paths:
       - spikes/viewer-bench/**
@@ -27,6 +32,7 @@ jobs:
         label: [windows-2025, windows-11-vs2026-arm]
     env:
       LABEL: ${{ matrix.label }}
+      QUICK: ${{ inputs.quick && '1' || '' }}
       CARGO_TERM_COLOR: always
     defaults:
       run:
@@ -64,19 +70,31 @@ jobs:
         run: |
           $out = Join-Path $env:RUNNER_TEMP 'results.jsonl'
           $variants = @(@{ name = 'wgpu'; exe = 'target/release/viewer-bench.exe' })
+          $q = [bool]$env:QUICK
+          $runs = if ($q) { 1 } else { 5 }
+          $dur = if ($q) { 5 } else { 30 }
           if ($env:LABEL -eq 'windows-2025') { $variants += @{ name = 'glow'; exe = 'target-glow/release/viewer-bench.exe' } }
           foreach ($v in $variants) {
             $tag = "$env:LABEL/$($v.name)"
             # Engine role: no window, the module list shows what the binary loads.
             & $v.exe --scenario engine --secs 3 --label $tag --out $out | Out-Null
             # First frame: five runs.
-            1..5 | ForEach-Object { & $v.exe --scenario first-frame --label "$tag/run$_" --out $out | Out-Null }
-            foreach ($s in @(@('idle', 30), @('scroll', 30), @('tail', 30), @('wiggle', 20))) {
+            1..$runs | ForEach-Object {
+              $err = Join-Path $env:RUNNER_TEMP 'stderr.txt'
+              $p = Start-Process -FilePath $v.exe -ArgumentList @('--scenario', 'first-frame', '--label', "$tag/run$_", '--out', $out) -PassThru -NoNewWindow -RedirectStandardError $err
+              if (-not $p.WaitForExit(90000)) { $p.Kill($true); '{"experiment":"timeout","scenario":"first-frame","label":"' + $tag + '"}' | Add-Content $out }
+              elseif ($p.ExitCode -ne 0) {
+                $msg = ((Get-Content $err -Raw) -replace '[\r\n"\\]+', ' ')
+                if ($msg.Length -gt 600) { $msg = $msg.Substring(0, 600) }
+                '{"experiment":"exit","scenario":"first-frame","label":"' + $tag + '/run' + $_ + '","code":' + $p.ExitCode + ',"stderr":"' + $msg + '"}' | Add-Content $out
+              }
+            }
+            foreach ($s in @(@('idle', $dur), @('scroll', $dur), @('tail', $dur), @('wiggle', [math]::Min($dur, 20)))) {
               $p = Start-Process -FilePath $v.exe -ArgumentList @('--scenario', $s[0], '--secs', $s[1], '--label', $tag, '--out', $out) -PassThru -NoNewWindow
               if (-not $p.WaitForExit(180000)) { $p.Kill($true); '{"experiment":"timeout","scenario":"' + $s[0] + '","label":"' + $tag + '"}' | Add-Content $out }
             }
             # Warm 10 ms latency scroll.
-            $p = Start-Process -FilePath $v.exe -ArgumentList @('--scenario', 'scroll', '--secs', '20', '--latency-ms', '5', '--label', "$tag/latency5", '--out', $out) -PassThru -NoNewWindow
+            $p = Start-Process -FilePath $v.exe -ArgumentList @('--scenario', 'scroll', '--secs', "$([math]::Min($dur, 20))", '--latency-ms', '5', '--label', "$tag/latency5", '--out', $out) -PassThru -NoNewWindow
             if (-not $p.WaitForExit(180000)) { $p.Kill($true) }
             "$tag exe bytes: $((Get-Item $v.exe).Length)" | Write-Host
           }
@@ -96,9 +114,36 @@ jobs:
           $md += '```'
           $md -join "`n" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
 
+      - name: Dump the results into the log
+        if: always()
+        run: |
+          # The artifact host is not reachable from the agent containers.
+          $f = Join-Path $env:RUNNER_TEMP "viewer-bench-$env:LABEL.jsonl"
+          if (-not (Test-Path $f)) { return }
+          "VIEWER-BENCH-BEGIN $env:LABEL"
+          Get-Content $f
+          'VIEWER-BENCH-END'
+
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
           name: viewer-bench-${{ matrix.label }}
           path: ${{ runner.temp }}/viewer-bench-${{ matrix.label }}.jsonl
+          if-no-files-found: warn
+
+      - name: Executables for the owner run
+        if: always()
+        shell: pwsh
+        working-directory: .
+        run: |
+          $d = Join-Path $env:RUNNER_TEMP 'exes'
+          New-Item -ItemType Directory -Force -Path "$d/wgpu", "$d/glow" | Out-Null
+          Copy-Item spikes/viewer-bench/target/release/viewer-bench.exe "$d/wgpu/" -ErrorAction SilentlyContinue
+          Copy-Item spikes/viewer-bench/target-glow/release/viewer-bench.exe "$d/glow/" -ErrorAction SilentlyContinue
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: viewer-bench-exes-${{ matrix.label }}
+          path: ${{ runner.temp }}/exes
           if-no-files-found: warn

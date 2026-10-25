@@ -53,7 +53,7 @@ Gate values in `budgets.toml`:
 | `engine.ready.cold` | <= 300 ms | timing | report-only | provisional | 10 roots, idle; owner-PC runs only (#84) | TraceLogging milestone in a WPR trace | F7 |
 | `engine.startup.cpu` | <= 300 ms | timing | pr-ab | provisional | 10 roots, idle | GetProcessTimes at the ready milestone (#24) | F7 |
 | `engine.startup.disk_read` | <= 1 MB | timing | pr-ab | provisional | 10 roots, idle | GetProcessIoCounters at the ready milestone (#24) | F7 |
-| `viewer.first_frame.warm` | <= 250 ms | timing | pr-ab | provisional | 1M-row log | TraceLogging milestone + --perf-probe JSON | F7, recalibrated by #33 |
+| `viewer.first_frame.warm` | <= 250 ms | timing | pr-ab | provisional | 1M-row log | TraceLogging milestone + --perf-probe JSON | F7; #33 measured 90 ms x64 and 160 ms ARM64 on WARP, owner PC pending |
 | `viewer.first_frame.cold` | <= 600 ms | timing | report-only | provisional | 1M-row log; owner-PC runs only (#84) | TraceLogging milestone in a WPR trace | F7, recalibrated by #33 |
 | `engine.idle.cpu` | <= 0.05 % | timing | nightly-ab | provisional | 10 roots, no events for 60 s | GetProcessTimes delta over 60 s (#27) | F6 |
 | `engine.idle.wakes` | <= 2 per min | deterministic | pr-strict | provisional | 10 roots, no events for 60 s | context switches from a 60 s WPR CPU trace (#27) | F6 |
@@ -61,7 +61,7 @@ Gate values in `budgets.toml`:
 | `engine.private_bytes.idle` | <= 15 MB | resource | nightly-trend | provisional | 10 roots, 100k watched directories | PROCESS_MEMORY_COUNTERS_EX2.PrivateUsage minus buffer bytes (#24) | F8, R5 |
 | `engine.notify_buffers.total` | <= 64 MiB | deterministic | pr-strict | provisional | any | buffer pool accounting in --perf-probe JSON | R5, sized by #32 (1 MiB per local NTFS root, 64 KiB per UNC root; report 0002) |
 | `engine.private_bytes.burst` | <= 40 MB | resource | nightly-trend | provisional | churn profile burst-100k (#25) | PeakPagefileUsage after the burst (#24) | F8 |
-| `viewer.private_bytes.10m_rows` | <= 80 MB | resource | nightly-trend | provisional | 10M-row log, scrolled top to bottom | PROCESS_MEMORY_COUNTERS_EX2.PrivateUsage (#24) | F8; arm64 limit from #33 |
+| `viewer.private_bytes.10m_rows` | <= 80 MB | resource | nightly-trend | provisional | 10M-row log, scrolled top to bottom | PROCESS_MEMORY_COUNTERS_EX2.PrivateUsage (#24) | F8; #33: 295-304 MB with wgpu on WARP, real GPU and arm64 limit pending (owner PC) |
 | `event.latency.p50` | <= 10 ms | timing | pr-ab | provisional | churn profile latency-10k (#25) | ledger timestamp vs commit timestamp (#27) | R1, checked by #35 (commit path alone: p50 3.2 ms, p99 6.3 ms at 10k events/s, linger 5 ms from the first pending event) |
 | `event.latency.p99` | <= 50 ms | timing | pr-ab | provisional | churn profile latency-10k (#25) | ledger timestamp vs commit timestamp (#27) | R1, checked by #35 (commit path alone: p50 3.2 ms, p99 6.3 ms at 10k events/s, linger 5 ms from the first pending event) |
 | `ingest.burst` | >= 100000 events/s | timing | pr-ab | provisional | churn profile burst-100k (#25) | ledger count / burst duration (#27) | F2, recalibrated by #32 (the notification side could not be driven above 37k records/s on a 4-vCPU runner; 100k stays unconfirmed, report 0002) |

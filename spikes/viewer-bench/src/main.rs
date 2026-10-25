@@ -414,6 +414,7 @@ impl eframe::App for Bench {
     fn ui(&mut self, ui: &mut egui::Ui, frame: &mut eframe::Frame) {
         let t0 = Instant::now();
         self.frames += 1;
+        FRAMES_SEEN.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         if self.first_frame_ms.is_none() {
             self.adapter = adapter_name(frame);
         }
@@ -439,6 +440,30 @@ impl eframe::App for Bench {
             self.first_data_ms = Some(process_age_ms());
         }
     }
+}
+
+static FRAMES_SEEN: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+/// A window that never gets a frame (no desktop on the runner) would hang the
+/// run; the watchdog turns that into a result row and a non-zero exit.
+fn spawn_watchdog(limit: Duration, scenario: String, label: String, out: Option<String>) {
+    std::thread::spawn(move || {
+        std::thread::sleep(limit);
+        let v = json!({
+            "experiment": "viewer", "scenario": scenario, "label": label, "watchdog": true,
+            "after_s": limit.as_secs_f64(),
+            "frames": FRAMES_SEEN.load(std::sync::atomic::Ordering::Relaxed),
+            "process_age_ms": process_age_ms(),
+        });
+        println!("{v}");
+        if let Some(p) = out {
+            use std::io::Write as _;
+            if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(p) {
+                let _ = writeln!(f, "{v}");
+            }
+        }
+        std::process::exit(3);
+    });
 }
 
 fn process_age_ms() -> f64 {
@@ -515,6 +540,7 @@ fn main() -> eframe::Result {
         _ => Scenario::FirstFrame,
     };
 
+    spawn_watchdog(Duration::from_secs_f64(secs.max(10.0) + 45.0), scenario.clone(), label.clone(), out.clone());
     let mut options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default().with_inner_size([900.0, 600.0]).with_title("viewer-bench"),
         ..Default::default()
@@ -539,6 +565,20 @@ fn main() -> eframe::Result {
         options,
         Box::new(move |cc| {
             let (req, res) = spawn_worker(cc.egui_ctx.clone(), Duration::from_millis(latency));
+            // eframe repaints only on events. These two scenarios request no
+            // repaints themselves (idle must stay idle), so a helper thread
+            // wakes the loop at the phase boundaries and the end; without it
+            // they never reached their finish condition (quick run, 25 Oct).
+            if matches!(sc, Scenario::Idle | Scenario::FirstFrame) {
+                let ctx = cc.egui_ctx.clone();
+                let (wakes, gap) = if sc == Scenario::Idle { (3, Duration::from_secs_f64(secs / 3.0 + 0.05)) } else { (20, Duration::from_millis(500)) };
+                std::thread::spawn(move || {
+                    for _ in 0..wakes {
+                        std::thread::sleep(gap);
+                        ctx.request_repaint();
+                    }
+                });
+            }
             let mem_start = sys::memory();
             Ok(Box::new(Bench {
                 scenario: sc,
