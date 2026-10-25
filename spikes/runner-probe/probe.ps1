@@ -171,8 +171,15 @@ Probe 'noise.hyperfine_trivial_exe' {
     $hf = Get-Command hyperfine -ErrorAction SilentlyContinue
     if (-not $hf) { return @{ ok = $false; detail = 'hyperfine not installed' } }
     $json = Join-Path $WorkDir 'hyperfine.json'
-    & hyperfine -N --warmup 5 --runs 50 --export-json $json "$env:SystemRoot\System32\whoami.exe" 2>&1 | Out-Null
-    $r = (Get-Content $json -Raw | ConvertFrom-Json).results[0]
+    # -N splits the command with shell-word rules (backslashes are escapes),
+    # so use the bare name; hyperfine 2 writes schema_version 2: the
+    # statistics are under results[0].summary.<metric>.
+    $out = & hyperfine -N --warmup 5 --runs 50 --export-json $json 'whoami.exe' 2>&1 | Out-String
+    if ($LASTEXITCODE -ne 0 -or -not (Test-Path $json)) { return @{ ok = $false; detail = "hyperfine exit=$LASTEXITCODE $($out.Trim())" } }
+    $r = (Get-Content $json -Raw | ConvertFrom-Json).results[0].summary.time_wall_clock
     $cv = if ($r.mean -gt 0) { [math]::Round($r.stddev / $r.mean * 100, 2) } else { 0 }
     @{ ok = $true; detail = "mean_ms=$([math]::Round($r.mean * 1000, 2)) cv_pct=$cv" }
 }
+
+# A probe reports; failed checks are data, not a failed step.
+exit 0
