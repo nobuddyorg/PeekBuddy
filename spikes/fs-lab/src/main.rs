@@ -266,8 +266,9 @@ mod imp {
             let mut input = vec![0u8; 48];
             input[0..8].copy_from_slice(&usn.to_le_bytes());
             input[8..12].copy_from_slice(&u32::MAX.to_le_bytes());
-            input[16..24].copy_from_slice(&1u64.to_le_bytes()); // timeout 1 s
-            input[24..32].copy_from_slice(&1u64.to_le_bytes()); // wait for 1 byte
+            // Timeout and BytesToWaitFor stay 0: a blocking read on a quiet
+            // volume (a fresh VHD) never returned and hung the run; the loop
+            // below sleeps 5 ms when there is nothing to read.
             input[32..40].copy_from_slice(&journal_id.to_le_bytes());
             input[40..42].copy_from_slice(&2u16.to_le_bytes());
             input[42..44].copy_from_slice(&3u16.to_le_bytes());

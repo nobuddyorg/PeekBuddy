@@ -68,7 +68,7 @@ foreach ($name in $vols.Keys) {
         $file = Join-Path $fsOut "$id.jsonl"
         $sw = [Diagnostics.Stopwatch]::StartNew()
         $p = Start-Process -FilePath $Exe -ArgumentList @('run', '--scenario', $id, '--dir', $v.dir, '--volume', "$($v.letter):", '--out', $file, '--settle-s', "$($v.settle)", '--label', "$Label/$name") -PassThru -NoNewWindow
-        if (-not $p.WaitForExit(900000)) { $p.Kill($true); Add-Row @{ kind = 'timeout'; fs = $name; scenario = $id } }
+        if (-not $p.WaitForExit(240000)) { $p.Kill($true); Add-Row @{ kind = 'timeout'; fs = $name; scenario = $id } }
         $lines = if (Test-Path $file) { (Get-Content $file | Measure-Object).Count } else { 0 }
         Add-Row @{ kind = 'scenario'; fs = $name; scenario = $id; exit = $p.ExitCode; seconds = [math]::Round($sw.Elapsed.TotalSeconds, 1); lines = $lines }
     }
