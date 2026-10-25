@@ -1,0 +1,44 @@
+{"check":"preflight","label":"windows-11-vs2026-arm","ok":true,"detail":"success"}
+{"check":"tools.cargo-nextest","label":"windows-11-vs2026-arm","ok":true,"detail":"success"}
+{"check":"tools.cargo-deny","label":"windows-11-vs2026-arm","ok":true,"detail":"success"}
+{"check":"tools.cargo-mutants","label":"windows-11-vs2026-arm","ok":true,"detail":"success"}
+{"check":"tools.hyperfine","label":"windows-11-vs2026-arm","ok":true,"detail":"success"}
+{"check":"session.id","label":"windows-11-vs2026-arm","ok":true,"detail":"session_id=2"}
+{"check":"winsta.visible","label":"windows-11-vs2026-arm","ok":true,"detail":"dwFlags=0x1"}
+{"check":"window.hidden_create","label":"windows-11-vs2026-arm","ok":true,"detail":"atom=49329"}
+{"check":"tray.taskbar_created_registered","label":"windows-11-vs2026-arm","ok":true,"detail":"msg=0xc06f"}
+{"check":"tray.nim_add","label":"windows-11-vs2026-arm","ok":false,"detail":"last_error=2147500037"}
+{"check":"window.visible_create","label":"windows-11-vs2026-arm","ok":true,"detail":"ShowWindow(SW_SHOW)"}
+{"check":"window.set_foreground","label":"windows-11-vs2026-arm","ok":false,"detail":""}
+{"check":"pipe.first_instance","label":"windows-11-vs2026-arm","ok":true,"detail":"second FIRST_PIPE_INSTANCE rejected"}
+{"check":"pipe.connect","label":"windows-11-vs2026-arm","ok":true,"detail":""}
+{"check":"token.elevation_and_integrity","label":"windows-11-vs2026-arm","ok":true,"detail":"elevation_type=1 integrity_rid=0x3000"}
+{"check":"token.child.max_priv","label":"windows-11-vs2026-arm","ok":true,"detail":"exit_code=0x7"}
+{"check":"token.child.lua","label":"windows-11-vs2026-arm","ok":false,"detail":"exit_code=0xc0000142"}
+{"check":"token.child.admins_deny","label":"windows-11-vs2026-arm","ok":false,"detail":"exit_code=0xc0000142"}
+{"check":"token.child.medium","label":"windows-11-vs2026-arm","ok":true,"detail":"exit_code=0x7"}
+{"check":"token.child.medium_self","label":"windows-11-vs2026-arm","ok":true,"detail":"exit_code=0x7"}
+{"check":"token.child.deny_medium","label":"windows-11-vs2026-arm","ok":false,"detail":"exit_code=0xc0000142"}
+{"check":"token.child.deny_medium_self","label":"windows-11-vs2026-arm","ok":false,"detail":"exit_code=0xc0000142"}
+{"check":"token.child.deny_medium_emptydesk","label":"windows-11-vs2026-arm","ok":false,"detail":"exit_code=0xc0000142"}
+{"check":"token.child.deny_medium_detached","label":"windows-11-vs2026-arm","ok":true,"detail":"exit_code=0x7"}
+{"check":"token.child.deny_medium_detached_self","label":"windows-11-vs2026-arm","ok":true,"detail":"exit_code=0x7"}
+{"check":"token.child.medium_emptydesk_self","label":"windows-11-vs2026-arm","ok":true,"detail":"exit_code=0x7"}
+{"check":"noise.cpu_loop","label":"windows-11-vs2026-arm","ok":true,"detail":"n=30 mean_ms=1.54 median_ms=1.48 min_ms=1.47 max_ms=2.40 cv_pct=11.08"}
+{"check":"session.qwinsta","label":"windows-11-vs2026-arm","ok":true,"detail":"SESSIONNAME USERNAME ID STATE TYPE DEVICE services 0 Disc >console runneradmin 2 Active 31c5ce94259d4006a9e4 65536 Listen rdp-tcp 65537 Listen"}
+{"check":"session.explorer","label":"windows-11-vs2026-arm","ok":true,"detail":"count=1 session=2"}
+{"check":"display.default_resolution","label":"windows-11-vs2026-arm","ok":true,"detail":"1024x768"}
+{"check":"display.set_resolution_cmdlet","label":"windows-11-vs2026-arm","ok":false,"detail":"Set-DisplayResolution not present"}
+{"check":"service.sc_create_query_delete","label":"windows-11-vs2026-arm","ok":true,"detail":"start: [SC] StartService FAILED 1053: The service did not respond to the start or control request in a timely fashion."}
+{"check":"disk.vhd_ntfs","label":"windows-11-vs2026-arm","ok":true,"detail":"exit=0 letter=D"}
+{"check":"disk.vhd_refs","label":"windows-11-vs2026-arm","ok":true,"detail":"exit=0 letter=D"}
+{"check":"disk.vhd_fat32","label":"windows-11-vs2026-arm","ok":true,"detail":"exit=0 letter=D"}
+{"check":"disk.vhd_exfat","label":"windows-11-vs2026-arm","ok":true,"detail":"exit=0 letter=D"}
+{"check":"disk.usn_c","label":"windows-11-vs2026-arm","ok":true,"detail":"Usn Journal ID   : 0x01dd59ae7a8fde00\r First Usn        : 0x0000000024000000\r Next Usn         : 0x00000000267ba900"}
+{"check":"disk.usn_d","label":"windows-11-vs2026-arm","ok":false,"detail":"drive not present"}
+{"check":"disk.smb_loopback","label":"windows-11-vs2026-arm","ok":true,"detail":"\\\\localhost\\PeekBuddyProbe"}
+{"check":"privilege.standard_user_logon","label":"windows-11-vs2026-arm","ok":true,"detail":"exit=0 medium_il=True"}
+{"check":"defender.status","label":"windows-11-vs2026-arm","ok":true,"detail":"realtime=True tamper=True exclusions=2"}
+{"check":"etw.wpr_cpu_cswitch","label":"windows-11-vs2026-arm","ok":true,"detail":"start=0 etl_bytes=263192576"}
+{"check":"env.summary","label":"windows-11-vs2026-arm","ok":true,"detail":"image=win11-vs2026-arm64/20261022.194.1 build=26200 cpu=Cobalt 100 logical=4 ram_gib=16 free_c_gib=123.6 tz=Pacific Standard Time culture=en-US"}
+{"check":"noise.hyperfine_trivial_exe","label":"windows-11-vs2026-arm","ok":true,"detail":"mean_ms=13.04 cv_pct=3.49"}
