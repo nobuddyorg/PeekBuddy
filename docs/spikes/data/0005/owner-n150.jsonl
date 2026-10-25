@@ -1,0 +1,69 @@
+{"experiment":"env","cell":"owner-n150","label":"owner","os":"Microsoft Windows 11 Pro","build":"26200","architecture":"AMD64","cpu":"Intel(R) N150","memoryGiB":15.8,"fileSystem":"NTFS","disk":{"name":"512GB SSD","media":"SSD","bus":"SATA"},"defender":{"realTime":true,"dataDirExcluded":false},"queryRows":2000000}
+{"experiment":"env","cell":"sqlite","label":"owner","version":"3.53.2","cpus":4}
+{"experiment":"size","cell":"page4096-interned-2idx","label":"owner","rows":500000,"bytes_per_event":76.333056,"table_bytes_per_event":44.572672,"index_bytes_per_event":31.760384,"node_bytes_per_event":11.411456}
+{"experiment":"size","cell":"page4096-interned-no-idx","label":"owner","rows":500000,"bytes_per_event":44.572672,"table_bytes_per_event":44.572672,"index_bytes_per_event":0,"node_bytes_per_event":11.411456}
+{"experiment":"size","cell":"page4096-interned-node-idx","label":"owner","rows":500000,"bytes_per_event":61.308928,"table_bytes_per_event":44.572672,"index_bytes_per_event":16.736256,"node_bytes_per_event":11.411456}
+{"experiment":"size","cell":"page4096-interned-root-idx","label":"owner","rows":500000,"bytes_per_event":59.5968,"table_bytes_per_event":44.572672,"index_bytes_per_event":15.024128,"node_bytes_per_event":11.411456}
+{"experiment":"size","cell":"page4096-inline-path","label":"owner","rows":500000,"bytes_per_event":115.130368,"table_bytes_per_event":100.089856,"index_bytes_per_event":15.040512,"node_bytes_per_event":11.411456}
+{"experiment":"size","cell":"page8192-interned-2idx","label":"owner","rows":500000,"bytes_per_event":76.169216,"table_bytes_per_event":44.449792,"index_bytes_per_event":31.719424,"node_bytes_per_event":11.206656}
+{"experiment":"size","cell":"page8192-interned-no-idx","label":"owner","rows":500000,"bytes_per_event":44.449792,"table_bytes_per_event":44.449792,"index_bytes_per_event":0,"node_bytes_per_event":11.206656}
+{"experiment":"size","cell":"page8192-interned-node-idx","label":"owner","rows":500000,"bytes_per_event":61.19424,"table_bytes_per_event":44.449792,"index_bytes_per_event":16.744448,"node_bytes_per_event":11.206656}
+{"experiment":"size","cell":"page8192-interned-root-idx","label":"owner","rows":500000,"bytes_per_event":59.424768,"table_bytes_per_event":44.449792,"index_bytes_per_event":14.974976,"node_bytes_per_event":11.206656}
+{"experiment":"size","cell":"page8192-inline-path","label":"owner","rows":500000,"bytes_per_event":114.950144,"table_bytes_per_event":99.9424,"index_bytes_per_event":15.007744,"node_bytes_per_event":11.206656}
+{"experiment":"env","cell":"sqlite","label":"owner","version":"3.53.2","cpus":4}
+{"experiment":"checkpoint","cell":"auto1000","label":"owner","worst_commit_us":103344,"peak_wal_bytes":6035832,"events_per_s":16915}
+{"experiment":"checkpoint","cell":"auto4000","label":"owner","worst_commit_us":180903,"peak_wal_bytes":18511192,"events_per_s":24635}
+{"experiment":"checkpoint","cell":"off-passive-at-end","label":"owner","worst_commit_us":23334,"peak_wal_bytes":1647670432,"events_per_s":33437}
+{"experiment":"env","cell":"sqlite","label":"owner","version":"3.53.2","cpus":4}
+{"experiment":"commit","cell":"batch100-linger5ms","label":"owner","burst_events_per_s":25403,"paced10k_p50_us":4776,"paced10k_p99_us":37006,"paced10k_commits_per_s":146}
+{"experiment":"commit","cell":"batch100-linger10ms","label":"owner","burst_events_per_s":27230,"paced10k_p50_us":6276,"paced10k_p99_us":11969,"paced10k_commits_per_s":99}
+{"experiment":"commit","cell":"batch100-linger25ms","label":"owner","burst_events_per_s":25323,"paced10k_p50_us":6442,"paced10k_p99_us":21336,"paced10k_commits_per_s":99}
+{"experiment":"commit","cell":"batch1000-linger5ms","label":"owner","burst_events_per_s":40074,"paced10k_p50_us":4417,"paced10k_p99_us":10670,"paced10k_commits_per_s":152}
+{"experiment":"commit","cell":"batch1000-linger10ms","label":"owner","burst_events_per_s":48883,"paced10k_p50_us":7412,"paced10k_p99_us":16099,"paced10k_commits_per_s":83}
+{"experiment":"commit","cell":"batch1000-linger25ms","label":"owner","burst_events_per_s":42982,"paced10k_p50_us":16540,"paced10k_p99_us":98928,"paced10k_commits_per_s":34}
+{"experiment":"commit","cell":"batch10000-linger5ms","label":"owner","burst_events_per_s":33901,"paced10k_p50_us":4823,"paced10k_p99_us":48807,"paced10k_commits_per_s":143}
+{"experiment":"commit","cell":"batch10000-linger10ms","label":"owner","burst_events_per_s":41796,"paced10k_p50_us":8047,"paced10k_p99_us":48863,"paced10k_commits_per_s":80}
+{"experiment":"commit","cell":"batch10000-linger25ms","label":"owner","burst_events_per_s":62812,"paced10k_p50_us":16571,"paced10k_p99_us":41894,"paced10k_commits_per_s":35}
+{"experiment":"commit","cell":"batch1000-linger5ms-since-last-event","label":"owner","burst_events_per_s":54750,"paced10k_p50_us":52172,"paced10k_p99_us":101283,"paced10k_commits_per_s":9}
+{"experiment":"env","cell":"sqlite","label":"owner","version":"3.53.2","cpus":4}
+{"experiment":"readers","cell":"no-reader","label":"owner","writer_events_per_s":12551,"reader_pages":0,"reader_p50_us":0,"reader_p99_us":0,"peak_wal_bytes":9385392}
+{"experiment":"readers","cell":"reader-mmap0","label":"owner","writer_events_per_s":15139,"reader_pages":219483,"reader_p50_us":111,"reader_p99_us":284,"peak_wal_bytes":42497832}
+{"experiment":"readers","cell":"reader-mmap256m","label":"owner","writer_events_per_s":14627,"reader_pages":288469,"reader_p50_us":88,"reader_p99_us":201,"peak_wal_bytes":22911352}
+{"experiment":"readers","cell":"reader-pins-snapshot","label":"owner","writer_events_per_s":24028,"reader_pages":3058,"reader_p50_us":140,"reader_p99_us":540,"peak_wal_bytes":1371651032}
+{"experiment":"env","cell":"sqlite","label":"owner","version":"3.53.2","cpus":4}
+{"experiment":"memory","cell":"cache16000k","label":"owner","private_before":655360,"private_after_burst":22872064,"private_after_shrink":3244032,"delta_after_burst":22216704}
+{"experiment":"memory","cell":"allocs-per-1000-batch","label":"owner","allocs":1,"bytes":280}
+{"experiment":"env","cell":"sqlite","label":"owner","version":"3.53.2","cpus":4}
+{"experiment":"memory","cell":"cache4000k","label":"owner","private_before":688128,"private_after_burst":8269824,"private_after_shrink":4194304,"delta_after_burst":7581696}
+{"experiment":"memory","cell":"allocs-per-1000-batch","label":"owner","allocs":1,"bytes":280}
+{"experiment":"env","cell":"sqlite","label":"owner","version":"3.53.2","cpus":4}
+{"experiment":"memory","cell":"cache2000k","label":"owner","private_before":692224,"private_after_burst":5476352,"private_after_shrink":3313664,"delta_after_burst":4784128}
+{"experiment":"memory","cell":"allocs-per-1000-batch","label":"owner","allocs":1,"bytes":280}
+{"experiment":"env","cell":"sqlite","label":"owner","version":"3.53.2","cpus":4}
+{"experiment":"query","cell":"fill","label":"owner","rows":2000000,"events_per_s":83019,"db_bytes":205434880}
+{"experiment":"query","cell":"newest-all","label":"owner","p50_us":81,"p99_us":146,"rows":200}
+{"experiment":"query","cell":"root","label":"owner","p50_us":195,"p99_us":280,"rows":200}
+{"experiment":"query","cell":"kind-common","label":"owner","p50_us":184,"p99_us":270,"rows":200}
+{"experiment":"query","cell":"kind-rare","label":"owner","p50_us":15635,"p99_us":18584,"rows":200}
+{"experiment":"query","cell":"subtree-50-nodes","label":"owner","p50_us":365,"p99_us":1200,"rows":200}
+{"experiment":"query","cell":"fts-size","label":"owner","fts_bytes":26984448,"name_bytes":7606966,"ratio":3.5473338516302033}
+{"experiment":"query","cell":"fts-like-3-node_fts","label":"owner","p50_us":39437,"p99_us":57139,"found_per_query":114,"plan":"SCAN node_fts VIRTUAL TABLE INDEX 0:"}
+{"experiment":"query","cell":"fts-like-3-node","label":"owner","p50_us":21696,"p99_us":43090,"found_per_query":114,"plan":"SCAN node USING COVERING INDEX node_key"}
+{"experiment":"query","cell":"fts-like-5-node_fts","label":"owner","p50_us":39533,"p99_us":59551,"found_per_query":1,"plan":"SCAN node_fts VIRTUAL TABLE INDEX 0:"}
+{"experiment":"query","cell":"fts-like-5-node","label":"owner","p50_us":22748,"p99_us":42023,"found_per_query":1,"plan":"SCAN node USING COVERING INDEX node_key"}
+{"experiment":"query","cell":"fts-like-10-node_fts","label":"owner","p50_us":41092,"p99_us":57664,"found_per_query":1,"plan":"SCAN node_fts VIRTUAL TABLE INDEX 0:"}
+{"experiment":"query","cell":"fts-like-10-node","label":"owner","p50_us":22709,"p99_us":42140,"found_per_query":1,"plan":"SCAN node USING COVERING INDEX node_key"}
+{"experiment":"query","cell":"fts-column-like-3","label":"owner","index_bytes":27648000,"p50_us":40261,"p99_us":59115,"found_per_query":114,"error":false,"plan":"SCAN node_fts_column VIRTUAL TABLE INDEX 0:"}
+{"experiment":"query","cell":"fts-column-match-3","label":"owner","index_bytes":27648000,"p50_us":121,"p99_us":321,"found_per_query":114,"error":false,"plan":"SCAN node_fts_column VIRTUAL TABLE INDEX 0:M0"}
+{"experiment":"query","cell":"fts-column-like-5","label":"owner","index_bytes":27648000,"p50_us":38461,"p99_us":45203,"found_per_query":1,"error":false,"plan":"SCAN node_fts_column VIRTUAL TABLE INDEX 0:"}
+{"experiment":"query","cell":"fts-column-match-5","label":"owner","index_bytes":27648000,"p50_us":13,"p99_us":46,"found_per_query":0,"error":true,"plan":"SCAN node_fts_column VIRTUAL TABLE INDEX 0:M0"}
+{"experiment":"query","cell":"fts-column-like-10","label":"owner","index_bytes":27648000,"p50_us":39335,"p99_us":45047,"found_per_query":1,"error":false,"plan":"SCAN node_fts_column VIRTUAL TABLE INDEX 0:"}
+{"experiment":"query","cell":"fts-column-match-10","label":"owner","index_bytes":27648000,"p50_us":14,"p99_us":39,"found_per_query":0,"error":true,"plan":"SCAN node_fts_column VIRTUAL TABLE INDEX 0:M0"}
+{"experiment":"query","cell":"fts-full-like-3","label":"owner","index_bytes":27643904,"p50_us":39196,"p99_us":59181,"found_per_query":114,"error":false,"plan":"SCAN node_fts_full VIRTUAL TABLE INDEX 0:"}
+{"experiment":"query","cell":"fts-full-match-3","label":"owner","index_bytes":27643904,"p50_us":114,"p99_us":327,"found_per_query":114,"error":false,"plan":"SCAN node_fts_full VIRTUAL TABLE INDEX 0:M0"}
+{"experiment":"query","cell":"fts-full-like-5","label":"owner","index_bytes":27643904,"p50_us":39705,"p99_us":45013,"found_per_query":1,"error":false,"plan":"SCAN node_fts_full VIRTUAL TABLE INDEX 0:"}
+{"experiment":"query","cell":"fts-full-match-5","label":"owner","index_bytes":27643904,"p50_us":224,"p99_us":367,"found_per_query":1,"error":false,"plan":"SCAN node_fts_full VIRTUAL TABLE INDEX 0:M0"}
+{"experiment":"query","cell":"fts-full-like-10","label":"owner","index_bytes":27643904,"p50_us":39343,"p99_us":45972,"found_per_query":1,"error":false,"plan":"SCAN node_fts_full VIRTUAL TABLE INDEX 0:"}
+{"experiment":"query","cell":"fts-full-match-10","label":"owner","index_bytes":27643904,"p50_us":507,"p99_us":681,"found_per_query":1,"error":false,"plan":"SCAN node_fts_full VIRTUAL TABLE INDEX 0:M0"}
+{"experiment":"query","cell":"open-warm","label":"owner","p50_us":1651,"max_us":3924}
+{"experiment":"query","cell":"vacuum-into","label":"owner","seconds":2.297426,"before_bytes":262017024,"after_bytes":253448192}
