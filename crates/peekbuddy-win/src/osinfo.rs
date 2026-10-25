@@ -2,7 +2,6 @@
 
 use windows_sys::Wdk::Storage::FileSystem::RtlSetProcessPlaceholderCompatibilityMode;
 use windows_sys::Wdk::System::SystemServices::RtlGetVersion;
-use windows_sys::Win32::System::Registry::{HKEY_LOCAL_MACHINE, RRF_RT_REG_DWORD, RegGetValueW};
 use windows_sys::Win32::System::SystemInformation::OSVERSIONINFOW;
 
 /// `PHCM_EXPOSE_PLACEHOLDERS`: absent from windows-sys 0.61.2 (#36).
@@ -41,60 +40,14 @@ pub fn os_build() -> String {
     )
 }
 
-/// Reads a `REG_DWORD` below `HKEY_LOCAL_MACHINE` without opening a key handle.
-fn local_machine_dword(subkey: &str, value: &str) -> Option<u32> {
-    let subkey: Vec<u16> = subkey.encode_utf16().chain(Some(0)).collect();
-    let value: Vec<u16> = value.encode_utf16().chain(Some(0)).collect();
-    let mut data = 0u32;
-    let mut size = u32::try_from(size_of::<u32>()).unwrap_or(4);
-    // SAFETY: both names are NUL-terminated UTF-16; `data` and `size` are
-    // valid out pointers describing a 4-byte buffer.
-    let status = unsafe {
-        RegGetValueW(
-            HKEY_LOCAL_MACHINE,
-            subkey.as_ptr(),
-            value.as_ptr(),
-            RRF_RT_REG_DWORD,
-            std::ptr::null_mut(),
-            (&raw mut data).cast(),
-            &raw mut size,
-        )
-    };
-    (status == 0).then_some(data)
-}
-
-/// The update build revision (`UBR`) that follows the build number, such as
-/// the `5039` in `26100.5039`. `None` when the registry does not say.
-#[must_use]
-pub fn update_build_revision() -> Option<u32> {
-    local_machine_dword(r"SOFTWARE\Microsoft\Windows NT\CurrentVersion", "UBR")
-}
-
-/// Whether Defender real-time protection is on, when the registry says so
-/// (it does not on machines with another antivirus or with Tamper Protection
-/// hiding the value). Results must state this next to their numbers.
-#[must_use]
-pub fn defender_realtime_enabled() -> Option<bool> {
-    local_machine_dword(
-        r"SOFTWARE\Microsoft\Windows Defender\Real-Time Protection",
-        "DisableRealtimeMonitoring",
-    )
-    .map(|disabled| disabled == 0)
-}
-
 #[cfg(test)]
 mod tests {
-    use super::{expose_placeholders, os_build, update_build_revision};
+    use super::{expose_placeholders, os_build};
 
     #[test]
     fn the_os_build_is_a_windows_10_or_11_version() {
         let build = os_build();
         assert!(build.starts_with("10.0."), "{build}");
-    }
-
-    #[test]
-    fn the_update_build_revision_is_readable() {
-        assert!(update_build_revision().is_some());
     }
 
     #[test]
