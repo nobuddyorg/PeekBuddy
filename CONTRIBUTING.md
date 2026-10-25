@@ -58,6 +58,7 @@ Performance is a feature. Every PR that touches a hot path (capture, parse,
 filter, writer, viewer frame) shows numbers in its description: the
 same-runner A/B timing from CI or the allocation counts (#23, #26). Budgets
 and gate policy: [ADR 0007](docs/adr/0007-performance-gate-policy.md).
+Tools and recipes: [Profile PeekBuddy](docs/how-to/profile.md).
 
 ## Lint policy
 
