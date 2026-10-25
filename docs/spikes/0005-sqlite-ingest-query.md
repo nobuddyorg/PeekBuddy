@@ -1,7 +1,7 @@
 # 0005. SQLite ingest and query performance on Windows NTFS
 
-- Issue: #35. Status: x64 and ARM64 data in; owner-PC run pending (needs
-  hardware, see open items).
+- Issue: #35. Status: x64, ARM64 and one owner-PC run (SATA SSD) in; NVMe,
+  HDD, Defender-excluded and cold-cache cells still open.
 - Harness: `spikes/store-bench`, workflow `store-bench`.
 - Raw data: `docs/spikes/data/0005/` (one JSON object per cell).
 - Machine: GitHub-hosted `windows-2025`, 4 vCPU, Defender real-time off,
@@ -214,10 +214,64 @@ Findings that change decisions:
   difference to the stalls, so the owner-PC run is for the NVMe numbers
   rather than for Defender.
 
+## Owner PC (Intel N150, SATA SSD, Defender on)
+
+Machine: Windows 11 Pro 26200 x64, Intel N150 (4 cores), 15.8 GB, 512 GB SATA
+SSD (not NVMe), NTFS system volume `C:`, Defender real-time protection on and
+the data directory not excluded. Run with `scripts/owner/store-bench.ps1` on
+the exe of workflow run 40220234748 (stock SQLite 3.53.2), single repetition
+per cell, 2M rows for the query experiment instead of 10M, 15.7 minutes.
+Raw data: `docs/spikes/data/0005/owner-n150.jsonl`. A low-end CPU: read the
+rates as a floor for x64 desktops.
+
+| Cell | Hosted `windows-2025` | Owner N150 |
+| --- | --- | --- |
+| Commit 1,000 / 5 ms: burst, p50, p99 at 10k/s | 77.0k/s, 3.4 ms, 7.0 ms | 40.1k/s, 4.4 ms, 10.7 ms |
+| Commit 1,000 / 10 ms | 83.1k/s, 6.1 ms, 11.8 ms | 48.9k/s, 7.4 ms, 16.1 ms |
+| Commit 10,000 / 25 ms (best burst) | 98.9k/s, 13.7 ms | 62.8k/s, 16.6 ms, p99 41.9 ms |
+| 1,000 / 5 ms from the last event | 84.8k/s, 51.0 ms, 100.0 ms | 54.8k/s, 52.2 ms, 101.3 ms |
+| Checkpoint `wal_autocheckpoint=1000`: events/s, worst commit | 16.8k, 124 ms | 16.9k, 103 ms |
+| `wal_autocheckpoint=4000` | 30.0k, 181 ms | 24.6k, 181 ms |
+| Off, one `PASSIVE` at the end | 63.1k, 7.5 ms, WAL 1,629 MB | 33.4k, 23.3 ms, WAL 1,648 MB |
+| Reader, mmap off: reader p50 / p99, writer events/s | 85 / 184 us, 20.9k | 111 / 284 us, 15.1k |
+| Reader pinning a snapshot: peak WAL | 1,371 MB | 1,372 MB |
+| Fill, 2M rows | 100.4k/s | 83.0k/s |
+| Newest-first page, `kind-rare` page (p50) | 78 us, 12.8 ms | 81 us, 15.6 ms |
+| `open-warm` p50 / max | 0.6 / 0.8 ms | 1.7 / 3.9 ms |
+| Memory after burst, cache 2 MB / 4 MB / 16 MB | +4.8 / +7.5 / +22.0 MB | +4.8 / +7.6 / +22.2 MB |
+| Size per event (4096 pages, interned, 2 idx) | 76.3 B | 76.3 B |
+
+Reading:
+
+- The commit policy (decision 1) holds: with a 5 ms linger from the first
+  pending event the paced p50 is 4.4 ms and p99 10.7 ms, inside the budget
+  (10 ms / 50 ms) even on this CPU. The p99 at 100 / 5 ms (37 ms) and
+  10,000 / 5 ms (49 ms) is close to the 50 ms bound, so the batch cap of
+  1,000 (p99 10.7 ms) is the safer value. The "from the last event" variant
+  still fails (52 ms / 101 ms), confirming decision 1.
+- The 100k events/s burst target is further away than on the runner: the best
+  cell is 62.8k/s and the common 1,000 / 5 ms cell 40k/s, so the spill
+  threshold of decision 4 has to be sized for a slower disk and CPU (about
+  60k/s deficit, a 10 s burst needs a ring of about 600k records or a spill).
+- Autocheckpoint 1000 is again below the 20k/s budget (16.9k/s), 4000 pages
+  gives 24.6k/s with a 181 ms worst commit, and the off policy is half as fast
+  as on the runner (33k/s) but keeps the 23 ms worst commit; decision 3 holds.
+  The 64 MB `PASSIVE` stall is still unmeasured.
+- Defender real-time was on. The cells that are not CPU-bound (checkpoint
+  1000, snapshot-pinned WAL size) match the runner, but no exclusion A/B was
+  run (it would be a persistent change), so the effect of Defender on this
+  machine is not isolated.
+- Size, memory and FTS results are identical or within noise: decisions 5, 6
+  and 8 hold. `fts-column-match` for 5 and 10 characters still errors, again
+  supporting `detail='full'`.
+- Query pages at 2M rows (newest-first, `kind-rare`) are within 1.2x of the
+  runner at 10M rows; `open-warm` is 2.7x slower (1.7 ms against 0.6 ms). The
+  query budgets were not compared in this run.
+
 ## Open items
 
-- The owner run on the Win11 PC (NVMe, Defender on and excluded), HDD, and a
-  cold-cache open: `scripts/owner/store-bench.ps1` (follow-up).
+- The owner run on an NVMe disk, with the data directory excluded from
+  Defender, on an HDD, and a cold-cache open: `scripts/owner/store-bench.ps1` (the SATA SSD run is done, see above).
 - Stall of a size-triggered `PASSIVE` checkpoint, replay of the #25 corpus for
   WAL growth, zstd ratio, `MEMSTATUS` 0 versus 1.
 - `budgets.toml` and ADR 0004 are not updated yet; the numbers above are
