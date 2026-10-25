@@ -1,0 +1,16 @@
+---
+source: crates/peekbuddy-engine/src/diagnostics.rs
+expression: text
+---
+PeekBuddy: 0.0.0 (abcdef123456)
+rustc: rustc 1.99.1
+dependency windows-sys: 0.61.2
+bundled SQLite: not linked into this build yet
+Windows: 10.0.26100.5039
+architecture: x86_64 (native)
+viewer renderer: not recorded yet
+data directory: %LOCALAPPDATA%\nobuddy\PeekBuddy
+data mode: installed
+engine: not running
+watches: engine not running
+Defender real-time protection: on

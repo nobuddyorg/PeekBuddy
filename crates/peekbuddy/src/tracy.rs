@@ -29,5 +29,6 @@ pub fn start(role: &Role) -> tracing::span::EnteredSpan {
     match role {
         Role::Engine => tracing::info_span!("engine").entered(),
         Role::Viewer => tracing::info_span!("viewer").entered(),
+        Role::Diagnostics => tracing::info_span!("diagnostics").entered(),
     }
 }

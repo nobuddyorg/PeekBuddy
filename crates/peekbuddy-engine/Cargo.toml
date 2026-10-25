@@ -19,5 +19,10 @@ peekbuddy-core = { workspace = true }
 known-folders = { workspace = true }
 peekbuddy-win = { workspace = true }
 
+[dev-dependencies]
+insta = { workspace = true, features = ["json"] }
+jsonschema = { workspace = true }
+serde_json = { workspace = true }
+
 [lints]
 workspace = true

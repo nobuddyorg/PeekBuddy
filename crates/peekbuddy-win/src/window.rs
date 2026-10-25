@@ -13,8 +13,8 @@ use windows_sys::Win32::UI::WindowsAndMessaging::{
     CREATESTRUCTW, CW_USEDEFAULT, CreateWindowExW, DefWindowProcW, DestroyWindow, DispatchMessageW,
     FindWindowW, GWLP_USERDATA, GetMessageW, GetWindowLongPtrW, KillTimer, MSG, PostMessageW,
     PostQuitMessage, RegisterClassExW, SMTO_ABORTIFHUNG, SendMessageTimeoutW, SetTimer,
-    SetWindowLongPtrW, TranslateMessage,
-    WM_CLOSE, WM_DESTROY, WM_ENDSESSION, WM_NCCREATE, WM_QUERYENDSESSION, WM_TIMER, WNDCLASSEXW,
+    SetWindowLongPtrW, TranslateMessage, WM_CLOSE, WM_DESTROY, WM_ENDSESSION, WM_NCCREATE,
+    WM_QUERYENDSESSION, WM_TIMER, WNDCLASSEXW,
 };
 
 /// Id of the single timer a hidden window owns.

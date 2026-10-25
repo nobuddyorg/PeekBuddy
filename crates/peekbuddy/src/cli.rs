@@ -6,7 +6,7 @@
 
 use std::path::PathBuf;
 
-use peekbuddy_engine::Options;
+use peekbuddy_engine::{Options, ProbeOptions};
 
 /// The role this process runs.
 #[derive(Debug, PartialEq, Eq)]
@@ -15,6 +15,8 @@ pub enum Role {
     Engine,
     /// The on-demand viewer window (`--viewer`).
     Viewer,
+    /// Print the diagnostics text and exit (`--diagnostics`).
+    Diagnostics,
 }
 
 /// A parsed command line.
@@ -22,8 +24,10 @@ pub enum Role {
 pub struct Invocation {
     /// Which role to run.
     pub role: Role,
-    /// Engine options; default for the viewer.
+    /// Engine options; default for the other roles.
     pub engine: Options,
+    /// `--full`: show watched paths and user folders in the diagnostics.
+    pub full: bool,
 }
 
 /// Why the command line was refused.
@@ -31,12 +35,18 @@ pub struct Invocation {
 pub enum Error {
     /// An argument nobody knows.
     Unknown(String),
-    /// `--data-dir` without a value.
+    /// A flag without its value.
     MissingValue(&'static str),
-    /// `--data-dir` is for tests and the perf harness: it needs `--headless`.
+    /// A value that is not a whole number of seconds.
+    BadSeconds(String),
+    /// `--data-dir` is for tests and the perf harness: it needs `--headless`
+    /// or `--perf-probe`.
     DataDirNeedsHeadless,
-    /// Engine flags together with `--viewer`.
-    EngineFlagsWithViewer,
+    /// `--perf-probe-out` without `--perf-probe`, or `--full` without
+    /// `--diagnostics`.
+    OrphanFlag(&'static str),
+    /// Flags of one role together with another role.
+    RoleFlagsMixed,
 }
 
 impl std::fmt::Display for Error {
@@ -44,10 +54,16 @@ impl std::fmt::Display for Error {
         match self {
             Self::Unknown(arg) => write!(f, "unknown argument {arg}"),
             Self::MissingValue(flag) => write!(f, "{flag} needs a value"),
-            Self::DataDirNeedsHeadless => write!(f, "--data-dir is only accepted with --headless"),
-            Self::EngineFlagsWithViewer => {
-                write!(f, "--viewer cannot be combined with engine flags")
-            }
+            Self::BadSeconds(value) => write!(f, "{value} is not a number of seconds"),
+            Self::DataDirNeedsHeadless => write!(
+                f,
+                "--data-dir is only accepted with --headless or --perf-probe"
+            ),
+            Self::OrphanFlag(flag) => write!(f, "{flag} needs its command"),
+            Self::RoleFlagsMixed => write!(
+                f,
+                "--viewer, --diagnostics and the engine flags exclude each other"
+            ),
         }
     }
 }
@@ -59,36 +75,61 @@ impl std::fmt::Display for Error {
 /// Returns the first problem found.
 pub fn parse(args: impl IntoIterator<Item = String>) -> Result<Invocation, Error> {
     let mut viewer = false;
+    let mut diagnostics = false;
+    let mut full = false;
+    let mut probe_out = None;
     let mut options = Options::default();
     let mut args = args.into_iter();
     while let Some(arg) = args.next() {
         match arg.as_str() {
             "--viewer" => viewer = true,
             "--headless" => options.headless = true,
+            "--diagnostics" => diagnostics = true,
+            "--full" => full = true,
             "--data-dir" => {
                 let value = args.next().ok_or(Error::MissingValue("--data-dir"))?;
                 options.data_dir = Some(PathBuf::from(value));
+            }
+            "--perf-probe" => {
+                let value = args.next().ok_or(Error::MissingValue("--perf-probe"))?;
+                let seconds = value.parse().map_err(|_| Error::BadSeconds(value))?;
+                options.probe = Some(ProbeOptions { seconds, out: None });
+            }
+            "--perf-probe-out" => {
+                let value = args.next().ok_or(Error::MissingValue("--perf-probe-out"))?;
+                probe_out = Some(PathBuf::from(value));
             }
             #[cfg(feature = "test-panic")]
             "--test-panic" => options.panic_after_ready = true,
             _ => return Err(Error::Unknown(arg)),
         }
     }
-    if options.data_dir.is_some() && !options.headless {
+    if let Some(out) = probe_out {
+        let probe = options
+            .probe
+            .as_mut()
+            .ok_or(Error::OrphanFlag("--perf-probe-out"))?;
+        probe.out = Some(out);
+    }
+    if full && !diagnostics {
+        return Err(Error::OrphanFlag("--full"));
+    }
+    if options.data_dir.is_some() && !options.headless && options.probe.is_none() {
         return Err(Error::DataDirNeedsHeadless);
     }
-    if viewer {
-        if options != Options::default() {
-            return Err(Error::EngineFlagsWithViewer);
-        }
-        return Ok(Invocation {
-            role: Role::Viewer,
-            engine: options,
-        });
+    let role = match (viewer, diagnostics) {
+        (true, true) => return Err(Error::RoleFlagsMixed),
+        (true, false) => Role::Viewer,
+        (false, true) => Role::Diagnostics,
+        (false, false) => Role::Engine,
+    };
+    if role != Role::Engine && options != Options::default() {
+        return Err(Error::RoleFlagsMixed);
     }
     Ok(Invocation {
-        role: Role::Engine,
+        role,
         engine: options,
+        full,
     })
 }
 
@@ -145,7 +186,62 @@ mod tests {
         );
         assert_eq!(
             parse(args(&["--viewer", "--headless"])),
-            Err(Error::EngineFlagsWithViewer)
+            Err(Error::RoleFlagsMixed)
+        );
+    }
+
+    #[test]
+    fn the_probe_takes_seconds_and_an_optional_file() {
+        let invocation = parse(args(&["--perf-probe", "5"])).unwrap();
+        let probe = invocation.engine.probe.unwrap();
+        assert_eq!((probe.seconds, probe.out), (5, None));
+
+        let invocation = parse(args(&[
+            "--perf-probe",
+            "0",
+            "--perf-probe-out",
+            r"C:\t\p.json",
+        ]))
+        .unwrap();
+        let probe = invocation.engine.probe.unwrap();
+        assert_eq!(probe.out, Some(PathBuf::from(r"C:\t\p.json")));
+    }
+
+    #[test]
+    fn the_probe_accepts_a_data_dir_without_headless() {
+        let invocation = parse(args(&["--perf-probe", "0", "--data-dir", r"C:	"])).unwrap();
+        assert_eq!(invocation.role, Role::Engine);
+    }
+
+    #[test]
+    fn bad_probe_arguments_are_refused() {
+        assert_eq!(
+            parse(args(&["--perf-probe", "soon"])),
+            Err(Error::BadSeconds(String::from("soon")))
+        );
+        assert_eq!(
+            parse(args(&["--perf-probe"])),
+            Err(Error::MissingValue("--perf-probe"))
+        );
+        assert_eq!(
+            parse(args(&["--perf-probe-out", "x"])),
+            Err(Error::OrphanFlag("--perf-probe-out"))
+        );
+    }
+
+    #[test]
+    fn diagnostics_is_its_own_role_and_full_belongs_to_it() {
+        let invocation = parse(args(&["--diagnostics", "--full"])).unwrap();
+        assert_eq!(invocation.role, Role::Diagnostics);
+        assert!(invocation.full);
+        assert_eq!(parse(args(&["--full"])), Err(Error::OrphanFlag("--full")));
+        assert_eq!(
+            parse(args(&["--diagnostics", "--headless"])),
+            Err(Error::RoleFlagsMixed)
+        );
+        assert_eq!(
+            parse(args(&["--diagnostics", "--viewer"])),
+            Err(Error::RoleFlagsMixed)
         );
     }
 }
