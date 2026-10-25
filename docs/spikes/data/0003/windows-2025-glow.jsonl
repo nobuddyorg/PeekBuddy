@@ -1,0 +1,1 @@
+{"experiment":"exit","scenario":"first-frame","label":"windows-2025/glow/run1","code":1,"stderr":"Error: OpenGL(PainterError( egui_glow requires opengl 2.0+.  ))","note":"glow engine-role row: 6454784 exe bytes, modules opengl32 glu32 dxcore (no dxgi/d3d12); run 40182593944"}

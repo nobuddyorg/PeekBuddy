@@ -130,3 +130,20 @@ jobs:
           name: viewer-bench-${{ matrix.label }}
           path: ${{ runner.temp }}/viewer-bench-${{ matrix.label }}.jsonl
           if-no-files-found: warn
+
+      - name: Executables for the owner run
+        if: always()
+        shell: pwsh
+        working-directory: .
+        run: |
+          $d = Join-Path $env:RUNNER_TEMP 'exes'
+          New-Item -ItemType Directory -Force -Path "$d/wgpu", "$d/glow" | Out-Null
+          Copy-Item spikes/viewer-bench/target/release/viewer-bench.exe "$d/wgpu/" -ErrorAction SilentlyContinue
+          Copy-Item spikes/viewer-bench/target-glow/release/viewer-bench.exe "$d/glow/" -ErrorAction SilentlyContinue
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: viewer-bench-exes-${{ matrix.label }}
+          path: ${{ runner.temp }}/exes
+          if-no-files-found: warn
