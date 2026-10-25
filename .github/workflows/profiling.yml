@@ -53,12 +53,19 @@ jobs:
         run: |
           Get-Item target/profiling/peekbuddy.exe, target/profiling/peekbuddy.pdb |
             Format-Table Name, Length
-      - name: Both roles start and exit
+      - name: Both roles start
         run: |
-          target/profiling/peekbuddy.exe
-          if ($LASTEXITCODE -ne 0) { throw "engine exit code $LASTEXITCODE" }
-          target/profiling/peekbuddy.exe --viewer
-          if ($LASTEXITCODE -ne 0) { throw "viewer exit code $LASTEXITCODE" }
+          # The engine now stays up until it is closed: start it headless in a
+          # temp data dir, check it is still alive after a moment, stop it.
+          $data = Join-Path $env:RUNNER_TEMP 'pb-profiling'
+          $engine = Start-Process target/profiling/peekbuddy.exe -ArgumentList '--headless', '--data-dir', $data -PassThru
+          Start-Sleep -Seconds 3
+          if ($engine.HasExited) { throw "engine exit code $($engine.ExitCode)" }
+          Stop-Process -Id $engine.Id
+          # A GUI-subsystem exe does not set $LASTEXITCODE when called
+          # directly; wait for it and read its exit code.
+          $viewer = Start-Process target/profiling/peekbuddy.exe -ArgumentList '--viewer' -Wait -PassThru
+          if ($viewer.ExitCode -ne 0) { throw "viewer exit code $($viewer.ExitCode)" }
       - name: The release guard rejects this build (positive control)
         run: |
           cargo xtask check-release --features profile-tracy

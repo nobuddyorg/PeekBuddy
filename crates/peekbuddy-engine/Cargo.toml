@@ -8,5 +8,16 @@ license.workspace = true
 repository.workspace = true
 publish.workspace = true
 
+[features]
+# Compiles the --test-panic crash trigger (#59). Never enabled in releases.
+test-panic = []
+
+[dependencies]
+peekbuddy-core = { workspace = true }
+
+[target.'cfg(windows)'.dependencies]
+known-folders = { workspace = true }
+peekbuddy-win = { workspace = true }
+
 [lints]
 workspace = true

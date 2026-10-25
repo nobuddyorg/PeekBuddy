@@ -161,6 +161,59 @@ pub fn run_restricted(command_line: &str) -> std::io::Result<u32> {
     Ok(code)
 }
 
+/// Lower-case base names of the modules loaded in process `pid`, such as
+/// `kernel32.dll`. The engine's module list is checked against the GPU and UI
+/// libraries it must never load (F1, #59).
+///
+/// # Errors
+///
+/// Returns the OS error when the process cannot be opened or enumerated.
+pub fn module_names(pid: u32) -> std::io::Result<Vec<String>> {
+    use windows_sys::Win32::System::ProcessStatus::{
+        EnumProcessModulesEx, GetModuleBaseNameW, LIST_MODULES_ALL,
+    };
+    use windows_sys::Win32::System::Threading::{
+        OpenProcess, PROCESS_QUERY_INFORMATION, PROCESS_VM_READ,
+    };
+
+    // SAFETY: plain integer arguments; a null result is checked below.
+    let raw = unsafe { OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, 0, pid) };
+    if raw.is_null() {
+        return Err(last_error());
+    }
+    // SAFETY: OpenProcess succeeded, so `raw` is an owned handle.
+    let process = unsafe { OwnedHandle::from_raw_handle(raw) };
+    let mut modules = vec![std::ptr::null_mut(); 1024];
+    let mut needed = 0u32;
+    let capacity =
+        u32::try_from(modules.len() * size_of::<*mut core::ffi::c_void>()).unwrap_or(u32::MAX);
+    // SAFETY: `modules` has `capacity` bytes of writable space; `needed` is a
+    // valid out pointer; `process` is live.
+    check(unsafe {
+        EnumProcessModulesEx(
+            process.as_raw_handle(),
+            modules.as_mut_ptr(),
+            capacity,
+            &raw mut needed,
+            LIST_MODULES_ALL,
+        )
+    })?;
+    let count = (needed as usize / size_of::<*mut core::ffi::c_void>()).min(modules.len());
+    let mut names = Vec::with_capacity(count);
+    for module in modules.iter().take(count) {
+        let mut buffer = [0u16; 260];
+        // SAFETY: `buffer` has 260 writable UTF-16 units; `module` came from
+        // the enumeration above.
+        let length = unsafe {
+            GetModuleBaseNameW(process.as_raw_handle(), *module, buffer.as_mut_ptr(), 260)
+        } as usize;
+        if let Some(units) = buffer.get(..length) {
+            names.push(String::from_utf16_lossy(units).to_lowercase());
+        }
+    }
+    Ok(names)
+}
+
 #[cfg(test)]
 mod tests {
     use super::{STARTUPINFOW, startup_info};
