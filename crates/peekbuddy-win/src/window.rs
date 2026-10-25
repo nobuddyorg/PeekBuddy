@@ -11,10 +11,14 @@ use windows_sys::Win32::Foundation::{
 use windows_sys::Win32::System::LibraryLoader::GetModuleHandleW;
 use windows_sys::Win32::UI::WindowsAndMessaging::{
     CREATESTRUCTW, CW_USEDEFAULT, CreateWindowExW, DefWindowProcW, DestroyWindow, DispatchMessageW,
-    FindWindowW, GWLP_USERDATA, GetMessageW, GetWindowLongPtrW, MSG, PostMessageW, PostQuitMessage,
-    RegisterClassExW, SMTO_ABORTIFHUNG, SendMessageTimeoutW, SetWindowLongPtrW, TranslateMessage,
-    WM_CLOSE, WM_DESTROY, WM_ENDSESSION, WM_NCCREATE, WM_QUERYENDSESSION, WNDCLASSEXW,
+    FindWindowW, GWLP_USERDATA, GetMessageW, GetWindowLongPtrW, KillTimer, MSG, PostMessageW,
+    PostQuitMessage, RegisterClassExW, SMTO_ABORTIFHUNG, SendMessageTimeoutW, SetTimer,
+    SetWindowLongPtrW, TranslateMessage,
+    WM_CLOSE, WM_DESTROY, WM_ENDSESSION, WM_NCCREATE, WM_QUERYENDSESSION, WM_TIMER, WNDCLASSEXW,
 };
+
+/// Id of the single timer a hidden window owns.
+const TIMER_ID: usize = 1;
 
 /// What the window procedure reports to the engine.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -30,9 +34,11 @@ pub enum WindowEvent {
     /// `WM_CLOSE`: Quit, pipe shutdown or Ctrl+C. The window is destroyed
     /// after the handler returns.
     Close,
+    /// The one-shot timer set with [`HiddenWindow::set_one_shot_timer`] fired.
+    Timer,
 }
 
-type Handler = Box<dyn FnMut(WindowEvent)>;
+type Handler = Box<dyn FnMut(WindowEvent, WindowHandle)>;
 
 fn wide(text: &str) -> Vec<u16> {
     text.encode_utf16().chain(Some(0)).collect()
@@ -164,11 +170,12 @@ unsafe extern "system" fn window_proc(
     // SAFETY: reads the value stored above; null before WM_NCCREATE.
     let state = unsafe { GetWindowLongPtrW(hwnd, GWLP_USERDATA) } as *mut Handler;
     let call = |event: WindowEvent| {
+        let handle = WindowHandle(hwnd as isize);
         if !state.is_null() {
             // SAFETY: `state` came from `Box::into_raw` in `create`, lives
             // until `Drop` for `HiddenWindow`, and the window procedure only
             // runs on the thread that owns the window, one message at a time.
-            unsafe { (*state)(event) };
+            unsafe { (*state)(event, handle) };
         }
     };
     match message {
@@ -180,6 +187,12 @@ unsafe extern "system" fn window_proc(
             call(WindowEvent::EndSession {
                 ending: wparam != 0,
             });
+            0
+        }
+        WM_TIMER => {
+            // SAFETY: kills the one-shot timer of this window.
+            unsafe { KillTimer(hwnd, TIMER_ID) };
+            call(WindowEvent::Timer);
             0
         }
         WM_CLOSE => {
@@ -206,7 +219,7 @@ impl HiddenWindow {
     /// Returns the OS error when the class or window cannot be created.
     pub fn create(
         class: &str,
-        handler: impl FnMut(WindowEvent) + 'static,
+        handler: impl FnMut(WindowEvent, WindowHandle) + 'static,
     ) -> std::io::Result<Self> {
         let class_name = wide(class);
         // SAFETY: a null module name returns this exe's handle.
@@ -252,6 +265,21 @@ impl HiddenWindow {
             return Err(error);
         }
         Ok(Self { hwnd, state })
+    }
+
+    /// Arms a one-shot timer that delivers [`WindowEvent::Timer`] once after
+    /// `milliseconds`. It is the only timer the engine owns, and only the
+    /// perf probe uses it (F6).
+    ///
+    /// # Errors
+    ///
+    /// Returns the OS error when the timer cannot be set.
+    pub fn set_one_shot_timer(&self, milliseconds: u32) -> std::io::Result<()> {
+        // SAFETY: `hwnd` is this window; a null procedure posts WM_TIMER.
+        if unsafe { SetTimer(self.hwnd, TIMER_ID, milliseconds, None) } == 0 {
+            return Err(std::io::Error::last_os_error());
+        }
+        Ok(())
     }
 
     /// The thread-safe handle of this window.
@@ -306,7 +334,7 @@ mod tests {
         let seen = Rc::new(RefCell::new(Vec::new()));
         let sink = Rc::clone(&seen);
         let window =
-            HiddenWindow::create(&class, move |event| sink.borrow_mut().push(event)).unwrap();
+            HiddenWindow::create(&class, move |event, _| sink.borrow_mut().push(event)).unwrap();
         let handle = window.handle();
         assert_eq!(WindowHandle::find(&class), Some(handle));
         // The loop runs on this thread, so post instead of send.
@@ -316,10 +344,27 @@ mod tests {
     }
 
     #[test]
+    fn the_one_shot_timer_fires_once() {
+        let class = class("timer");
+        let seen = Rc::new(RefCell::new(Vec::new()));
+        let sink = Rc::clone(&seen);
+        let window = HiddenWindow::create(&class, move |event, handle| {
+            sink.borrow_mut().push(event);
+            if event == WindowEvent::Timer {
+                handle.post_close().unwrap();
+            }
+        })
+        .unwrap();
+        window.set_one_shot_timer(20).unwrap();
+        assert_eq!(window.run_message_loop(), 0);
+        assert_eq!(*seen.borrow(), vec![WindowEvent::Timer, WindowEvent::Close]);
+    }
+
+    #[test]
     fn the_window_is_top_level_and_hidden() {
         use windows_sys::Win32::UI::WindowsAndMessaging::{GetParent, IsWindowVisible};
         let class = class("hidden");
-        let window = HiddenWindow::create(&class, |_| {}).unwrap();
+        let window = HiddenWindow::create(&class, |_, _| {}).unwrap();
         // SAFETY: the handle belongs to the window created above.
         let parent = unsafe { GetParent(window.hwnd) };
         // SAFETY: as above.

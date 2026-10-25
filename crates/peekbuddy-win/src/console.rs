@@ -49,3 +49,40 @@ pub fn close_window_on_ctrl_c(window: WindowHandle) -> std::io::Result<()> {
     }
     Ok(())
 }
+
+/// Makes standard output usable for a GUI-subsystem process.
+///
+/// Started with redirected output (a pipe or a file), the process already
+/// has a valid standard output handle and nothing changes. Started from a
+/// terminal it has none: this attaches to the parent's console and points
+/// standard output and error at it. Started from Explorer there is no
+/// console to attach to and output is dropped, which is why the commands also
+/// offer a file option.
+pub fn attach_output() {
+    use std::os::windows::io::AsRawHandle as _;
+
+    use windows_sys::Win32::Foundation::INVALID_HANDLE_VALUE;
+    use windows_sys::Win32::System::Console::{
+        GetStdHandle, STD_ERROR_HANDLE, STD_OUTPUT_HANDLE, SetStdHandle,
+    };
+
+    // SAFETY: no preconditions.
+    let current = unsafe { GetStdHandle(STD_OUTPUT_HANDLE) };
+    if !current.is_null() && current != INVALID_HANDLE_VALUE {
+        return;
+    }
+    // SAFETY: no preconditions; fails without a parent console.
+    if unsafe { AttachConsole(ATTACH_PARENT_PROCESS) } == 0 {
+        return;
+    }
+    let Ok(console) = std::fs::OpenOptions::new().write(true).open("CONOUT$") else {
+        return;
+    };
+    let handle = console.as_raw_handle();
+    // The handle stays open for the life of the process.
+    std::mem::forget(console);
+    // SAFETY: `handle` is a live console output handle.
+    unsafe { SetStdHandle(STD_OUTPUT_HANDLE, handle) };
+    // SAFETY: as above.
+    unsafe { SetStdHandle(STD_ERROR_HANDLE, handle) };
+}
