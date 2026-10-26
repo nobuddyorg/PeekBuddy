@@ -7,6 +7,7 @@ use std::hint::black_box;
 use std::process::ExitCode;
 
 use peekbuddy_alloc::{CountingAlloc, answer_nextest_list, measure};
+use peekbuddy_core::capture::{Decoder, EventSink, Stamp};
 use peekbuddy_core::event::{Event, Flags, NameKind, NameRef, RootIdx, Source, VolIdx};
 use peekbuddy_core::filter::{CompileOptions, FilterSet, Pattern, Rule, Scope, Scratch, presets};
 use peekbuddy_core::name::{CaseMode, WideStr};
@@ -16,6 +17,25 @@ use peekbuddy_core::notify::{Class, layout, parse};
 static ALLOC: CountingAlloc<System> = CountingAlloc::new(System);
 
 const BUFFER: usize = 64 * 1024;
+
+/// What the engine's sink does: evaluate the filters, keep what is recorded.
+struct FilteredRing<'a> {
+    set: &'a FilterSet,
+    scratch: Scratch,
+    stored: Vec<Event>,
+    offered: usize,
+}
+
+impl EventSink for FilteredRing<'_> {
+    fn push(&mut self, event: &Event, name: &[u16]) -> bool {
+        self.offered += 1;
+        let verdict = self.set.eval(event, WideStr::new(name), &mut self.scratch);
+        if verdict.record {
+            self.stored.push(*event);
+        }
+        true
+    }
+}
 
 /// A 64 KiB buffer of extended records with names from a fixed set (some
 /// match the presets, some do not); returns it and the record count.
@@ -134,6 +154,33 @@ fn main() -> ExitCode {
     });
     // A run that stopped early or hid nothing measured nothing.
     if seen != expected || hidden == 0 || delta.allocs != 0 || delta.bytes != 0 {
+        return ExitCode::FAILURE;
+    }
+    // The same buffer through the RDCW decoder (#45): parse, map, drop the
+    // data directory's churn, filter, enqueue.
+    let mut sink = FilteredRing {
+        set: &set,
+        scratch: Scratch::new(),
+        stored: Vec::with_capacity(expected),
+        offered: 0,
+    };
+    let mut decoder = Decoder::new(
+        RootIdx(0),
+        VolIdx(0),
+        Class::Extended,
+        &[vec![u16::from(b'z')]],
+    );
+    let delta = measure(20, 500, || {
+        sink.stored.clear();
+        sink.offered = 0;
+        decoder.decode(
+            black_box(&buf),
+            buf.len(),
+            Stamp { ts: 1, qpc: 1 },
+            &mut sink,
+        );
+    });
+    if sink.offered != expected || sink.stored.is_empty() || delta.allocs != 0 || delta.bytes != 0 {
         return ExitCode::FAILURE;
     }
     ExitCode::SUCCESS

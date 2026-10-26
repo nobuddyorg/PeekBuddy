@@ -6,6 +6,7 @@
 #![forbid(unsafe_code)]
 #![deny(clippy::indexing_slicing)]
 
+pub mod capture;
 pub mod derive;
 pub mod event;
 pub mod filter;

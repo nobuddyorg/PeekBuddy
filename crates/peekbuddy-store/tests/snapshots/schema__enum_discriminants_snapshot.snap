@@ -34,6 +34,7 @@ kind Overflow(JournalEntryDeleted) = 2306
 kind Overflow(JournalIdChanged) = 2307
 kind Overflow(ParserError) = 2308
 kind Overflow(EngineNotRunning) = 2309
+kind Overflow(RingFull) = 2310
 kind WatchStateChanged(Arming) = 2560
 kind WatchStateChanged(Live) = 2561
 kind WatchStateChanged(Overflowed) = 2562

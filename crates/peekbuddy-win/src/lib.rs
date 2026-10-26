@@ -27,6 +27,8 @@ pub mod pipe;
 #[cfg(windows)]
 pub mod process;
 #[cfg(windows)]
+pub mod rdcw;
+#[cfg(windows)]
 pub mod resources;
 #[cfg(windows)]
 pub mod session;
