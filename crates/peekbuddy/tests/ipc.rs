@@ -97,24 +97,22 @@ fn a_second_local_user_is_refused() {
         return;
     }
     let user = format!("pbipc{}", std::process::id() % 100_000);
-    let password = "Pb!Test-7x9Q-ipc";
+    // Same shape as the runner probe (#34): a fixed prefix and hex digits.
+    let password = format!("Pb!{:010x}", std::process::id().wrapping_mul(2_654_435_761));
     let net = |args: &[&str]| {
-        Command::new("net")
-            .args(args)
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .status()
-            .unwrap()
-            .success()
+        let output = Command::new("net.exe").args(args).output().unwrap();
+        (
+            output.status.success(),
+            String::from_utf8_lossy(&output.stdout).into_owned()
+                + &String::from_utf8_lossy(&output.stderr),
+        )
     };
-    assert!(
-        net(&["user", &user, password, "/add"]),
-        "net user /add failed"
-    );
+    let (added, detail) = net(&["user", &user, &password, "/add"]);
+    assert!(added, "net user /add failed: {detail}");
     let dir = TestDir::new("ipc-user").unwrap();
     let (_engine, _window) = start(dir.path());
     // The other account must be able to run the exe and read the data dir.
-    let result = peekbuddy_win::process::run_as_user(&user, password, &ping_command(dir.path()));
+    let result = peekbuddy_win::process::run_as_user(&user, &password, &ping_command(dir.path()));
     let _ = net(&["user", &user, "/delete"]);
     // ERROR_ACCESS_DENIED from the pipe; an account that cannot even start
     // the exe (profile or policy) is reported as an error, not as success.

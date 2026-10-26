@@ -300,7 +300,8 @@ impl Reply {
 /// Handles one message; may queue replies.
 pub type Handler = dyn Fn(&Message, &mut Reply) + Send + Sync;
 
-/// The pipe server: [`INSTANCES`] threads, each serving one client at a time.
+/// The pipe server: a few instances, each served by its own thread, one
+/// client at a time.
 pub struct PipeServer {
     stop: Arc<OwnedHandle>,
     threads: Vec<std::thread::JoinHandle<()>>,
