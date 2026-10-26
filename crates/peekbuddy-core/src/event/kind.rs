@@ -135,6 +135,22 @@ pub enum Kind {
     ReconciledModified,
     /// The reconciler found a file that vanished during a gap.
     ReconciledDeleted,
+    /// The reconciler found a file under a new name or place (same file id).
+    /// The row carries the new path.
+    ReconciledRenamed,
+    /// A reconcile of a root started (#46). `raw_mask` is 1 + the wire tag of
+    /// the [`GapReason`] that asked for it, 0 when none did.
+    ReconcileStarted,
+    /// A reconcile finished: `size` is the entries scanned, `file_id` the
+    /// rows it wrote, `src_ts` its duration in 100 ns ticks. A cancelled run
+    /// has `raw_mask` 1.
+    ReconcileFinished,
+    /// The first scan of a root wrote its baseline: `size` is the files and
+    /// `file_id` the directories found. No row per file is written.
+    BaselineEstablished,
+    /// A directory could not be listed (access denied); one row per
+    /// directory per run.
+    AccessDenied,
     /// Not classifiable; the raw value is kept.
     Other,
     /// The engine started.
@@ -174,6 +190,11 @@ impl Kind {
             Self::SegmentRotated => (17, 0),
             Self::RetentionPurged => (18, 0),
             Self::SettingsChanged => (19, 0),
+            Self::ReconciledRenamed => (20, 0),
+            Self::ReconcileStarted => (21, 0),
+            Self::ReconcileFinished => (22, 0),
+            Self::BaselineEstablished => (23, 0),
+            Self::AccessDenied => (24, 0),
         }
     }
 
@@ -211,6 +232,11 @@ impl Kind {
             17 => Self::SegmentRotated,
             18 => Self::RetentionPurged,
             19 => Self::SettingsChanged,
+            20 => Self::ReconciledRenamed,
+            21 => Self::ReconcileStarted,
+            22 => Self::ReconcileFinished,
+            23 => Self::BaselineEstablished,
+            24 => Self::AccessDenied,
             _ => return None,
         };
         // Kinds without a payload must carry 0 so every value has one encoding.
@@ -243,6 +269,11 @@ pub(crate) mod tests {
             Kind::SegmentRotated,
             Kind::RetentionPurged,
             Kind::SettingsChanged,
+            Kind::ReconciledRenamed,
+            Kind::ReconcileStarted,
+            Kind::ReconcileFinished,
+            Kind::BaselineEstablished,
+            Kind::AccessDenied,
         ];
         v.extend(GapReason::ALL.map(Kind::Overflow));
         v.extend(WatchState::ALL.map(Kind::WatchStateChanged));

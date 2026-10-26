@@ -202,6 +202,23 @@ impl Producer {
         Push::Overflow(spare)
     }
 
+    /// Waits until everything pushed so far (by anyone) is committed or
+    /// counted lost, at most `deadline`: the same wait as
+    /// [`Pipeline::flush`], for producers that do not own the pipeline.
+    ///
+    /// # Errors
+    ///
+    /// [`FlushTimeout`] when the deadline passed first.
+    pub fn flush(&self, deadline: Duration) -> Result<Flushed, FlushTimeout> {
+        flush_shared(&self.shared, deadline)
+    }
+
+    /// Batches lost since the pipeline started.
+    #[must_use]
+    pub fn lost_batches(&self) -> u64 {
+        self.shared.lost.load(Ordering::Relaxed)
+    }
+
     /// Queues a capture cursor to be written with the next commit.
     pub fn set_cursor(&self, cursor: Cursor) {
         let mut state = lock(&self.shared.state);
@@ -210,6 +227,28 @@ impl Producer {
         drop(state);
         self.shared.writer_wake.notify_one();
     }
+}
+
+fn flush_shared(shared: &Shared, deadline: Duration) -> Result<Flushed, FlushTimeout> {
+    let until = Instant::now() + deadline;
+    let mut state = lock(&shared.state);
+    let target = state.pushed;
+    while state.done < target {
+        let left = until.saturating_duration_since(Instant::now());
+        if left.is_zero() {
+            return Err(FlushTimeout);
+        }
+        state = shared
+            .progress
+            .wait_timeout(state, left)
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .0;
+    }
+    drop(state);
+    Ok(Flushed {
+        rows: shared.rows.load(Ordering::Relaxed),
+        lost_batches: shared.lost.load(Ordering::Relaxed),
+    })
 }
 
 /// What a flush reports.
@@ -312,26 +351,7 @@ impl Pipeline {
     /// [`FlushTimeout`] when the deadline passed first; the data that was not
     /// written stays in the ring or the spill file.
     pub fn flush(&self, deadline: Duration) -> Result<Flushed, FlushTimeout> {
-        let until = Instant::now() + deadline;
-        let mut state = lock(&self.shared.state);
-        let target = state.pushed;
-        while state.done < target {
-            let left = until.saturating_duration_since(Instant::now());
-            if left.is_zero() {
-                return Err(FlushTimeout);
-            }
-            state = self
-                .shared
-                .progress
-                .wait_timeout(state, left)
-                .unwrap_or_else(std::sync::PoisonError::into_inner)
-                .0;
-        }
-        drop(state);
-        Ok(Flushed {
-            rows: self.shared.rows.load(Ordering::Relaxed),
-            lost_batches: self.shared.lost.load(Ordering::Relaxed),
-        })
+        flush_shared(&self.shared, deadline)
     }
 
     /// Stops accepting batches, lets the writer commit what is queued, saves

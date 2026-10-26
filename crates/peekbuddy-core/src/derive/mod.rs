@@ -237,7 +237,12 @@ fn role(kind: Kind) -> Role {
         | Kind::WatchStateChanged(_)
         | Kind::ReconciledCreated
         | Kind::ReconciledModified
-        | Kind::ReconciledDeleted => Role::Barrier,
+        | Kind::ReconciledDeleted
+        | Kind::ReconciledRenamed
+        | Kind::ReconcileStarted
+        | Kind::ReconcileFinished
+        | Kind::BaselineEstablished
+        | Kind::AccessDenied => Role::Barrier,
         Kind::EngineStarted
         | Kind::EngineStopped
         | Kind::SegmentRotated

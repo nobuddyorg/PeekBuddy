@@ -12,5 +12,6 @@ pub mod names;
 pub mod pipeline;
 pub mod policy;
 pub mod schema;
+pub mod snapshot;
 pub mod spill;
 pub mod writer;
