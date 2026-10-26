@@ -12,6 +12,7 @@ pub mod filter;
 pub mod name;
 pub mod notify;
 pub mod perf;
+pub mod settings;
 
 /// Crate version, shared by every PeekBuddy crate.
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");

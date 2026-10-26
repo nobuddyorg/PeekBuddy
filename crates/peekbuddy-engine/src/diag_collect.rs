@@ -40,6 +40,7 @@ pub fn collect(facts: Facts, full: bool) -> Diagnostics {
     let located = std::env::current_exe()
         .map_err(|error| error.to_string())
         .and_then(|exe| datadir::locate(&exe).map_err(|error| error.to_string()));
+    let mut settings = String::from("unknown");
     let (data_dir, data_mode, renderer) = match located {
         Ok((root, decision)) => {
             let shown = if full {
@@ -47,6 +48,8 @@ pub fn collect(facts: Facts, full: bool) -> Diagnostics {
             } else {
                 redact(&root, decision)
             };
+            settings =
+                crate::settings::inspect(&root.join("settings.toml"), &root.to_string_lossy());
             let renderer = std::fs::read_to_string(root.join(RENDERER_FILE))
                 .ok()
                 .and_then(|text| text.lines().next().map(str::to_owned));
@@ -80,6 +83,7 @@ pub fn collect(facts: Facts, full: bool) -> Diagnostics {
         renderer,
         data_dir,
         data_mode,
+        settings,
         engine: String::from(if running { "running" } else { "not running" }),
         watches: String::from(if running {
             "unavailable: the engine pipe does not exist yet (#61)"

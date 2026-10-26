@@ -5,6 +5,7 @@ extend-exclude = [
   "LICENSE",
   "docs/spikes/data/**",
   "crates/peekbuddy-core/tests/fixtures/**",
+  "crates/peekbuddy-core/src/settings/load/**",
 ]
 
 [default.extend-words]

@@ -1,0 +1,26 @@
+version = 1
+
+[general]
+autostart = false
+theme = "dark"
+first_run = false
+
+[store]
+max_age_days = 30
+max_total_mb = 2048
+
+[view]
+coalesce_ms = 200
+columns = ["time", "kind", "path"]
+
+[filters]
+exclude_globs = ["*.tmp", "node_modules/"]
+exclude_regex = ['~$.*']
+presets = ["temp-lock-swap"]
+
+[[watch]]
+id = "documents"
+path = 'C:\Users\Someone\Documents'
+recursive = true
+enabled = true
+exclude_globs = ["*.bak"]
