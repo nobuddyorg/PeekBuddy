@@ -65,9 +65,12 @@ update): the viewer then asks the user to restart PeekBuddy.
 What works today: `Hello`, `ShowViewer`, `Shutdown`, `Selftest`,
 `EngineStopping`, and `Command::ApplySettings`, which validates the text with
 the settings validator, writes it atomically when it is valid and returns the
-problems (with line and column) when it is not. The other commands answer
-`CommandResult { ok: false }` until pause (#63) and watch management (#68)
-exist. Counters, watch state and resync are defined and encoded but not sent
+problems (with line and column) when it is not; the result also says what
+autostart looks like after the save. `PauseAll`, `ResumeAll` and
+`SetWatchPaused` pause and resume (#63, ADR 0016) and answer `ok: true`, or
+`ok: false` with the reason (an unknown id, a settings file that cannot be
+written). `AddWatch` and `RemoveWatch` answer `CommandResult { ok: false }`
+until watch management (#68) exists. Counters, watch state and resync are defined and encoded but not sent
 yet: they need the writer (#52).
 
 ## Back-pressure (design, applies when the live tail exists)

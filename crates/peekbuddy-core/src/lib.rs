@@ -6,6 +6,7 @@
 #![forbid(unsafe_code)]
 #![deny(clippy::indexing_slicing)]
 
+pub mod autostart;
 pub mod capture;
 pub mod derive;
 pub mod event;
@@ -13,6 +14,7 @@ pub mod filter;
 pub mod ipc;
 pub mod name;
 pub mod notify;
+pub mod pause;
 pub mod perf;
 pub mod settings;
 

@@ -1,10 +1,12 @@
 //! The tray on screen (#60): connects the pure model to the Win32 icon.
 
 use std::path::PathBuf;
+use std::sync::Arc;
 
 use peekbuddy_win::tray::{Entry, Icon, Menu, Tray, taskbar_uses_light_theme};
 use peekbuddy_win::window::{WindowEvent, WindowHandle};
 
+use crate::pause_ctl::PauseCtl;
 use crate::tray_model::{
     Actions, Command, FIRST_RUN_TEXT, FIRST_RUN_TITLE, ICON_SIZES, IconId, MenuItem, Theme,
     TrayState, dispatch, icon_id, menu, render_icon, tooltip,
@@ -15,6 +17,7 @@ struct RealActions {
     window: WindowHandle,
     exe: PathBuf,
     data_root: PathBuf,
+    pause: Arc<PauseCtl>,
 }
 
 /// Explorer does not take `\\?\` paths.
@@ -45,9 +48,26 @@ impl Actions for RealActions {
         let _ = self.window.post_close();
     }
 
-    fn watch_paused(&mut self, _index: usize, _paused: bool) {
-        // Applying a pause to the capture layer and persisting `enabled` is
-        // #63; the tray shows the state it was asked for.
+    fn watch_paused(&mut self, index: usize, paused: bool) {
+        // A failed save is not fatal: the pause took effect; the viewer's
+        // command path reports the reason to the user.
+        let _ = self.pause.set_watch_at(index, paused);
+    }
+
+    fn all_paused(&mut self, paused: bool) {
+        if paused {
+            self.pause.pause_all();
+        } else {
+            self.pause.resume_all();
+        }
+    }
+
+    fn own_paused(&self, index: usize) -> Option<bool> {
+        Some(
+            self.pause
+                .pause()
+                .watch_paused(peekbuddy_core::event::RootIdx(u16::try_from(index).ok()?)),
+        )
     }
 }
 
@@ -99,13 +119,20 @@ pub struct TrayController {
 impl TrayController {
     /// Creates the controller for the engine window.
     #[must_use]
-    pub fn new(window: WindowHandle, exe: PathBuf, data_root: PathBuf, state: TrayState) -> Self {
+    pub fn new(
+        window: WindowHandle,
+        exe: PathBuf,
+        data_root: PathBuf,
+        pause: Arc<PauseCtl>,
+        state: TrayState,
+    ) -> Self {
         Self {
             tray: Tray::new(window),
             actions: RealActions {
                 window,
                 exe,
                 data_root,
+                pause,
             },
             state,
             theme: current_theme(),

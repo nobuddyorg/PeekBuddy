@@ -131,6 +131,14 @@ jobs:
         with:
           tool: cargo-nextest@0.9.149
       - run: cargo nextest run --workspace --profile ci --locked --no-tests=pass
+        env:
+          # The autostart test touches the real Run key (#63); this runner is
+          # disposable.
+          PEEKBUDDY_TOUCH_REAL_RUN_KEY: "1"
+      - name: Remove the autostart test value (#63)
+        if: always()
+        shell: pwsh
+        run: Remove-ItemProperty -Path HKCU:\Software\Microsoft\Windows\CurrentVersion\Run -Name PeekBuddy -ErrorAction SilentlyContinue
       - run: cargo test --workspace --doc --locked
       - name: Release build without Tracy (#22) and within the size budget (#28)
         run: |

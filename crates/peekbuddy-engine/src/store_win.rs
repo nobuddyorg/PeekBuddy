@@ -72,7 +72,7 @@ fn volume_of(path: &str) -> Option<(VolInfo, Vec<u16>)> {
 }
 
 impl Store {
-    /// Opens today's segment, registers the enabled watches and starts the
+    /// Opens today's segment, registers the watches and starts the
     /// writer. Every commit updates `counters`, appends to `commits` and
     /// writes the ETW counter event (never from a timer, F6).
     ///
@@ -90,12 +90,9 @@ impl Store {
         let path = segment_path(data, SystemTime::now());
         let mut writer = Writer::open(&path).map_err(std::io::Error::other)?;
         let mut roots = 0;
-        for (index, watch) in settings
-            .watches
-            .iter()
-            .enumerate()
-            .filter(|(_, w)| w.enabled)
-        {
+        // Paused watches are registered too: pausing and resuming write
+        // state rows for them (#63).
+        for (index, watch) in settings.watches.iter().enumerate() {
             let Some((vol, units)) = volume_of(&watch.path) else {
                 continue;
             };

@@ -297,9 +297,15 @@ pub trait Actions {
     fn open_data_folder(&mut self);
     /// Shut the engine down.
     fn quit(&mut self);
-    /// The pause state of watch `index` changed (the settings page and the
-    /// capture layer follow in #63).
+    /// The pause state of watch `index` changed.
     fn watch_paused(&mut self, index: usize, paused: bool);
+    /// Every watch was paused or resumed at once (not persisted).
+    fn all_paused(&mut self, paused: bool);
+    /// Whether watch `index` is paused on its own switch, when the effects
+    /// know (a global resume leaves such a watch paused).
+    fn own_paused(&self, _index: usize) -> Option<bool> {
+        None
+    }
 }
 
 /// Applies `command` to `state` and runs its effect. Returns whether the
@@ -321,11 +327,9 @@ pub fn dispatch(state: &mut TrayState, command: Command, actions: &mut dyn Actio
         }
         Command::PauseAll | Command::ResumeAll => {
             let paused = command == Command::PauseAll;
+            actions.all_paused(paused);
             for (index, watch) in state.watches.iter_mut().enumerate() {
-                if watch.paused != paused {
-                    watch.paused = paused;
-                    actions.watch_paused(index, paused);
-                }
+                watch.paused = paused || actions.own_paused(index).unwrap_or(false);
             }
             set_paused_health(state, paused);
             true
@@ -665,6 +669,9 @@ mod tests {
         fn watch_paused(&mut self, index: usize, paused: bool) {
             self.calls.push(format!("watch {index} paused={paused}"));
         }
+        fn all_paused(&mut self, paused: bool) {
+            self.calls.push(format!("all paused={paused}"));
+        }
     }
 
     #[test]
@@ -689,10 +696,7 @@ mod tests {
         assert!(super::dispatch(&mut state, Command::PauseAll, &mut actions));
         assert_eq!(state.health, Health::Paused);
         assert!(state.watches.iter().all(|watch| watch.paused));
-        assert_eq!(
-            actions.calls,
-            ["watch 0 paused=true", "watch 1 paused=true"]
-        );
+        assert_eq!(actions.calls, ["all paused=true"]);
         assert_eq!(icon_id(&state), IconId::Paused);
 
         actions.calls.clear();
@@ -702,10 +706,7 @@ mod tests {
             &mut actions
         ));
         assert_eq!(state.health, Health::Live);
-        assert_eq!(
-            actions.calls,
-            ["watch 0 paused=false", "watch 1 paused=false"]
-        );
+        assert_eq!(actions.calls, ["all paused=false"]);
     }
 
     #[test]
