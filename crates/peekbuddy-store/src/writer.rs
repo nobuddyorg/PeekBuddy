@@ -118,6 +118,14 @@ struct RootRow {
     node: i64,
 }
 
+/// What a row without a watch ([`RootIdx::NONE`]) is stored under: no root,
+/// no volume, names at the top level.
+const NO_ROOT: RootRow = RootRow {
+    root: 0,
+    vol: 0,
+    node: TOP_LEVEL,
+};
+
 /// The connection, the interner and the id counter.
 #[derive(Debug)]
 pub struct Writer {
@@ -349,11 +357,15 @@ impl Writer {
             let mut insert = tx.prepare_cached(INSERT_EVENT)?;
             for batch in batches {
                 for (event, name) in batch.iter() {
-                    let root = roots
-                        .get(usize::from(event.root.0))
-                        .copied()
-                        .flatten()
-                        .ok_or(WriteError::UnknownRoot(event.root.0))?;
+                    let root = if event.root == RootIdx::NONE {
+                        NO_ROOT
+                    } else {
+                        roots
+                            .get(usize::from(event.root.0))
+                            .copied()
+                            .flatten()
+                            .ok_or(WriteError::UnknownRoot(event.root.0))?
+                    };
                     let node_id = intern_path(interner, &tx, root, event, name)?;
                     insert_event(&mut insert, id, event, root, node_id)?;
                     let kind = kind_column(event);
@@ -594,6 +606,28 @@ pub(crate) mod tests {
             .connection()
             .query_row(sql, [], |row| row.get(0))
             .unwrap()
+    }
+
+    #[test]
+    fn a_row_without_a_watch_is_stored_without_a_registered_root() {
+        let mut conn = Connection::open_in_memory().unwrap();
+        schema::migrate(&mut conn).unwrap();
+        let mut writer = Writer::from_connection(conn).unwrap();
+        let mut batch = Batch::with_capacity(2, 256);
+        let mut system = event(1, 0);
+        system.root = RootIdx::NONE;
+        system.source = peekbuddy_core::event::Source::System;
+        batch.push(system, &units("crash-1.log")).unwrap();
+        let commit = writer.write(&[batch], &[]).unwrap();
+        assert_eq!(commit.rows, 1);
+        assert_eq!(count(&writer, "SELECT root_id FROM event"), 0);
+        // A row for a root that was never registered is still refused.
+        let mut bad = Batch::with_capacity(2, 256);
+        bad.push(event(2, 7), &units("x")).unwrap();
+        assert!(matches!(
+            writer.write(&[bad], &[]),
+            Err(WriteError::UnknownRoot(7))
+        ));
     }
 
     #[test]

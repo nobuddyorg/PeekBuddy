@@ -237,6 +237,9 @@ mod run {
         let shutdown = Rc::new(RefCell::new(Shutdown::new()));
         let store = start_store(&data, &loaded_settings, &counters, &commits, &shutdown)?;
         mark(milestones, Milestone::StoreOpened);
+        if let Some(log) = &abnormal_termination {
+            record_abnormal_exit(&store, log);
+        }
         // Queued before the window exists, so a test that sees the window
         // knows the events are pending.
         #[cfg(feature = "test-panic")]
@@ -425,6 +428,43 @@ mod run {
             },
         );
         Ok((data, abnormal))
+    }
+
+    /// Writes the one row that says the previous run ended abnormally; its
+    /// name is the crash log. The tray problem state and the start reconcile
+    /// follow from the same marker and from the normal start.
+    fn record_abnormal_exit(producer: &peekbuddy_store::pipeline::Producer, crash_log: &str) {
+        use peekbuddy_core::event::{
+            Event, Flags, Kind, NameKind, NameRef, RootIdx, Source, VolIdx,
+        };
+
+        let (ts, qpc) = crate::pause_ctl::now_ticks();
+        let event = Event {
+            ts,
+            qpc,
+            src_ts: 0,
+            source: Source::System,
+            kind: Kind::EngineAbnormalExit,
+            raw_mask: 0,
+            source_info: 0,
+            is_dir: false,
+            size: 0,
+            attrs: 0,
+            reparse_tag: 0,
+            file_id: 0,
+            parent_file_id: 0,
+            usn: 0,
+            vol: VolIdx(0),
+            root: RootIdx::NONE,
+            name: NameRef::EMPTY,
+            name_kind: NameKind::Unknown,
+            flags: Flags::NONE,
+        };
+        let name: Vec<u16> = crash_log.trim().encode_utf16().collect();
+        let mut batch = producer.new_batch();
+        if batch.push(event, &name).is_ok() {
+            let _ = producer.push(batch);
+        }
     }
 
     /// Pause control and capture, which need each other: pausing is a signal

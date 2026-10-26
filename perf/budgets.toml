@@ -275,6 +275,20 @@ how = "tracing span on the capture thread (#21)"
 arch = ["x86_64", "aarch64"]
 
 [[budget]]
+id = "shutdown.endsession_flush"
+metric = "WM_ENDSESSION to everything durable and checkpointed, 10k events pending"
+unit = "ms"
+bound = "max"
+limit = 2000
+class = "timing"
+gate = "nightly-trend"
+status = "provisional"
+source = "F19; Windows allows about 5 s, the limit leaves room (#171)"
+workload = "engine with 10k synthetic events queued, session end sent to the hidden window"
+how = "crates/peekbuddy/tests/store.rs (test-panic build), wall clock of the send"
+arch = ["x86_64", "aarch64"]
+
+[[budget]]
 id = "viewer.frame.p95"
 metric = "frame time while scrolling, 95th percentile"
 unit = "ms"

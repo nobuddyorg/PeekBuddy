@@ -55,7 +55,9 @@ characters have no trigram: scan `node` instead.
 `event.kind` packs the wire tag and its payload byte as `tag * 256 + arg`
 (`Kind::to_wire`). `event.source` is `Source::tag`, `event.name_kind` lives on
 the node. Indexes are `event(node_id, id)` and `event(root_id, id)`; time
-ranges resolve to id bounds through `stats`.
+ranges resolve to id bounds through `stats`. A row that belongs to no watch
+(the engine's own events, `RootIdx::NONE`) has `root_id` 0 and its name at the top
+level; it needs no registered root.
 
 ## Migrations
 

@@ -3,3 +3,7 @@ target/
 /mutants.out*/
 /lcov.info
 *.cdx.json
+
+# Pending insta snapshots
+*.snap.new
+.pending-snap

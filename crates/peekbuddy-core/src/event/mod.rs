@@ -116,6 +116,12 @@ pub struct VolIdx(pub u16);
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct RootIdx(pub u16);
 
+impl RootIdx {
+    /// A row that belongs to no watch (the engine's own events): the store
+    /// accepts it without a registered root.
+    pub const NONE: Self = Self(u16::MAX);
+}
+
 /// Per-event flag bits.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct Flags(u16);

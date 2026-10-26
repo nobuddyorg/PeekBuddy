@@ -151,10 +151,11 @@ fn quitting_commits_the_queue_and_truncates_the_log() {
     );
 }
 
-/// `WM_ENDSESSION` with 1,000 events pending (#48, #171): the engine commits
-/// them and checkpoints well inside the 5 s Windows allows.
+/// `WM_ENDSESSION` with 10,000 events pending (#48, #171): the engine commits
+/// them and checkpoints inside 2 s, well within the 5 s Windows allows
+/// (`shutdown.endsession_flush`).
 #[test]
-fn a_session_end_flushes_a_thousand_pending_events_in_time() {
+fn a_session_end_flushes_ten_thousand_pending_events_in_time() {
     use std::time::{Duration, Instant};
 
     use peekbuddy_engine::Names;
@@ -180,7 +181,7 @@ path = '{}'
     )
     .unwrap();
     let mut engine = Command::new(EXE)
-        .args(["--headless", "--synthetic-events", "1000", "--data-dir"])
+        .args(["--headless", "--synthetic-events", "10000", "--data-dir"])
         .arg(&data)
         .stdin(Stdio::null())
         .stdout(Stdio::null())
@@ -200,13 +201,51 @@ path = '{}'
     assert!(window.query_end_session(2_000).unwrap());
     window.end_session(5_000).unwrap();
     let flushed = started.elapsed();
-    assert!(flushed < Duration::from_secs(5), "{flushed:?}");
+    assert!(flushed < Duration::from_secs(2), "{flushed:?}");
     window.post_close().ok();
     let _ = engine.wait();
 
     let conn = Connection::open(segment(&data)).unwrap();
     assert_eq!(
         count(&conn, "SELECT count(*) FROM event WHERE source = 0"),
-        1_000
+        10_000
     );
+}
+
+/// A crash marker at start gives exactly one "terminated abnormally" row,
+/// without any watch configured (#171); a normal start after it adds none.
+#[test]
+fn a_crash_marker_gives_exactly_one_abnormal_exit_row() {
+    let dir = TestDir::new("store-abnormal").unwrap();
+    let data = dir.path().join("data");
+    std::fs::create_dir_all(&data).unwrap();
+    std::fs::write(
+        data.join(peekbuddy_engine::crash::MARKER_FILE),
+        "crash-20261026T120000Z.log",
+    )
+    .unwrap();
+    for _ in 0..2 {
+        let status = Command::new(EXE)
+            .args(["--perf-probe", "0", "--data-dir"])
+            .arg(&data)
+            .stdin(Stdio::null())
+            .status()
+            .unwrap();
+        assert!(status.success(), "{status:?}");
+    }
+    assert!(!data.join(peekbuddy_engine::crash::MARKER_FILE).exists());
+    let conn = Connection::open(segment(&data)).unwrap();
+    // Kind 25 is stored as tag << 8.
+    assert_eq!(
+        count(&conn, "SELECT count(*) FROM event WHERE kind = 6400"),
+        1
+    );
+    let name: String = conn
+        .query_row(
+            "SELECT node.name FROM event JOIN node ON node.id = event.node_id WHERE event.kind = 6400",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap();
+    assert_eq!(name, "crash-20261026T120000Z.log");
 }
