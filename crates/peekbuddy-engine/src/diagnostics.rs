@@ -47,6 +47,8 @@ pub struct Diagnostics {
     pub data_dir: String,
     /// How the data directory was chosen.
     pub data_mode: String,
+    /// State of `settings.toml`, read without changing anything.
+    pub settings: String,
     /// Whether an engine runs in this session.
     pub engine: String,
     /// Watch states, from the engine pipe (#61) when it exists.
@@ -80,6 +82,7 @@ impl Diagnostics {
         );
         line("data directory", &self.data_dir);
         line("data mode", &self.data_mode);
+        line("settings", &self.settings);
         line("engine", &self.engine);
         line("watches", &self.watches);
         line("Defender real-time protection", &self.defender);
@@ -105,6 +108,7 @@ mod tests {
             renderer: None,
             data_dir: String::from(r"%LOCALAPPDATA%\nobuddy\PeekBuddy"),
             data_mode: String::from("installed"),
+            settings: String::from("ok, 0 watch(es)"),
             engine: String::from("not running"),
             watches: String::from("engine not running"),
             defender: String::from("on"),

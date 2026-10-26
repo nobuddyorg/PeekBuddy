@@ -1,0 +1,55 @@
+---
+source: crates/peekbuddy-core/src/settings/load/tests.rs
+expression: report
+---
+# syntax
+2:9: unclosed table, expected `]`
+
+# no version
+version: `version` must be an integer of at least 1
+
+# unknown key
+3:1: general.autostrat: unknown key `autostrat` (did you mean `autostart`?)
+
+# unknown section
+2:1: genral: unknown key `genral` (did you mean `general`?)
+
+# wrong type
+3:13: invalid type: string "yes", expected a boolean
+
+# bad theme
+3:9: unknown variant `blue`, expected one of `system`, `light`, `dark`
+
+# bad glob
+3:18: filters.exclude_globs[0]: not a valid glob: a `[` has no closing `]`
+
+# bad regex
+3:18: filters.exclude_regex[0]: not a valid regex: error parsing regex
+
+# unknown preset
+3:12: filters.presets[0]: unknown preset `temp-lock-swop` (did you mean `temp-lock-swap`?)
+
+# coalesce range
+3:15: view.coalesce_ms: must be 50 to 500 ms
+
+# unknown column
+3:20: view.columns[1]: unknown column `pth` (did you mean `path`?)
+
+# relative path
+4:8: watch[0].path: the path must be absolute
+
+# data dir as root
+4:8: watch[0].path: a watch cannot be inside the data directory
+
+# export dir as root
+4:8: watch[0].path: a watch cannot be inside the export directory
+
+# unc buffer
+5:14: watch[0].buffer_kib: the buffer must be 4 to 64 KiB for a network path
+
+# duplicate id and root
+3:6: watch[1].id: the id `a` is used twice
+4:1: watch[1].path: the same root as watch `a`
+
+# bad id
+3:6: watch[0].id: an id is 1 to 64 characters of a-z, 0-9, `-` and `_`

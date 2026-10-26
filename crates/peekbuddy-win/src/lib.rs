@@ -13,6 +13,8 @@ pub mod metrics;
 pub mod perf;
 
 #[cfg(windows)]
+pub mod atomic;
+#[cfg(windows)]
 pub mod attrs;
 #[cfg(windows)]
 pub mod console;

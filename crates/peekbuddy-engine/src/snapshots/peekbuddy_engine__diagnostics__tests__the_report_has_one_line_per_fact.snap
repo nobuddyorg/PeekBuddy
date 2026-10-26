@@ -11,6 +11,7 @@ architecture: x86_64 (native)
 viewer renderer: not recorded yet
 data directory: %LOCALAPPDATA%\nobuddy\PeekBuddy
 data mode: installed
+settings: ok, 0 watch(es)
 engine: not running
 watches: engine not running
 Defender real-time protection: on

@@ -19,6 +19,8 @@ pub mod datadir;
 pub mod diag_collect;
 #[cfg(windows)]
 mod sample;
+#[cfg(windows)]
+pub mod settings;
 
 use std::path::PathBuf;
 
@@ -100,6 +102,8 @@ pub enum Exit {
     Ran {
         /// The previous run ended abnormally; names its crash log.
         abnormal_termination: Option<String>,
+        /// How `settings.toml` was found (Windows only).
+        settings: Option<String>,
     },
 }
 
@@ -143,6 +147,7 @@ pub fn run(
 ) -> std::io::Result<Exit> {
     Ok(Exit::Ran {
         abnormal_termination: None,
+        settings: None,
     })
 }
 
@@ -196,6 +201,8 @@ mod run {
         };
         let data = DataDir::open(&root, decision)?;
         let abnormal_termination = crash::take_marker(&data.root);
+        let loaded_settings = crate::settings::load_or_create(&data);
+        mark(milestones, Milestone::SettingsLoaded);
         crash::install_panic_hook(
             data.logs.clone(),
             data.root.clone(),
@@ -274,6 +281,7 @@ mod run {
         }
         Ok(Exit::Ran {
             abnormal_termination,
+            settings: Some(loaded_settings.state.describe()),
         })
     }
 

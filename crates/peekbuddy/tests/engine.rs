@@ -220,3 +220,33 @@ fn a_panic_leaves_a_crash_log_and_marker_and_the_next_start_takes_the_marker() {
         assert_eq!(status.code(), Some(2));
     }
 }
+
+#[test]
+fn a_first_start_writes_the_default_settings_and_a_corrupt_file_survives() {
+    let dir = TestDir::new("engine-settings").unwrap();
+    let data = dir.path().join("data");
+
+    let mut first = Kill(spawn(&data, &[]));
+    let window = wait_for_window(&data, &mut first.0);
+    let text = std::fs::read_to_string(data.join("settings.toml")).unwrap();
+    assert!(text.contains("version = 1"), "{text}");
+    assert!(text.contains("first_run = true"), "{text}");
+    quit(window, &mut first.0);
+
+    // A corrupt file: the engine still starts and leaves it byte for byte.
+    let bad = b"version = 1\n[general\nnot toml at all";
+    std::fs::write(data.join("settings.toml"), bad).unwrap();
+    let mut second = Kill(spawn(&data, &[]));
+    let window = wait_for_window(&data, &mut second.0);
+    assert_eq!(std::fs::read(data.join("settings.toml")).unwrap(), bad);
+    quit(window, &mut second.0);
+
+    // --diagnostics says what is wrong without touching the file.
+    let output = Command::new(EXE)
+        .arg("--diagnostics")
+        .env("LOCALAPPDATA", dir.path().join("local"))
+        .output()
+        .unwrap();
+    assert!(output.status.success());
+    assert_eq!(std::fs::read(data.join("settings.toml")).unwrap(), bad);
+}
