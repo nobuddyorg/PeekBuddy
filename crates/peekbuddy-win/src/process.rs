@@ -19,8 +19,8 @@ use windows_sys::Win32::Foundation::{HANDLE, WAIT_OBJECT_0};
 use windows_sys::Win32::Security::{
     CreateRestrictedToken, DISABLE_MAX_PRIVILEGE, GetLengthSid, SID_AND_ATTRIBUTES,
     SetTokenInformation, TOKEN_ADJUST_DEFAULT, TOKEN_ASSIGN_PRIMARY, TOKEN_DUPLICATE,
-    TOKEN_MANDATORY_LABEL, TOKEN_QUERY, TokenIntegrityLevel, WinBuiltinAdministratorsSid,
-    WinMediumLabelSid,
+    TOKEN_MANDATORY_LABEL, TOKEN_QUERY, TokenIntegrityLevel, WELL_KNOWN_SID_TYPE,
+    WinBuiltinAdministratorsSid, WinLowLabelSid, WinMediumLabelSid,
 };
 use windows_sys::Win32::System::Threading::{
     CreateProcessAsUserW, DETACHED_PROCESS, GetCurrentProcess, GetExitCodeProcess, INFINITE,
@@ -41,7 +41,7 @@ fn check(ok: i32) -> std::io::Result<()> {
     if ok == 0 { Err(last_error()) } else { Ok(()) }
 }
 
-fn unelevated_token() -> std::io::Result<OwnedHandle> {
+fn unelevated_token(label: WELL_KNOWN_SID_TYPE) -> std::io::Result<OwnedHandle> {
     let mut token: HANDLE = std::ptr::null_mut();
     // SAFETY: GetCurrentProcess returns a pseudo-handle that needs no closing.
     let process = unsafe { GetCurrentProcess() };
@@ -81,7 +81,7 @@ fn unelevated_token() -> std::io::Result<OwnedHandle> {
     // SAFETY: CreateRestrictedToken succeeded, so `restricted` is owned.
     let restricted = unsafe { OwnedHandle::from_raw_handle(restricted) };
 
-    let mut medium = Sid::well_known(WinMediumLabelSid)?;
+    let mut medium = Sid::well_known(label)?;
     let psid = medium.as_psid();
     // SAFETY: `psid` points to the valid SID built above.
     let sid_len = unsafe { GetLengthSid(psid) };
@@ -115,15 +115,7 @@ fn startup_info() -> STARTUPINFOW {
     }
 }
 
-/// Runs `command_line` as an unelevated child (Administrators deny-only,
-/// Medium integrity), waits for it and returns its exit code.
-///
-/// # Errors
-///
-/// Returns the OS error when the token cannot be created or the process
-/// cannot be started.
-pub fn run_restricted(command_line: &str) -> std::io::Result<u32> {
-    let token = unelevated_token()?;
+fn run_with_token(token: &OwnedHandle, command_line: &str) -> std::io::Result<u32> {
     let mut command: Vec<u16> = command_line.encode_utf16().chain(Some(0)).collect();
     let startup = startup_info();
     let mut info = PROCESS_INFORMATION::default();
@@ -153,6 +145,74 @@ pub fn run_restricted(command_line: &str) -> std::io::Result<u32> {
     // SAFETY: `raw` is a live process handle owned by `process`.
     let waited = unsafe { WaitForSingleObject(raw, INFINITE) };
     if waited != WAIT_OBJECT_0 {
+        return Err(last_error());
+    }
+    let mut code = 0u32;
+    // SAFETY: `raw` is live; `code` is a valid out pointer.
+    check(unsafe { GetExitCodeProcess(raw, &raw mut code) })?;
+    Ok(code)
+}
+
+/// Runs `command_line` as an unelevated child (Administrators deny-only,
+/// Medium integrity), waits for it and returns its exit code.
+///
+/// # Errors
+///
+/// Returns the OS error when the token cannot be created or the process
+/// cannot be started.
+pub fn run_restricted(command_line: &str) -> std::io::Result<u32> {
+    run_with_token(&unelevated_token(WinMediumLabelSid)?, command_line)
+}
+
+/// Like [`run_restricted`] at Low integrity, the level of sandboxed
+/// processes. Used to check that the engine pipe refuses them.
+///
+/// # Errors
+///
+/// Returns the OS error when the token cannot be created or the process
+/// cannot be started.
+pub fn run_low_integrity(command_line: &str) -> std::io::Result<u32> {
+    run_with_token(&unelevated_token(WinLowLabelSid)?, command_line)
+}
+
+/// Runs `command_line` as another local user (`CreateProcessWithLogonW`),
+/// waits and returns the exit code. For tests that need a second account.
+///
+/// # Errors
+///
+/// Returns the OS error, for example for a wrong password.
+pub fn run_as_user(user: &str, password: &str, command_line: &str) -> std::io::Result<u32> {
+    use windows_sys::Win32::System::Threading::{CreateProcessWithLogonW, LOGON_WITH_PROFILE};
+
+    let wide = |text: &str| -> Vec<u16> { text.encode_utf16().chain(Some(0)).collect() };
+    let (user, domain, password) = (wide(user), wide("."), wide(password));
+    let mut command = wide(command_line);
+    let startup = startup_info();
+    let mut info = PROCESS_INFORMATION::default();
+    // SAFETY: all strings are NUL-terminated and outlive the call; the
+    // structs are valid; a null environment and directory inherit defaults.
+    check(unsafe {
+        CreateProcessWithLogonW(
+            user.as_ptr(),
+            domain.as_ptr(),
+            password.as_ptr(),
+            LOGON_WITH_PROFILE,
+            std::ptr::null(),
+            command.as_mut_ptr(),
+            DETACHED_PROCESS,
+            std::ptr::null(),
+            std::ptr::null(),
+            &raw const startup,
+            &raw mut info,
+        )
+    })?;
+    // SAFETY: the call succeeded, so both handles are owned.
+    let process = unsafe { OwnedHandle::from_raw_handle(info.hProcess) };
+    // SAFETY: as above.
+    drop(unsafe { OwnedHandle::from_raw_handle(info.hThread) });
+    let raw = process.as_raw_handle();
+    // SAFETY: `raw` is a live process handle.
+    if unsafe { WaitForSingleObject(raw, INFINITE) } != WAIT_OBJECT_0 {
         return Err(last_error());
     }
     let mut code = 0u32;

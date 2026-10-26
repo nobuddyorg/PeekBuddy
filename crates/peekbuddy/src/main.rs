@@ -29,7 +29,7 @@ fn process_start(role: &Role, table: &MilestoneTable) {
     use peekbuddy_win::perf::{record, since_process_create_us};
 
     let role = match role {
-        Role::Engine | Role::Diagnostics => PerfRole::Engine,
+        Role::Engine | Role::Diagnostics | Role::Ping => PerfRole::Engine,
         Role::Viewer => PerfRole::Viewer,
     };
     record(
@@ -92,6 +92,28 @@ fn run_diagnostics(_full: bool) -> std::io::Result<()> {
     Ok(())
 }
 
+/// Connects to the engine pipe: the exit code is 0 or the Windows error.
+#[cfg(windows)]
+fn run_ping(options: &peekbuddy_engine::Options) -> std::io::Result<()> {
+    let name = peekbuddy_engine::ipc_server::pipe_name(options.data_dir.as_deref())?;
+    peekbuddy_engine::ipc_server::ping(&name, &std::env::current_exe()?)
+}
+
+#[cfg(not(windows))]
+fn run_ping(_options: &peekbuddy_engine::Options) -> std::io::Result<()> {
+    Ok(())
+}
+
+/// The exit code for a failed run: the Windows error code (clamped to a
+/// byte) so `--ipc-ping` can say "access denied" (5), otherwise 1.
+fn failure_code(error: &std::io::Error) -> u8 {
+    error
+        .raw_os_error()
+        .and_then(|code| u8::try_from(code).ok())
+        .filter(|code| *code != 0)
+        .unwrap_or(1)
+}
+
 /// Runs the invoked role to completion; in profiling builds inside one Tracy
 /// zone.
 fn run(invocation: &Invocation, table: &MilestoneTable, provider: Provider) -> std::io::Result<()> {
@@ -101,6 +123,7 @@ fn run(invocation: &Invocation, table: &MilestoneTable, provider: Provider) -> s
         Role::Engine => peekbuddy_engine::run(&invocation.engine, table, provider).map(drop),
         Role::Viewer => run_viewer(),
         Role::Diagnostics => run_diagnostics(invocation.full),
+        Role::Ping => run_ping(&invocation.engine),
     }
 }
 
@@ -114,7 +137,7 @@ fn main() -> ExitCode {
     process_start(&invocation.role, &table);
     match run(&invocation, &table, provider) {
         Ok(()) => ExitCode::SUCCESS,
-        Err(_) => ExitCode::FAILURE,
+        Err(error) => ExitCode::from(failure_code(&error)),
     }
 }
 

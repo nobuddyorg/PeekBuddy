@@ -19,6 +19,8 @@ pub mod datadir;
 #[cfg(windows)]
 pub mod diag_collect;
 #[cfg(windows)]
+pub mod ipc_server;
+#[cfg(windows)]
 mod sample;
 #[cfg(windows)]
 pub mod settings;
@@ -197,27 +199,15 @@ mod run {
         let provider = Rc::new(RefCell::new(Some(provider)));
         let names = Names::new(options.data_dir.as_deref());
         let Some(_instance) = SingleInstance::acquire(&names.mutex)? else {
+            forward_to_running_engine(options);
             return Ok(Exit::AlreadyRunning);
         };
         // The placeholder policy itself is owned by #49.
         let _ = osinfo::expose_placeholders();
 
-        let (root, decision) = match &options.data_dir {
-            Some(root) => (root.clone(), Decision::Installed(None)),
-            None => datadir::locate(&std::env::current_exe()?)?,
-        };
-        let data = DataDir::open(&root, decision)?;
-        let abnormal_termination = crash::take_marker(&data.root);
+        let (data, abnormal_termination) = open_data(options)?;
         let loaded_settings = crate::settings::load_or_create(&data);
         mark(milestones, Milestone::SettingsLoaded);
-        crash::install_panic_hook(
-            data.logs.clone(),
-            data.root.clone(),
-            BuildInfo {
-                build: env!("CARGO_PKG_VERSION").to_owned(),
-                os_build: osinfo::os_build(),
-            },
-        );
 
         // The writer (#52) feeds both; until it exists they stay empty.
         let counters = peekbuddy_core::perf::Counters::new();
@@ -259,6 +249,7 @@ mod run {
         if options.headless || options.probe.is_some() {
             close_window_on_ctrl_c(hidden.handle())?;
         }
+        start_ipc(options, &data, &hidden, &shutdown)?;
 
         if !options.headless || options.tray {
             start_tray(
@@ -323,6 +314,74 @@ mod run {
         } else {
             "x86_64"
         }
+    }
+
+    /// Second launch: ask the running engine to show the viewer. If that
+    /// fails there is nothing more to do; the second launch still exits 0.
+    fn forward_to_running_engine(options: &Options) {
+        if let (Ok(pipe), Ok(exe)) = (
+            crate::ipc_server::pipe_name(options.data_dir.as_deref()),
+            std::env::current_exe(),
+        ) {
+            let _ = crate::ipc_server::forward_show_viewer(&pipe, &exe);
+        }
+    }
+
+    /// Opens the data directory, takes the crash marker of a previous run
+    /// and installs the panic hook that writes the next one.
+    fn open_data(options: &Options) -> std::io::Result<(DataDir, Option<String>)> {
+        let (root, decision) = match &options.data_dir {
+            Some(root) => (root.clone(), Decision::Installed(None)),
+            None => datadir::locate(&std::env::current_exe()?)?,
+        };
+        let data = DataDir::open(&root, decision)?;
+        let abnormal = crash::take_marker(&data.root);
+        crash::install_panic_hook(
+            data.logs.clone(),
+            data.root.clone(),
+            BuildInfo {
+                build: env!("CARGO_PKG_VERSION").to_owned(),
+                os_build: osinfo::os_build(),
+            },
+        );
+        Ok((data, abnormal))
+    }
+
+    /// Starts the viewer pipe. A pipe that already exists means another engine
+    /// of this user (a second session) or a squatter: the engine fails closed
+    /// with the reason written to `logs\ipc-error.log`.
+    fn start_ipc(
+        options: &Options,
+        data: &DataDir,
+        hidden: &HiddenWindow,
+        shutdown: &Rc<RefCell<Shutdown>>,
+    ) -> std::io::Result<()> {
+        let name = crate::ipc_server::pipe_name(options.data_dir.as_deref())?;
+        let shared = crate::ipc_server::Shared {
+            window: hidden.handle(),
+            exe: std::env::current_exe()?,
+            settings_path: data.settings.clone(),
+            data_dir: data.root.to_string_lossy().into_owned(),
+        };
+        let server = match crate::ipc_server::start(&name, shared) {
+            Ok(server) => server,
+            Err(error) => {
+                let reason = format!(
+                    "could not create {name}: {error}
+Another PeekBuddy engine of this user owns it, or another program created it first. This engine exits instead of running a second writer.
+"
+                );
+                let _ = std::fs::write(data.logs.join("ipc-error.log"), reason);
+                return Err(error);
+            }
+        };
+        let cell = Rc::new(RefCell::new(Some(server)));
+        shutdown.borrow_mut().register(Stage::StopIpc, move |_| {
+            if let Some(mut server) = cell.borrow_mut().take() {
+                server.stop();
+            }
+        });
+        Ok(())
     }
 
     /// Creates the tray, shows it and registers its removal for shutdown.
