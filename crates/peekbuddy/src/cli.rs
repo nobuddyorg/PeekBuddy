@@ -17,6 +17,9 @@ pub enum Role {
     Viewer,
     /// Print the diagnostics text and exit (`--diagnostics`).
     Diagnostics,
+    /// Connect to the running engine's pipe and say hello (`--ipc-ping`);
+    /// exits with the Windows error code on failure.
+    Ping,
 }
 
 /// A parsed command line.
@@ -76,6 +79,7 @@ impl std::fmt::Display for Error {
 pub fn parse(args: impl IntoIterator<Item = String>) -> Result<Invocation, Error> {
     let mut viewer = false;
     let mut diagnostics = false;
+    let mut ping = false;
     let mut full = false;
     let mut probe_out = None;
     let mut options = Options::default();
@@ -86,6 +90,7 @@ pub fn parse(args: impl IntoIterator<Item = String>) -> Result<Invocation, Error
             "--headless" => options.headless = true,
             "--tray" => options.tray = true,
             "--diagnostics" => diagnostics = true,
+            "--ipc-ping" => ping = true,
             "--full" => full = true,
             "--data-dir" => {
                 let value = args.next().ok_or(Error::MissingValue("--data-dir"))?;
@@ -118,16 +123,25 @@ pub fn parse(args: impl IntoIterator<Item = String>) -> Result<Invocation, Error
     if full && !diagnostics {
         return Err(Error::OrphanFlag("--full"));
     }
-    if options.data_dir.is_some() && !options.headless && options.probe.is_none() {
+    if options.data_dir.is_some() && !options.headless && options.probe.is_none() && !ping {
         return Err(Error::DataDirNeedsHeadless);
     }
-    let role = match (viewer, diagnostics) {
-        (true, true) => return Err(Error::RoleFlagsMixed),
-        (true, false) => Role::Viewer,
-        (false, true) => Role::Diagnostics,
-        (false, false) => Role::Engine,
+    let role = match (viewer, diagnostics, ping) {
+        (true, false, false) => Role::Viewer,
+        (false, true, false) => Role::Diagnostics,
+        (false, false, true) => Role::Ping,
+        (false, false, false) => Role::Engine,
+        _ => return Err(Error::RoleFlagsMixed),
     };
-    if role != Role::Engine && options != Options::default() {
+    // `--data-dir` selects which engine to ping; nothing else is allowed.
+    let ping_options = Options {
+        data_dir: options.data_dir.clone(),
+        ..Options::default()
+    };
+    if role == Role::Ping && options != ping_options {
+        return Err(Error::RoleFlagsMixed);
+    }
+    if role != Role::Engine && role != Role::Ping && options != Options::default() {
         return Err(Error::RoleFlagsMixed);
     }
     Ok(Invocation {
@@ -238,6 +252,21 @@ mod tests {
         let invocation = parse(args(&["--headless", "--tray"])).unwrap();
         assert!(invocation.engine.tray);
         assert_eq!(parse(args(&["--tray"])), Err(Error::OrphanFlag("--tray")));
+    }
+
+    #[test]
+    fn ping_takes_only_a_data_dir() {
+        assert_eq!(parse(args(&["--ipc-ping"])).unwrap().role, Role::Ping);
+        let pinged = parse(args(&["--ipc-ping", "--data-dir", r"C:	"])).unwrap();
+        assert_eq!(pinged.engine.data_dir, Some(PathBuf::from(r"C:	")));
+        assert_eq!(
+            parse(args(&["--ipc-ping", "--headless"])),
+            Err(Error::RoleFlagsMixed)
+        );
+        assert_eq!(
+            parse(args(&["--ipc-ping", "--viewer"])),
+            Err(Error::RoleFlagsMixed)
+        );
     }
 
     #[test]

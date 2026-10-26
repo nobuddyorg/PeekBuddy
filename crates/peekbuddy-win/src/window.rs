@@ -98,6 +98,12 @@ impl WindowHandle {
         (!hwnd.is_null()).then_some(Self(hwnd as isize))
     }
 
+    /// A handle from a raw value (0 never names a window).
+    #[must_use]
+    pub const fn from_raw(raw: isize) -> Self {
+        Self(raw)
+    }
+
     /// The raw handle value, for hand-off to a console control handler.
     #[must_use]
     pub const fn raw(self) -> isize {

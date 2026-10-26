@@ -264,6 +264,10 @@ fn the_tray_icon_comes_back_with_the_taskbar_and_goes_away_on_quit() {
     use peekbuddy_engine::tray_model::Command;
     use peekbuddy_win::tray::{Tray, taskbar_created_message};
 
+    if !peekbuddy_win::tray::taskbar_exists() {
+        // A session without explorer (some arm64 runners) has no tray to test.
+        return;
+    }
     let dir = TestDir::new("engine-tray").unwrap();
     let mut engine = Kill(spawn(dir.path(), &["--tray"]));
     let window = wait_for_window(dir.path(), &mut engine.0);

@@ -17,6 +17,9 @@ pub enum Reason {
 /// Shutdown stages, in the order they run.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Stage {
+    /// Tell the viewer and stop the pipe server; pending pipe I/O is
+    /// cancelled and completed before anything is freed.
+    StopIpc,
     /// `CancelIoEx` on every watch and join the readers.
     StopCapture,
     /// Move what is left in the ring to the writer.
@@ -103,6 +106,7 @@ mod tests {
         let (log, mut shutdown) = recorder();
         for (stage, name) in [
             (Stage::ReleaseProvider, "provider"),
+            (Stage::StopIpc, "ipc"),
             (Stage::RemoveTray, "tray"),
             (Stage::CloseDatabase, "close"),
             (Stage::StopCapture, "stop"),
@@ -117,6 +121,7 @@ mod tests {
         assert_eq!(
             *log.borrow(),
             [
+                "ipc",
                 "stop",
                 "drain",
                 "commit",

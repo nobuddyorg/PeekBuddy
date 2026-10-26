@@ -9,6 +9,7 @@
 pub mod derive;
 pub mod event;
 pub mod filter;
+pub mod ipc;
 pub mod name;
 pub mod notify;
 pub mod perf;

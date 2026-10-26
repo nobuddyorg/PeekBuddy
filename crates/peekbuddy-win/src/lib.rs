@@ -23,6 +23,8 @@ pub mod job;
 #[cfg(windows)]
 pub mod osinfo;
 #[cfg(windows)]
+pub mod pipe;
+#[cfg(windows)]
 pub mod process;
 #[cfg(windows)]
 pub mod resources;
