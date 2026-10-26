@@ -50,7 +50,9 @@ fn the_probe_prints_a_valid_document_to_a_redirected_stdout() {
         .output()
         .unwrap();
     assert!(output.status.success(), "{:?}", output.status);
-    assert!(started.elapsed() < Duration::from_secs(10));
+    // Generous: the first start of a fresh exe on a busy runner can take
+    // seconds (virus scan, parallel tests); this only catches a hang.
+    assert!(started.elapsed() < Duration::from_secs(30));
     let document = assert_valid(&String::from_utf8(output.stdout).unwrap());
 
     assert_eq!(document["requestedSeconds"], 0);
