@@ -15,6 +15,7 @@ tracelogging = { workspace = true }
 [target.'cfg(windows)'.dependencies]
 windows-sys = { workspace = true, features = [
   "Wdk_Storage_FileSystem",
+  "Win32_Devices_DeviceAndDriverInstallation",
   "Wdk_System_SystemServices",
   "Wdk_System_SystemInformation",
   "Win32_Foundation",
@@ -29,6 +30,7 @@ windows-sys = { workspace = true, features = [
   "Win32_System_LibraryLoader",
   "Win32_System_Registry",
   "Win32_System_Pipes",
+  "Win32_System_Power",
   "Win32_System_ProcessStatus",
   "Win32_System_RemoteDesktop",
   "Win32_System_SystemInformation",

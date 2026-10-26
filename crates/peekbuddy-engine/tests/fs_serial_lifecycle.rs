@@ -16,7 +16,9 @@ use peekbuddy_core::event::{Event, Kind, RootIdx, VolIdx, WatchState};
 use peekbuddy_core::lifecycle::Signal;
 use peekbuddy_core::pause::Pause;
 use peekbuddy_core::reconcile::RowOut;
-use peekbuddy_engine::capture_host::{Host, HostParts, Services, Signaller, WatchSpec};
+use peekbuddy_engine::capture_host::{
+    Host, HostParts, Services, Signaller, WatchSpec, notifier_factory, watch_system,
+};
 use peekbuddy_engine::pause_ctl::RowSink;
 use peekbuddy_engine::reconciler::{Reconciler, RootSpec};
 use peekbuddy_store::snapshot::SnapshotDb;
@@ -227,12 +229,14 @@ fn start(tag: &str, gate: Option<Arc<Gate>>) -> Fixture {
                     injected.lock().unwrap().unwrap_or_else(|| probe_root(path))
                 }),
                 clock,
+                notifier: Some(notifier_factory(&bind)),
             },
             exclude: Vec::new(),
         },
         &bind,
     )
     .unwrap();
+    watch_system(&host);
     let signaller = host.signaller();
     Fixture {
         host,

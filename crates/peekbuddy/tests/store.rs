@@ -150,3 +150,63 @@ fn quitting_commits_the_queue_and_truncates_the_log() {
         "ids stay contiguous"
     );
 }
+
+/// `WM_ENDSESSION` with 1,000 events pending (#48, #171): the engine commits
+/// them and checkpoints well inside the 5 s Windows allows.
+#[test]
+fn a_session_end_flushes_a_thousand_pending_events_in_time() {
+    use std::time::{Duration, Instant};
+
+    use peekbuddy_engine::Names;
+    use peekbuddy_win::window::WindowHandle;
+
+    let dir = TestDir::new("store-endsession").unwrap();
+    let data = dir.path().join("data");
+    let watched = dir.path().join("watched");
+    std::fs::create_dir_all(&watched).unwrap();
+    std::fs::create_dir_all(&data).unwrap();
+    std::fs::write(
+        data.join("settings.toml"),
+        format!(
+            "version = 1
+[general]
+first_run = false
+[[watch]]
+id = \"w\"
+path = '{}'
+",
+            watched.display()
+        ),
+    )
+    .unwrap();
+    let mut engine = Command::new(EXE)
+        .args(["--headless", "--synthetic-events", "1000", "--data-dir"])
+        .arg(&data)
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+        .unwrap();
+    let class = Names::new(Some(&data)).window_class;
+    let deadline = Instant::now() + Duration::from_secs(20);
+    let window = loop {
+        if let Some(window) = WindowHandle::find(&class) {
+            break window;
+        }
+        assert!(Instant::now() < deadline, "no engine window");
+        std::thread::sleep(Duration::from_millis(20));
+    };
+    let started = Instant::now();
+    assert!(window.query_end_session(2_000).unwrap());
+    window.end_session(5_000).unwrap();
+    let flushed = started.elapsed();
+    assert!(flushed < Duration::from_secs(5), "{flushed:?}");
+    window.post_close().ok();
+    let _ = engine.wait();
+
+    let conn = Connection::open(segment(&data)).unwrap();
+    assert_eq!(
+        count(&conn, "SELECT count(*) FROM event WHERE source = 0"),
+        1_000
+    );
+}

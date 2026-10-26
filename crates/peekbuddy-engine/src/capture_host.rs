@@ -49,6 +49,12 @@ pub type ProbeFn = Box<dyn Fn(&[u16]) -> Probe + Send + Sync>;
 /// path below the watched ancestor, upper-cased.
 type Waiting = Arc<Mutex<HashMap<u16, (RootIdx, Vec<u16>)>>>;
 
+/// Creates the plug-and-play registration of one root; dropping what it
+/// returns removes the registration. `None` when the root cannot be watched
+/// that way.
+pub type NotifierFactory =
+    Box<dyn Fn(RootIdx, &[u16]) -> Option<Box<dyn Send + Sync>> + Send + Sync>;
+
 /// One watched root, as the host needs it.
 #[derive(Debug, Clone)]
 pub struct WatchSpec {
@@ -78,6 +84,8 @@ pub struct Services {
     pub probe: ProbeFn,
     /// The clocks for rows.
     pub clock: Clock,
+    /// Registers a root for volume notifications (query-remove, lock, ...).
+    pub notifier: Option<NotifierFactory>,
 }
 
 /// A real probe.
@@ -104,6 +112,10 @@ struct Inner {
     parents: Mutex<Option<Watcher>>,
     waiting: Waiting,
     reconciler: Mutex<Option<Reconciler>>,
+    /// The volume notification registrations, by root.
+    notifiers: Mutex<HashMap<u16, Box<dyn Send + Sync>>>,
+    /// Registrations that live as long as the host.
+    keep: Mutex<Vec<Box<dyn Send + Sync>>>,
     /// Canonical directories whose events are dropped before the ring.
     exclude: Vec<Vec<u16>>,
     stopping: AtomicBool,
@@ -541,6 +553,8 @@ impl Host {
             parents: Mutex::new(None),
             waiting: Arc::new(Mutex::new(HashMap::new())),
             reconciler: Mutex::new(reconciler),
+            notifiers: Mutex::new(HashMap::new()),
+            keep: Mutex::new(Vec::new()),
             exclude,
             stopping: AtomicBool::new(false),
         });
@@ -618,9 +632,17 @@ impl Host {
         }
     }
 
+    /// Keeps `guard` (a registration) alive until the host stops.
+    pub fn keep(&self, guard: Box<dyn Send + Sync>) {
+        lock(&self.inner.keep).push(guard);
+    }
+
     /// Stops the worker, the watchers and the reconciler.
     pub fn stop(&mut self) {
         self.inner.stopping.store(true, Ordering::Release);
+        // No more notifications: the callbacks must not post to a dead queue.
+        lock(&self.inner.keep).clear();
+        lock(&self.inner.notifiers).clear();
         self.inner.post(Job::Stop);
         if let Some(worker) = self.worker.take() {
             let _ = worker.join();
@@ -700,10 +722,22 @@ fn open(inner: &Arc<Inner>, root: RootIdx) {
     let result = lock(&inner.watcher)
         .as_ref()
         .map(|watcher| watcher.add_root(rdcw_spec(inner, spec)));
-    if !matches!(result, Some(Ok(_))) {
+    if matches!(result, Some(Ok(_))) {
+        register_notifier(inner, spec);
+    } else {
         handle(inner, root, Signal::ArmFailed);
     }
     // On success the watcher reports `Live`, which becomes `Armed`.
+}
+
+fn register_notifier(inner: &Inner, spec: &WatchSpec) {
+    let guard = lock(&inner.services)
+        .notifier
+        .as_ref()
+        .and_then(|factory| factory(spec.root, &spec.long));
+    if let Some(guard) = guard {
+        lock(&inner.notifiers).insert(spec.root.0, guard);
+    }
 }
 
 fn recheck(inner: &Arc<Inner>, root: RootIdx) {
@@ -745,11 +779,15 @@ fn act(inner: &Arc<Inner>, root: RootIdx, action: Action) {
     };
     match action {
         Action::CloseHandle => {
+            // The registration holds a handle too: the volume cannot go
+            // while it is open.
+            lock(&inner.notifiers).remove(&root.0);
             if let Some(watcher) = lock(&inner.watcher).as_ref() {
                 let _ = watcher.remove_root(root);
             }
         }
         Action::Reopen => {
+            lock(&inner.notifiers).remove(&root.0);
             let result = {
                 let guard = lock(&inner.watcher);
                 guard.as_ref().map(|watcher| {
@@ -757,7 +795,9 @@ fn act(inner: &Arc<Inner>, root: RootIdx, action: Action) {
                     watcher.add_root(rdcw_spec(inner, spec))
                 })
             };
-            if !matches!(result, Some(Ok(_))) {
+            if matches!(result, Some(Ok(_))) {
+                register_notifier(inner, spec);
+            } else {
                 inner.post(Job::Signal(root, Signal::ArmFailed));
             }
         }
@@ -896,4 +936,63 @@ struct ParentLife;
 impl LifecycleSink for ParentLife {
     fn state(&mut self, _: RootIdx, _: WatchState, _: Detail) {}
     fn reconcile(&mut self, _: RootIdx, _: GapReason) {}
+}
+
+/// A volume notice as the signal for the root it came for.
+#[must_use]
+pub const fn signal_of_notice(notice: peekbuddy_win::pnp::Notice) -> Signal {
+    use peekbuddy_win::pnp::Notice;
+    match notice {
+        Notice::QueryRemove => Signal::QueryRemove,
+        Notice::QueryRemoveFailed => Signal::QueryRemoveFailed,
+        Notice::RemovePending => Signal::RemovePending,
+        Notice::RemoveComplete => Signal::RemoveComplete,
+        Notice::Lock => Signal::VolumeLock,
+        Notice::LockFailed | Notice::DismountFailed => Signal::LockFailed,
+        Notice::Dismount => Signal::Dismount,
+        Notice::Unlock | Notice::Mount => Signal::VolumeBack,
+        // Locked or unlocked is not in the message: ask the volume.
+        Notice::FveChange => Signal::IoError,
+    }
+}
+
+/// The notifier factory of the engine: one `CM_Register_Notification` per
+/// root, posting to the host once it is bound.
+pub fn notifier_factory(bind: &Arc<OnceLock<Signaller>>) -> NotifierFactory {
+    let bind = Arc::clone(bind);
+    Box::new(move |root, long| {
+        let target = Arc::clone(&bind);
+        let watch = peekbuddy_win::pnp::HandleWatch::register(
+            long,
+            Arc::new(move |notice| {
+                if let Some(signaller) = target.get() {
+                    signaller.signal(root, signal_of_notice(notice));
+                }
+            }),
+        )
+        .ok()?;
+        Some(Box::new(watch) as Box<dyn Send + Sync>)
+    })
+}
+
+/// Registers the host-wide notifications: volume arrival and power. The
+/// returned guards live in the host.
+pub fn watch_system(host: &Host) {
+    let signaller = host.signaller();
+    let on_volume = signaller.clone();
+    if let Ok(watch) = peekbuddy_win::pnp::InterfaceWatch::register(Arc::new(move |arrival| {
+        if arrival {
+            on_volume.signal_all(Signal::VolumeBack);
+        }
+    })) {
+        host.keep(Box::new(watch));
+    }
+    if let Ok(watch) = peekbuddy_win::pnp::PowerWatch::register(Arc::new(move |event| {
+        signaller.signal_all(match event {
+            peekbuddy_win::pnp::PowerEvent::Suspend => Signal::PowerSuspend,
+            peekbuddy_win::pnp::PowerEvent::Resume => Signal::PowerResume,
+        });
+    })) {
+        host.keep(Box::new(watch));
+    }
 }

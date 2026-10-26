@@ -237,6 +237,12 @@ mod run {
         let shutdown = Rc::new(RefCell::new(Shutdown::new()));
         let store = start_store(&data, &loaded_settings, &counters, &commits, &shutdown)?;
         mark(milestones, Milestone::StoreOpened);
+        // Queued before the window exists, so a test that sees the window
+        // knows the events are pending.
+        #[cfg(feature = "test-panic")]
+        if options.synthetic_events > 0 {
+            push_synthetic(&store, &counters, options.synthetic_events);
+        }
         let (pause, capture) =
             start_pause_and_capture(&data, &loaded_settings, &store, &counters, &shutdown)?;
         let autostart = start_autostart(options, &loaded_settings)?;
@@ -279,10 +285,6 @@ mod run {
         #[cfg(feature = "test-panic")]
         if options.panic_after_ready {
             test_panic();
-        }
-        #[cfg(feature = "test-panic")]
-        if options.synthetic_events > 0 {
-            push_synthetic(&store, &counters, options.synthetic_events);
         }
         drop(store);
         let _capture = capture;
@@ -509,6 +511,7 @@ mod run {
             }),
             probe: real_probe(),
             clock: crate::pause_ctl::now_ticks,
+            notifier: Some(crate::capture_host::notifier_factory(bind)),
         };
         let host = Host::start(
             HostParts {
@@ -521,6 +524,7 @@ mod run {
             },
             bind,
         )?;
+        crate::capture_host::watch_system(&host);
         let cell = Rc::new(RefCell::new(Some(host)));
         let stopping = Rc::clone(&cell);
         shutdown

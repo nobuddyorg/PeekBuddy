@@ -27,6 +27,8 @@ pub mod osinfo;
 #[cfg(windows)]
 pub mod pipe;
 #[cfg(windows)]
+pub mod pnp;
+#[cfg(windows)]
 pub mod probe;
 #[cfg(windows)]
 pub mod process;
