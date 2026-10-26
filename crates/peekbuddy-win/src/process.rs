@@ -182,10 +182,14 @@ pub fn run_low_integrity(command_line: &str) -> std::io::Result<u32> {
 ///
 /// Returns the OS error, for example for a wrong password.
 pub fn run_as_user(user: &str, password: &str, command_line: &str) -> std::io::Result<u32> {
-    use windows_sys::Win32::System::Threading::{CreateProcessWithLogonW, LOGON_WITH_PROFILE};
+    use windows_sys::Win32::System::Threading::{
+        CREATE_UNICODE_ENVIRONMENT, CreateProcessWithLogonW, LOGON_WITH_PROFILE,
+    };
 
     let wide = |text: &str| -> Vec<u16> { text.encode_utf16().chain(Some(0)).collect() };
     let (user, domain, password) = (wide(user), wide("."), wide(password));
+    // The new user's session may not reach our working directory.
+    let directory = wide(r"C:\Windows");
     let mut command = wide(command_line);
     let startup = startup_info();
     let mut info = PROCESS_INFORMATION::default();
@@ -199,9 +203,11 @@ pub fn run_as_user(user: &str, password: &str, command_line: &str) -> std::io::R
             LOGON_WITH_PROFILE,
             std::ptr::null(),
             command.as_mut_ptr(),
-            DETACHED_PROCESS,
+            // CreateProcessWithLogonW accepts only a few creation flags;
+            // DETACHED_PROCESS is not one of them (ERROR_INVALID_PARAMETER).
+            CREATE_UNICODE_ENVIRONMENT,
             std::ptr::null(),
-            std::ptr::null(),
+            directory.as_ptr(),
             &raw const startup,
             &raw mut info,
         )
