@@ -230,6 +230,8 @@ fn start(tag: &str, gate: Option<Arc<Gate>>) -> Fixture {
                 }),
                 clock,
                 notifier: Some(notifier_factory(&bind)),
+                milestone: Arc::new(|_| {}),
+                ready: None,
             },
             exclude: Vec::new(),
         },

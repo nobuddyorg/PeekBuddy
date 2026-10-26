@@ -23,6 +23,8 @@ pub mod datadir;
 #[cfg(windows)]
 pub mod diag_collect;
 #[cfg(windows)]
+pub mod instrument;
+#[cfg(windows)]
 pub mod ipc_server;
 #[cfg(windows)]
 pub mod pause_ctl;
@@ -163,7 +165,7 @@ pub use run::run;
 #[cfg(not(windows))]
 pub fn run(
     _options: &Options,
-    _milestones: &peekbuddy_core::perf::MilestoneTable,
+    _milestones: &std::sync::Arc<peekbuddy_core::perf::MilestoneTable>,
     _provider: Provider,
 ) -> std::io::Result<Exit> {
     Ok(Exit::Ran {
@@ -178,11 +180,10 @@ mod run {
     use std::rc::Rc;
     use std::sync::{Arc, Mutex};
 
-    use peekbuddy_core::perf::{Milestone, MilestoneTable, Role};
+    use peekbuddy_core::perf::{Milestone, MilestoneTable};
     use peekbuddy_win::console::{attach_output, close_window_on_ctrl_c};
     use peekbuddy_win::metrics::ContextSwitches;
     use peekbuddy_win::osinfo;
-    use peekbuddy_win::perf::{record, since_process_create_us};
     use peekbuddy_win::single_instance::SingleInstance;
     use peekbuddy_win::window::{HiddenWindow, WindowEvent};
 
@@ -202,9 +203,7 @@ mod run {
     pub(crate) type SharedAutostart =
         Arc<crate::autostart_ctl::AutostartCtl<peekbuddy_win::autostart::RunKeys>>;
 
-    fn mark(table: &MilestoneTable, milestone: Milestone) {
-        record(table, milestone, Role::Engine, since_process_create_us());
-    }
+    use crate::instrument::mark;
 
     /// Runs the engine role until it is asked to exit.
     ///
@@ -213,7 +212,7 @@ mod run {
     /// Returns the error that stopped the engine from starting.
     pub fn run(
         options: &Options,
-        milestones: &MilestoneTable,
+        milestones: &Arc<MilestoneTable>,
         provider: Provider,
     ) -> std::io::Result<Exit> {
         // Held in a cell so the shutdown path can release it explicitly: on
@@ -228,6 +227,7 @@ mod run {
         let _ = osinfo::expose_placeholders();
 
         let (data, abnormal_termination) = open_data(options)?;
+        init_instrumentation(&data, milestones);
         let loaded_settings = crate::settings::load_or_create(&data);
         mark(milestones, Milestone::SettingsLoaded);
 
@@ -246,8 +246,22 @@ mod run {
         if options.synthetic_events > 0 {
             push_synthetic(&store, &counters, options.synthetic_events);
         }
-        let (pause, capture) =
-            start_pause_and_capture(&data, &loaded_settings, &store, &counters, &shutdown)?;
+        // F7: ready is "tray attempt done AND every watch armed (or failed)
+        // AND setup done"; the last of them records `EngineReady`.
+        let tray_wanted = !options.headless || options.tray;
+        let instruments = instruments(
+            milestones,
+            loaded_settings.settings.watches.len() + usize::from(tray_wanted) + 1,
+        );
+        let gate = Arc::clone(&instruments.gate);
+        let (pause, capture) = start_pause_and_capture(
+            &data,
+            &loaded_settings,
+            &store,
+            &counters,
+            &shutdown,
+            &instruments,
+        )?;
         let autostart = start_autostart(options, &loaded_settings)?;
         shutdown
             .borrow_mut()
@@ -269,7 +283,7 @@ mod run {
         }
         start_ipc(options, &data, &hidden, &shutdown, (&pause, autostart))?;
 
-        if !options.headless || options.tray {
+        if tray_wanted {
             start_tray(
                 &hidden,
                 &tray_cell,
@@ -279,12 +293,11 @@ mod run {
                 abnormal_termination.is_some(),
                 milestones,
             )?;
+            // A failed tray is retried later; the attempt is what counts.
+            gate.done();
         }
-
-        // F7: ready is "tray added AND all watchers armed". There are no
-        // watchers yet (#45), and a failed tray is retried later, so ready is
-        // the point where the tray attempt is done.
-        mark(milestones, Milestone::EngineReady);
+        // Setup is done.
+        gate.done();
         #[cfg(feature = "test-panic")]
         if options.panic_after_ready {
             test_panic();
@@ -467,6 +480,31 @@ mod run {
         }
     }
 
+    /// What the capture side needs to report milestones.
+    struct Instruments {
+        milestones: Arc<MilestoneTable>,
+        gate: Arc<crate::instrument::ReadyGate>,
+    }
+
+    /// The log file and the `ViewerSpawn` milestone.
+    fn init_instrumentation(data: &DataDir, milestones: &Arc<MilestoneTable>) {
+        crate::instrument::init_log(&data.logs);
+        let table = Arc::clone(milestones);
+        crate::instrument::on_viewer_spawn(move || mark(&table, Milestone::ViewerSpawn));
+    }
+
+    /// The milestone table and a gate that records `EngineReady` after
+    /// `count` calls of `done`.
+    fn instruments(milestones: &Arc<MilestoneTable>, count: usize) -> Instruments {
+        let table = Arc::clone(milestones);
+        Instruments {
+            milestones: Arc::clone(milestones),
+            gate: crate::instrument::ReadyGate::new(count, move || {
+                mark(&table, Milestone::EngineReady);
+            }),
+        }
+    }
+
     /// Pause control and capture, which need each other: pausing is a signal
     /// to the lifecycle machines, and the machines read the pause switches.
     fn start_pause_and_capture(
@@ -475,6 +513,7 @@ mod run {
         producer: &peekbuddy_store::pipeline::Producer,
         counters: &Arc<peekbuddy_core::perf::Counters>,
         shutdown: &Rc<RefCell<Shutdown>>,
+        instruments: &Instruments,
     ) -> std::io::Result<(Arc<crate::pause_ctl::PauseCtl>, Option<SharedHost>)> {
         let (pause_rows, bind) = crate::capture_host::PauseSignals::new();
         let pause = crate::pause_ctl::PauseCtl::new(
@@ -487,7 +526,13 @@ mod run {
             Box::new(pause_rows),
             crate::pause_ctl::now_ticks,
         );
-        let capture = start_capture(data, loaded, producer, counters, (&pause, &bind), shutdown)?;
+        let capture = start_capture(
+            data,
+            loaded,
+            (producer, counters),
+            (&pause, &bind),
+            (shutdown, instruments),
+        )?;
         pause.announce_start();
         Ok((pause, capture))
     }
@@ -498,13 +543,15 @@ mod run {
     fn start_capture(
         data: &DataDir,
         loaded: &crate::settings::LoadedSettings,
-        producer: &peekbuddy_store::pipeline::Producer,
-        counters: &Arc<peekbuddy_core::perf::Counters>,
+        (producer, counters): (
+            &peekbuddy_store::pipeline::Producer,
+            &Arc<peekbuddy_core::perf::Counters>,
+        ),
         (pause, bind): (
             &Arc<crate::pause_ctl::PauseCtl>,
             &Arc<std::sync::OnceLock<crate::capture_host::Signaller>>,
         ),
-        shutdown: &Rc<RefCell<Shutdown>>,
+        (shutdown, instruments): (&Rc<RefCell<Shutdown>>, &Instruments),
     ) -> std::io::Result<Option<SharedHost>> {
         use crate::capture_host::{
             Host, HostParts, Services, StoreSink, filters_from_settings, real_probe,
@@ -552,6 +599,11 @@ mod run {
             probe: real_probe(),
             clock: crate::pause_ctl::now_ticks,
             notifier: Some(crate::capture_host::notifier_factory(bind)),
+            milestone: {
+                let table = Arc::clone(&instruments.milestones);
+                Arc::new(move |milestone| mark(&table, milestone))
+            },
+            ready: Some(Arc::clone(&instruments.gate)),
         };
         let host = Host::start(
             HostParts {

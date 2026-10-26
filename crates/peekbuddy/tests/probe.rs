@@ -148,3 +148,74 @@ fn diagnostics_full_shows_the_data_directory() {
         "{text}"
     );
 }
+
+fn run_probe_with_watches(dir: &TestDir, watches: usize) -> serde_json::Value {
+    let data = dir.path().join("data");
+    std::fs::create_dir_all(&data).unwrap();
+    let mut settings = String::from("version = 1\n[general]\nfirst_run = false\n");
+    for index in 0..watches {
+        let watched = dir.path().join(format!("watched{index}"));
+        std::fs::create_dir_all(&watched).unwrap();
+        settings.push_str(&format!(
+            "[[watch]]\nid = \"w{index}\"\npath = '{}'\n",
+            watched.display()
+        ));
+    }
+    std::fs::write(data.join("settings.toml"), settings).unwrap();
+    let output = Command::new(EXE)
+        .args(["--perf-probe", "1", "--data-dir"])
+        .arg(&data)
+        .stdin(Stdio::null())
+        .stderr(Stdio::null())
+        .output()
+        .unwrap();
+    assert!(output.status.success(), "{:?}", output.status);
+    assert_valid(&String::from_utf8(output.stdout).unwrap())
+}
+
+/// F7: ready is "every watch armed and the tray attempt done", so
+/// `EngineReady` comes once, after `WatcherArmed` of every root (#162).
+#[test]
+fn engine_ready_waits_for_every_watch_to_arm_and_is_recorded_once() {
+    let dir = TestDir::new("probe-ready").unwrap();
+    let document = run_probe_with_watches(&dir, 3);
+    let armed = milestone(&document, "WatcherArmed");
+    assert_eq!(armed["count"], 3);
+    let ready = milestone(&document, "EngineReady");
+    assert_eq!(ready["count"], 1);
+    assert!(
+        ready["firstUs"].as_u64().unwrap() >= armed["lastUs"].as_u64().unwrap(),
+        "ready before the last watch was armed: {document}"
+    );
+    let names: Vec<&str> = document["milestones"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|row| row["name"].as_str().unwrap())
+        .collect();
+    // The start reconcile of each new root is recorded too.
+    assert!(names.contains(&"ReconcileStart"), "{names:?}");
+}
+
+#[test]
+fn a_run_without_watches_is_ready_without_any_watcher_milestone() {
+    let dir = TestDir::new("probe-ready-none").unwrap();
+    let document = run_probe_with_watches(&dir, 0);
+    assert_eq!(milestone(&document, "EngineReady")["count"], 1);
+    assert!(
+        document["milestones"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|row| row["name"] != "WatcherArmed")
+    );
+}
+
+#[test]
+fn the_engine_log_records_the_watch_states() {
+    let dir = TestDir::new("probe-log").unwrap();
+    let _ = run_probe_with_watches(&dir, 1);
+    let log = std::fs::read_to_string(dir.path().join("data").join("logs").join("engine.log"))
+        .unwrap_or_default();
+    assert!(log.contains("watch 0: Arming -> Live"), "{log}");
+}
