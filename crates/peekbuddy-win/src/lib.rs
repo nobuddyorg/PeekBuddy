@@ -17,6 +17,8 @@ pub mod atomic;
 #[cfg(windows)]
 pub mod attrs;
 #[cfg(windows)]
+pub mod autostart;
+#[cfg(windows)]
 pub mod console;
 #[cfg(windows)]
 pub mod job;

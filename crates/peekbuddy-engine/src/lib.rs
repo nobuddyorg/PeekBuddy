@@ -15,11 +15,15 @@ pub mod shutdown;
 pub mod tray_model;
 
 #[cfg(windows)]
+pub mod autostart_ctl;
+#[cfg(windows)]
 pub mod datadir;
 #[cfg(windows)]
 pub mod diag_collect;
 #[cfg(windows)]
 pub mod ipc_server;
+#[cfg(windows)]
+pub mod pause_ctl;
 #[cfg(windows)]
 mod sample;
 #[cfg(windows)]
@@ -187,6 +191,10 @@ mod run {
     use crate::tray_win::{SharedTray, TrayController, label_for};
     use crate::{Exit, Names, Options, Provider};
 
+    /// The autostart control the pipe handler shares.
+    pub(crate) type SharedAutostart =
+        Arc<crate::autostart_ctl::AutostartCtl<peekbuddy_win::autostart::RunKeys>>;
+
     fn mark(table: &MilestoneTable, milestone: Milestone) {
         record(table, milestone, Role::Engine, since_process_create_us());
     }
@@ -222,6 +230,18 @@ mod run {
         let shutdown = Rc::new(RefCell::new(Shutdown::new()));
         let store = start_store(&data, &loaded_settings, &counters, &commits, &shutdown)?;
         mark(milestones, Milestone::StoreOpened);
+        let pause = crate::pause_ctl::PauseCtl::new(
+            loaded_settings.settings.clone(),
+            data.settings.clone(),
+            !matches!(
+                loaded_settings.state,
+                crate::settings::State::TooNew { .. } | crate::settings::State::Invalid { .. }
+            ),
+            Box::new(crate::pause_ctl::ProducerRows(store.clone())),
+            crate::pause_ctl::now_ticks,
+        );
+        pause.announce_start();
+        let autostart = start_autostart(options, &loaded_settings)?;
         shutdown
             .borrow_mut()
             .register(Stage::ReleaseProvider, release_provider(&provider));
@@ -240,7 +260,7 @@ mod run {
         if options.headless || options.probe.is_some() {
             close_window_on_ctrl_c(hidden.handle())?;
         }
-        start_ipc(options, &data, &hidden, &shutdown)?;
+        start_ipc(options, &data, &hidden, &shutdown, (&pause, autostart))?;
 
         if !options.headless || options.tray {
             start_tray(
@@ -248,7 +268,7 @@ mod run {
                 &tray_cell,
                 &shutdown,
                 &data,
-                &loaded_settings,
+                (&loaded_settings, &pause),
                 abnormal_termination.is_some(),
                 milestones,
             )?;
@@ -406,6 +426,25 @@ mod run {
         Ok((data, abnormal))
     }
 
+    /// Brings the Run value in line with the saved intent. Test engines (an
+    /// explicit data directory, or headless) never touch the registry.
+    fn start_autostart(
+        options: &Options,
+        loaded: &crate::settings::LoadedSettings,
+    ) -> std::io::Result<Option<SharedAutostart>> {
+        if options.data_dir.is_some() || options.headless {
+            return Ok(None);
+        }
+        let exe = std::env::current_exe()?.to_string_lossy().into_owned();
+        let auto = peekbuddy_core::autostart::Autostart::new(
+            peekbuddy_win::autostart::RunKeys::current_user(),
+            &exe,
+        );
+        let (ctl, _status) =
+            crate::autostart_ctl::AutostartCtl::start(auto, loaded.settings.general.autostart);
+        Ok(Some(Arc::new(ctl)))
+    }
+
     /// Starts the viewer pipe. A pipe that already exists means another engine
     /// of this user (a second session) or a squatter: the engine fails closed
     /// with the reason written to `logs\ipc-error.log`.
@@ -414,6 +453,7 @@ mod run {
         data: &DataDir,
         hidden: &HiddenWindow,
         shutdown: &Rc<RefCell<Shutdown>>,
+        (pause, autostart): (&Arc<crate::pause_ctl::PauseCtl>, Option<SharedAutostart>),
     ) -> std::io::Result<()> {
         let name = crate::ipc_server::pipe_name(options.data_dir.as_deref())?;
         let shared = crate::ipc_server::Shared {
@@ -421,6 +461,8 @@ mod run {
             exe: std::env::current_exe()?,
             settings_path: data.settings.clone(),
             data_dir: data.root.to_string_lossy().into_owned(),
+            pause: Arc::clone(pause),
+            autostart,
         };
         let server = match crate::ipc_server::start(&name, shared) {
             Ok(server) => server,
@@ -449,7 +491,10 @@ Another PeekBuddy engine of this user owns it, or another program created it fir
         cell: &SharedTray,
         shutdown: &Rc<RefCell<Shutdown>>,
         data: &DataDir,
-        loaded: &crate::settings::LoadedSettings,
+        (loaded, pause): (
+            &crate::settings::LoadedSettings,
+            &Arc<crate::pause_ctl::PauseCtl>,
+        ),
         crashed: bool,
         milestones: &MilestoneTable,
     ) -> std::io::Result<()> {
@@ -471,6 +516,7 @@ Another PeekBuddy engine of this user owns it, or another program created it fir
             hidden.handle(),
             std::env::current_exe()?,
             data.root.clone(),
+            Arc::clone(pause),
             TrayState {
                 health,
                 rate: 0.0,

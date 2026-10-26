@@ -291,3 +291,25 @@ fn the_tray_icon_comes_back_with_the_taskbar_and_goes_away_on_quit() {
     assert!(status.success(), "{status:?}");
     assert!(!tray.is_present(), "a ghost icon is left behind");
 }
+
+/// An autostarted engine runs the tray role only: it never starts a viewer
+/// (#63). The Run value launches the exe without arguments; this checks that
+/// the engine role has no child process of its own.
+#[test]
+fn an_engine_with_a_tray_starts_no_viewer_process() {
+    let dir = TestDir::new("engine-no-viewer").unwrap();
+    let mut engine = Kill(spawn(dir.path(), &["--tray"]));
+    let window = wait_for_window(dir.path(), &mut engine.0);
+    std::thread::sleep(Duration::from_millis(500));
+    let query = format!(
+        "(Get-CimInstance Win32_Process -Filter 'ParentProcessId={}' | Measure-Object).Count",
+        engine.0.id()
+    );
+    let output = Command::new("powershell.exe")
+        .args(["-NoProfile", "-NonInteractive", "-Command", &query])
+        .output()
+        .unwrap();
+    let children = String::from_utf8_lossy(&output.stdout).trim().to_owned();
+    assert_eq!(children, "0", "the engine started a child process");
+    quit(window, &mut engine.0);
+}

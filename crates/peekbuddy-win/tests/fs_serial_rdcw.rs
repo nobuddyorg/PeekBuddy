@@ -423,3 +423,42 @@ fn a_root_can_be_added_and_removed_while_running() {
     });
     let _ = watcher.stop();
 }
+
+#[test]
+fn a_paused_watch_stores_nothing_and_counts_every_event() {
+    use peekbuddy_core::pause::{PausableSink, Pause};
+
+    let tmp = Scratch::new("paused");
+    let root = &tmp.0;
+    let probe = Probe::new(1000);
+    let pause = Arc::new(Pause::new());
+    let watcher = Watcher::start(
+        PausableSink::new(Sink(probe.clone()), Arc::clone(&pause)),
+        Life::default(),
+    )
+    .unwrap();
+    watcher.add_root(spec(root, true, 256 * 1024)).unwrap();
+
+    let first = pause.set_watch(ROOT, true).unwrap();
+    assert_eq!(first.state, WatchState::SuspendedByUser);
+    for i in 0..50 {
+        std::fs::write(root.join(format!("p{i}.txt")), b"x").unwrap();
+    }
+    // Every record the backend decoded was counted by the pause, none stored.
+    wait_for("the paused records", || {
+        let records = watcher.metrics().counters.records;
+        records >= 50 && pause.missed(ROOT) == records
+    });
+    assert_eq!(probe.kinds(), []);
+
+    // Resume: one row carries the count, and capture continues.
+    let resumed = pause.set_watch(ROOT, false).unwrap();
+    assert_eq!(resumed.state, WatchState::Live);
+    assert_eq!(resumed.missed, watcher.metrics().counters.records);
+    assert!(!resumed.lower_bound);
+    std::fs::write(root.join("live.txt"), b"x").unwrap();
+    wait_for("live.txt", || {
+        probe.names(Kind::Created).iter().any(|n| n == "live.txt")
+    });
+    let _ = watcher.stop();
+}

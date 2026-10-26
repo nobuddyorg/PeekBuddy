@@ -50,6 +50,11 @@ pub struct Shared {
     pub settings_path: PathBuf,
     /// Data directory text for validation.
     pub data_dir: String,
+    /// Pause and resume (#63).
+    pub pause: Arc<crate::pause_ctl::PauseCtl>,
+    /// Autostart at logon (#63); none for a test engine.
+    pub autostart:
+        Option<Arc<crate::autostart_ctl::AutostartCtl<peekbuddy_win::autostart::RunKeys>>>,
 }
 
 fn command_result(ok: bool, message: impl Into<String>) -> Message {
@@ -65,10 +70,19 @@ fn apply_settings(ctx: &Shared, text: &str) -> Message {
         export_dir: None,
     };
     match settings::load(text, &validation) {
-        Loaded::Ok { .. } => {
+        Loaded::Ok { settings, .. } => {
             match peekbuddy_win::atomic::write_atomic(&ctx.settings_path, text.as_bytes()) {
                 Ok(()) => {
-                    command_result(true, "saved; the watches change with the next start (#68)")
+                    let mut message =
+                        String::from("saved; the watches change with the next start (#68)");
+                    if let Some(ctl) = &ctx.autostart {
+                        message.push_str("; ");
+                        message.push_str(&ctl.apply(settings.general.autostart).map_or_else(
+                            |error| error,
+                            |status| crate::autostart_ctl::describe(&status),
+                        ));
+                    }
+                    command_result(true, message)
                 }
                 Err(error) => {
                     command_result(false, format!("could not write settings.toml: {error}"))
@@ -118,10 +132,24 @@ pub fn handle(ctx: &Shared, message: &Message, reply: &mut Reply) {
         Message::Command(Command::ApplySettings { toml }) => {
             reply.send(&apply_settings(ctx, toml));
         }
+        Message::Command(Command::PauseAll) => {
+            ctx.pause.pause_all();
+            reply.send(&command_result(true, "paused"));
+        }
+        Message::Command(Command::ResumeAll) => {
+            ctx.pause.resume_all();
+            reply.send(&command_result(true, "resumed"));
+        }
+        Message::Command(Command::SetWatchPaused { id, paused }) => {
+            reply.send(&match ctx.pause.set_watch(id, *paused) {
+                Ok(()) => command_result(true, if *paused { "paused" } else { "resumed" }),
+                Err(message) => command_result(false, message),
+            });
+        }
         Message::Command(_) => {
             reply.send(&command_result(
                 false,
-                "pause, resume and watch changes arrive with #63 and #68",
+                "adding and removing watches arrive with #68",
             ));
         }
         // Messages the engine sends, not receives; ignored if a client
@@ -201,7 +229,28 @@ mod tests {
             exe: PathBuf::from("peekbuddy.exe"),
             settings_path: dir.join("settings.toml"),
             data_dir: dir.to_string_lossy().into_owned(),
+            autostart: None,
+            pause: crate::pause_ctl::PauseCtl::new(
+                peekbuddy_core::settings::Settings {
+                    watches: vec![peekbuddy_core::settings::Watch {
+                        id: String::from("w1"),
+                        path: String::from("C:/watched"),
+                        ..peekbuddy_core::settings::Watch::default()
+                    }],
+                    ..peekbuddy_core::settings::Settings::default()
+                },
+                dir.join("settings.toml"),
+                true,
+                Box::new(Rows),
+                crate::pause_ctl::now_ticks,
+            ),
         }
+    }
+
+    struct Rows;
+
+    impl crate::pause_ctl::RowSink for Rows {
+        fn row(&mut self, _: peekbuddy_core::event::Event) {}
     }
 
     fn answer(ctx: &Shared, message: &Message) -> Vec<Message> {
@@ -312,12 +361,50 @@ mod tests {
     }
 
     #[test]
-    fn commands_that_need_later_work_say_so() {
+    fn pause_and_resume_commands_reach_the_pause_control() {
         let dir = dir("commands");
         let ctx = ctx(&dir);
-        let out = answer(&ctx, &Message::Command(Command::PauseAll));
+        let ok = |message: Message| {
+            assert!(
+                matches!(
+                    answer(&ctx, &message).as_slice(),
+                    [Message::CommandResult { ok: true, .. }]
+                ),
+                "{message:?}"
+            );
+        };
+        ok(Message::Command(Command::PauseAll));
+        assert!(ctx.pause.pause().global());
+        ok(Message::Command(Command::ResumeAll));
+        assert!(!ctx.pause.pause().global());
+        ok(Message::Command(Command::SetWatchPaused {
+            id: String::from("w1"),
+            paused: true,
+        }));
+        assert!(
+            ctx.pause
+                .pause()
+                .watch_paused(peekbuddy_core::event::RootIdx(0))
+        );
+        let unknown = answer(
+            &ctx,
+            &Message::Command(Command::SetWatchPaused {
+                id: String::from("nope"),
+                paused: true,
+            }),
+        );
         assert!(matches!(
-            out.as_slice(),
+            unknown.as_slice(),
+            [Message::CommandResult { ok: false, .. }]
+        ));
+        let later = answer(
+            &ctx,
+            &Message::Command(Command::AddWatch {
+                path: String::from("C:/x"),
+            }),
+        );
+        assert!(matches!(
+            later.as_slice(),
             [Message::CommandResult { ok: false, .. }]
         ));
         std::fs::remove_dir_all(&dir).unwrap();

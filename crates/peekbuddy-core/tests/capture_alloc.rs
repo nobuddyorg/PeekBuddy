@@ -4,7 +4,10 @@
 
 use std::alloc::System;
 use std::hint::black_box;
+use std::io::Write as _;
 use std::process::ExitCode;
+use std::sync::Arc;
+use std::time::Instant;
 
 use peekbuddy_alloc::{CountingAlloc, answer_nextest_list, measure};
 use peekbuddy_core::capture::{Decoder, EventSink, Stamp};
@@ -12,6 +15,7 @@ use peekbuddy_core::event::{Event, Flags, NameKind, NameRef, RootIdx, Source, Vo
 use peekbuddy_core::filter::{CompileOptions, FilterSet, Pattern, Rule, Scope, Scratch, presets};
 use peekbuddy_core::name::{CaseMode, WideStr};
 use peekbuddy_core::notify::{Class, layout, parse};
+use peekbuddy_core::pause::{PausableSink, Pause};
 
 #[global_allocator]
 static ALLOC: CountingAlloc<System> = CountingAlloc::new(System);
@@ -182,6 +186,55 @@ fn main() -> ExitCode {
     });
     if sink.offered != expected || sink.stored.is_empty() || delta.allocs != 0 || delta.bytes != 0 {
         return ExitCode::FAILURE;
+    }
+    paused_run(&buf, expected, sink)
+}
+
+/// The same buffer while the watch is paused (#63): every event is counted
+/// and discarded after the parse, still without an allocation. With
+/// `PEEKBUDDY_PRINT_TIMES` set it also prints the cost of a live and a paused
+/// buffer, the numbers behind the pause decision (ADR 0016).
+fn paused_run(buf: &[u8], expected: usize, live: FilteredRing<'_>) -> ExitCode {
+    let pause = Arc::new(Pause::new());
+    let stamp = Stamp { ts: 1, qpc: 1 };
+    let mut sink = PausableSink::new(live, Arc::clone(&pause));
+    let mut decoder = Decoder::new(RootIdx(0), VolIdx(0), Class::Extended, &[]);
+    pause.set_watch(RootIdx(0), true);
+    let delta = measure(20, 500, || {
+        decoder.decode(black_box(buf), buf.len(), stamp, &mut sink);
+    });
+    let counted = pause.missed(RootIdx(0));
+    // 520 buffers were decoded (20 warm-up, 500 measured).
+    if counted != u64::try_from(expected * 520).unwrap_or(0)
+        || delta.allocs != 0
+        || delta.bytes != 0
+    {
+        return ExitCode::FAILURE;
+    }
+    if std::env::var_os("PEEKBUDDY_PRINT_TIMES").is_some() {
+        let live = sink.into_inner();
+        let mut live_sink = live;
+        let mut live_decoder = Decoder::new(RootIdx(0), VolIdx(0), Class::Extended, &[]);
+        let time = |run: &mut dyn FnMut()| {
+            let start = Instant::now();
+            for _ in 0..2_000 {
+                run();
+            }
+            start.elapsed().as_nanos() / 2_000
+        };
+        let live_ns = time(&mut || {
+            live_sink.stored.clear();
+            live_decoder.decode(black_box(buf), buf.len(), stamp, &mut live_sink);
+        });
+        let mut paused_sink = PausableSink::new(live_sink, Arc::clone(&pause));
+        let paused_ns = time(&mut || {
+            live_decoder.decode(black_box(buf), buf.len(), stamp, &mut paused_sink);
+        });
+        let _ = writeln!(
+            std::io::stderr(),
+            "records per buffer {expected}: live {live_ns} ns, paused {paused_ns} ns ({}%)",
+            paused_ns * 100 / live_ns.max(1)
+        );
     }
     ExitCode::SUCCESS
 }
