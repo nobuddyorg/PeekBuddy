@@ -54,6 +54,7 @@ winresource = { workspace = true }
 [dev-dependencies]
 jsonschema = { workspace = true }
 peekbuddy-testkit = { workspace = true }
+rusqlite = { workspace = true }
 serde_json = { workspace = true }
 
 [lints]

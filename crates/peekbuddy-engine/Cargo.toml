@@ -17,6 +17,7 @@ peekbuddy-core = { workspace = true }
 
 [target.'cfg(windows)'.dependencies]
 known-folders = { workspace = true }
+peekbuddy-store = { workspace = true }
 peekbuddy-win = { workspace = true }
 
 [dev-dependencies]

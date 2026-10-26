@@ -5,7 +5,12 @@
 //! (#53); the writer (#52), segments (#54) and queries (#55) build on it.
 #![forbid(unsafe_code)]
 
+pub mod batch;
 pub mod ids;
 pub mod interner;
 pub mod names;
+pub mod pipeline;
+pub mod policy;
 pub mod schema;
+pub mod spill;
+pub mod writer;
