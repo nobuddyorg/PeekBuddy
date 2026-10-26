@@ -196,6 +196,14 @@ impl Tray {
     }
 }
 
+/// Whether a taskbar exists in this session (`Shell_TrayWnd`). Without one
+/// (a session without explorer) the icon cannot be shown and tests that need
+/// it skip themselves.
+#[must_use]
+pub fn taskbar_exists() -> bool {
+    WindowHandle::find("Shell_TrayWnd").is_some()
+}
+
 /// The id of the `TaskbarCreated` broadcast (explorer restarted).
 #[must_use]
 pub fn taskbar_created_message() -> u32 {
