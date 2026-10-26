@@ -16,17 +16,20 @@ pub enum GapReason {
     ParserError,
     /// The engine was not running (startup gap).
     EngineNotRunning,
+    /// The ring to the writer was full and records were dropped (#45).
+    RingFull,
 }
 
 impl GapReason {
     /// Every reason, in wire order.
-    pub const ALL: [Self; 6] = [
+    pub const ALL: [Self; 7] = [
         Self::BufferOverflow,
         Self::NotifyEnumDir,
         Self::JournalEntryDeleted,
         Self::JournalIdChanged,
         Self::ParserError,
         Self::EngineNotRunning,
+        Self::RingFull,
     ];
 
     const fn tag(self) -> u8 {
@@ -41,6 +44,7 @@ impl GapReason {
             3 => Some(Self::JournalIdChanged),
             4 => Some(Self::ParserError),
             5 => Some(Self::EngineNotRunning),
+            6 => Some(Self::RingFull),
             _ => None,
         }
     }
