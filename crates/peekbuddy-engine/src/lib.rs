@@ -314,24 +314,37 @@ mod run {
                 .borrow_mut()
                 .take()
                 .unwrap_or_else(|| crate::sample::take(&mut switches.borrow_mut()));
-            let report = Report {
-                version: env!("CARGO_PKG_VERSION").to_owned(),
-                arch: arch_name(),
-                requested_seconds: probe.seconds,
-                milestones: probe::milestone_rows(milestones),
-                start,
-                end,
-                counters: counters.snapshot(),
-                batch_commits: commits
-                    .lock()
-                    .map_or_else(|_| Vec::new(), |log| log.to_vec()),
-            };
+            let report = probe_report(probe, milestones, (&counters, &commits), (start, end));
             emit(&report, probe.out.as_deref())?;
         }
         Ok(Exit::Ran {
             abnormal_termination,
             settings: Some(loaded_settings.state.describe()),
         })
+    }
+
+    /// The document `--perf-probe` prints.
+    fn probe_report(
+        probe: &crate::ProbeOptions,
+        milestones: &MilestoneTable,
+        (counters, commits): (
+            &Arc<peekbuddy_core::perf::Counters>,
+            &Arc<Mutex<probe::CommitLog>>,
+        ),
+        (start, end): (Sample, Sample),
+    ) -> Report {
+        Report {
+            version: env!("CARGO_PKG_VERSION").to_owned(),
+            arch: arch_name(),
+            requested_seconds: probe.seconds,
+            milestones: probe::milestone_rows(milestones),
+            start,
+            end,
+            counters: counters.snapshot(),
+            batch_commits: commits
+                .lock()
+                .map_or_else(|_| Vec::new(), |log| log.to_vec()),
+        }
     }
 
     /// The hidden window and the dispatch of its events: tray, shutdown and

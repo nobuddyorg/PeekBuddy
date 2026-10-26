@@ -5,6 +5,7 @@
     reason = "test helpers outside #[test] fns may unwrap"
 )]
 
+use std::fmt::Write as _;
 use std::process::{Command, Stdio};
 use std::time::{Duration, Instant};
 
@@ -149,17 +150,18 @@ fn diagnostics_full_shows_the_data_directory() {
     );
 }
 
-fn run_probe_with_watches(dir: &TestDir, watches: usize) -> serde_json::Value {
+fn run_probe_with_watches(dir: &TestDir, count: usize) -> serde_json::Value {
     let data = dir.path().join("data");
     std::fs::create_dir_all(&data).unwrap();
     let mut settings = String::from("version = 1\n[general]\nfirst_run = false\n");
-    for index in 0..watches {
-        let watched = dir.path().join(format!("watched{index}"));
-        std::fs::create_dir_all(&watched).unwrap();
-        settings.push_str(&format!(
+    for index in 0..count {
+        let folder = dir.path().join(format!("watched{index}"));
+        std::fs::create_dir_all(&folder).unwrap();
+        let _ = write!(
+            settings,
             "[[watch]]\nid = \"w{index}\"\npath = '{}'\n",
-            watched.display()
-        ));
+            folder.display()
+        );
     }
     std::fs::write(data.join("settings.toml"), settings).unwrap();
     let output = Command::new(EXE)
