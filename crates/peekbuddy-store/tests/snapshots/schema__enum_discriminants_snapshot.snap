@@ -48,6 +48,7 @@ kind WatchStateChanged(SuspendedByUser) = 2564
 kind WatchStateChanged(SuspendedQueryRemove) = 2565
 kind WatchStateChanged(Lost) = 2566
 kind WatchStateChanged(Restored) = 2567
+kind WatchStateChanged(SuspendedLocked) = 2568
 flags bit 0 = Flags(1)
 flags bit 1 = Flags(2)
 flags bit 2 = Flags(4)

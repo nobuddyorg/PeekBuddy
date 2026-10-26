@@ -14,7 +14,7 @@ use std::time::Duration;
 
 use peekbuddy_core::event::{Event, GapReason, Kind, RootIdx, VolIdx};
 use peekbuddy_core::reconcile::RowOut;
-use peekbuddy_engine::reconciler::{Reconciler, RootSpec};
+use peekbuddy_engine::reconciler::{NoObserver, Reconciler, RootSpec};
 use peekbuddy_store::snapshot::SnapshotDb;
 use peekbuddy_win::io::path::to_long_path;
 
@@ -156,6 +156,7 @@ fn start(scratch: &Scratch, gate: &Arc<Gate>) -> (Reconciler, Log) {
         },
         vec![spec(&scratch.tree())],
         clock,
+        Arc::new(NoObserver),
     )
     .unwrap();
     (reconciler, log)

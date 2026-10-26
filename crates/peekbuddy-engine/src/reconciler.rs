@@ -27,6 +27,23 @@ use peekbuddy_win::reconcile::{BackgroundMode, DirLister};
 /// How long a walk waits for its rows to reach the disk.
 const FLUSH_DEADLINE: Duration = Duration::from_secs(30);
 
+/// Told when a walk starts and ends, so the lifecycle machine can follow.
+pub trait Observer: Send + Sync + 'static {
+    /// A walk of `root` started.
+    fn started(&self, root: RootIdx);
+    /// A walk of `root` ended; `summary` is `None` when it could not run.
+    fn finished(&self, root: RootIdx, summary: Option<&Summary>);
+}
+
+/// An observer that does nothing.
+#[derive(Debug, Clone, Copy)]
+pub struct NoObserver;
+
+impl Observer for NoObserver {
+    fn started(&self, _: RootIdx) {}
+    fn finished(&self, _: RootIdx, _: Option<&Summary>) {}
+}
+
 /// One root the worker can walk.
 #[derive(Debug, Clone)]
 pub struct RootSpec {
@@ -165,6 +182,7 @@ impl Reconciler {
         rows: R,
         roots: Vec<RootSpec>,
         clock: fn() -> (u64, u64),
+        observer: Arc<dyn Observer>,
     ) -> io::Result<Self>
     where
         N: Snapshot + Send + 'static,
@@ -185,7 +203,7 @@ impl Reconciler {
         let inner = Arc::clone(&shared);
         let thread = std::thread::Builder::new()
             .name(String::from("peekbuddy-reconcile"))
-            .spawn(move || work(&inner, snapshot, rows, &roots, clock))?;
+            .spawn(move || work(&inner, snapshot, rows, &roots, clock, observer.as_ref()))?;
         Ok(Self {
             shared,
             thread: Some(thread),
@@ -275,6 +293,7 @@ fn work<N: Snapshot, R: RowOut>(
     mut rows: R,
     roots: &[RootSpec],
     clock: fn() -> (u64, u64),
+    observer: &dyn Observer,
 ) {
     let _background = BackgroundMode::enter();
     loop {
@@ -295,6 +314,7 @@ fn work<N: Snapshot, R: RowOut>(
                     .unwrap_or_else(std::sync::PoisonError::into_inner);
             }
         };
+        observer.started(root);
         let summary = roots
             .iter()
             .find(|spec| spec.root == root)
@@ -309,6 +329,7 @@ fn work<N: Snapshot, R: RowOut>(
                 };
                 run(&cfg, &mut source, &mut snapshot, &mut rows).ok()
             });
+        observer.finished(root, summary.as_ref());
         let mut state = lock(&shared.state);
         state.running = None;
         state.stats.runs += 1;

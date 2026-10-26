@@ -70,11 +70,14 @@ pub enum WatchState {
     Lost,
     /// The watch was restored.
     Restored,
+    /// Suspended because the volume is locked, dismounted or being checked
+    /// (`BitLocker`, `chkdsk`, `FSCTL_LOCK_VOLUME`).
+    SuspendedLocked,
 }
 
 impl WatchState {
     /// Every state, in wire order.
-    pub const ALL: [Self; 8] = [
+    pub const ALL: [Self; 9] = [
         Self::Arming,
         Self::Live,
         Self::Overflowed,
@@ -83,6 +86,7 @@ impl WatchState {
         Self::SuspendedQueryRemove,
         Self::Lost,
         Self::Restored,
+        Self::SuspendedLocked,
     ];
 
     const fn tag(self) -> u8 {
@@ -99,6 +103,7 @@ impl WatchState {
             5 => Some(Self::SuspendedQueryRemove),
             6 => Some(Self::Lost),
             7 => Some(Self::Restored),
+            8 => Some(Self::SuspendedLocked),
             _ => None,
         }
     }

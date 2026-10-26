@@ -63,13 +63,21 @@ fn synthetic_events_reach_the_segment_in_order_and_the_counters() {
     let data = dir.path().join("data");
 
     let conn = Connection::open(segment(&data)).unwrap();
-    assert_eq!(count(&conn, "SELECT count(*) FROM event"), 500);
+    // The watch of the settings is live, so its lifecycle rows (state and
+    // baseline, source System and Reconcile) are in the segment too; the
+    // synthetic events are the Rdcw rows.
+    assert_eq!(
+        count(&conn, "SELECT count(*) FROM event WHERE source = 0"),
+        500
+    );
+    let total = count(&conn, "SELECT count(*) FROM event");
+    assert!(total >= 500, "{total}");
     assert_eq!(count(&conn, "SELECT min(id) FROM event"), 1);
-    assert_eq!(count(&conn, "SELECT max(id) FROM event"), 500);
+    assert_eq!(count(&conn, "SELECT max(id) FROM event"), total);
     assert_eq!(
         count(
             &conn,
-            "SELECT count(*) FROM event WHERE id > 1 AND ts <= (SELECT ts FROM event e2 WHERE e2.id = event.id - 1)"
+            "SELECT count(*) FROM event WHERE source = 0 AND id > 1 AND ts <= (SELECT max(ts) FROM event e2 WHERE e2.source = 0 AND e2.id < event.id)"
         ),
         0,
         "rows are not in the pushed order"
@@ -89,16 +97,16 @@ fn synthetic_events_reach_the_segment_in_order_and_the_counters() {
 
     // The probe saw the commits and the counters moved with them.
     let counters = &report["counters"];
-    assert_eq!(counters["rowsPersisted"], 500);
+    assert_eq!(counters["rowsPersisted"], total);
     assert_eq!(counters["eventsReceived"], 500);
     let commits = report["batchCommits"].as_array().unwrap();
     assert_ne!(commits.len(), 0);
     assert_eq!(
         commits
             .iter()
-            .map(|c| c["rows"].as_u64().unwrap())
-            .sum::<u64>(),
-        500
+            .map(|c| c["rows"].as_i64().unwrap())
+            .sum::<i64>(),
+        total
     );
     assert!(
         report["milestones"]
@@ -116,7 +124,10 @@ fn quitting_commits_the_queue_and_truncates_the_log() {
     let data = dir.path().join("data");
     let db = segment(&data);
     let conn = Connection::open(&db).unwrap();
-    assert_eq!(count(&conn, "SELECT count(*) FROM event"), 3_000);
+    assert_eq!(
+        count(&conn, "SELECT count(*) FROM event WHERE source = 0"),
+        3_000
+    );
     // The final checkpoint ran: the write-ahead log is gone or empty.
     let mut wal = db.into_os_string();
     wal.push("-wal");
@@ -129,6 +140,13 @@ fn quitting_commits_the_queue_and_truncates_the_log() {
     drop(conn);
     run_with_events(&dir, 10);
     let conn = Connection::open(segment(&data)).unwrap();
-    assert_eq!(count(&conn, "SELECT count(*) FROM event"), 3_010);
-    assert_eq!(count(&conn, "SELECT max(id) FROM event"), 3_010);
+    assert_eq!(
+        count(&conn, "SELECT count(*) FROM event WHERE source = 0"),
+        3_010
+    );
+    assert_eq!(
+        count(&conn, "SELECT max(id) FROM event"),
+        count(&conn, "SELECT count(*) FROM event"),
+        "ids stay contiguous"
+    );
 }
