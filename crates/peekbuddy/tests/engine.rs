@@ -250,3 +250,40 @@ fn a_first_start_writes_the_default_settings_and_a_corrupt_file_survives() {
     assert!(output.status.success());
     assert_eq!(std::fs::read(data.join("settings.toml")).unwrap(), bad);
 }
+
+fn wait_until(what: &str, mut condition: impl FnMut() -> bool) {
+    let deadline = Instant::now() + Duration::from_secs(10);
+    while !condition() {
+        assert!(Instant::now() < deadline, "timed out waiting for {what}");
+        std::thread::sleep(Duration::from_millis(50));
+    }
+}
+
+#[test]
+fn the_tray_icon_comes_back_with_the_taskbar_and_goes_away_on_quit() {
+    use peekbuddy_engine::tray_model::Command;
+    use peekbuddy_win::tray::{Tray, taskbar_created_message};
+
+    let dir = TestDir::new("engine-tray").unwrap();
+    let mut engine = Kill(spawn(dir.path(), &["--tray"]));
+    let window = wait_for_window(dir.path(), &mut engine.0);
+    let tray = Tray::new(window);
+    wait_until("the tray icon", || tray.is_present());
+
+    // Explorer restarting broadcasts TaskbarCreated: the icon is added again.
+    tray.remove();
+    if !tray.is_present() {
+        window
+            .send_timeout(taskbar_created_message(), 0, 0, 5_000)
+            .unwrap();
+        wait_until("the icon to be re-added", || tray.is_present());
+    }
+
+    // The same dispatch the real menu uses: Quit leaves no ghost icon.
+    window
+        .send_timeout(0x0111, Command::Quit.id() as usize, 0, 5_000)
+        .unwrap();
+    let status = wait_for_exit(&mut engine.0, Duration::from_secs(10));
+    assert!(status.success(), "{status:?}");
+    assert!(!tray.is_present(), "a ghost icon is left behind");
+}

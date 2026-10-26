@@ -37,6 +37,8 @@ pub mod timer;
 #[cfg(windows)]
 pub mod token;
 #[cfg(windows)]
+pub mod tray;
+#[cfg(windows)]
 pub mod window;
 
 #[cfg(test)]

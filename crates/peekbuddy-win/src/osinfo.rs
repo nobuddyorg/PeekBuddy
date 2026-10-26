@@ -2,7 +2,9 @@
 
 use windows_sys::Wdk::Storage::FileSystem::RtlSetProcessPlaceholderCompatibilityMode;
 use windows_sys::Wdk::System::SystemServices::RtlGetVersion;
-use windows_sys::Win32::System::Registry::{HKEY_LOCAL_MACHINE, RRF_RT_REG_DWORD, RegGetValueW};
+use windows_sys::Win32::System::Registry::{
+    HKEY, HKEY_CURRENT_USER, HKEY_LOCAL_MACHINE, RRF_RT_REG_DWORD, RegGetValueW,
+};
 use windows_sys::Win32::System::SystemInformation::OSVERSIONINFOW;
 
 /// `PHCM_EXPOSE_PLACEHOLDERS`: absent from windows-sys 0.61.2 (#36).
@@ -41,8 +43,8 @@ pub fn os_build() -> String {
     )
 }
 
-/// Reads a `REG_DWORD` below `HKEY_LOCAL_MACHINE` without opening a key handle.
-fn local_machine_dword(subkey: &str, value: &str) -> Option<u32> {
+/// Reads a `REG_DWORD` below `root` without opening a key handle.
+fn registry_dword(root: HKEY, subkey: &str, value: &str) -> Option<u32> {
     let subkey: Vec<u16> = subkey.encode_utf16().chain(Some(0)).collect();
     let value: Vec<u16> = value.encode_utf16().chain(Some(0)).collect();
     let mut data = 0u32;
@@ -51,7 +53,7 @@ fn local_machine_dword(subkey: &str, value: &str) -> Option<u32> {
     // valid out pointers describing a 4-byte buffer.
     let status = unsafe {
         RegGetValueW(
-            HKEY_LOCAL_MACHINE,
+            root,
             subkey.as_ptr(),
             value.as_ptr(),
             RRF_RT_REG_DWORD,
@@ -63,11 +65,22 @@ fn local_machine_dword(subkey: &str, value: &str) -> Option<u32> {
     (status == 0).then_some(data)
 }
 
+/// A `REG_DWORD` below `HKEY_CURRENT_USER`, such as the personalisation
+/// switches. `None` when it is not set.
+#[must_use]
+pub fn current_user_dword(subkey: &str, value: &str) -> Option<u32> {
+    registry_dword(HKEY_CURRENT_USER, subkey, value)
+}
+
 /// The update build revision (`UBR`) that follows the build number, such as
 /// the `5039` in `26100.5039`. `None` when the registry does not say.
 #[must_use]
 pub fn update_build_revision() -> Option<u32> {
-    local_machine_dword(r"SOFTWARE\Microsoft\Windows NT\CurrentVersion", "UBR")
+    registry_dword(
+        HKEY_LOCAL_MACHINE,
+        r"SOFTWARE\Microsoft\Windows NT\CurrentVersion",
+        "UBR",
+    )
 }
 
 /// Whether Defender real-time protection is on, when the registry says so
@@ -75,7 +88,8 @@ pub fn update_build_revision() -> Option<u32> {
 /// hiding the value). Results must state this next to their numbers.
 #[must_use]
 pub fn defender_realtime_enabled() -> Option<bool> {
-    local_machine_dword(
+    registry_dword(
+        HKEY_LOCAL_MACHINE,
         r"SOFTWARE\Microsoft\Windows Defender\Real-Time Protection",
         "DisableRealtimeMonitoring",
     )

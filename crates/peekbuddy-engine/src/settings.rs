@@ -158,6 +158,22 @@ pub fn load_or_create(data: &DataDir) -> LoadedSettings {
     }
 }
 
+/// Clears the first-run flag after the hint was shown, so it appears once per
+/// data directory. Does nothing for a file that must not be written.
+///
+/// # Errors
+///
+/// The I/O error from the atomic write.
+pub fn mark_first_run_done(data: &DataDir, loaded: &LoadedSettings) -> std::io::Result<()> {
+    if loaded.state.is_problem() {
+        return Ok(());
+    }
+    let mut settings = loaded.settings.clone();
+    settings.general.first_run = false;
+    let text = settings::to_toml(&settings).map_err(std::io::Error::other)?;
+    peekbuddy_win::atomic::write_atomic(&data.settings, text.as_bytes())
+}
+
 /// Reads the settings file without creating, migrating or writing anything,
 /// for `--diagnostics`. Problem lines are listed in full.
 #[must_use]
@@ -275,6 +291,30 @@ mod tests {
         // A second migration attempt never replaces the first backup.
         persist_migration(&data.settings, 0, "something else", &Settings::default()).unwrap();
         assert_eq!(std::fs::read_to_string(&backup).unwrap(), original);
+        clean(&data);
+    }
+
+    #[test]
+    fn the_first_run_flag_is_cleared_once_and_never_in_a_bad_file() {
+        let data = data("firstrun");
+        let first = load_or_create(&data);
+        assert!(first.settings.general.first_run);
+        super::mark_first_run_done(&data, &first).unwrap();
+        let second = load_or_create(&data);
+        assert!(!second.settings.general.first_run);
+        assert_eq!(
+            second.state,
+            State::Loaded {
+                migrated_from: None
+            }
+        );
+
+        let bad = b"version = 9
+";
+        std::fs::write(&data.settings, bad).unwrap();
+        let newer = load_or_create(&data);
+        super::mark_first_run_done(&data, &newer).unwrap();
+        assert_eq!(std::fs::read(&data.settings).unwrap(), bad);
         clean(&data);
     }
 

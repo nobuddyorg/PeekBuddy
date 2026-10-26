@@ -13,9 +13,35 @@ use windows_sys::Win32::UI::WindowsAndMessaging::{
     CREATESTRUCTW, CW_USEDEFAULT, CreateWindowExW, DefWindowProcW, DestroyWindow, DispatchMessageW,
     FindWindowW, GWLP_USERDATA, GetMessageW, GetWindowLongPtrW, KillTimer, MSG, PostMessageW,
     PostQuitMessage, RegisterClassExW, SMTO_ABORTIFHUNG, SendMessageTimeoutW, SetTimer,
-    SetWindowLongPtrW, TranslateMessage, WM_CLOSE, WM_DESTROY, WM_ENDSESSION, WM_NCCREATE,
-    WM_QUERYENDSESSION, WM_TIMER, WNDCLASSEXW,
+    SetWindowLongPtrW, TranslateMessage, WM_CLOSE, WM_COMMAND, WM_CONTEXTMENU, WM_DESTROY,
+    WM_ENDSESSION, WM_NCCREATE, WM_QUERYENDSESSION, WM_SETTINGCHANGE, WM_TIMER, WNDCLASSEXW,
 };
+
+/// Shell select events (`WM_USER` and `WM_USER + 1`): a click or
+/// the keyboard on the tray icon with version-4 callbacks.
+const NIN_SELECT: u32 = 0x400;
+const NIN_KEYSELECT: u32 = 0x401;
+
+/// The registered `TaskbarCreated` message; 0 until the first window exists.
+static TASKBAR_CREATED: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
+
+/// Whether the NUL-terminated UTF-16 string at `ptr` is `text`.
+fn wide_is(ptr: *const u16, text: &str) -> bool {
+    if ptr.is_null() {
+        return false;
+    }
+    for (index, expected) in text.encode_utf16().chain(Some(0)).enumerate() {
+        // SAFETY: the string is NUL-terminated and the walk stops at the first
+        // difference, which at the latest is the terminator.
+        let at = unsafe { ptr.add(index) };
+        // SAFETY: `at` is within the string, see above.
+        let unit = unsafe { at.read() };
+        if unit != expected {
+            return false;
+        }
+    }
+    true
+}
 
 /// Id of the single timer a hidden window owns.
 const TIMER_ID: usize = 1;
@@ -36,6 +62,18 @@ pub enum WindowEvent {
     Close,
     /// The one-shot timer set with [`HiddenWindow::set_one_shot_timer`] fired.
     Timer,
+    /// The user clicked the tray icon: open the viewer.
+    TraySelect,
+    /// The user asked for the tray menu (right click, menu key).
+    TrayMenu,
+    /// A menu command (`WM_COMMAND`); also what tests post to drive the real
+    /// dispatch.
+    Command(u32),
+    /// The taskbar was (re)created, for example after an explorer restart:
+    /// the tray icon has to be added again.
+    TaskbarCreated,
+    /// The Windows colour theme changed (`ImmersiveColorSet`).
+    ThemeChanged,
 }
 
 type Handler = Box<dyn FnMut(WindowEvent, WindowHandle)>;
@@ -178,7 +216,32 @@ unsafe extern "system" fn window_proc(
             unsafe { (*state)(event, handle) };
         }
     };
+    let taskbar_created = TASKBAR_CREATED.load(std::sync::atomic::Ordering::Relaxed);
+    if taskbar_created != 0 && message == taskbar_created {
+        call(WindowEvent::TaskbarCreated);
+        return 0;
+    }
     match message {
+        crate::tray::CALLBACK_MESSAGE => {
+            match u32::try_from(lparam & 0xFFFF).unwrap_or(0) {
+                NIN_SELECT | NIN_KEYSELECT => call(WindowEvent::TraySelect),
+                WM_CONTEXTMENU => call(WindowEvent::TrayMenu),
+                _ => {}
+            }
+            0
+        }
+        WM_COMMAND if lparam == 0 => {
+            call(WindowEvent::Command(
+                u32::try_from(wparam & 0xFFFF).unwrap_or(0),
+            ));
+            0
+        }
+        WM_SETTINGCHANGE => {
+            if wide_is(lparam as *const u16, "ImmersiveColorSet") {
+                call(WindowEvent::ThemeChanged);
+            }
+            0
+        }
         WM_QUERYENDSESSION => {
             call(WindowEvent::QueryEndSession);
             1
@@ -222,6 +285,10 @@ impl HiddenWindow {
         handler: impl FnMut(WindowEvent, WindowHandle) + 'static,
     ) -> std::io::Result<Self> {
         let class_name = wide(class);
+        TASKBAR_CREATED.store(
+            crate::tray::taskbar_created_message(),
+            std::sync::atomic::Ordering::Relaxed,
+        );
         // SAFETY: a null module name returns this exe's handle.
         let instance = unsafe { GetModuleHandleW(std::ptr::null()) };
         let class_ex = WNDCLASSEXW {
