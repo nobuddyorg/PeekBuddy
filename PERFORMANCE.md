@@ -76,7 +76,7 @@ Gate values in `budgets.toml`:
 | `binary.size` | <= 5 MB | deterministic | report-only | provisional | release profile (#28) | file size of the release artifact (#28) | M14 |
 | `binary.size.cap` | <= 8 MB | deterministic | pr-strict | provisional | release profile (#28) | file size of the release artifact (#28) | M14 |
 | `alloc.capture_per_event` | <= 0 count | deterministic | pr-strict | calibrated | parse + filter + classify of a recorded buffer (#23) | counting global allocator (#23) | F10 |
-| `alloc.writer_per_1000` | to be set | deterministic | pr-strict | provisional | writer batch of 1,000 events (#52) | counting global allocator (#23) | F10; limit set after the first measurement (#23, #52) |
+| `alloc.writer_per_1000` | <= 2 count | deterministic | pr-strict | provisional | writer batch of 1,000 events (#52) | counting global allocator (#23) | F10; measured by #52: 2 allocations and 544 bytes per warm batch |
 | `alloc.viewer_per_frame` | to be set | deterministic | pr-strict | provisional | 10M-row log, scripted scroll | counting global allocator (#23) | F10; limit set after the first measurement (#23, #66) |
 | `store.bytes_per_event` | <= 90 bytes | deterministic | pr-strict | provisional | churn profile sustained-20k (#25) | segment file size / row count (#35) | F5; set by #35 (76 B measured: interned paths, both indexes, 4 KiB pages; inline paths cost 115 B) |
 | `store.commit.p99` | <= 15 ms | timing | nightly-trend | provisional | spikes/store-bench commit cells, replaced by the writer bench (#52) | store-bench JSONL, later the writer bench (#26) | #35 (6.3 ms measured on windows-2025; limit is about twice that) |

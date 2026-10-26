@@ -864,6 +864,7 @@ dependencies = [
  "peekbuddy-testkit",
  "peekbuddy-viewer",
  "peekbuddy-win",
+ "rusqlite",
  "serde_json",
  "tracing",
  "tracing-subscriber",
@@ -914,6 +915,7 @@ dependencies = [
  "jsonschema",
  "known-folders",
  "peekbuddy-core",
+ "peekbuddy-store",
  "peekbuddy-win",
  "serde_json",
 ]
@@ -923,6 +925,7 @@ name = "peekbuddy-store"
 version = "0.0.0"
 dependencies = [
  "insta",
+ "peekbuddy-alloc",
  "peekbuddy-core",
  "proptest",
  "rusqlite",

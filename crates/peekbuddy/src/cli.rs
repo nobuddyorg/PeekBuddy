@@ -107,6 +107,13 @@ pub fn parse(args: impl IntoIterator<Item = String>) -> Result<Invocation, Error
             }
             #[cfg(feature = "test-panic")]
             "--test-panic" => options.panic_after_ready = true,
+            #[cfg(feature = "test-panic")]
+            "--synthetic-events" => {
+                let value = args
+                    .next()
+                    .ok_or(Error::MissingValue("--synthetic-events"))?;
+                options.synthetic_events = value.parse().map_err(|_| Error::BadSeconds(value))?;
+            }
             _ => return Err(Error::Unknown(arg)),
         }
     }
