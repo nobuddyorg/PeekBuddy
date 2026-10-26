@@ -6,7 +6,7 @@
     reason = "test helpers outside #[test] fns may unwrap"
 )]
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::time::{Duration, Instant};
 
@@ -111,8 +111,17 @@ fn a_second_local_user_is_refused() {
     assert!(added, "net user /add failed: {detail}");
     let dir = TestDir::new("ipc-user").unwrap();
     let (_engine, _window) = start(dir.path());
-    // The other account must be able to run the exe and read the data dir.
-    let result = peekbuddy_win::process::run_as_user(&user, &password, &ping_command(dir.path()));
+    // The other account has to be able to run the exe: a copy in the public
+    // folder, which every local user may read and execute.
+    let copy = PathBuf::from(r"C:\Users\Public").join(format!("pbipc-{}.exe", std::process::id()));
+    std::fs::copy(EXE, &copy).unwrap();
+    let command = format!(
+        "\"{}\" --ipc-ping --data-dir \"{}\"",
+        copy.display(),
+        dir.path().display()
+    );
+    let result = peekbuddy_win::process::run_as_user(&user, &password, &command);
+    let _ = std::fs::remove_file(&copy);
     let _ = net(&["user", &user, "/delete"]);
     // ERROR_ACCESS_DENIED from the pipe; an account that cannot even start
     // the exe (profile or policy) is reported as an error, not as success.
