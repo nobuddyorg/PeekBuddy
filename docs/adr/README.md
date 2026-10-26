@@ -22,6 +22,7 @@ Status legend: **Proposed** (waiting for evidence), **Accepted**,
 | [0012](0012-code-signing.md) | Unsigned v1, free signing later | Accepted | F15, O3, O6, B4 |
 | [0013](0013-supported-windows-and-cpu-baseline.md) | Supported Windows and CPU baseline | Accepted | F13, B1 |
 | [0014](0014-contribution-policy.md) | Contribution policy | Accepted | B2, B3 |
+| [0015](0015-raw-win32-tray.md) | Tray on raw Win32 | Accepted | #60 |
 
 Decisions owned elsewhere: F8 memory budgets and R6 SQLite heap limit in
 `PERFORMANCE.md` (#20, #52); F12 runners in #11 and #34; F18 links and cloud

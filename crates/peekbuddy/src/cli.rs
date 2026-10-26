@@ -84,6 +84,7 @@ pub fn parse(args: impl IntoIterator<Item = String>) -> Result<Invocation, Error
         match arg.as_str() {
             "--viewer" => viewer = true,
             "--headless" => options.headless = true,
+            "--tray" => options.tray = true,
             "--diagnostics" => diagnostics = true,
             "--full" => full = true,
             "--data-dir" => {
@@ -110,6 +111,9 @@ pub fn parse(args: impl IntoIterator<Item = String>) -> Result<Invocation, Error
             .as_mut()
             .ok_or(Error::OrphanFlag("--perf-probe-out"))?;
         probe.out = Some(out);
+    }
+    if options.tray && !options.headless {
+        return Err(Error::OrphanFlag("--tray"));
     }
     if full && !diagnostics {
         return Err(Error::OrphanFlag("--full"));
@@ -227,6 +231,13 @@ mod tests {
             parse(args(&["--perf-probe-out", "x"])),
             Err(Error::OrphanFlag("--perf-probe-out"))
         );
+    }
+
+    #[test]
+    fn tray_is_an_addition_to_headless() {
+        let invocation = parse(args(&["--headless", "--tray"])).unwrap();
+        assert!(invocation.engine.tray);
+        assert_eq!(parse(args(&["--tray"])), Err(Error::OrphanFlag("--tray")));
     }
 
     #[test]

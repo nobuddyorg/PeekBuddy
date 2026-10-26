@@ -12,4 +12,5 @@ extend-exclude = [
 # Windows and file-system terms.
 FILETIME = "FILETIME"
 FRN = "FRN"
+NIN = "NIN"
 USN = "USN"

@@ -12,6 +12,7 @@ pub mod diagnostics;
 pub mod portable;
 pub mod probe;
 pub mod shutdown;
+pub mod tray_model;
 
 #[cfg(windows)]
 pub mod datadir;
@@ -21,6 +22,8 @@ pub mod diag_collect;
 mod sample;
 #[cfg(windows)]
 pub mod settings;
+#[cfg(windows)]
+pub mod tray_win;
 
 use std::path::PathBuf;
 
@@ -74,6 +77,8 @@ impl Names {
 pub struct Options {
     /// No tray; for tests and the perf harness.
     pub headless: bool,
+    /// Show the tray although `headless` (tests of the tray itself).
+    pub tray: bool,
     /// Data directory override, accepted only together with `headless`.
     pub data_dir: Option<PathBuf>,
     /// `--perf-probe`: stay up for a while, then print the JSON report (#24).
@@ -169,6 +174,8 @@ mod run {
     use crate::portable::Decision;
     use crate::probe::{self, Report, Sample};
     use crate::shutdown::{Reason, Shutdown, Stage};
+    use crate::tray_model::{Health, TrayState, WatchEntry};
+    use crate::tray_win::{SharedTray, TrayController, label_for};
     use crate::{Exit, Names, Options, Provider};
 
     fn mark(table: &MilestoneTable, milestone: Milestone) {
@@ -225,7 +232,18 @@ mod run {
         let switches = Rc::new(RefCell::new(ContextSwitches::new()));
         let closing: Rc<RefCell<Option<Sample>>> = Rc::new(RefCell::new(None));
         let (timer_switches, timer_sample) = (Rc::clone(&switches), Rc::clone(&closing));
+        let tray_cell: SharedTray = Rc::new(RefCell::new(None));
+        let tray_events = Rc::clone(&tray_cell);
         let hidden = HiddenWindow::create(&names.window_class, move |event, window| match event {
+            WindowEvent::TraySelect
+            | WindowEvent::TrayMenu
+            | WindowEvent::Command(_)
+            | WindowEvent::TaskbarCreated
+            | WindowEvent::ThemeChanged => {
+                if let Some(tray) = tray_events.borrow_mut().as_mut() {
+                    tray.handle(event, window);
+                }
+            }
             WindowEvent::Close => handler.borrow_mut().run(Reason::Quit),
             // The probe's one-shot exit timer.
             WindowEvent::Timer => {
@@ -242,8 +260,21 @@ mod run {
             close_window_on_ctrl_c(hidden.handle())?;
         }
 
-        // F7: ready is "tray added AND all watchers armed". Neither exists
-        // yet (#60, #45), so for now it is the point where the window is up.
+        if !options.headless || options.tray {
+            start_tray(
+                &hidden,
+                &tray_cell,
+                &shutdown,
+                &data,
+                &loaded_settings,
+                abnormal_termination.is_some(),
+                milestones,
+            )?;
+        }
+
+        // F7: ready is "tray added AND all watchers armed". There are no
+        // watchers yet (#45), and a failed tray is retried later, so ready is
+        // the point where the tray attempt is done.
         mark(milestones, Milestone::EngineReady);
         #[cfg(feature = "test-panic")]
         if options.panic_after_ready {
@@ -251,29 +282,21 @@ mod run {
         }
         let start = crate::sample::take(&mut switches.borrow_mut());
         if let Some(probe) = &options.probe {
-            if probe.seconds == 0 {
-                hidden.handle().post_close()?;
-            } else {
-                let millis = u32::try_from(probe.seconds.saturating_mul(1_000)).unwrap_or(u32::MAX);
-                hidden.set_one_shot_timer(millis)?;
-            }
+            arm_probe(&hidden, probe.seconds)?;
         }
         let _ = hidden.run_message_loop();
         if let Some(probe) = &options.probe {
+            let end = closing
+                .borrow_mut()
+                .take()
+                .unwrap_or_else(|| crate::sample::take(&mut switches.borrow_mut()));
             let report = Report {
                 version: env!("CARGO_PKG_VERSION").to_owned(),
-                arch: if cfg!(target_arch = "aarch64") {
-                    "aarch64"
-                } else {
-                    "x86_64"
-                },
+                arch: arch_name(),
                 requested_seconds: probe.seconds,
                 milestones: probe::milestone_rows(milestones),
                 start,
-                end: closing
-                    .borrow_mut()
-                    .take()
-                    .unwrap_or_else(|| crate::sample::take(&mut switches.borrow_mut())),
+                end,
                 counters: counters.snapshot(),
                 batch_commits: commits.to_vec(),
             };
@@ -283,6 +306,76 @@ mod run {
             abnormal_termination,
             settings: Some(loaded_settings.state.describe()),
         })
+    }
+
+    /// `--perf-probe`: exit right away for 0 seconds, else after the timer.
+    fn arm_probe(hidden: &HiddenWindow, seconds: u64) -> std::io::Result<()> {
+        if seconds == 0 {
+            return hidden.handle().post_close();
+        }
+        let millis = u32::try_from(seconds.saturating_mul(1_000)).unwrap_or(u32::MAX);
+        hidden.set_one_shot_timer(millis)
+    }
+
+    const fn arch_name() -> &'static str {
+        if cfg!(target_arch = "aarch64") {
+            "aarch64"
+        } else {
+            "x86_64"
+        }
+    }
+
+    /// Creates the tray, shows it and registers its removal for shutdown.
+    fn start_tray(
+        hidden: &HiddenWindow,
+        cell: &SharedTray,
+        shutdown: &Rc<RefCell<Shutdown>>,
+        data: &DataDir,
+        loaded: &crate::settings::LoadedSettings,
+        crashed: bool,
+        milestones: &MilestoneTable,
+    ) -> std::io::Result<()> {
+        let health = if loaded.state.is_problem() || crashed {
+            Health::Problem
+        } else {
+            Health::Live
+        };
+        let watches = loaded
+            .settings
+            .watches
+            .iter()
+            .map(|watch| WatchEntry {
+                label: label_for(&watch.path),
+                paused: !watch.enabled,
+            })
+            .collect();
+        let mut controller = TrayController::new(
+            hidden.handle(),
+            std::env::current_exe()?,
+            data.root.clone(),
+            TrayState {
+                health,
+                rate: 0.0,
+                watches,
+            },
+        );
+        // Not fatal when it fails: the engine keeps capturing and the icon is
+        // added when the taskbar appears (`TaskbarCreated`).
+        if controller.show() {
+            mark(milestones, Milestone::TrayShown);
+            if loaded.settings.general.first_run && !loaded.state.is_problem() {
+                controller.first_run_balloon();
+                let _ = crate::settings::mark_first_run_done(data, loaded);
+            }
+        }
+        *cell.borrow_mut() = Some(controller);
+        let removal = Rc::clone(cell);
+        shutdown.borrow_mut().register(Stage::RemoveTray, move |_| {
+            if let Some(tray) = removal.borrow_mut().as_mut() {
+                tray.remove();
+            }
+        });
+        Ok(())
     }
 
     /// The shutdown step that unregisters the ETW provider.
