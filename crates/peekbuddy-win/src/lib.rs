@@ -31,6 +31,8 @@ pub mod process;
 #[cfg(windows)]
 pub mod rdcw;
 #[cfg(windows)]
+pub mod reconcile;
+#[cfg(windows)]
 pub mod resources;
 #[cfg(windows)]
 pub mod session;

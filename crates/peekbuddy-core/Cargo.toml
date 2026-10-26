@@ -35,3 +35,7 @@ harness = false
 [[test]]
 name = "capture_alloc"
 harness = false
+
+[[test]]
+name = "reconcile_alloc"
+harness = false

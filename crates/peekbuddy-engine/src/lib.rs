@@ -25,6 +25,8 @@ pub mod ipc_server;
 #[cfg(windows)]
 pub mod pause_ctl;
 #[cfg(windows)]
+pub mod reconciler;
+#[cfg(windows)]
 mod sample;
 #[cfg(windows)]
 pub mod settings;

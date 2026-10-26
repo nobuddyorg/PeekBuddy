@@ -333,6 +333,11 @@ fn enum_discriminants_snapshot() {
         Kind::SegmentRotated,
         Kind::RetentionPurged,
         Kind::SettingsChanged,
+        Kind::ReconciledRenamed,
+        Kind::ReconcileStarted,
+        Kind::ReconcileFinished,
+        Kind::BaselineEstablished,
+        Kind::AccessDenied,
     ];
     for kind in kinds {
         let (tag, arg) = kind.to_wire();
