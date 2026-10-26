@@ -44,6 +44,21 @@ pub trait EventSink {
     /// [`Event::name`] has the length of `name` and offset 0: the sink places
     /// the units in its own arena and sets the reference.
     fn push(&mut self, event: &Event, name: &[u16]) -> bool;
+
+    /// The events of one completion have all been offered. A sink that
+    /// batches hands its batch on here, so an event never waits for more
+    /// events to arrive (there are no timers).
+    fn batch_end(&mut self) {}
+}
+
+impl<S: EventSink + ?Sized> EventSink for Box<S> {
+    fn push(&mut self, event: &Event, name: &[u16]) -> bool {
+        (**self).push(event, name)
+    }
+
+    fn batch_end(&mut self) {
+        (**self).batch_end();
+    }
 }
 
 /// What the decoder counted, all monotonic.
@@ -163,6 +178,7 @@ impl Decoder {
         self.counters.overflows += 1;
         self.owe(reason);
         self.flush_owed(stamp, sink);
+        sink.batch_end();
         Outcome {
             reconcile: Some(reason),
         }
@@ -205,6 +221,7 @@ impl Decoder {
             self.flush_owed(stamp, sink);
             outcome.reconcile = Some(GapReason::RingFull);
         }
+        sink.batch_end();
         outcome
     }
 

@@ -256,6 +256,10 @@ impl<S: EventSink> EventSink for PausableSink<S> {
         }
         self.inner.push(event, name)
     }
+
+    fn batch_end(&mut self) {
+        self.inner.batch_end();
+    }
 }
 
 #[cfg(test)]

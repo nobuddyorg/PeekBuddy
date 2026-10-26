@@ -119,6 +119,27 @@ jobs:
           tool: cargo-nextest@0.9.149
       - run: cargo nextest run --workspace --profile ci --locked --no-tests=pass -E 'binary(/^fs_serial/)' --stress-duration 30m
 
+  vhd:
+    name: vhd detach and attach (#48)
+    runs-on: windows-2025
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Rust toolchain
+        run: rustup toolchain install && rustup show
+      - uses: taiki-e/install-action@a4d3f3f761dcd95cce1b72cb61cb6d1963438177 # v2.87.30
+        with:
+          tool: cargo-nextest@0.9.149
+      # The hosted runner is elevated and has diskpart; the test skips itself
+      # without this variable.
+      - run: cargo nextest run --locked --profile ci -p peekbuddy-engine -E 'binary(fs_serial_vhd)'
+        env:
+          PEEKBUDDY_VHD_TESTS: "1"
+
   beta:
     name: beta canary
     runs-on: windows-2025
@@ -295,7 +316,7 @@ jobs:
   report:
     name: report
     if: always() && github.event_name == 'schedule'
-    needs: [miri, fuzz, proptest-long, stress, beta, fresh-deps, mutants, mutants-core-linux, bench-trend]
+    needs: [miri, fuzz, proptest-long, stress, vhd, beta, fresh-deps, mutants, mutants-core-linux, bench-trend]
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:

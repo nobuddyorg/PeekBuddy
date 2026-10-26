@@ -17,6 +17,8 @@ pub mod tray_model;
 #[cfg(windows)]
 pub mod autostart_ctl;
 #[cfg(windows)]
+pub mod capture_host;
+#[cfg(windows)]
 pub mod datadir;
 #[cfg(windows)]
 pub mod diag_collect;
@@ -193,6 +195,9 @@ mod run {
     use crate::tray_win::{SharedTray, TrayController, label_for};
     use crate::{Exit, Names, Options, Provider};
 
+    /// The running capture, where the shutdown path finds it.
+    type SharedHost = Rc<RefCell<Option<crate::capture_host::Host>>>;
+
     /// The autostart control the pipe handler shares.
     pub(crate) type SharedAutostart =
         Arc<crate::autostart_ctl::AutostartCtl<peekbuddy_win::autostart::RunKeys>>;
@@ -232,17 +237,14 @@ mod run {
         let shutdown = Rc::new(RefCell::new(Shutdown::new()));
         let store = start_store(&data, &loaded_settings, &counters, &commits, &shutdown)?;
         mark(milestones, Milestone::StoreOpened);
-        let pause = crate::pause_ctl::PauseCtl::new(
-            loaded_settings.settings.clone(),
-            data.settings.clone(),
-            !matches!(
-                loaded_settings.state,
-                crate::settings::State::TooNew { .. } | crate::settings::State::Invalid { .. }
-            ),
-            Box::new(crate::pause_ctl::ProducerRows(store.clone())),
-            crate::pause_ctl::now_ticks,
-        );
-        pause.announce_start();
+        // Queued before the window exists, so a test that sees the window
+        // knows the events are pending.
+        #[cfg(feature = "test-panic")]
+        if options.synthetic_events > 0 {
+            push_synthetic(&store, &counters, options.synthetic_events);
+        }
+        let (pause, capture) =
+            start_pause_and_capture(&data, &loaded_settings, &store, &counters, &shutdown)?;
         let autostart = start_autostart(options, &loaded_settings)?;
         shutdown
             .borrow_mut()
@@ -284,11 +286,8 @@ mod run {
         if options.panic_after_ready {
             test_panic();
         }
-        #[cfg(feature = "test-panic")]
-        if options.synthetic_events > 0 {
-            push_synthetic(&store, &counters, options.synthetic_events);
-        }
         drop(store);
+        let _capture = capture;
         let start = crate::sample::take(&mut switches.borrow_mut());
         if let Some(probe) = &options.probe {
             arm_probe(&hidden, probe.seconds)?;
@@ -426,6 +425,116 @@ mod run {
             },
         );
         Ok((data, abnormal))
+    }
+
+    /// Pause control and capture, which need each other: pausing is a signal
+    /// to the lifecycle machines, and the machines read the pause switches.
+    fn start_pause_and_capture(
+        data: &DataDir,
+        loaded: &crate::settings::LoadedSettings,
+        producer: &peekbuddy_store::pipeline::Producer,
+        counters: &Arc<peekbuddy_core::perf::Counters>,
+        shutdown: &Rc<RefCell<Shutdown>>,
+    ) -> std::io::Result<(Arc<crate::pause_ctl::PauseCtl>, Option<SharedHost>)> {
+        let (pause_rows, bind) = crate::capture_host::PauseSignals::new();
+        let pause = crate::pause_ctl::PauseCtl::new(
+            loaded.settings.clone(),
+            data.settings.clone(),
+            !matches!(
+                loaded.state,
+                crate::settings::State::TooNew { .. } | crate::settings::State::Invalid { .. }
+            ),
+            Box::new(pause_rows),
+            crate::pause_ctl::now_ticks,
+        );
+        let capture = start_capture(data, loaded, producer, counters, (&pause, &bind), shutdown)?;
+        pause.announce_start();
+        Ok((pause, capture))
+    }
+
+    /// Starts capture: the watches of the settings, their lifecycle and the
+    /// reconcile worker. Without watches nothing is started. The host stops
+    /// in the `StopCapture` step, before the queue is drained.
+    fn start_capture(
+        data: &DataDir,
+        loaded: &crate::settings::LoadedSettings,
+        producer: &peekbuddy_store::pipeline::Producer,
+        counters: &Arc<peekbuddy_core::perf::Counters>,
+        (pause, bind): (
+            &Arc<crate::pause_ctl::PauseCtl>,
+            &Arc<std::sync::OnceLock<crate::capture_host::Signaller>>,
+        ),
+        shutdown: &Rc<RefCell<Shutdown>>,
+    ) -> std::io::Result<Option<SharedHost>> {
+        use crate::capture_host::{
+            Host, HostParts, Services, StoreSink, filters_from_settings, real_probe,
+            watches_from_settings,
+        };
+        use crate::reconciler::{Reconciler, RootSpec, StoreRows};
+
+        let watches = watches_from_settings(&loaded.settings);
+        if watches.is_empty() {
+            return Ok(None);
+        }
+        let sink = Box::new(StoreSink::new(
+            producer.clone(),
+            filters_from_settings(&loaded.settings),
+            Arc::clone(counters),
+        ));
+        let specs: Vec<RootSpec> = watches
+            .iter()
+            .map(|watch| RootSpec {
+                root: watch.root,
+                vol: watch.vol,
+                path: watch.long.clone(),
+            })
+            .collect();
+        // Without a snapshot there is no reconcile; the watches still run.
+        let reconciler =
+            peekbuddy_store::snapshot::SnapshotDb::open(&data.root.join("snapshot.db"))
+                .ok()
+                .and_then(|snapshot| {
+                    Reconciler::start(
+                        snapshot,
+                        StoreRows::new(producer.clone()),
+                        specs,
+                        crate::pause_ctl::now_ticks,
+                        Host::observer(bind),
+                    )
+                    .ok()
+                });
+        let flusher = producer.clone();
+        let services = Services {
+            rows: Box::new(crate::pause_ctl::ProducerRows(producer.clone())),
+            flush: Box::new(move || {
+                let _ = flusher.flush(std::time::Duration::from_secs(2));
+            }),
+            probe: real_probe(),
+            clock: crate::pause_ctl::now_ticks,
+            notifier: Some(crate::capture_host::notifier_factory(bind)),
+        };
+        let host = Host::start(
+            HostParts {
+                watches,
+                sink,
+                pause: pause.pause(),
+                reconciler,
+                services,
+                exclude: crate::capture_host::canonical_dirs(&[data.root.as_path()]),
+            },
+            bind,
+        )?;
+        crate::capture_host::watch_system(&host);
+        let cell = Rc::new(RefCell::new(Some(host)));
+        let stopping = Rc::clone(&cell);
+        shutdown
+            .borrow_mut()
+            .register(Stage::StopCapture, move |_| {
+                if let Some(mut host) = stopping.borrow_mut().take() {
+                    host.stop();
+                }
+            });
+        Ok(Some(cell))
     }
 
     /// Brings the Run value in line with the saved intent. Test engines (an
