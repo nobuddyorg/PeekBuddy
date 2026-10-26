@@ -6,9 +6,10 @@
 //! in-memory overflow list instead and a second thread appends them to the
 //! spill file; from then on everything goes there until the writer has caught
 //! up and replayed it, which keeps the id order. If even the spill cannot be
-//! written (disk full) the batch is dropped and counted: the caller sees
-//! [`Push::Lost`] and must record a gap and ask for a reconcile, so a loss is
-//! always detected (F2). Nothing here runs a timer: the writer waits with a
+//! written (disk full) the batch is dropped and counted in
+//! [`Stats::lost_batches`]; the engine reads the counter after every commit
+//! and records a gap and asks for a reconcile, so a loss is always detected
+//! (F2). Nothing here runs a timer: the writer waits with a
 //! timeout only while events are pending, otherwise for ever.
 
 use std::collections::VecDeque;
@@ -41,13 +42,19 @@ pub struct CommitInfo {
     pub from_spill: bool,
 }
 
+/// A callback run before each commit attempt.
+pub type BeforeCommit = Arc<dyn Fn() + Send + Sync>;
+
+/// A callback told about each successful commit.
+pub type CommitObserver = Arc<dyn Fn(&CommitInfo) + Send + Sync>;
+
 /// Callbacks the pipeline calls from its threads.
 #[derive(Clone, Default)]
 pub struct Hooks {
     /// Called before each commit attempt (tests stall the writer here).
-    pub before_commit: Option<Arc<dyn Fn() + Send + Sync>>,
+    pub before_commit: Option<BeforeCommit>,
     /// Called after each successful commit.
-    pub on_commit: Option<Arc<dyn Fn(&CommitInfo) + Send + Sync>>,
+    pub on_commit: Option<CommitObserver>,
 }
 
 impl std::fmt::Debug for Hooks {
@@ -330,6 +337,7 @@ impl Pipeline {
     /// Stops accepting batches, lets the writer commit what is queued, saves
     /// overflow to the spill file and returns the writer for the final
     /// checkpoint.
+    #[must_use]
     pub fn close(mut self) -> Option<Writer> {
         lock(&self.shared.state).closed = true;
         self.shared.writer_wake.notify_all();
@@ -425,31 +433,28 @@ fn replay_step(
     }
     let counted = spill.position() >= shared.old_end;
     let generation = spill.generation();
-    match spill.next(replay) {
-        Ok(Some(end)) => {
-            drop(spill);
-            let mut batch = Batch::standard();
-            std::mem::swap(&mut batch, replay);
-            pending.add(now_ns(clock), batch.len());
-            let cursors = std::mem::take(&mut lock(&shared.state).cursors);
-            Step::Work(Work::Group {
-                batches: vec![batch],
-                cursors,
-                from_spill: true,
-                counted,
-                spill_end: Some((generation, end)),
-            })
-        }
-        Ok(None) | Err(_) => {
-            let _ = spill.finish();
-            drop(spill);
-            let mut state = lock(&shared.state);
-            if state.queue.is_empty() && state.overflow.is_empty() && !state.spiller_busy {
-                state.spilling = false;
-            }
-            Step::Again
-        }
+    if let Ok(Some(end)) = spill.next(replay) {
+        drop(spill);
+        let mut batch = Batch::standard();
+        std::mem::swap(&mut batch, replay);
+        pending.add(now_ns(clock), batch.len());
+        let cursors = std::mem::take(&mut lock(&shared.state).cursors);
+        return Step::Work(Work::Group {
+            batches: vec![batch],
+            cursors,
+            from_spill: true,
+            counted,
+            spill_end: Some((generation, end)),
+        });
     }
+    // Everything replayed (or the rest was a torn tail): the file is done.
+    let _ = spill.finish();
+    drop(spill);
+    let mut state = lock(&shared.state);
+    if state.queue.is_empty() && state.overflow.is_empty() && !state.spiller_busy {
+        state.spilling = false;
+    }
+    Step::Again
 }
 
 /// Waits for the next unit of work and, for a queue batch, collects the group

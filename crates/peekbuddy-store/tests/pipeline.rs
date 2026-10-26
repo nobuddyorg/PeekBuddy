@@ -1,10 +1,6 @@
 //! The writer pipeline against a real database file: ordering, stalls,
 //! spill and replay, restarts, lost batches, flush and cursors (#52).
-#![expect(
-    clippy::unwrap_used,
-    clippy::indexing_slicing,
-    reason = "tests unwrap and index"
-)]
+#![expect(clippy::unwrap_used, reason = "tests unwrap")]
 
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};

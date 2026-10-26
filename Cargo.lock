@@ -923,6 +923,7 @@ name = "peekbuddy-store"
 version = "0.0.0"
 dependencies = [
  "insta",
+ "peekbuddy-alloc",
  "peekbuddy-core",
  "proptest",
  "rusqlite",

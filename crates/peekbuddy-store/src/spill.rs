@@ -34,6 +34,7 @@ const HEADER_LEN: u64 = 8;
 /// Largest payload of one record; a bigger length is corruption.
 const MAX_PAYLOAD: usize = 64 * 1024 * 1024;
 
+#[expect(clippy::cast_possible_truncation, reason = "the index is below 256")]
 const fn crc_table() -> [u32; 256] {
     let mut table = [0u32; 256];
     let mut index = 0;
@@ -431,7 +432,7 @@ mod tests {
         let len = std::fs::metadata(dir.join(super::FILE_NAME)).unwrap().len();
         let mut done = Spill::open(&dir, generation, len).unwrap();
         assert!(!done.has_pending());
-        assert!(collect(&mut done).is_empty());
+        assert_eq!(collect(&mut done), []);
         std::fs::remove_dir_all(&dir).unwrap();
     }
 
@@ -479,7 +480,7 @@ mod tests {
             .write_all(&bytes)
             .unwrap();
         let mut again = Spill::open(&dir, 0, 0).unwrap();
-        assert!(collect(&mut again).is_empty());
+        assert_eq!(collect(&mut again), []);
         std::fs::remove_dir_all(&dir).unwrap();
     }
 }

@@ -113,9 +113,9 @@ pub struct Commit {
 
 #[derive(Debug, Clone, Copy)]
 struct RootRow {
-    root_id: i64,
-    vol_id: i64,
-    node_id: i64,
+    root: i64,
+    vol: i64,
+    node: i64,
 }
 
 /// The connection, the interner and the id counter.
@@ -204,43 +204,49 @@ impl Writer {
     /// SQLite failures.
     pub fn register_root(&mut self, info: &RootInfo) -> Result<(), WriteError> {
         let tx = self.conn.transaction()?;
-        let vol_id =
-            match tx
-                .query_row(
-                    "SELECT id FROM vol WHERE guid = ?1",
-                    [&info.vol.guid],
-                    |row| row.get::<_, i64>(0),
-                )
-                .optional()?
-            {
-                Some(id) => id,
-                None => {
-                    tx.execute(
-                    "INSERT INTO vol (guid, serial, letter, journal_id) VALUES (?1, ?2, ?3, ?4)",
-                    params![info.vol.guid, info.vol.serial, info.vol.letter, info.vol.journal_id],
-                )?;
-                    tx.last_insert_rowid()
-                }
-            };
+        let found_vol = tx
+            .query_row(
+                "SELECT id FROM vol WHERE guid = ?1",
+                [&info.vol.guid],
+                |row| row.get::<_, i64>(0),
+            )
+            .optional()?;
+        let vol_id = if let Some(id) = found_vol {
+            id
+        } else {
+            tx.execute(
+                "INSERT INTO vol (guid, serial, letter, journal_id) VALUES (?1, ?2, ?3, ?4)",
+                params![
+                    info.vol.guid,
+                    info.vol.serial,
+                    info.vol.letter,
+                    info.vol.journal_id
+                ],
+            )?;
+            tx.last_insert_rowid()
+        };
         let columns = to_columns(WideStr::new(&info.path));
-        let root_id =
-            match tx
-                .query_row(
-                    "SELECT id FROM root WHERE path = ?1 AND vol_id = ?2",
-                    params![columns.text, vol_id],
-                    |row| row.get::<_, i64>(0),
-                )
-                .optional()?
-            {
-                Some(id) => id,
-                None => {
-                    tx.execute(
-                    "INSERT INTO root (path, path_w, recursive, vol_id) VALUES (?1, ?2, ?3, ?4)",
-                    params![columns.text, columns.wide, i64::from(info.recursive), vol_id],
-                )?;
-                    tx.last_insert_rowid()
-                }
-            };
+        let found_root = tx
+            .query_row(
+                "SELECT id FROM root WHERE path = ?1 AND vol_id = ?2",
+                params![columns.text, vol_id],
+                |row| row.get::<_, i64>(0),
+            )
+            .optional()?;
+        let root_id = if let Some(id) = found_root {
+            id
+        } else {
+            tx.execute(
+                "INSERT INTO root (path, path_w, recursive, vol_id) VALUES (?1, ?2, ?3, ?4)",
+                params![
+                    columns.text,
+                    columns.wide,
+                    i64::from(info.recursive),
+                    vol_id
+                ],
+            )?;
+            tx.last_insert_rowid()
+        };
         let mut parent = TOP_LEVEL;
         for part in info.path.split(|unit| *unit == BACKSLASH) {
             if part.is_empty() || part == [0x3F] {
@@ -264,9 +270,9 @@ impl Writer {
         }
         if let Some(entry) = self.roots.get_mut(slot) {
             *entry = Some(RootRow {
-                root_id,
-                vol_id,
-                node_id: parent,
+                root: root_id,
+                vol: vol_id,
+                node: parent,
             });
         }
         Ok(())
@@ -352,7 +358,7 @@ impl Writer {
                     insert_event(&mut insert, id, event, root, node_id)?;
                     let kind = kind_column(event);
                     let entry = stats
-                        .entry((hour_bucket(event.ts.cast_signed()), root.root_id, kind))
+                        .entry((hour_bucket(event.ts.cast_signed()), root.root, kind))
                         .or_insert((0, id, id));
                     entry.0 += 1;
                     entry.2 = id;
@@ -461,7 +467,7 @@ fn intern_path(
     event: &Event,
     name: &[u16],
 ) -> rusqlite::Result<i64> {
-    let mut parent = root.node_id;
+    let mut parent = root.node;
     let mut parts = name
         .split(|unit| *unit == BACKSLASH)
         .filter(|part| !part.is_empty())
@@ -471,7 +477,7 @@ fn intern_path(
         parent = interner.intern(
             conn,
             &NodeKey {
-                vol_id: root.vol_id,
+                vol_id: root.vol,
                 parent_id: parent,
                 name: WideStr::new(part),
                 name_kind: if last {
@@ -509,8 +515,8 @@ fn insert_event(
         (event.file_id != 0).then_some(file.lo),
         file.hi,
         (event.usn != 0).then_some(event.usn),
-        root.vol_id,
-        root.root_id,
+        root.vol,
+        root.root,
         i64::from(event.flags.bits()),
         Option::<i64>::None,
         Option::<i64>::None,
@@ -536,7 +542,7 @@ fn write_cursors(
              ON CONFLICT (root_id, vol_id) DO UPDATE SET usn = excluded.usn, \
              last_event_id = max(last_event_id, excluded.last_event_id), ts = excluded.ts",
         )?
-        .execute(params![root.root_id, root.vol_id, cursor.usn, last_id.max(0), ts.cast_signed()])?;
+        .execute(params![root.root, root.vol, cursor.usn, last_id.max(0), ts.cast_signed()])?;
     }
     Ok(())
 }
@@ -574,7 +580,7 @@ pub(crate) mod tests {
     }
 
     fn batch(first: u64, count: u64, root: u16) -> Batch {
-        let mut batch = Batch::with_capacity(count as usize + 1, 8192);
+        let mut batch = Batch::with_capacity(usize::try_from(count).unwrap() + 1, 8192);
         for ts in first..first + count {
             batch
                 .push(event(ts, root), &units(&format!("sub\\file{ts}.txt")))
