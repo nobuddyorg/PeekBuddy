@@ -36,7 +36,7 @@ event time) and keeps its position in the batch.
 ## Loss is never silent
 
 | Situation | What is recorded |
-|---|---|
+| --- | --- |
 | `TRUE` with 0 bytes | `Overflow(BufferOverflow)` row, reconcile |
 | `ERROR_NOTIFY_ENUM_DIR` | `Overflow(NotifyEnumDir)` row, reconcile |
 | The sink refuses an event (ring full) | the record is counted, `Overflow(RingFull)` row, reconcile |
