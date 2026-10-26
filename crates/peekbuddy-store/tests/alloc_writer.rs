@@ -10,9 +10,7 @@ use std::io::Write as _;
 use std::process::ExitCode;
 
 use peekbuddy_alloc::{CountingAlloc, answer_nextest_list, measure};
-use peekbuddy_core::event::{
-    Event, Flags, Kind, NameKind, NameRef, RootIdx, Source, VolIdx,
-};
+use peekbuddy_core::event::{Event, Flags, Kind, NameKind, NameRef, RootIdx, Source, VolIdx};
 use peekbuddy_store::batch::Batch;
 use peekbuddy_store::schema;
 use peekbuddy_store::writer::{RootInfo, VolInfo, Writer};
@@ -81,11 +79,16 @@ fn main() -> ExitCode {
     let names: Vec<Vec<u16>> = (0..64)
         .map(|i| format!("dir\\file{i}.txt").encode_utf16().collect())
         .collect();
-    let mut batches: Vec<Batch> = (0..4).map(|_| Batch::with_capacity(256, 16 * 1024)).collect();
+    let mut batches: Vec<Batch> = (0..4)
+        .map(|_| Batch::with_capacity(256, 16 * 1024))
+        .collect();
     let mut ts = 0u64;
     for batch in &mut batches {
         for _ in 0..250 {
-            let name = names.get(usize::try_from(ts % 64).unwrap_or(0)).cloned().unwrap_or_default();
+            let name = names
+                .get(usize::try_from(ts % 64).unwrap_or(0))
+                .cloned()
+                .unwrap_or_default();
             if batch.push(event(ts), &name).is_err() {
                 return ExitCode::FAILURE;
             }

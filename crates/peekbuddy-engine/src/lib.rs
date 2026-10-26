@@ -25,6 +25,8 @@ mod sample;
 #[cfg(windows)]
 pub mod settings;
 #[cfg(windows)]
+pub mod store_win;
+#[cfg(windows)]
 pub mod tray_win;
 
 use std::path::PathBuf;
@@ -88,6 +90,10 @@ pub struct Options {
     /// Panic right after "ready", to test the crash log.
     #[cfg(feature = "test-panic")]
     pub panic_after_ready: bool,
+    /// Push this many synthetic events for the first watch right after
+    /// "ready", to test the store end to end.
+    #[cfg(feature = "test-panic")]
+    pub synthetic_events: u32,
 }
 
 /// `--perf-probe <seconds> [--perf-probe-out <file>]`.
@@ -162,6 +168,7 @@ pub fn run(
 mod run {
     use std::cell::RefCell;
     use std::rc::Rc;
+    use std::sync::{Arc, Mutex};
 
     use peekbuddy_core::perf::{Milestone, MilestoneTable, Role};
     use peekbuddy_win::console::{attach_output, close_window_on_ctrl_c};
@@ -209,43 +216,27 @@ mod run {
         let loaded_settings = crate::settings::load_or_create(&data);
         mark(milestones, Milestone::SettingsLoaded);
 
-        // The writer (#52) feeds both; until it exists they stay empty.
-        let counters = peekbuddy_core::perf::Counters::new();
-        let commits = probe::CommitLog::new();
+        // The writer feeds both on every commit.
+        let counters = Arc::new(peekbuddy_core::perf::Counters::new());
+        let commits = Arc::new(Mutex::new(probe::CommitLog::new()));
         let shutdown = Rc::new(RefCell::new(Shutdown::new()));
+        let store = start_store(&data, &loaded_settings, &counters, &commits, &shutdown)?;
+        mark(milestones, Milestone::StoreOpened);
         shutdown
             .borrow_mut()
             .register(Stage::ReleaseProvider, release_provider(&provider));
-        let handler = Rc::clone(&shutdown);
         // The probe's closing sample is taken when its timer fires, before
         // the shutdown starts: teardown wakeups are not idle wakeups.
         let switches = Rc::new(RefCell::new(ContextSwitches::new()));
         let closing: Rc<RefCell<Option<Sample>>> = Rc::new(RefCell::new(None));
         let (timer_switches, timer_sample) = (Rc::clone(&switches), Rc::clone(&closing));
         let tray_cell: SharedTray = Rc::new(RefCell::new(None));
-        let tray_events = Rc::clone(&tray_cell);
-        let hidden = HiddenWindow::create(&names.window_class, move |event, window| match event {
-            WindowEvent::TraySelect
-            | WindowEvent::TrayMenu
-            | WindowEvent::Command(_)
-            | WindowEvent::TaskbarCreated
-            | WindowEvent::ThemeChanged => {
-                if let Some(tray) = tray_events.borrow_mut().as_mut() {
-                    tray.handle(event, window);
-                }
-            }
-            WindowEvent::Close => handler.borrow_mut().run(Reason::Quit),
-            // The probe's one-shot exit timer.
-            WindowEvent::Timer => {
-                *timer_sample.borrow_mut() =
-                    Some(crate::sample::take(&mut timer_switches.borrow_mut()));
-                let _ = window.post_close();
-            }
-            WindowEvent::EndSession { ending: true } => {
-                handler.borrow_mut().run(Reason::EndSession);
-            }
-            WindowEvent::QueryEndSession | WindowEvent::EndSession { ending: false } => {}
-        })?;
+        let hidden = create_window(
+            &names.window_class,
+            Rc::clone(&shutdown),
+            Rc::clone(&tray_cell),
+            (timer_switches, timer_sample),
+        )?;
         if options.headless || options.probe.is_some() {
             close_window_on_ctrl_c(hidden.handle())?;
         }
@@ -271,6 +262,11 @@ mod run {
         if options.panic_after_ready {
             test_panic();
         }
+        #[cfg(feature = "test-panic")]
+        if options.synthetic_events > 0 {
+            push_synthetic(&store, &counters, options.synthetic_events);
+        }
+        drop(store);
         let start = crate::sample::take(&mut switches.borrow_mut());
         if let Some(probe) = &options.probe {
             arm_probe(&hidden, probe.seconds)?;
@@ -289,7 +285,9 @@ mod run {
                 start,
                 end,
                 counters: counters.snapshot(),
-                batch_commits: commits.to_vec(),
+                batch_commits: commits
+                    .lock()
+                    .map_or_else(|_| Vec::new(), |log| log.to_vec()),
             };
             emit(&report, probe.out.as_deref())?;
         }
@@ -297,6 +295,67 @@ mod run {
             abnormal_termination,
             settings: Some(loaded_settings.state.describe()),
         })
+    }
+
+    /// The hidden window and the dispatch of its events: tray, shutdown and
+    /// the probe's closing sample.
+    fn create_window(
+        class: &str,
+        shutdown: Rc<RefCell<Shutdown>>,
+        tray: SharedTray,
+        (switches, sample): (Rc<RefCell<ContextSwitches>>, Rc<RefCell<Option<Sample>>>),
+    ) -> std::io::Result<HiddenWindow> {
+        HiddenWindow::create(class, move |event, window| match event {
+            WindowEvent::TraySelect
+            | WindowEvent::TrayMenu
+            | WindowEvent::Command(_)
+            | WindowEvent::TaskbarCreated
+            | WindowEvent::ThemeChanged => {
+                if let Some(tray) = tray.borrow_mut().as_mut() {
+                    tray.handle(event, window);
+                }
+            }
+            WindowEvent::Close => shutdown.borrow_mut().run(Reason::Quit),
+            // The probe's one-shot exit timer.
+            WindowEvent::Timer => {
+                *sample.borrow_mut() = Some(crate::sample::take(&mut switches.borrow_mut()));
+                let _ = window.post_close();
+            }
+            WindowEvent::EndSession { ending: true } => {
+                shutdown.borrow_mut().run(Reason::EndSession);
+            }
+            WindowEvent::QueryEndSession | WindowEvent::EndSession { ending: false } => {}
+        })
+    }
+
+    /// Opens today's segment and starts the writer. The shutdown path drains
+    /// the queue, commits, checkpoints and closes the database, in that order.
+    /// Returns the handle capture pushes batches through.
+    fn start_store(
+        data: &DataDir,
+        loaded: &crate::settings::LoadedSettings,
+        counters: &Arc<peekbuddy_core::perf::Counters>,
+        commits: &Arc<Mutex<probe::CommitLog>>,
+        shutdown: &Rc<RefCell<Shutdown>>,
+    ) -> std::io::Result<peekbuddy_store::pipeline::Producer> {
+        let store = crate::store_win::Store::start(data, &loaded.settings, counters, commits)?;
+        let producer = store.producer();
+        let store = Rc::new(RefCell::new(store));
+        let mut steps = shutdown.borrow_mut();
+        let cell = Rc::clone(&store);
+        // Everything queued reaches the disk within the deadline (F19); what
+        // does not stays in the spill file for the next start.
+        steps.register(Stage::DrainRing, move |_| {
+            let _ = cell.borrow().flush();
+        });
+        let cell = Rc::clone(&store);
+        steps.register(Stage::FinalCommit, move |_| cell.borrow_mut().close());
+        let cell = Rc::clone(&store);
+        steps.register(Stage::PersistCheckpoints, move |_| {
+            cell.borrow().checkpoint();
+        });
+        steps.register(Stage::CloseDatabase, move |_| store.borrow_mut().release());
+        Ok(producer)
     }
 
     /// `--perf-probe`: exit right away for 0 seconds, else after the timer.
@@ -455,6 +514,60 @@ Another PeekBuddy engine of this user owns it, or another program created it fir
         let mut stdout = std::io::stdout().lock();
         std::io::Write::write_all(&mut stdout, json.as_bytes())?;
         std::io::Write::flush(&mut stdout)
+    }
+
+    /// Pushes `count` events for the first watch through the store, like
+    /// capture will, so tests see rows, commits and counters end to end.
+    #[cfg(feature = "test-panic")]
+    fn push_synthetic(
+        producer: &peekbuddy_store::pipeline::Producer,
+        counters: &peekbuddy_core::perf::Counters,
+        count: u32,
+    ) {
+        use peekbuddy_core::event::{
+            Event, Flags, Kind, NameKind, NameRef, RootIdx, Source, VolIdx,
+        };
+
+        let mut batch = producer.new_batch();
+        for index in 0..u64::from(count) {
+            let event = Event {
+                ts: 133_000_000_000_000_000 + index,
+                qpc: index,
+                src_ts: 0,
+                source: Source::Rdcw,
+                kind: Kind::Created,
+                raw_mask: 1,
+                source_info: 0,
+                is_dir: false,
+                size: 1,
+                attrs: 0x20,
+                reparse_tag: 0,
+                file_id: u128::from(index) + 1,
+                parent_file_id: 5,
+                usn: 0,
+                vol: VolIdx(0),
+                root: RootIdx(0),
+                name: NameRef::EMPTY,
+                name_kind: NameKind::Long,
+                flags: Flags::NONE,
+            };
+            let name: Vec<u16> = format!(r"synthetic\file{index}.txt")
+                .encode_utf16()
+                .collect();
+            if batch.push(event, &name).is_err() {
+                let spare = match producer.push(batch) {
+                    peekbuddy_store::pipeline::Push::Queued(spare)
+                    | peekbuddy_store::pipeline::Push::Overflow(spare)
+                    | peekbuddy_store::pipeline::Push::Closed(spare) => spare,
+                };
+                batch = spare;
+                let _ = batch.push(event, &name);
+            }
+        }
+        let _ = producer.push(batch);
+        counters
+            .events_received
+            .fetch_add(u64::from(count), std::sync::atomic::Ordering::Relaxed);
     }
 
     #[cfg(feature = "test-panic")]

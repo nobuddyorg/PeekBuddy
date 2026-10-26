@@ -21,9 +21,10 @@ prek config); the Linux tests (nextest when installed) and doctests;
 warnings denied for `x86_64-pc-windows-msvc` and `aarch64-pc-windows-msvc`.
 Clippy for the Windows targets uses plain `cargo clippy --target`, which
 needs no linker but cannot compile C code, so it checks the default features
-without `benches` (criterion builds C, #26) and `peekbuddy-store` (bundled
-SQLite, #53), and a host clippy run covers `--all-features` (Tracy, #22),
-`benches` and the store. Set
+without `benches` (criterion builds C, #26), `peekbuddy-store` (bundled
+SQLite, #53) and the two crates that link it, `peekbuddy-engine` and
+`peekbuddy` (#52), and a host clippy run covers `--all-features` (Tracy, #22),
+`benches`, the store and those two. Set
 `PEEKBUDDY_XWIN=1` to run the Windows targets through `cargo xwin clippy`
 with all features instead. Tests that need Win32 run only in CI.
 

@@ -26,9 +26,12 @@ use crate::probe::{BatchCommit, CommitLog};
 /// How long quitting waits for the queue to reach the disk (F19).
 pub const FLUSH_DEADLINE: Duration = Duration::from_secs(5);
 
-/// The running store.
+/// The running store: the pipeline while it runs, the writer after it was
+/// stopped for the final checkpoint.
 pub struct Store {
-    pipeline: Pipeline,
+    pipeline: Option<Pipeline>,
+    writer: Option<Writer>,
+    producer: Producer,
     /// The segment file.
     pub path: PathBuf,
     /// Roots that could be registered (the others were unreachable).
@@ -48,7 +51,8 @@ impl std::fmt::Debug for Store {
 #[must_use]
 pub fn segment_path(data: &DataDir, now: SystemTime) -> PathBuf {
     let stamp = crate::crash::utc_stamp(now);
-    data.segments.join(format!("{}.db", stamp.get(..8).unwrap_or("00000000")))
+    data.segments
+        .join(format!("{}.db", stamp.get(..8).unwrap_or("00000000")))
 }
 
 fn volume_of(path: &str) -> Option<(VolInfo, Vec<u16>)> {
@@ -86,7 +90,12 @@ impl Store {
         let path = segment_path(data, SystemTime::now());
         let mut writer = Writer::open(&path).map_err(std::io::Error::other)?;
         let mut roots = 0;
-        for (index, watch) in settings.watches.iter().enumerate().filter(|(_, w)| w.enabled) {
+        for (index, watch) in settings
+            .watches
+            .iter()
+            .enumerate()
+            .filter(|(_, w)| w.enabled)
+        {
             let Some((vol, units)) = volume_of(&watch.path) else {
                 continue;
             };
@@ -107,39 +116,69 @@ impl Store {
             })),
         };
         let pipeline = Pipeline::start(writer, config)?;
-        Ok(Self { pipeline, path, roots })
+        let producer = pipeline.producer();
+        Ok(Self {
+            pipeline: Some(pipeline),
+            writer: None,
+            producer,
+            path,
+            roots,
+        })
     }
 
     /// The handle capture pushes batches through.
     #[must_use]
     pub fn producer(&self) -> Producer {
-        self.pipeline.producer()
+        self.producer.clone()
     }
 
     /// Batches lost because even the spill could not be written.
     #[must_use]
     pub fn lost_batches(&self) -> u64 {
-        self.pipeline.stats().lost_batches
+        self.pipeline
+            .as_ref()
+            .map_or(0, |pipeline| pipeline.stats().lost_batches)
     }
 
     /// Waits for everything pushed to reach the database, at most
-    /// [`FLUSH_DEADLINE`].
+    /// [`FLUSH_DEADLINE`]. Returns whether it did.
+    #[must_use]
     pub fn flush(&self) -> bool {
-        self.pipeline.flush(FLUSH_DEADLINE).is_ok()
+        self.pipeline
+            .as_ref()
+            .is_some_and(|pipeline| pipeline.flush(FLUSH_DEADLINE).is_ok())
     }
 
-    /// Stops the writer and returns the connection for the final checkpoint.
-    #[must_use]
-    pub fn close(self) -> Option<Writer> {
-        self.pipeline.close()
+    /// Stops accepting batches and the writer thread; the connection is kept
+    /// for [`Store::checkpoint`].
+    pub fn close(&mut self) {
+        if let Some(pipeline) = self.pipeline.take() {
+            self.writer = pipeline.close();
+        }
+    }
+
+    /// Final checkpoint: truncates the write-ahead log.
+    pub fn checkpoint(&self) {
+        if let Some(writer) = &self.writer {
+            let _ = writer.checkpoint_truncate();
+        }
+    }
+
+    /// Closes the database.
+    pub fn release(&mut self) {
+        self.writer = None;
     }
 }
 
 fn on_commit(counters: &Counters, commits: &Mutex<CommitLog>, info: &CommitInfo) {
     use std::sync::atomic::Ordering;
 
-    counters.rows_persisted.fetch_add(info.commit.rows, Ordering::Relaxed);
-    counters.last_batch_size.store(info.commit.rows, Ordering::Relaxed);
+    counters
+        .rows_persisted
+        .fetch_add(info.commit.rows, Ordering::Relaxed);
+    counters
+        .last_batch_size
+        .store(info.commit.rows, Ordering::Relaxed);
     counters.observe_ring_depth(u64::try_from(info.ring_high_water).unwrap_or(u64::MAX));
     if let Ok(mut log) = commits.lock() {
         log.push(BatchCommit {
