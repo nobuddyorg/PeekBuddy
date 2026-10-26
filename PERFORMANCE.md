@@ -68,6 +68,7 @@ Gate values in `budgets.toml`:
 | `ingest.sustained` | >= 20000 events/s | timing | pr-ab | provisional | churn profile sustained-20k (#25) | ledger count / duration (#27) | F2, recalibrated by #32 (reader sustained 33k to 37k records/s on x64 with no overflow; report 0002) |
 | `ingest.undetected_loss` | <= 0 count | deterministic | pr-strict | calibrated | every churn profile (#25, #50) | ledger vs store comparison (#50) | F2, R7 |
 | `capture.rearm_latency` | <= 5 ms | timing | nightly-trend | provisional | churn profile latency-10k (#25) | tracing span on the capture thread (#21) | F4, recalibrated by #32 |
+| `shutdown.endsession_flush` | <= 2000 ms | timing | nightly-trend | provisional | engine with 10k synthetic events queued, session end sent to the hidden window | crates/peekbuddy/tests/store.rs (test-panic build), wall clock of the send | F19; Windows allows about 5 s, the limit leaves room (#171) |
 | `viewer.frame.p95` | <= 8 ms | timing | nightly-trend | provisional | 10M-row log, scripted scroll | egui frame timing in --perf-probe JSON | F9 |
 | `viewer.frame.p99` | <= 16 ms | timing | nightly-trend | provisional | 10M-row log, scripted scroll | egui frame timing in --perf-probe JSON | F9 |
 | `viewer.frame.max` | <= 33 ms | timing | nightly-trend | provisional | 10M-row log, scripted scroll | egui frame timing in --perf-probe JSON | F9 |

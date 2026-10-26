@@ -1,0 +1,59 @@
+---
+source: crates/peekbuddy-store/tests/schema.rs
+assertion_line: 375
+expression: out
+---
+source Rdcw = 0
+source Usn = 1
+source Reconcile = 2
+source System = 3
+name_kind Unknown = 0
+name_kind Long = 1
+name_kind Short = 2
+name_kind Both = 3
+kind Created = 0
+kind Modified = 256
+kind Deleted = 512
+kind RenamedFrom = 768
+kind RenamedTo = 1024
+kind AttributesChanged = 1280
+kind SecurityChanged = 1536
+kind StreamChanged = 1792
+kind LinkChanged = 2048
+kind ReconciledCreated = 2816
+kind ReconciledModified = 3072
+kind ReconciledDeleted = 3328
+kind Other = 3584
+kind EngineStarted = 3840
+kind EngineStopped = 4096
+kind SegmentRotated = 4352
+kind RetentionPurged = 4608
+kind SettingsChanged = 4864
+kind ReconciledRenamed = 5120
+kind ReconcileStarted = 5376
+kind ReconcileFinished = 5632
+kind BaselineEstablished = 5888
+kind AccessDenied = 6144
+kind EngineAbnormalExit = 6400
+kind Overflow(BufferOverflow) = 2304
+kind Overflow(NotifyEnumDir) = 2305
+kind Overflow(JournalEntryDeleted) = 2306
+kind Overflow(JournalIdChanged) = 2307
+kind Overflow(ParserError) = 2308
+kind Overflow(EngineNotRunning) = 2309
+kind Overflow(RingFull) = 2310
+kind WatchStateChanged(Arming) = 2560
+kind WatchStateChanged(Live) = 2561
+kind WatchStateChanged(Overflowed) = 2562
+kind WatchStateChanged(Reconciling) = 2563
+kind WatchStateChanged(SuspendedByUser) = 2564
+kind WatchStateChanged(SuspendedQueryRemove) = 2565
+kind WatchStateChanged(Lost) = 2566
+kind WatchStateChanged(Restored) = 2567
+kind WatchStateChanged(SuspendedLocked) = 2568
+flags bit 0 = Flags(1)
+flags bit 1 = Flags(2)
+flags bit 2 = Flags(4)
+flags bit 3 = Flags(8)
+flags bit 4 = Flags(16)
+flags bit 5 = Flags(32)

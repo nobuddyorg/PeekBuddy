@@ -156,6 +156,9 @@ pub enum Kind {
     /// A directory could not be listed (access denied); one row per
     /// directory per run.
     AccessDenied,
+    /// The previous run of the engine ended abnormally (a crash marker was
+    /// found at start). The row's name is the crash log.
+    EngineAbnormalExit,
     /// Not classifiable; the raw value is kept.
     Other,
     /// The engine started.
@@ -200,6 +203,7 @@ impl Kind {
             Self::ReconcileFinished => (22, 0),
             Self::BaselineEstablished => (23, 0),
             Self::AccessDenied => (24, 0),
+            Self::EngineAbnormalExit => (25, 0),
         }
     }
 
@@ -242,6 +246,7 @@ impl Kind {
             22 => Self::ReconcileFinished,
             23 => Self::BaselineEstablished,
             24 => Self::AccessDenied,
+            25 => Self::EngineAbnormalExit,
             _ => return None,
         };
         // Kinds without a payload must carry 0 so every value has one encoding.
@@ -279,6 +284,7 @@ pub(crate) mod tests {
             Kind::ReconcileFinished,
             Kind::BaselineEstablished,
             Kind::AccessDenied,
+            Kind::EngineAbnormalExit,
         ];
         v.extend(GapReason::ALL.map(Kind::Overflow));
         v.extend(WatchState::ALL.map(Kind::WatchStateChanged));

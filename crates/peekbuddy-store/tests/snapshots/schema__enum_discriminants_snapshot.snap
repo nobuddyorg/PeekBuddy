@@ -33,6 +33,7 @@ kind ReconcileStarted = 5376
 kind ReconcileFinished = 5632
 kind BaselineEstablished = 5888
 kind AccessDenied = 6144
+kind EngineAbnormalExit = 6400
 kind Overflow(BufferOverflow) = 2304
 kind Overflow(NotifyEnumDir) = 2305
 kind Overflow(JournalEntryDeleted) = 2306
