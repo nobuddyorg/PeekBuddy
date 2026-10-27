@@ -71,7 +71,7 @@ jobs:
           persist-credentials: false
       - name: Rust toolchain
         run: rustup toolchain install && rustup show
-      - uses: Swatinem/rust-cache@2201cc584a476d1b508be977bbe4b7d1c7a52e9c # v2.9.3
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           shared-key: core-linux
           save-if: ${{ github.ref == 'refs/heads/main' }}
@@ -90,7 +90,7 @@ jobs:
           persist-credentials: false
       - name: Rust toolchain
         run: rustup toolchain install && rustup show
-      - uses: Swatinem/rust-cache@2201cc584a476d1b508be977bbe4b7d1c7a52e9c # v2.9.3
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           shared-key: lint-x64
           save-if: ${{ github.ref == 'refs/heads/main' }}
@@ -123,7 +123,7 @@ jobs:
         run: ./scripts/ci/preflight.ps1
       - name: Rust toolchain
         run: rustup toolchain install && rustup show
-      - uses: Swatinem/rust-cache@2201cc584a476d1b508be977bbe4b7d1c7a52e9c # v2.9.3
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           shared-key: test-x64
           save-if: ${{ github.ref == 'refs/heads/main' }}
@@ -187,7 +187,7 @@ jobs:
           persist-credentials: false
       - name: Rust toolchain
         run: rustup toolchain install && rustup show
-      - uses: Swatinem/rust-cache@2201cc584a476d1b508be977bbe4b7d1c7a52e9c # v2.9.3
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           shared-key: etw-smoke
           save-if: ${{ github.ref == 'refs/heads/main' }}
@@ -246,7 +246,7 @@ jobs:
           persist-credentials: false
       - name: Rust toolchain
         run: rustup toolchain install && rustup show
-      - uses: Swatinem/rust-cache@2201cc584a476d1b508be977bbe4b7d1c7a52e9c # v2.9.3
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           shared-key: coverage-x64
           save-if: ${{ github.ref == 'refs/heads/main' }}
@@ -275,7 +275,7 @@ jobs:
           fetch-depth: 0
       - name: Rust toolchain
         run: rustup toolchain install && rustup show
-      - uses: Swatinem/rust-cache@2201cc584a476d1b508be977bbe4b7d1c7a52e9c # v2.9.3
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           shared-key: mutants-x64
           save-if: false
@@ -320,7 +320,7 @@ jobs:
           fetch-depth: 0
       - name: Rust toolchain
         run: rustup toolchain install && rustup show
-      - uses: Swatinem/rust-cache@2201cc584a476d1b508be977bbe4b7d1c7a52e9c # v2.9.3
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           shared-key: bench-ab-x64
           save-if: false
@@ -352,7 +352,7 @@ jobs:
         run: ./scripts/ci/preflight.ps1
       - name: Rust toolchain
         run: rustup toolchain install && rustup show
-      - uses: Swatinem/rust-cache@2201cc584a476d1b508be977bbe4b7d1c7a52e9c # v2.9.3
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           shared-key: test-arm64
           save-if: ${{ github.ref == 'refs/heads/main' }}
