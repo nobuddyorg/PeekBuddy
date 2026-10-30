@@ -55,3 +55,13 @@ must carry `FILE_FLAG_OPEN_NO_RECALL`, which is now on by default. A caller that
 turns it off gets an error, not a handle. `cargo xtask check-deps` fails on a
 `CreateFileW` call anywhere in the workspace outside the directory helper and
 the attribute-only opener of `peekbuddy_win::fs`.
+
+## What the link tests show
+
+`fs_serial_links.rs` runs the real engine on a tree with real NTFS junctions:
+
+- a junction to a sibling folder is one row (the link object); files and
+  directories created behind it are not logged through the root;
+- the reconcile walk lists a junction as an entry and does not enter it, on the
+  baseline and on the walk after a restart;
+- a junction to its own root neither loops nor produces a path through it.
