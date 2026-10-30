@@ -351,11 +351,19 @@ fn a_stuck_reader_is_reported_while_ingest_goes_on_and_clears_when_it_lets_go() 
     assert_eq!(seen, 50);
 
     let mut next = 51;
-    wait_for("the stuck reader to be reported", || {
+    let until = Instant::now() + Duration::from_secs(30);
+    while !pipeline.stats().wal_blocked {
         push(&producer, next, 20);
         next += 20;
-        pipeline.stats().wal_blocked
-    });
+        std::thread::sleep(Duration::from_millis(5));
+        assert!(
+            Instant::now() < until,
+            "the stuck reader was not reported: {:?}, wal {} bytes, {} pushed",
+            pipeline.stats(),
+            std::fs::metadata(dirs.db().with_extension("db-wal")).map_or(0, |m| m.len()),
+            next
+        );
+    }
     // Ingest went on: more rows are committed than the reader sees.
     pipeline.flush(Duration::from_secs(60)).unwrap();
     assert!(pipeline.stats().rows > 50);
