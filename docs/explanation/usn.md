@@ -55,10 +55,19 @@ waited for. The Windows test creates a file on the volume of the temp
 directory and finds its create record by file reference number; it reads, and
 never creates or deletes a journal. It does nothing on a volume without one.
 
+For the shipped shape of the reader the journal can be put on the engine's
+completion port (`Journal::associate`). `begin_wait` then starts a read with
+`BytesToWaitFor = 1` that stays pending until a record exists, so an idle
+volume costs no wakeups; `finish` takes its result from the dequeued
+completion; `cancel` ends a pending read with a 995 completion, after which the
+journal reads again. On a port the waiting `query` and `read` are refused.
+
 ## What is not here
 
-The IOCP reader that stays pending until data arrives, `CancelIoEx` on stop,
-the synchronous fallback on `ReFS` (error 1784), the `OpenFileById` name
-lookup, the engine wiring, and the destructive tests that need a VHD. Linux NTFS drivers
+`Journal::resolve_path` gives the volume-relative path of a file reference
+number with `OpenFileById` (attribute-only, no reparse follow, no recall); a
+deleted file or a reused slot is an error, never another file's name.
+
+The synchronous fallback on `ReFS` (error 1784), the engine wiring, and the destructive tests that need a VHD. Linux NTFS drivers
 write no journal records and keep the journal id, which is an undetectable
 gap; it is a limit of the source, not of this code.
