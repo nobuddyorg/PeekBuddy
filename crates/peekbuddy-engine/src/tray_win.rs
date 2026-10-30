@@ -33,9 +33,7 @@ impl Actions for RealActions {
     fn open_viewer(&mut self) {
         // The viewer's own mutex keeps a second one from opening; focusing
         // the running one goes through the pipe (#61).
-        let _ = std::process::Command::new(&self.exe)
-            .arg("--viewer")
-            .spawn();
+        crate::instrument::spawn_viewer(&self.exe);
     }
 
     fn open_data_folder(&mut self) {
