@@ -66,6 +66,14 @@ file record by record and removes it.
 - A torn tail (a crash in the middle of an append) ends the replay at the last
   whole record. The batch being appended is lost and is covered by the
   reconcile pass.
+- A commit that fails (a full disk: `SQLITE_FULL`, a file that refuses writes)
+  is not given up. The writer keeps the group, retries every 100 ms and
+  reports `Stats::failing` and `commit_failures`; pushes fill the ring and then
+  overflow to the spill file as in a stall, so nothing is dropped. The first
+  commit that works clears the state and the backlog drains in order. If the
+  pipeline is closed while the writer is failing, the group it holds is
+  appended to the spill file and replayed at the next start; ids around that
+  shutdown may then not follow capture order (the `ts` column does).
 - If the spill cannot be written either (disk full), the batch is dropped and
   counted in `lost_batches`. The engine must record a gap row and ask for a
   reconcile: a loss is allowed only when it is detected (F2).

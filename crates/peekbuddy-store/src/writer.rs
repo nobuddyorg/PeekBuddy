@@ -159,6 +159,9 @@ pub struct SegmentsConfig {
     pub retire: Arc<dyn Retire + Send + Sync>,
 }
 
+/// SQLite's default and largest page count.
+const MAX_PAGES: u32 = 4_294_967_294;
+
 fn pragmas(conn: &Connection) -> rusqlite::Result<()> {
     // journal_mode answers with a row, so it goes through a query.
     let _mode: String = conn.query_row("PRAGMA journal_mode = WAL", [], |row| row.get(0))?;
@@ -462,6 +465,50 @@ impl Writer {
         )?;
         debug_assert_eq!(ahead, 0, "a capture cursor is ahead of the committed rows");
         Ok(())
+    }
+
+    /// Caps the database at `pages` pages, so a write that needs more fails
+    /// with `SQLITE_FULL` like a full volume; `None` lifts the cap. For fault
+    /// injection in tests; the limit applies to this connection only.
+    ///
+    /// # Errors
+    ///
+    /// SQLite's error.
+    pub fn limit_pages(&self, pages: Option<u32>) -> Result<(), WriteError> {
+        let pages = pages.unwrap_or(MAX_PAGES);
+        let _applied: i64 =
+            self.conn
+                .query_row(&format!("PRAGMA max_page_count = {pages}"), [], |row| {
+                    row.get(0)
+                })?;
+        Ok(())
+    }
+
+    /// The number of pages the database has now.
+    ///
+    /// # Errors
+    ///
+    /// SQLite's error.
+    pub fn page_count(&self) -> Result<u32, WriteError> {
+        Ok(self
+            .conn
+            .query_row("PRAGMA page_count", [], |row| row.get(0))?)
+    }
+
+    /// Makes every write fail with `SQLITE_READONLY` (or lifts that); the
+    /// second kind of write error besides a full disk, for fault injection.
+    ///
+    /// # Errors
+    ///
+    /// SQLite's error.
+    pub fn set_query_only(&self, on: bool) -> Result<(), WriteError> {
+        self.conn
+            .execute_batch(if on {
+                "PRAGMA query_only = ON"
+            } else {
+                "PRAGMA query_only = OFF"
+            })
+            .map_err(WriteError::from)
     }
 
     /// Size of the WAL file in bytes; 0 for a memory database or none yet.

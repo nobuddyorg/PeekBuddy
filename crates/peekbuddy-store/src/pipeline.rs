@@ -14,7 +14,7 @@
 
 use std::collections::VecDeque;
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Condvar, Mutex, MutexGuard};
 use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
@@ -24,8 +24,10 @@ use crate::policy::{Pending, Policy};
 use crate::spill::Spill;
 use crate::writer::{Commit, Cursor, WAL_CHECKPOINT_BYTES, WriteError, Writer};
 
-/// Commits are retried this many times before the batches are given up.
+/// Quick retries of a commit before the writer reports itself failing.
 const COMMIT_ATTEMPTS: u32 = 3;
+/// Pause between retries once the writer is failing (a full disk, say).
+const FAILING_PAUSE: Duration = Duration::from_millis(100);
 
 /// What the thread tells its observers after each commit.
 #[derive(Debug, Clone, Copy)]
@@ -45,6 +47,9 @@ pub struct CommitInfo {
 /// A callback run before each commit attempt.
 pub type BeforeCommit = Arc<dyn Fn() + Send + Sync>;
 
+/// A callback that may touch the writer before a commit attempt.
+pub type WriterHook = Arc<dyn Fn(&Writer) + Send + Sync>;
+
 /// A callback told about each successful commit.
 pub type CommitObserver = Arc<dyn Fn(&CommitInfo) + Send + Sync>;
 
@@ -55,6 +60,9 @@ pub struct Hooks {
     pub before_commit: Option<BeforeCommit>,
     /// Called after each successful commit.
     pub on_commit: Option<CommitObserver>,
+    /// Called with the writer before each commit attempt: fault injection
+    /// changes the connection here (a page limit that stands for a full disk).
+    pub before_attempt: Option<WriterHook>,
 }
 
 impl std::fmt::Debug for Hooks {
@@ -116,6 +124,12 @@ pub struct Stats {
     pub lost_batches: u64,
     /// Highest ring depth.
     pub ring_high_water: usize,
+    /// Commits that failed, attempts included.
+    pub commit_failures: u64,
+    /// The writer cannot commit right now and keeps retrying (a full disk,
+    /// a read-only file). Pushes overflow to the spill file meanwhile; the
+    /// state clears itself with the first commit that works.
+    pub failing: bool,
 }
 
 #[derive(Default)]
@@ -149,6 +163,8 @@ struct Shared {
     commits: AtomicU64,
     spilled: AtomicU64,
     lost: AtomicU64,
+    failures: AtomicU64,
+    failing: AtomicBool,
 }
 
 fn lock<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
@@ -307,6 +323,8 @@ impl Pipeline {
             commits: AtomicU64::new(0),
             spilled: AtomicU64::new(0),
             lost: AtomicU64::new(0),
+            failures: AtomicU64::new(0),
+            failing: AtomicBool::new(false),
         });
         let (for_writer, for_spiller) = (Arc::clone(&shared), Arc::clone(&shared));
         let spiller = std::thread::Builder::new()
@@ -339,6 +357,8 @@ impl Pipeline {
             spilled_batches: self.shared.spilled.load(Ordering::Relaxed),
             lost_batches: self.shared.lost.load(Ordering::Relaxed),
             ring_high_water: lock(&self.shared.state).high_water,
+            commit_failures: self.shared.failures.load(Ordering::Relaxed),
+            failing: self.shared.failing.load(Ordering::Relaxed),
         }
     }
 
@@ -623,7 +643,28 @@ struct GroupTarget<'a> {
     spill_end: Option<(u32, u64)>,
 }
 
-/// Writes one group with retries, then recycles its batches.
+/// A group the writer could not commit before shutdown: appended to the spill
+/// file (a group that came from it is still there) so the next start replays
+/// it. Counted lost only when the spill file cannot take it either.
+fn give_to_spill(shared: &Shared, group: &mut Vec<Batch>, from_spill: bool) {
+    if !from_spill {
+        for batch in group.iter() {
+            if lock(&shared.spill).append(batch).is_err() {
+                shared.lost.fetch_add(1, Ordering::Relaxed);
+            } else {
+                shared.spilled.fetch_add(1, Ordering::Relaxed);
+            }
+        }
+    }
+    let mut state = lock(&shared.state);
+    state.done += group.len() as u64;
+    group.clear();
+    drop(state);
+    shared.progress.notify_all();
+}
+
+/// Writes one group, retrying while the store cannot take it, then recycles
+/// its batches.
 fn commit_group(
     writer: &mut Writer,
     shared: &Shared,
@@ -638,9 +679,14 @@ fn commit_group(
         spill_end,
     } = *target;
     let mut outcome: Option<Commit> = None;
-    for attempt in 1..=COMMIT_ATTEMPTS {
+    let mut attempt: u32 = 0;
+    loop {
+        attempt += 1;
         if let Some(before) = &hooks.before_commit {
             before();
+        }
+        if let Some(before) = &hooks.before_attempt {
+            before(writer);
         }
         match writer.write_with_spill(group, cursors, spill_end) {
             Ok(commit) => {
@@ -648,10 +694,27 @@ fn commit_group(
                 break;
             }
             Err(WriteError::UnknownRoot(_)) => break,
-            Err(_) if attempt < COMMIT_ATTEMPTS => std::thread::sleep(Duration::from_millis(50)),
-            Err(_) => {}
+            Err(_) => {
+                shared.failures.fetch_add(1, Ordering::Relaxed);
+                if attempt < COMMIT_ATTEMPTS {
+                    std::thread::sleep(Duration::from_millis(50));
+                    continue;
+                }
+                // The disk is full or the file unwritable: keep the group and
+                // retry. Pushes fill the ring and then overflow to the spill
+                // file, in order; nothing is dropped. On shutdown the group
+                // goes to the spill file too, to be replayed at the next start.
+                shared.failing.store(true, Ordering::Relaxed);
+                if lock(&shared.state).closed {
+                    give_to_spill(shared, group, from_spill);
+                    shared.failing.store(false, Ordering::Relaxed);
+                    return;
+                }
+                std::thread::sleep(FAILING_PAUSE);
+            }
         }
     }
+    shared.failing.store(false, Ordering::Relaxed);
     let count = group.len() as u64;
     let mut state = lock(&shared.state);
     match outcome {
