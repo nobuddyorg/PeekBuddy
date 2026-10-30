@@ -12,6 +12,7 @@ pub mod interner;
 pub mod names;
 pub mod pipeline;
 pub mod policy;
+pub mod read;
 pub mod retention;
 pub mod schema;
 pub mod segment;
