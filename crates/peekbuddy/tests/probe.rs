@@ -50,16 +50,10 @@ fn the_probe_prints_a_valid_document_to_a_redirected_stdout() {
         .output()
         .unwrap();
     assert!(output.status.success(), "{:?}", output.status);
-<<<<<<< HEAD
-    // Generous: the first start of a fresh exe on a busy runner can take
-    // seconds (virus scan, parallel tests); this only catches a hang.
-    assert!(started.elapsed() < Duration::from_secs(30));
-=======
     // With a tray: the shell of the hosted runner needs 8 to 15 s since the
     // image of 2026-10-30 (#196). The strict bound is on the headless engine
     // below; this one only catches a hang.
     assert!(started.elapsed() < Duration::from_secs(60));
->>>>>>> origin/main
     let document = assert_valid(&String::from_utf8(output.stdout).unwrap());
 
     assert_eq!(document["requestedSeconds"], 0);
@@ -159,7 +153,25 @@ fn diagnostics_full_shows_the_data_directory() {
     );
 }
 
-<<<<<<< HEAD
+/// The engine proper, without the shell: ready well inside five seconds.
+#[test]
+fn a_headless_engine_is_ready_quickly() {
+    let dir = TestDir::new("probe-headless-ready").unwrap();
+    let output = Command::new(EXE)
+        .args(["--headless", "--perf-probe", "0", "--data-dir"])
+        .arg(dir.path())
+        .stdin(Stdio::null())
+        .stderr(Stdio::null())
+        .output()
+        .unwrap();
+    assert!(output.status.success(), "{:?}", output.status);
+    let document = assert_valid(&String::from_utf8(output.stdout).unwrap());
+    let ready = milestone(&document, "EngineReady")["firstUs"]
+        .as_u64()
+        .unwrap();
+    assert!(ready > 0 && ready < 5_000_000, "ready after {ready} us");
+}
+
 fn run_probe_with_watches(dir: &TestDir, count: usize) -> serde_json::Value {
     let data = dir.path().join("data");
     std::fs::create_dir_all(&data).unwrap();
@@ -179,21 +191,11 @@ fn run_probe_with_watches(dir: &TestDir, count: usize) -> serde_json::Value {
         // added at once make the shell slow for every engine on the machine.
         .args(["--headless", "--perf-probe", "1", "--data-dir"])
         .arg(&data)
-=======
-/// The engine proper, without the shell: ready well inside five seconds.
-#[test]
-fn a_headless_engine_is_ready_quickly() {
-    let dir = TestDir::new("probe-headless-ready").unwrap();
-    let output = Command::new(EXE)
-        .args(["--headless", "--perf-probe", "0", "--data-dir"])
-        .arg(dir.path())
->>>>>>> origin/main
         .stdin(Stdio::null())
         .stderr(Stdio::null())
         .output()
         .unwrap();
     assert!(output.status.success(), "{:?}", output.status);
-<<<<<<< HEAD
     assert_valid(&String::from_utf8(output.stdout).unwrap())
 }
 
@@ -234,11 +236,4 @@ fn the_engine_log_records_the_watch_states() {
     let log = std::fs::read_to_string(dir.path().join("data").join("logs").join("engine.log"))
         .unwrap_or_default();
     assert!(log.contains("watch 0: Arming -> Live"), "{log}");
-=======
-    let document = assert_valid(&String::from_utf8(output.stdout).unwrap());
-    let ready = milestone(&document, "EngineReady")["firstUs"]
-        .as_u64()
-        .unwrap();
-    assert!(ready > 0 && ready < 5_000_000, "ready after {ready} us");
->>>>>>> origin/main
 }
