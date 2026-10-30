@@ -17,6 +17,8 @@ use peekbuddy_store::read::{Reader, explain};
 use peekbuddy_store::retention::{Caps, NoViewer};
 use peekbuddy_store::segment::{DayFn, DayKey, Rotation};
 use peekbuddy_store::writer::{RootInfo, SegmentsConfig, VolInfo, Writer};
+use proptest::prelude::*;
+use proptest::test_runner::{Config as ProptestConfig, TestRunner};
 use rusqlite::{Connection, OpenFlags};
 
 const HOUR: u64 = 36_000_000_000;
@@ -118,6 +120,19 @@ fn day_of() -> DayFn {
 
 /// A store with `count` events spread over `days` days, and its model.
 fn build(dir: &Dir, days: u64, count: u64) -> Vec<Item> {
+    let plan: Vec<(usize, usize)> = (0..count)
+        .map(|index| {
+            let index = usize::try_from(index).unwrap();
+            (index % NAMES.len(), (index / 3) % KINDS.len())
+        })
+        .collect();
+    build_items(dir, days, &plan)
+}
+
+/// A store of one event per `(name, kind)` of `plan` (indexes into `NAMES` and
+/// `KINDS`), spread over `days` days, and its model.
+fn build_items(dir: &Dir, days: u64, plan: &[(usize, usize)]) -> Vec<Item> {
+    let count = u64::try_from(plan.len()).unwrap().max(1);
     let config = SegmentsConfig {
         rotation: Rotation {
             dir: dir.path().to_path_buf(),
@@ -142,10 +157,11 @@ fn build(dir: &Dir, days: u64, count: u64) -> Vec<Item> {
         })
         .unwrap();
     let mut model = Vec::new();
-    for index in 0..count {
+    for (index, &(name, kind)) in plan.iter().enumerate() {
+        let index = u64::try_from(index).unwrap();
         let ts = 1 + index * (days * DAY / count) + index % 7;
-        let rel = NAMES[usize::try_from(index).unwrap() % NAMES.len()];
-        let kind = KINDS[usize::try_from(index / 3).unwrap() % KINDS.len()];
+        let rel = NAMES[name % NAMES.len()];
+        let kind = KINDS[kind % KINDS.len()];
         let mut batch = Batch::with_capacity(2, 1024);
         batch.push(event(ts, kind), &units(rel)).unwrap();
         writer.write(&[batch], &[]).unwrap();
@@ -704,4 +720,136 @@ fn the_query_plans_use_an_index() {
         }
     }
     insta::assert_snapshot!("page_query_plans", out);
+}
+
+/// Cases for the heavy property tests; see `heavy_cases` in `pipeline.rs`.
+fn heavy_cases() -> u32 {
+    std::env::var("PEEKBUDDY_HEAVY_CASES")
+        .ok()
+        .and_then(|text| text.parse().ok())
+        .unwrap_or(6)
+}
+
+/// A random filter over the kinds the generated events use (so that the rows
+/// of the engine itself never pass) and a name needle.
+fn arb_filter() -> impl Strategy<Value = (Vec<usize>, Option<usize>, Option<usize>)> {
+    (
+        proptest::collection::vec(0_usize..KINDS.len(), 1..=KINDS.len()),
+        proptest::option::of(0_usize..NEEDLES.len()),
+        proptest::option::of(0_usize..SUBTREES.len()),
+    )
+}
+
+const NEEDLES: [&str; 5] = ["main", "rs", "read", "txt", "zzz"];
+const SUBTREES: [&str; 3] = [r"C:\Watched\proj", r"C:\Watched\tmp", r"C:\Watched\other"];
+
+#[test]
+fn paging_from_any_cursor_equals_a_naive_model() {
+    let mut runner = TestRunner::new(ProptestConfig {
+        cases: heavy_cases(),
+        ..ProptestConfig::default()
+    });
+    let strategy = (
+        proptest::collection::vec((0_usize..NAMES.len(), 0_usize..KINDS.len()), 1..60),
+        1_u64..4,
+        arb_filter(),
+        0_usize..100,
+        any::<bool>(),
+        1_usize..9,
+    );
+    runner
+        .run(
+            &strategy,
+            |(plan, days, (kind_picks, needle, subtree), at, older, limit)| {
+                let dir = Dir::new(&format!("prop{}", next_tag()));
+                let model = build_items(&dir, days, &plan);
+                let reader = Reader::new(dir.path());
+
+                // The ids of the model rows, in order.
+                let mut stored = real(&reader);
+                stored.sort_by_key(|(id, _)| *id);
+                prop_assert_eq!(stored.len(), model.len());
+
+                let kinds: Vec<Kind> = kind_picks.iter().map(|k| KINDS[*k]).collect();
+                let keep = |item: &Item| {
+                    kinds.contains(&item.kind)
+                        && needle.is_none_or(|n| item.name().to_lowercase().contains(NEEDLES[n]))
+                        && subtree.is_none_or(|s| {
+                            let prefix = SUBTREES[s].trim_start_matches(r"C:\Watched\");
+                            item.rel.starts_with(&format!("{prefix}\\"))
+                        })
+                };
+                let wanted: Vec<i64> = stored
+                    .iter()
+                    .zip(&model)
+                    .filter(|(_, item)| keep(item))
+                    .map(|((id, _), _)| *id)
+                    .collect();
+
+                let filter = Filter {
+                    kinds: Some(KindSet::of(&kinds)),
+                    name: needle.map(|n| NEEDLES[n].to_owned()),
+                    subtree: subtree.map(|s| units(SUBTREES[s])),
+                    ..Filter::default()
+                };
+                // A cursor: none, or one of the stored ids (matching or not).
+                let cursor = (at % (stored.len() + 1))
+                    .checked_sub(1)
+                    .map(|i| stored[i].0);
+                let direction = if older {
+                    Direction::Older
+                } else {
+                    Direction::Newer
+                };
+                let page = reader
+                    .page(
+                        &PageRequest {
+                            generation: 5,
+                            filter,
+                            cursor,
+                            direction,
+                            limit,
+                        },
+                        &CancelFlag::new(),
+                    )
+                    .unwrap();
+
+                let beyond: Vec<i64> = wanted
+                    .iter()
+                    .copied()
+                    .filter(|id| match (direction, cursor) {
+                        (_, None) => true,
+                        (Direction::Older, Some(c)) => *id < c,
+                        (Direction::Newer, Some(c)) => *id > c,
+                    })
+                    .collect();
+                let (shown, more) = match direction {
+                    // The newest `limit` rows below the cursor.
+                    Direction::Older => {
+                        let start = beyond.len().saturating_sub(limit);
+                        let mut shown = beyond[start..].to_vec();
+                        shown.reverse();
+                        (shown, beyond.len() > limit)
+                    }
+                    // The oldest `limit` rows above it, shown newest first.
+                    Direction::Newer => {
+                        let mut shown: Vec<i64> = beyond.iter().copied().take(limit).collect();
+                        shown.reverse();
+                        (shown, beyond.len() > limit)
+                    }
+                };
+                let got: Vec<i64> = page.rows.iter().map(|row| row.id).collect();
+                prop_assert_eq!(page.generation, 5);
+                prop_assert_eq!(&got, &shown);
+                prop_assert_eq!(page.more, more);
+                Ok(())
+            },
+        )
+        .unwrap();
+}
+
+fn next_tag() -> u64 {
+    use std::sync::atomic::{AtomicU64, Ordering};
+    static NEXT: AtomicU64 = AtomicU64::new(0);
+    NEXT.fetch_add(1, Ordering::Relaxed)
 }
