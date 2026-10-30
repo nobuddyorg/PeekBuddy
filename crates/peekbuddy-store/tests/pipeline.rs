@@ -400,8 +400,11 @@ fn start_with_gate(dirs: &Dirs, stalled: &Arc<AtomicBool>) -> Pipeline {
     Pipeline::start(open_writer(&dirs.db()), config).unwrap()
 }
 
+// Eight cases: each one writes real database files, and on a hosted runner the
+// 24 it had took between 40 and 120 s, the nextest limit (#184). The nightly
+// proptest-long job runs it with many more.
 proptest! {
-    #![proptest_config(ProptestConfig { cases: 24, .. ProptestConfig::default() })]
+    #![proptest_config(ProptestConfig { cases: 8, .. ProptestConfig::default() })]
 
     #[test]
     fn any_interleaving_gives_every_pushed_row_exactly_once_in_order(ops in ops()) {
