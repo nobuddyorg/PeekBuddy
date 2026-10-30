@@ -1,0 +1,62 @@
+---
+source: crates/peekbuddy-store/tests/read.rs
+expression: out
+---
+none Older
+  SEARCH e USING INTEGER PRIMARY KEY (rowid<?)
+none Newer
+  SEARCH e USING INTEGER PRIMARY KEY (rowid>?)
+kinds Older
+  SEARCH e USING INTEGER PRIMARY KEY (rowid<?)
+kinds Newer
+  SEARCH e USING INTEGER PRIMARY KEY (rowid>?)
+root Older
+  SEARCH e USING INDEX event_root (root_id=? AND id<?)
+root Newer
+  SEARCH e USING INDEX event_root (root_id=? AND id>?)
+time Older
+  SEARCH e USING INTEGER PRIMARY KEY (rowid>? AND rowid<?)
+time Newer
+  SEARCH e USING INTEGER PRIMARY KEY (rowid>? AND rowid<?)
+subtree Older
+  SEARCH e USING INDEX event_node (node_id=? AND id<?)
+  LIST SUBQUERY 3
+  MATERIALIZE sub
+  SETUP
+  SCAN CONSTANT ROW
+  RECURSIVE STEP
+  SCAN sub
+  SEARCH n USING COVERING INDEX node_key (parent_id=?)
+  SCAN sub
+  USE TEMP B-TREE FOR ORDER BY
+subtree Newer
+  SEARCH e USING INDEX event_node (node_id=? AND id>?)
+  LIST SUBQUERY 3
+  MATERIALIZE sub
+  SETUP
+  SCAN CONSTANT ROW
+  RECURSIVE STEP
+  SCAN sub
+  SEARCH n USING COVERING INDEX node_key (parent_id=?)
+  SCAN sub
+  USE TEMP B-TREE FOR ORDER BY
+name Older
+  SEARCH e USING INDEX event_node (node_id=? AND id<?)
+  LIST SUBQUERY 1
+  SCAN node_fts VIRTUAL TABLE INDEX 0:M1
+  USE TEMP B-TREE FOR ORDER BY
+name Newer
+  SEARCH e USING INDEX event_node (node_id=? AND id>?)
+  LIST SUBQUERY 1
+  SCAN node_fts VIRTUAL TABLE INDEX 0:M1
+  USE TEMP B-TREE FOR ORDER BY
+short name Older
+  SEARCH e USING INDEX event_node (node_id=? AND id<?)
+  LIST SUBQUERY 1
+  SCAN node USING COVERING INDEX node_key
+  USE TEMP B-TREE FOR ORDER BY
+short name Newer
+  SEARCH e USING INDEX event_node (node_id=? AND id>?)
+  LIST SUBQUERY 1
+  SCAN node USING COVERING INDEX node_key
+  USE TEMP B-TREE FOR ORDER BY

@@ -109,8 +109,35 @@ every segment (ADR 0017).
   usable segment (garbage, a foreign `application_id`, a newer schema) is
   skipped, left untouched and written to `logs\segments.log`.
 
+## How the viewer reads
+
+`read::Reader` answers a `query::PageRequest` over all segments (#55). A page
+is a keyset window on the event id, never an `OFFSET`: older rows are
+`id < cursor`, newer rows `id > cursor` read ascending and reversed, so a
+page is always newest first. Segments come from the catalog, one read-only
+connection at a time. The catalog row of the segment being written lags, so
+it is never ruled out by its `rows` or `last_id`.
+
+| Filter | How the database answers it |
+| --- | --- |
+| kinds | `kind / 256 IN (...)`, walking the id order |
+| watch root | the root id of that segment by path, then `event_root` |
+| time range | `stats.min_id/max_id` of the hours bound the ids, `ts` refines |
+| directory subtree | recursive CTE over `node(parent_id)`, then `event_node` |
+| name, 3+ characters | the trigram index (folds case and diacritics) |
+| name, shorter | `LIKE` on `node` (folds ASCII case only) |
+
+A glob or regex runs in Rust over the reconstructed path with the matcher of
+the filter engine, 1000 rows at a time. After 20,000 rows scanned a request
+returns what it has and a `resume` cursor; a cancel flag is checked between
+chunks. Each page carries the generation of its request so the viewer can
+drop stale answers. A segment deleted by retention shows up in
+`Page::retired` and is skipped. The plans of every query shape are snapshot
+tested (`tests/snapshots/read__page_query_plans.snap`): none scans the event
+table without an index, but a subtree or name filter sorts its matches.
+
 ## What this layer does not do
 
 - No coalescing or de-duplication: one row per raw record.
-- No read paths (#55), no export (#56).
+- No export (#56).
 - Settings changes are not applied to the capture layer yet (#68).
