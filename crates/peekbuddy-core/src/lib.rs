@@ -18,6 +18,7 @@ pub mod notify;
 pub mod pause;
 pub mod perf;
 pub mod reconcile;
+pub mod reparse;
 pub mod settings;
 
 /// Crate version, shared by every PeekBuddy crate.
