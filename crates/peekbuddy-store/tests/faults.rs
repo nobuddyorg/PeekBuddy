@@ -355,7 +355,10 @@ fn a_stuck_reader_is_reported_while_ingest_goes_on_and_clears_when_it_lets_go() 
     while !pipeline.stats().wal_blocked {
         push(&producer, next, 20);
         next += 20;
-        std::thread::sleep(Duration::from_millis(5));
+        // Wait for the commit: a producer that outruns the writer sends the
+        // rest to the spill file, where it waits for the ring to empty, and
+        // the log would not grow.
+        pipeline.flush(Duration::from_secs(30)).unwrap();
         assert!(
             Instant::now() < until,
             "the stuck reader was not reported: {:?}, wal {} bytes, {} pushed",
@@ -374,6 +377,7 @@ fn a_stuck_reader_is_reported_while_ingest_goes_on_and_clears_when_it_lets_go() 
     wait_for("the report to clear", || {
         push(&producer, next, 20);
         next += 20;
+        pipeline.flush(Duration::from_secs(30)).unwrap();
         !pipeline.stats().wal_blocked
     });
     pipeline.flush(Duration::from_secs(60)).unwrap();
