@@ -573,8 +573,7 @@ impl<'a> Paths<'a> {
             });
         let path = found
             .and_then(|(text, wide)| from_columns(&text, wide.as_deref()))
-            .map(peekbuddy_core::name::WideName::into_units)
-            .unwrap_or_default();
+            .map_or_else(Vec::new, peekbuddy_core::name::WideName::into_units);
         self.roots.insert(id, path.clone());
         path
     }
@@ -584,8 +583,7 @@ impl<'a> Paths<'a> {
         let (name, path) = self.path_of(found.node_id);
         let old_path = found
             .old_node_id
-            .map(|old| self.path_of(old).1)
-            .unwrap_or_default();
+            .map_or_else(Vec::new, |old| self.path_of(old).1);
         let root = self.root(found.root_id);
         Row {
             id: found.id,

@@ -323,9 +323,10 @@ pub(crate) fn validate(settings: &mut Settings, ctx: &Context) -> Vec<Issue> {
         ));
     }
     out.extend(store_and_view_issues(settings));
-    let known_presets: Vec<String> = presets::all()
-        .map(|all| all.into_iter().map(|preset| preset.name).collect())
-        .unwrap_or_default();
+    let known_presets: Vec<String> = presets::all().map_or_else(
+        |_| Vec::new(),
+        |all| all.into_iter().map(|preset| preset.name).collect(),
+    );
     for (i, pattern) in settings.filters.exclude_globs.iter().enumerate() {
         out.extend(glob_issue(&format!("filters.exclude_globs[{i}]"), pattern));
     }

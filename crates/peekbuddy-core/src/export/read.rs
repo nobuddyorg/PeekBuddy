@@ -150,8 +150,7 @@ fn row_from(get: &dyn Fn(&str) -> Option<String>, line: usize) -> Result<Row, Re
     let name = path
         .rsplit(|unit| *unit == 0x5C)
         .next()
-        .map(<[u16]>::to_vec)
-        .unwrap_or_default();
+        .map_or_else(Vec::new, <[u16]>::to_vec);
     Ok(Row {
         id: number("id")?,
         ts: parse_iso_utc(&need("ts_utc")?)

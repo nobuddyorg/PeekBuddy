@@ -221,7 +221,7 @@ mod tests {
             let gaps: Vec<Gap> = gap_at
                 .map(|(at, reconciled)| {
                     let record = &records[at.index(records.len())];
-                    let path = record.expected_records().unwrap().first().map(|e| e.path.clone()).unwrap_or_default();
+                    let path = record.expected_records().unwrap().first().map_or_else(Vec::new, |e| e.path.clone());
                     let parent = path.iter().rposition(|&u| u == u16::from(b'\\')).map_or(Vec::new(), |at| path[..at].to_vec());
                     Gap { subtree: parent, reconciled }
                 })
