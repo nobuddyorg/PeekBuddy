@@ -17,6 +17,7 @@ pub mod name;
 pub mod notify;
 pub mod pause;
 pub mod perf;
+pub mod query;
 pub mod reconcile;
 pub mod settings;
 

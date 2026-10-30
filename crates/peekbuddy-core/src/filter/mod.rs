@@ -61,6 +61,8 @@ pub struct KindSet(u32);
 impl KindSet {
     /// The empty set.
     pub const EMPTY: Self = Self(0);
+    /// Every kind class (tags 0..=25).
+    pub const ALL: Self = Self((1 << 26) - 1);
 
     /// The set of `kinds`.
     #[must_use]
@@ -78,6 +80,18 @@ impl KindSet {
     #[must_use]
     pub const fn is_empty(self) -> bool {
         self.0 == 0
+    }
+
+    /// Whether every kind class is in the set.
+    #[must_use]
+    pub const fn is_all(self) -> bool {
+        self.0 & Self::ALL.0 == Self::ALL.0
+    }
+
+    /// The wire tags of the kind classes in the set, ascending.
+    #[must_use]
+    pub fn tags(self) -> Vec<u8> {
+        (0..32_u8).filter(|tag| self.0 & (1 << tag) != 0).collect()
     }
 
     const fn bit(kind: Kind) -> u32 {
