@@ -7,5 +7,6 @@
 - [Derived views](derived-views.md)
 - [Capture with ReadDirectoryChangesExW](capture-rdcw.md)
 - [Reconciliation](reconcile.md)
+- [The USN journal backend](usn.md)
 - [What happens when a watch is lost](watch-lifecycle.md)
 - [How the store writes](store.md)
