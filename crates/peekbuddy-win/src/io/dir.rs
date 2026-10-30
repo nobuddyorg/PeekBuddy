@@ -39,6 +39,9 @@ impl DirHandle {
         if long_path.contains(&0) {
             return Err(io::ErrorKind::InvalidInput.into());
         }
+        // The capture-side policy: listing access, never a recall.
+        super::open::check(LIST_DIRECTORY, options.flags())
+            .map_err(|error| io::Error::new(io::ErrorKind::InvalidInput, error))?;
         let mut name = Vec::with_capacity(long_path.len() + 1);
         name.extend_from_slice(long_path);
         name.push(0);
