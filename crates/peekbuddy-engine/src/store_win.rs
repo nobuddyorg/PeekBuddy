@@ -148,6 +148,7 @@ impl Store {
             on_commit: Some(Arc::new(move |info: &CommitInfo| {
                 on_commit(&observer_counters, &observer_commits, info);
             })),
+            before_attempt: None,
         };
         let pipeline = Pipeline::start(writer, config)?;
         let producer = pipeline.producer();

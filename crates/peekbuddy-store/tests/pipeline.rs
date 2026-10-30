@@ -164,6 +164,7 @@ fn a_stalled_writer_spills_and_the_replay_keeps_the_order() {
             })
         }),
         on_commit: None,
+        before_attempt: None,
     };
     let pipeline = Pipeline::start(open_writer(&dirs.db()), config).unwrap();
     let producer = pipeline.producer();
@@ -210,6 +211,7 @@ fn a_spill_left_by_a_previous_run_is_replayed_first() {
             })
         }),
         on_commit: None,
+        before_attempt: None,
     };
     let pipeline = Pipeline::start(open_writer(&dirs.db()), config1).unwrap();
     let producer = pipeline.producer();
@@ -260,6 +262,7 @@ fn a_batch_that_cannot_be_spilled_is_counted_lost_not_silent() {
             })
         }),
         on_commit: None,
+        before_attempt: None,
     };
     let pipeline = Pipeline::start(open_writer(&dirs.db()), config).unwrap();
     // The spill directory disappears: appending to it fails, like a full disk.
@@ -332,6 +335,7 @@ fn the_commit_observer_sees_every_commit_and_the_group_commit_batches_them() {
                 rows.fetch_add(info.commit.rows, Ordering::Relaxed);
             })
         }),
+        before_attempt: None,
     };
     let pipeline = Pipeline::start(open_writer(&dirs.db()), config).unwrap();
     let producer = pipeline.producer();
@@ -397,6 +401,7 @@ fn start_with_gate(dirs: &Dirs, stalled: &Arc<AtomicBool>) -> Pipeline {
             })
         }),
         on_commit: None,
+        before_attempt: None,
     };
     Pipeline::start(open_writer(&dirs.db()), config).unwrap()
 }

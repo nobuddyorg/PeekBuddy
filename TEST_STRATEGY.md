@@ -69,6 +69,36 @@ negative control) and `peekbuddy-win/tests/alloc_perf` (milestone and ETW
 writes: 0 allocations). Capture, writer and viewer budgets follow with
 issues #44, #52 and #66.
 
+## Crash model
+
+What the store promises, and what its tests may therefore assert:
+
+- **Process crash** (the engine is killed, `TerminateProcess`, a panic): no
+  committed event is lost, and every file passes `PRAGMA integrity_check`. The
+  database runs in WAL mode with `synchronous=NORMAL`, which survives a
+  process crash. The capture cursor is committed in the same transaction as
+  the rows it covers, so it is never ahead of them; events captured but not
+  yet committed are covered by a replay of the spill file, the USN journal or a
+  reconcile scan.
+- **Power loss**: the last WAL transactions may be lost, because they were
+  not synced. This cannot be simulated by killing a process, and no machine in
+  the test setup can cut power. The loss is detected, not prevented: the
+  cursor then points behind what the database remembers, so the next start
+  closes the gap by replay or a reconcile, with a gap row.
+- **Disk full or an unwritable file**: no loss and no corruption. The writer
+  keeps retrying, the backlog overflows to the spill file, the failing state is
+  visible in the pipeline statistics, and the store recovers by itself when
+  space is back (`tests/faults.rs`, injected with a page limit and a read-only
+  connection).
+- **A reader that holds a snapshot** keeps the WAL from resetting; ingest
+  continues, the log grows, and it is reused once the reader lets go
+  (`tests/faults.rs`). A health event for a reader stuck past a threshold is
+  not implemented.
+
+The kill soak (random `TerminateProcess` points under churn, seeded) and the
+disk-full test on a real volume belong with the zero-loss suite (#50) and are
+not in place yet.
+
 ## Nightly jobs
 
 `.github/workflows/nightly.yml` runs at 02:17 UTC. A failing job opens or
