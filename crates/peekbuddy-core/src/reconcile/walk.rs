@@ -181,6 +181,12 @@ where
         let reason = cfg.reason.map_or(0, |reason| {
             u32::from(Kind::Overflow(reason).to_wire().1) + 1
         });
+        if cfg.reason == Some(GapReason::EngineNotRunning) {
+            // Nothing watched the tree while the engine was down: the log
+            // shows the gap, and the walk that follows closes it. The
+            // decoder writes the gap rows of every other reason itself.
+            walk.state_row(Kind::Overflow(GapReason::EngineNotRunning), 0, (0, 0, 0));
+        }
         walk.state_row(Kind::ReconcileStarted, reason, (0, 0, 0));
     }
     let mut listing = Listing::new();

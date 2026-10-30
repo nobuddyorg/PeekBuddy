@@ -31,6 +31,21 @@ Freezing the engine (`peekbuddy_win::suspend`) makes the overflow certain on
 any machine; a fast disk and a fast CPU would otherwise keep up with the
 burst.
 
+## The kill soak
+
+`fs_serial_kill.rs` runs the same churn while the engine is killed five times
+with `TerminateProcess` at seeded random points (`PEEKBUDDY_KILL_SEED`) and
+started again on the same data directory. After every restart every segment
+and the catalog pass `integrity_check`, no capture cursor is ahead of the
+newest event, and every row that was committed before the kill is still there,
+unchanged. At the end the comparator must find no undetected loss.
+
+The first run of this test showed that a restart left no trace of the time the
+engine was not running: the changes made meanwhile were found by the start-up
+reconcile, but no gap row said so. The start-up reconcile now carries the gap
+reason `EngineNotRunning` and the walk writes that gap row before its
+`ReconcileStarted` row (not on a first run, where there is nothing to miss).
+
 ## What a cross-directory move looks like
 
 NTFS reports a move to another directory as a removal at the old path and an
