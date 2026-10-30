@@ -124,15 +124,20 @@ Milestones (each recorded in the in-process table read by `--perf-probe`
 | `StoreOpened` | store opened and writable |
 | `WatcherArmed` | one root armed (once per root) |
 | `TrayShown` | tray icon added |
-| `EngineReady` | tray added **and** all watchers armed (F7) |
+| `EngineReady` | the tray attempt is done **and** every watch is armed or has failed to arm (F7); recorded once |
 | `ViewerSpawn` | engine started the viewer |
 | `ViewerFirstFrame` | first presented frame with the first page of rows (F7), measured from the viewer's own process creation |
-| `Overflow`, `Gap` | buffer overflow, gap row written |
+| `Overflow`, `Gap` | buffer overflow; any gap (overflow, ring full, parse error) |
 | `ReconcileStart`, `ReconcileEnd` | reconciliation scan |
-| `SegmentRotate` | new day segment opened |
+| `SegmentRotate` | new day segment opened (day rotation is #54; not recorded yet) |
 
 `SinceProcessCreateUs` is computed in-process from `GetProcessTimes`
 creation time. ETW is diagnostics only: it can drop events under pressure.
+
+The engine also keeps `logs\engine.log`, a plain text log of watch state changes
+(who, from, to, why) that never grows past 512 KiB: when full it becomes
+`engine.log.1` and a new file starts. It is written when something happens,
+never from a timer.
 
 `peekbuddy --perf-probe <seconds> [--perf-probe-out <file>] [--data-dir <dir>]`
 (#24, #161) starts the engine without a viewer, waits for "engine ready", stays

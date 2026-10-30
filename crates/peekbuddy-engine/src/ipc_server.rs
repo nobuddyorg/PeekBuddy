@@ -119,7 +119,7 @@ pub fn handle(ctx: &Shared, message: &Message, reply: &mut Reply) {
             }
         }
         Message::ShowViewer => {
-            let _ = std::process::Command::new(&ctx.exe).arg("--viewer").spawn();
+            crate::instrument::spawn_viewer(&ctx.exe);
         }
         Message::Shutdown => {
             let _ = ctx.window.post_close();

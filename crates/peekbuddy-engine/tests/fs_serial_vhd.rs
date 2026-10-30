@@ -121,6 +121,8 @@ fn a_vhd_can_be_detached_while_watched_and_comes_back_on_attach() {
                 probe: real_probe(),
                 clock: || (1, 1),
                 notifier: Some(notifier_factory(&bind)),
+                milestone: Arc::new(|_| {}),
+                ready: None,
             },
             exclude: Vec::new(),
         },

@@ -15,6 +15,7 @@ use peekbuddy_core::capture::EventSink;
 use peekbuddy_core::event::{Event, Kind, RootIdx, VolIdx, WatchState};
 use peekbuddy_core::lifecycle::Signal;
 use peekbuddy_core::pause::Pause;
+use peekbuddy_core::perf::Milestone;
 use peekbuddy_core::reconcile::RowOut;
 use peekbuddy_engine::capture_host::{
     Host, HostParts, Services, Signaller, WatchSpec, notifier_factory, watch_system,
@@ -175,6 +176,7 @@ type Faults = Arc<Mutex<Option<Probe>>>;
 struct Fixture {
     host: Host,
     log: Log,
+    milestones: Arc<Mutex<Vec<Milestone>>>,
     faults: Faults,
     signaller: Signaller,
     scratch: Scratch,
@@ -215,6 +217,8 @@ fn start(tag: &str, gate: Option<Arc<Gate>>) -> Fixture {
         Host::observer(&bind),
     )
     .unwrap();
+    let milestones: Arc<Mutex<Vec<Milestone>>> = Arc::default();
+    let recorded = Arc::clone(&milestones);
     let injected = Arc::clone(&faults);
     let host = Host::start(
         HostParts {
@@ -230,6 +234,8 @@ fn start(tag: &str, gate: Option<Arc<Gate>>) -> Fixture {
                 }),
                 clock,
                 notifier: Some(notifier_factory(&bind)),
+                milestone: Arc::new(move |milestone| recorded.lock().unwrap().push(milestone)),
+                ready: None,
             },
             exclude: Vec::new(),
         },
@@ -241,6 +247,7 @@ fn start(tag: &str, gate: Option<Arc<Gate>>) -> Fixture {
     Fixture {
         host,
         log,
+        milestones,
         faults,
         signaller,
         scratch,
@@ -396,4 +403,39 @@ fn signals_never_block_even_when_the_consumer_is_slow() {
     );
     gate.set(true);
     drop(fx.host);
+}
+
+#[test]
+fn the_milestones_follow_the_watch_arming_gaps_and_reconciles() {
+    use peekbuddy_core::event::GapReason;
+
+    let fx = start("milestones", None);
+    wait_for("live", || fx.log.has_state(WatchState::Live, ARMED));
+    wait_for("the baseline", || {
+        !fx.log.names(Kind::BaselineEstablished).is_empty()
+    });
+    let seen = |m: Milestone| {
+        fx.milestones
+            .lock()
+            .unwrap()
+            .iter()
+            .filter(|x| **x == m)
+            .count()
+    };
+    assert_eq!(seen(Milestone::WatcherArmed), 1);
+    wait_for("the reconcile milestones", || {
+        seen(Milestone::ReconcileStart) == 1 && seen(Milestone::ReconcileEnd) == 1
+    });
+
+    // An overflow is an Overflow and a Gap; a full ring only a Gap.
+    fx.signaller
+        .signal(ROOT, Signal::Gap(GapReason::BufferOverflow));
+    fx.signaller.signal(ROOT, Signal::Gap(GapReason::RingFull));
+    wait_for("the gap milestones", || {
+        seen(Milestone::Gap) == 2 && seen(Milestone::Overflow) == 1
+    });
+    // And the reconciles they asked for are recorded too.
+    wait_for("the second reconcile", || {
+        seen(Milestone::ReconcileStart) >= 2 && seen(Milestone::ReconcileEnd) >= 2
+    });
 }

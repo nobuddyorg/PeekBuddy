@@ -8,6 +8,8 @@
 
 use std::process::ExitCode;
 
+use std::sync::Arc;
+
 use peekbuddy_core::perf::MilestoneTable;
 use peekbuddy_engine::Provider;
 use peekbuddy_engine::diagnostics::Facts;
@@ -116,7 +118,11 @@ fn failure_code(error: &std::io::Error) -> u8 {
 
 /// Runs the invoked role to completion; in profiling builds inside one Tracy
 /// zone.
-fn run(invocation: &Invocation, table: &MilestoneTable, provider: Provider) -> std::io::Result<()> {
+fn run(
+    invocation: &Invocation,
+    table: &Arc<MilestoneTable>,
+    provider: Provider,
+) -> std::io::Result<()> {
     #[cfg(feature = "profile-tracy")]
     let _zone = tracy::start(&invocation.role);
     match invocation.role {
@@ -128,7 +134,7 @@ fn run(invocation: &Invocation, table: &MilestoneTable, provider: Provider) -> s
 }
 
 fn main() -> ExitCode {
-    let table = MilestoneTable::new();
+    let table = Arc::new(MilestoneTable::new());
     // Registered first, so the very first milestone reaches ETW listeners.
     let provider = peekbuddy_engine::register_provider();
     let Ok(invocation) = cli::parse(std::env::args().skip(1)) else {
@@ -156,7 +162,7 @@ mod tests {
         };
         run(
             &invocation,
-            &MilestoneTable::new(),
+            &std::sync::Arc::new(MilestoneTable::new()),
             peekbuddy_engine::register_provider(),
         )
         .unwrap();
