@@ -177,7 +177,14 @@ fn killing_the_engine_at_random_points_loses_nothing_it_does_not_cover() {
     }
 
     let outcome = churn.join().unwrap();
-    assert_eq!(outcome.failures(), 0, "the churn itself failed");
+    let failed: Vec<String> = outcome
+        .records
+        .iter()
+        .filter(|record| record.result != 0)
+        .take(5)
+        .map(|record| format!("#{} {:?} error {}", record.seq, record.op, record.result))
+        .collect();
+    assert_eq!(outcome.failures(), 0, "the churn itself failed: {failed:?}");
     wait_until_settled(&data, Duration::from_secs(5));
     quit(window, &mut engine.0);
     assert_sound(&data, "after the final stop");
