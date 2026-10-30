@@ -1,6 +1,7 @@
 //! `cargo xtask check-deps`: the always-running engine crates never pull in a
 //! GPU or UI stack (ADR 0001, F1), nothing uses PDH (#24), and the per-record
-//! capture path has no `tracing` macro (#21).
+//! capture path has no `tracing` macro (#21), and no capture code opens a file
+//! outside the helper that applies the no-recall policy (#49).
 
 use crate::metadata;
 
@@ -44,9 +45,10 @@ pub fn run() -> Result<String, String> {
     let sources = product_sources()?;
     problems.extend(pdh_sources(&sources));
     problems.extend(tracing_sources(&sources));
+    problems.extend(open_sources(&sources));
     if problems.is_empty() {
         Ok(format!(
-            "check-deps: ok ({} free of {}; no PDH; no tracing in the capture path)",
+            "check-deps: ok ({} free of {}; no PDH; no tracing in the capture path; opens only in the helper)",
             ENGINE_CRATES.join(", "),
             FORBIDDEN.join(", ")
         ))
@@ -144,6 +146,42 @@ pub fn tracing_sources(files: &[(String, String)]) -> Vec<String> {
     problems
 }
 
+/// The files that may call the Win32 open: the directory helper that applies
+/// the no-recall policy (`io/open.rs` checks every flag set) and the
+/// attribute-only opener and the test junction builder of `fs`.
+const OPEN_ALLOWED: &[&str] = &[
+    "crates/peekbuddy-win/src/io/dir.rs",
+    "crates/peekbuddy-win/src/fs/win.rs",
+];
+
+/// The call, spelled in two parts so this file does not match its own scan.
+const OPEN_CALL: &str = concat!("CreateFile", "W(");
+
+/// Problems in `(path, text)` source files: a file open outside the helper,
+/// where a recall of a cloud file could slip in (F18, #49).
+pub fn open_sources(files: &[(String, String)]) -> Vec<String> {
+    let mut problems = Vec::new();
+    for (path, text) in files {
+        let normalised = path.replace('\\', "/");
+        let is_rust = std::path::Path::new(&normalised)
+            .extension()
+            .is_some_and(|ext| ext.eq_ignore_ascii_case("rs"));
+        if !is_rust || OPEN_ALLOWED.iter().any(|ok| normalised.ends_with(ok)) {
+            continue;
+        }
+        for (number, line) in text.lines().enumerate() {
+            let code = line.split("//").next().unwrap_or("");
+            if code.contains(OPEN_CALL) {
+                problems.push(format!(
+                    "{path}:{}: open files through the no-recall helper (#49)",
+                    number + 1
+                ));
+            }
+        }
+    }
+    problems
+}
+
 /// Every `.rs` and `Cargo.toml` file under [`PRODUCT_DIRS`].
 fn product_sources() -> Result<Vec<(String, String)>, String> {
     let mut files = Vec::new();
@@ -182,7 +220,9 @@ pub fn check(krate: &str, tree: &str, forbidden: &[&str]) -> Vec<String> {
 
 #[cfg(test)]
 mod tests {
-    use super::{FORBIDDEN, PDH_FEATURE, check, pdh_features, pdh_sources, tracing_sources};
+    use super::{
+        FORBIDDEN, PDH_FEATURE, check, open_sources, pdh_features, pdh_sources, tracing_sources,
+    };
 
     fn files(list: &[(&str, &str)]) -> Vec<(String, String)> {
         list.iter()
@@ -292,5 +332,25 @@ mod tests {
     fn windows_separators_are_normalised() {
         let hot = "crates\\peekbuddy-core\\src\\name\\mod.rs";
         assert_eq!(tracing_sources(&files(&[(hot, "warn!(\"x\");")])).len(), 1);
+    }
+
+    #[test]
+    fn opens_outside_the_helper_are_reported() {
+        let call = concat!("CreateFile", "W(name)");
+        let bad = open_sources(&files(&[
+            (
+                "crates/peekbuddy-engine/src/x.rs",
+                &format!("fn f() {{ {call}; }}"),
+            ),
+            ("crates/peekbuddy-win/src/io/dir.rs", &format!("{call};")),
+            (r"crates\peekbuddy-win\src\fs\win.rs", &format!("{call};")),
+            (
+                "crates/peekbuddy-win/src/io/sys.rs",
+                "pub use windows_sys::CreateFileW;",
+            ),
+            ("crates/peekbuddy-engine/src/y.rs", &format!("// {call}")),
+        ]));
+        assert_eq!(bad.len(), 1, "{bad:?}");
+        assert!(bad[0].starts_with("crates/peekbuddy-engine/src/x.rs:1"));
     }
 }

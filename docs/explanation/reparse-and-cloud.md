@@ -45,3 +45,13 @@ converted) comes from the same delta.
 The rules are the ones in issue #49. The lab matrix (#36) could not measure
 `OneDrive` on a hosted runner, so the rule set is not widened beyond them
 until an owner run supplies the missing cells.
+
+## Opening files without waking them
+
+Watching must never download a cloud file. `DirHandle::open` is where capture
+opens a directory, and it applies `io::open::check` first: the access may not
+include data bits (write, append, execute, the generic rights) and the flags
+must carry `FILE_FLAG_OPEN_NO_RECALL`, which is now on by default. A caller that
+turns it off gets an error, not a handle. `cargo xtask check-deps` fails on a
+`CreateFileW` call anywhere in the workspace outside the directory helper and
+the attribute-only opener of `peekbuddy_win::fs`.
