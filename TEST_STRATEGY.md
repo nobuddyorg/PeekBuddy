@@ -95,6 +95,10 @@ What the store promises, and what its tests may therefore assert:
   (`tests/faults.rs`). A health event for a reader stuck past a threshold is
   not implemented.
 
+The end-to-end proof of zero undetected loss is described in
+[docs/explanation/zero-undetected-loss.md](docs/explanation/zero-undetected-loss.md);
+its PR tier runs in the `fs-serial` group in about 20 s per test locally.
+
 The kill soak (random `TerminateProcess` points under churn, seeded) and the
 disk-full test on a real volume belong with the zero-loss suite (#50) and are
 not in place yet.

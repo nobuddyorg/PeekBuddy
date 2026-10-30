@@ -83,6 +83,7 @@ How a run works:
 | Profile | Mix | Target | Names |
 | --- | --- | --- | --- |
 | `burst-100k` | perf mix | 1,000,000 raw events within 10 s (100k ev/s) | ASCII |
+| `burst-50k` | perf mix | 50,000 raw events as fast as possible (the forced-overflow test of #50) | ASCII |
 | `sustained-20k` | perf mix | 20,000 raw ev/s for 60 s | ASCII |
 | `latency-10k` | perf mix | 10,000 raw ev/s for 30 s | ASCII |
 | `edge-mix` | every operation class, equal weight | 200 raw ev/s for 10 s | exotic |

@@ -142,9 +142,16 @@ impl Op {
             | OpKind::SetTimes => {
                 out.extend(first.map(|p| expect(p, RawKind::Modified)));
             }
-            OpKind::Rename | OpKind::Move | OpKind::CaseRename => {
+            OpKind::Rename | OpKind::CaseRename => {
                 out.extend(first.map(|p| expect(p, RawKind::RenamedOld)));
                 out.extend(second.map(|p| expect(p, RawKind::RenamedNew)));
+            }
+            // A move to another directory is reported as a removal at the old
+            // path and an addition at the new one, not as a rename pair: the
+            // end-to-end run of #50 on NTFS showed it for every move.
+            OpKind::Move => {
+                out.extend(first.map(|p| expect(p, RawKind::Removed)));
+                out.extend(second.map(|p| expect(p, RawKind::Added)));
             }
             OpKind::RenameChain => {
                 for pair in self.paths.windows(2) {
@@ -225,7 +232,7 @@ mod tests {
 
     #[test]
     fn renames_expect_both_names() {
-        for kind in [OpKind::Rename, OpKind::Move, OpKind::CaseRename] {
+        for kind in [OpKind::Rename, OpKind::CaseRename] {
             assert_eq!(
                 kinds(&op(kind, &["a", "b"])),
                 [
@@ -234,6 +241,13 @@ mod tests {
                 ]
             );
         }
+        assert_eq!(
+            kinds(&op(OpKind::Move, &["a", "d\\b"])),
+            [
+                ("a".into(), RawKind::Removed),
+                ("d\\b".into(), RawKind::Added)
+            ]
+        );
         assert_eq!(
             kinds(&op(OpKind::RenameChain, &["a", "b", "c"])),
             [

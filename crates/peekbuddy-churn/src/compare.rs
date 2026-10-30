@@ -366,7 +366,7 @@ mod tests {
             compare(&records, &[], std::slice::from_ref(&gap)).undetected,
             [0]
         );
-        let half = [row("t0\\b\\f", RawKind::RenamedNew, 9)];
+        let half = [row("t0\\b\\f", RawKind::Added, 9)];
         assert_eq!(compare(&records, &half, &[gap]).covered_by_gap, 1);
     }
 

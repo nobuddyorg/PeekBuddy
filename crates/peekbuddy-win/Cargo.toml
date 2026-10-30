@@ -16,6 +16,7 @@ tracelogging = { workspace = true }
 windows-sys = { workspace = true, features = [
   "Wdk_Storage_FileSystem",
   "Win32_Devices_DeviceAndDriverInstallation",
+  "Win32_System_Diagnostics_ToolHelp",
   "Wdk_System_SystemServices",
   "Wdk_System_SystemInformation",
   "Win32_Foundation",
