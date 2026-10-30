@@ -22,7 +22,8 @@ use windows_sys::Win32::System::Ioctl::{
 };
 use windows_sys::Win32::System::Threading::CreateEventW;
 
-use crate::io::dir::DirHandle;
+use crate::io::dir::{CancelOutcome, DirHandle};
+use crate::io::iocp::{Completion, Iocp};
 use crate::io::open::OpenOptions;
 use crate::io::slot::IoSlot;
 
@@ -40,6 +41,9 @@ pub struct Journal {
     volume: DirHandle,
     event: OwnedHandle,
     slot: IoSlot,
+    /// The volume handle is on a completion port: reads complete there, so
+    /// the waiting calls would race the port and are refused.
+    on_port: bool,
 }
 
 impl Journal {
@@ -65,7 +69,141 @@ impl Journal {
             volume,
             event,
             slot,
+            on_port: false,
         })
+    }
+
+    /// Makes the volume handle's completions arrive on `iocp` with `key`, for
+    /// [`Journal::begin_wait`]. From then on [`Journal::query`] and
+    /// [`Journal::read`] are refused: every call completes on the port.
+    ///
+    /// # Errors
+    ///
+    /// The OS error when the association fails.
+    pub fn associate(&mut self, iocp: &Iocp, key: usize) -> io::Result<()> {
+        iocp.associate(&self.volume, key)?;
+        self.on_port = true;
+        Ok(())
+    }
+
+    /// Starts a read from `start_usn` that stays pending until at least one
+    /// record is there (`BytesToWaitFor = 1`), so an idle volume costs no
+    /// wakeups. Its completion arrives on the port; pass it to
+    /// [`Journal::finish`]. `Timeout` is ignored on overlapped handles, so
+    /// [`Journal::cancel`] is how a pending read ends.
+    ///
+    /// # Errors
+    ///
+    /// `InvalidInput` when the journal is not on a port or a read is already
+    /// pending; the OS error when the call cannot start (no completion is
+    /// queued then).
+    pub fn begin_wait(&mut self, journal_id: u64, start_usn: i64) -> io::Result<()> {
+        if !self.on_port {
+            return Err(io::ErrorKind::InvalidInput.into());
+        }
+        let request = READ_USN_JOURNAL_DATA_V1 {
+            StartUsn: start_usn,
+            ReasonMask: ALL_REASONS,
+            ReturnOnlyOnClose: 0,
+            Timeout: 0,
+            BytesToWaitFor: 1,
+            UsnJournalID: journal_id,
+            MinMajorVersion: MIN_MAJOR,
+            MaxMajorVersion: MAX_MAJOR,
+        };
+        let input = request_bytes(&request);
+        let ptrs = self
+            .slot
+            .begin()
+            .map_err(|error| io::Error::new(io::ErrorKind::InvalidInput, error))?;
+        let input_len = u32::try_from(input.len()).unwrap_or(u32::MAX);
+        let mut returned: u32 = 0;
+        // SAFETY: the handle is live; `input` is readable for `input_len`
+        // bytes and is copied by the I/O manager before the call returns
+        // (buffered FSCTL); the output buffer and the zeroed OVERLAPPED
+        // belong to the slot, which stays pending until `finish`, so they
+        // are neither moved nor read meanwhile. No event is set, so the
+        // completion goes to the port.
+        let started = unsafe {
+            DeviceIoControl(
+                self.volume.as_raw_handle(),
+                FSCTL_READ_UNPRIVILEGED_USN_JOURNAL,
+                input.as_ptr().cast(),
+                input_len,
+                ptrs.buffer.cast(),
+                ptrs.len,
+                &raw mut returned,
+                ptrs.overlapped,
+            )
+        };
+        if started == 0 {
+            let error = io::Error::last_os_error();
+            if error.raw_os_error() != Some(ERROR_IO_PENDING.cast_signed()) {
+                // It failed to start: nothing will be queued.
+                let _ = self.slot.finish();
+                return Err(error);
+            }
+        }
+        Ok(())
+    }
+
+    /// Whether a read started by [`Journal::begin_wait`] has not been
+    /// finished.
+    #[must_use]
+    pub fn is_pending(&self) -> bool {
+        self.slot.is_pending()
+    }
+
+    /// Asks the kernel to cancel the pending read (`CancelIoEx`). Its
+    /// completion (error 995, or the data if it won the race) still arrives
+    /// on the port and must be dequeued and passed to [`Journal::finish`]
+    /// before the next read.
+    ///
+    /// # Errors
+    ///
+    /// The OS error for a failure other than "nothing pending".
+    pub fn cancel(&self) -> io::Result<CancelOutcome> {
+        self.volume.cancel(&self.slot)
+    }
+
+    /// Takes the result of a read from its dequeued `completion`: the bytes
+    /// (the next USN, then records) on success, the OS error otherwise
+    /// (`ERROR_OPERATION_ABORTED`, 995, after a cancel).
+    ///
+    /// # Errors
+    ///
+    /// The OS error of the completion; `InvalidInput` for a completion that is
+    /// not this journal's.
+    pub fn finish(&mut self, completion: &Completion) -> io::Result<&[u8]> {
+        if completion.overlapped != self.slot.overlapped_addr() || !self.slot.is_pending() {
+            return Err(io::ErrorKind::InvalidInput.into());
+        }
+        let _ = self.slot.finish();
+        if !completion.is_success() {
+            return Err(io::Error::from_raw_os_error(
+                i32::try_from(completion.status.code()).unwrap_or(i32::MAX),
+            ));
+        }
+        self.slot
+            .data(usize::try_from(completion.bytes).unwrap_or(0))
+            .ok_or_else(|| io::ErrorKind::InvalidData.into())
+    }
+
+    /// The volume-relative path of the file with reference number `frn`
+    /// (like `\dir\file.txt`), for the records the unprivileged read gives no
+    /// name: `OpenFileById` with attribute-only access, no reparse follow, no
+    /// cloud recall, then `GetFinalPathNameByHandleW`. Returns the units
+    /// written into `out`.
+    ///
+    /// The whole number is compared, sequence number included, so a deleted
+    /// file or a reused slot is an error, never another file's name.
+    ///
+    /// # Errors
+    ///
+    /// The OS error when the file is gone or cannot be opened, or
+    /// `ERROR_INSUFFICIENT_BUFFER` for a small `out`.
+    pub fn resolve_path(&self, frn: u128, out: &mut [u16]) -> io::Result<usize> {
+        crate::fs::resolve_long_name(&self.volume, frn, out)
     }
 
     /// `FSCTL_QUERY_USN_JOURNAL`: the journal's id and range.
@@ -109,6 +247,9 @@ impl Journal {
 
     /// One overlapped `DeviceIoControl` on the volume, waited for.
     fn control(&mut self, code: u32, input: &[u8]) -> io::Result<usize> {
+        if self.on_port {
+            return Err(io::ErrorKind::InvalidInput.into());
+        }
         let ptrs = self
             .slot
             .begin()
