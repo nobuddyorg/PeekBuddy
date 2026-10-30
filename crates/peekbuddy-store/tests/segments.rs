@@ -506,8 +506,10 @@ fn dst_days(lengths: &[u64]) -> DayFn {
     })
 }
 
+// Four cases: each rotates real files, which is slow on a hosted runner; the
+// nightly proptest-long job runs many more.
 proptest! {
-    #![proptest_config(ProptestConfig { cases: 12, ..ProptestConfig::default() })]
+    #![proptest_config(ProptestConfig { cases: 4, ..ProptestConfig::default() })]
 
     #[test]
     fn rotation_keeps_the_invariants_with_dst_days_and_a_wandering_clock(
