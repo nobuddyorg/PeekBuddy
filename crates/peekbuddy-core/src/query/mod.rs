@@ -150,6 +150,13 @@ pub struct Row {
     pub name: Vec<u16>,
     /// The full path from the volume root, components joined by `\`.
     pub path: Vec<u16>,
+    /// The path before a rename (the old node), empty when the row has none.
+    pub old_path: Vec<u16>,
+    /// The watch root the row belongs to, as stored; empty for rows of the
+    /// engine itself.
+    pub root: Vec<u16>,
+    /// The row flag bits (`Flags`).
+    pub flags: u16,
 }
 
 /// The answer to a [`PageRequest`].

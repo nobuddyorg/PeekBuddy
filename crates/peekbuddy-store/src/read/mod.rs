@@ -68,6 +68,12 @@ impl Reader {
         }
     }
 
+    /// The data directory this reader reads.
+    #[must_use]
+    pub fn dir(&self) -> &Path {
+        &self.dir
+    }
+
     /// Answers one request.
     ///
     /// # Errors
@@ -257,6 +263,9 @@ struct Found {
     source: Source,
     raw_mask: u32,
     node_id: i64,
+    old_node_id: Option<i64>,
+    root_id: i64,
+    flags: u16,
     is_dir: bool,
     size: Option<u64>,
     attrs: Option<u32>,
@@ -342,7 +351,8 @@ impl SegmentQuery {
         }
         let mut sql = format!(
             "{prefix}SELECT e.id, e.ts, e.kind, e.source, e.raw_mask, e.node_id, e.is_dir, \
-             e.size, e.attrs, e.file_id, e.file_id_hi FROM event e WHERE e.id {{cmp}} ?1"
+             e.size, e.attrs, e.file_id, e.file_id_hi, e.old_node_id, e.root_id, e.flags \
+             FROM event e WHERE e.id {{cmp}} ?1"
         );
         for clause in clauses {
             sql.push_str(" AND ");
@@ -415,6 +425,9 @@ impl SegmentQuery {
                         lo: lo.unwrap_or(0),
                         hi,
                     }),
+                    old_node_id: row.get(11)?,
+                    root_id: row.get(12)?,
+                    flags: u16::try_from(row.get::<_, i64>(13)?).unwrap_or(0),
                 })
             },
         )?;
@@ -481,6 +494,7 @@ fn find_node(conn: &Connection, path: &[u16]) -> rusqlite::Result<Option<i64>> {
 struct Paths<'a> {
     conn: &'a Connection,
     cache: HashMap<i64, (i64, Vec<u16>)>,
+    roots: HashMap<i64, Vec<u16>>,
 }
 
 impl<'a> Paths<'a> {
@@ -488,6 +502,7 @@ impl<'a> Paths<'a> {
         Self {
             conn,
             cache: HashMap::new(),
+            roots: HashMap::new(),
         }
     }
 
@@ -511,10 +526,10 @@ impl<'a> Paths<'a> {
         Some((parent, name))
     }
 
-    /// The row with its name and full path.
-    fn complete(&mut self, found: &Found) -> Row {
+    /// The name and full path of a node.
+    fn path_of(&mut self, node_id: i64) -> (Vec<u16>, Vec<u16>) {
         let mut parts: Vec<Vec<u16>> = Vec::new();
-        let mut at = found.node_id;
+        let mut at = node_id;
         let mut name = Vec::new();
         // The tree is acyclic by construction; the bound guards a damaged file.
         for depth in 0..4_096 {
@@ -537,6 +552,41 @@ impl<'a> Paths<'a> {
             }
             path.extend_from_slice(part);
         }
+        (name, path)
+    }
+
+    /// The path of a watch root as stored (cached: a segment has a few).
+    fn root(&mut self, id: i64) -> Vec<u16> {
+        if let Some(hit) = self.roots.get(&id) {
+            return hit.clone();
+        }
+        let found: Option<(String, Option<Vec<u8>>)> = self
+            .conn
+            .prepare_cached("SELECT path, path_w FROM root WHERE id = ?1")
+            .ok()
+            .and_then(|mut statement| {
+                statement
+                    .query_row([id], |row| Ok((row.get(0)?, row.get(1)?)))
+                    .optional()
+                    .ok()
+                    .flatten()
+            });
+        let path = found
+            .and_then(|(text, wide)| from_columns(&text, wide.as_deref()))
+            .map(peekbuddy_core::name::WideName::into_units)
+            .unwrap_or_default();
+        self.roots.insert(id, path.clone());
+        path
+    }
+
+    /// The row with its name and full path.
+    fn complete(&mut self, found: &Found) -> Row {
+        let (name, path) = self.path_of(found.node_id);
+        let old_path = found
+            .old_node_id
+            .map(|old| self.path_of(old).1)
+            .unwrap_or_default();
+        let root = self.root(found.root_id);
         Row {
             id: found.id,
             ts: found.ts,
@@ -549,6 +599,9 @@ impl<'a> Paths<'a> {
             file_id: found.file_id,
             name,
             path,
+            old_path,
+            root,
+            flags: found.flags,
         }
     }
 }

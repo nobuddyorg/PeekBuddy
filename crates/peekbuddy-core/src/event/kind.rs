@@ -254,6 +254,124 @@ impl Kind {
     }
 }
 
+impl GapReason {
+    /// The stable name used in exports.
+    #[must_use]
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::BufferOverflow => "buffer_overflow",
+            Self::NotifyEnumDir => "notify_enum_dir",
+            Self::JournalEntryDeleted => "journal_entry_deleted",
+            Self::JournalIdChanged => "journal_id_changed",
+            Self::ParserError => "parser_error",
+            Self::EngineNotRunning => "engine_not_running",
+            Self::RingFull => "ring_full",
+        }
+    }
+}
+
+impl WatchState {
+    /// The stable name used in exports.
+    #[must_use]
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::Arming => "arming",
+            Self::Live => "live",
+            Self::Overflowed => "overflowed",
+            Self::Reconciling => "reconciling",
+            Self::SuspendedByUser => "suspended_by_user",
+            Self::SuspendedQueryRemove => "suspended_query_remove",
+            Self::Lost => "lost",
+            Self::Restored => "restored",
+            Self::SuspendedLocked => "suspended_locked",
+        }
+    }
+}
+
+impl Kind {
+    /// The stable name used in exports: `created`, `renamed_to`,
+    /// `overflow:ring_full`, `watch_state:live` and so on. Names are part of
+    /// the export format; they are never renamed.
+    #[must_use]
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::Created => "created",
+            Self::Modified => "modified",
+            Self::Deleted => "deleted",
+            Self::RenamedFrom => "renamed_from",
+            Self::RenamedTo => "renamed_to",
+            Self::AttributesChanged => "attributes_changed",
+            Self::SecurityChanged => "security_changed",
+            Self::StreamChanged => "stream_changed",
+            Self::LinkChanged => "link_changed",
+            Self::Overflow(GapReason::BufferOverflow) => "overflow:buffer_overflow",
+            Self::Overflow(GapReason::NotifyEnumDir) => "overflow:notify_enum_dir",
+            Self::Overflow(GapReason::JournalEntryDeleted) => "overflow:journal_entry_deleted",
+            Self::Overflow(GapReason::JournalIdChanged) => "overflow:journal_id_changed",
+            Self::Overflow(GapReason::ParserError) => "overflow:parser_error",
+            Self::Overflow(GapReason::EngineNotRunning) => "overflow:engine_not_running",
+            Self::Overflow(GapReason::RingFull) => "overflow:ring_full",
+            Self::WatchStateChanged(WatchState::Arming) => "watch_state:arming",
+            Self::WatchStateChanged(WatchState::Live) => "watch_state:live",
+            Self::WatchStateChanged(WatchState::Overflowed) => "watch_state:overflowed",
+            Self::WatchStateChanged(WatchState::Reconciling) => "watch_state:reconciling",
+            Self::WatchStateChanged(WatchState::SuspendedByUser) => "watch_state:suspended_by_user",
+            Self::WatchStateChanged(WatchState::SuspendedQueryRemove) => {
+                "watch_state:suspended_query_remove"
+            }
+            Self::WatchStateChanged(WatchState::Lost) => "watch_state:lost",
+            Self::WatchStateChanged(WatchState::Restored) => "watch_state:restored",
+            Self::WatchStateChanged(WatchState::SuspendedLocked) => "watch_state:suspended_locked",
+            Self::ReconciledCreated => "reconciled_created",
+            Self::ReconciledModified => "reconciled_modified",
+            Self::ReconciledDeleted => "reconciled_deleted",
+            Self::ReconciledRenamed => "reconciled_renamed",
+            Self::ReconcileStarted => "reconcile_started",
+            Self::ReconcileFinished => "reconcile_finished",
+            Self::BaselineEstablished => "baseline_established",
+            Self::AccessDenied => "access_denied",
+            Self::EngineAbnormalExit => "engine_abnormal_exit",
+            Self::Other => "other",
+            Self::EngineStarted => "engine_started",
+            Self::EngineStopped => "engine_stopped",
+            Self::SegmentRotated => "segment_rotated",
+            Self::RetentionPurged => "retention_purged",
+            Self::SettingsChanged => "settings_changed",
+        }
+    }
+
+    /// The kind with this export name.
+    #[must_use]
+    pub fn from_name(name: &str) -> Option<Self> {
+        (0..=u8::MAX)
+            .take(32)
+            .flat_map(|tag| (0..=8).map(move |arg| (tag, arg)))
+            .filter_map(|(tag, arg)| Self::from_wire(tag, arg))
+            .find(|kind| kind.name() == name)
+    }
+
+    /// Whether the row is a marker of a gap in the stream.
+    #[must_use]
+    pub const fn is_gap(self) -> bool {
+        matches!(self, Self::Overflow(_))
+    }
+
+    /// Whether the row comes from the reconciler.
+    #[must_use]
+    pub const fn is_reconcile(self) -> bool {
+        matches!(
+            self,
+            Self::ReconciledCreated
+                | Self::ReconciledModified
+                | Self::ReconciledDeleted
+                | Self::ReconciledRenamed
+                | Self::ReconcileStarted
+                | Self::ReconcileFinished
+                | Self::BaselineEstablished
+        )
+    }
+}
+
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
@@ -306,5 +424,24 @@ pub(crate) mod tests {
             .filter_map(|(t, a)| Kind::from_wire(t, a))
             .collect();
         assert_eq!(valid.len(), all_kinds().len());
+    }
+    #[test]
+    fn names_are_unique_and_round_trip() {
+        let mut names: Vec<&str> = all_kinds().iter().map(|k| k.name()).collect();
+        for kind in all_kinds() {
+            assert_eq!(Kind::from_name(kind.name()), Some(kind));
+        }
+        names.sort_unstable();
+        names.dedup();
+        assert_eq!(names.len(), all_kinds().len());
+        assert_eq!(Kind::from_name("nope"), None);
+    }
+
+    #[test]
+    fn gap_and_reconcile_markers() {
+        assert!(Kind::Overflow(GapReason::RingFull).is_gap());
+        assert!(!Kind::Created.is_gap());
+        assert!(Kind::ReconciledRenamed.is_reconcile());
+        assert!(!Kind::Modified.is_reconcile());
     }
 }
