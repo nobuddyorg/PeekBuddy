@@ -196,7 +196,11 @@ fn a_full_disk_loses_nothing_and_recovers_by_itself() {
     assert!(stats.failing, "the failing state is visible");
     assert!(stats.commit_failures > 0);
     assert_eq!(stats.lost_batches, 0, "nothing is dropped");
-    assert!(stats.spilled_batches > 0, "the spill file took over");
+    // The spill thread counts a batch after it wrote it, which may be a moment
+    // after the pushes returned.
+    wait_for("the spill file to take over", || {
+        pipeline.stats().spilled_batches > 0
+    });
 
     // Space is freed: the writer recovers, everything arrives once, in order.
     faulting.store(false, Ordering::Relaxed);
