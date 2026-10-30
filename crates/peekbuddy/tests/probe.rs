@@ -49,7 +49,10 @@ fn the_probe_prints_a_valid_document_to_a_redirected_stdout() {
         .output()
         .unwrap();
     assert!(output.status.success(), "{:?}", output.status);
-    assert!(started.elapsed() < Duration::from_secs(10));
+    // With a tray: the shell of the hosted runner needs 8 to 15 s since the
+    // image of 2026-10-30 (#196). The strict bound is on the headless engine
+    // below; this one only catches a hang.
+    assert!(started.elapsed() < Duration::from_secs(60));
     let document = assert_valid(&String::from_utf8(output.stdout).unwrap());
 
     assert_eq!(document["requestedSeconds"], 0);
@@ -63,7 +66,7 @@ fn the_probe_prints_a_valid_document_to_a_redirected_stdout() {
         start <= ready,
         "ProcessStart {start} after EngineReady {ready}"
     );
-    assert!(ready > 0 && ready < 5_000_000, "ready after {ready} us");
+    assert!(ready > 0 && ready < 60_000_000, "ready after {ready} us");
     // Every milestone appears exactly once per occurrence: the engine marks
     // each of these once per run.
     for name in ["ProcessStart", "EngineReady"] {
@@ -147,4 +150,23 @@ fn diagnostics_full_shows_the_data_directory() {
         text.to_lowercase().contains(r"\nobuddy\peekbuddy"),
         "{text}"
     );
+}
+
+/// The engine proper, without the shell: ready well inside five seconds.
+#[test]
+fn a_headless_engine_is_ready_quickly() {
+    let dir = TestDir::new("probe-headless-ready").unwrap();
+    let output = Command::new(EXE)
+        .args(["--headless", "--perf-probe", "0", "--data-dir"])
+        .arg(dir.path())
+        .stdin(Stdio::null())
+        .stderr(Stdio::null())
+        .output()
+        .unwrap();
+    assert!(output.status.success(), "{:?}", output.status);
+    let document = assert_valid(&String::from_utf8(output.stdout).unwrap());
+    let ready = milestone(&document, "EngineReady")["firstUs"]
+        .as_u64()
+        .unwrap();
+    assert!(ready > 0 && ready < 5_000_000, "ready after {ready} us");
 }
