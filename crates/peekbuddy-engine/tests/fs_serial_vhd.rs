@@ -32,21 +32,37 @@ fn enabled() -> bool {
     std::env::var_os("PEEKBUDDY_VHD_TESTS").is_some() && peekbuddy_win::token::is_admin().unwrap()
 }
 
-fn diskpart(script: &str) -> bool {
+/// Runs a diskpart script: its output on success, on failure too (with the
+/// exit status), so that a nightly failure says why.
+fn diskpart(script: &str) -> Result<String, String> {
     let path = std::env::temp_dir().join(format!("pbvhd-{}.txt", std::process::id()));
     std::fs::File::create(&path)
         .unwrap()
         .write_all(script.as_bytes())
         .unwrap();
-    let status = Command::new("diskpart.exe")
+    let output = Command::new("diskpart.exe")
         .arg("/s")
         .arg(&path)
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .status()
+        .stdin(Stdio::null())
+        .output()
         .unwrap();
     let _ = std::fs::remove_file(&path);
-    status.success()
+    let text = format!(
+        "{}{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    if output.status.success() {
+        Ok(text)
+    } else {
+        Err(format!("{}: {text}", output.status))
+    }
+}
+
+/// A diskpart step that must work.
+fn must(script: &str) {
+    let result = diskpart(script);
+    assert!(result.is_ok(), "diskpart failed: {result:?}");
 }
 
 #[derive(Clone, Default)]
@@ -89,11 +105,11 @@ fn a_vhd_can_be_detached_while_watched_and_comes_back_on_attach() {
     let mount = base.join("mount");
     std::fs::create_dir_all(&mount).unwrap();
     let vhd = base.join("disk.vhd");
-    assert!(diskpart(&format!(
+    must(&format!(
         "create vdisk file=\"{}\" maximum=64 type=expandable\nattach vdisk\ncreate partition primary\nformat fs=ntfs quick label=pbtest\nassign mount=\"{}\"\n",
         vhd.display(),
         mount.display()
-    )));
+    ));
     let tree = mount.join("watched");
     std::fs::create_dir_all(&tree).unwrap();
     std::fs::write(tree.join("a.txt"), b"x").unwrap();
@@ -135,12 +151,13 @@ fn a_vhd_can_be_detached_while_watched_and_comes_back_on_attach() {
     });
 
     // Detach while the engine holds the volume.
+    let detached = diskpart(&format!(
+        "select vdisk file=\"{}\"\ndetach vdisk\n",
+        vhd.display()
+    ));
     assert!(
-        diskpart(&format!(
-            "select vdisk file=\"{}\"\ndetach vdisk\n",
-            vhd.display()
-        )),
-        "detach failed: a handle of the engine kept the volume"
+        detached.is_ok(),
+        "detach failed (a handle of the engine may have kept the volume): {detached:?}"
     );
     wait_for("suspended or lost", || {
         states.0.lock().unwrap().iter().any(|s| {
@@ -151,10 +168,10 @@ fn a_vhd_can_be_detached_while_watched_and_comes_back_on_attach() {
         })
     });
 
-    assert!(diskpart(&format!(
+    must(&format!(
         "select vdisk file=\"{}\"\nattach vdisk\n",
         vhd.display()
-    )));
+    ));
     wait_for("restored", || {
         states.0.lock().unwrap().contains(&WatchState::Restored)
     });

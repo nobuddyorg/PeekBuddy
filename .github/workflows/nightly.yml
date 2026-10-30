@@ -35,8 +35,10 @@ jobs:
           PROPTEST_CASES: 16
           # Failure files need the file system, which Miri isolates.
           PROPTEST_DISABLE_FAILURE_PERSISTENCE: 1
-          # Miri passes no host environment variables unless forwarded.
-          MIRIFLAGS: -Zmiri-env-forward=PROPTEST_CASES -Zmiri-env-forward=PROPTEST_DISABLE_FAILURE_PERSISTENCE
+          # Miri passes no host environment variables unless forwarded. Isolation
+          # is off because the insta snapshot tests read their files; nothing
+          # here writes outside the target directory.
+          MIRIFLAGS: -Zmiri-disable-isolation -Zmiri-env-forward=PROPTEST_CASES -Zmiri-env-forward=PROPTEST_DISABLE_FAILURE_PERSISTENCE
         run: cargo +nightly miri test --locked -p peekbuddy-core -p peekbuddy-win -p peekbuddy-alloc -p peekbuddy-churn --lib --target x86_64-unknown-linux-gnu
 
   fuzz:
