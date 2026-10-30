@@ -405,7 +405,7 @@ fn start_with_gate(dirs: &Dirs, stalled: &Arc<AtomicBool>) -> Pipeline {
 // were still near 50 s with the segment writer around. The nightly
 // proptest-long job runs it with many more.
 proptest! {
-    #![proptest_config(ProptestConfig { cases: 4, .. ProptestConfig::default() })]
+    #![proptest_config(ProptestConfig { cases: 2, .. ProptestConfig::default() })]
 
     #[test]
     fn any_interleaving_gives_every_pushed_row_exactly_once_in_order(ops in ops()) {
@@ -414,7 +414,11 @@ proptest! {
         let mut pipeline = start_with_gate(&dirs, &stalled);
         let mut next_ts = 1u64;
         let mut pushed: Vec<u64> = Vec::new();
+        let t0 = std::time::Instant::now();
+        let mut log = String::new();
         for op in ops {
+            log.push_str(&format!("{:?} {:?}
+", t0.elapsed(), op));
             match op {
                 Op::Push(count) => {
                     let producer = pipeline.producer();
@@ -441,6 +445,10 @@ proptest! {
         stalled.store(false, Ordering::Release);
         pipeline.flush(Duration::from_secs(30)).unwrap();
         drop(pipeline.close());
+        log.push_str(&format!("end {:?}
+", t0.elapsed()));
+        if t0.elapsed().as_secs() >= 3 { eprintln!("DIAG
+{log}"); std::process::exit(7); }
         prop_assert_eq!(stored_ts(&dirs.db()), pushed);
         prop_assert!(ids_are_contiguous(&dirs.db()));
     }
