@@ -25,6 +25,7 @@ Status legend: **Proposed** (waiting for evidence), **Accepted**,
 | [0015](0015-raw-win32-tray.md) | Tray on raw Win32 | Accepted | #60 |
 | [0016](0016-pause-keeps-watches-armed.md) | Pause keeps the watches armed | Accepted | #63 |
 | [0017](0017-segment-dictionary.md) | Replicate the dictionary in every segment | Accepted | #54 |
+| [0018](0018-usn-stays-behind-a-feature.md) | Keep the USN backend behind a feature in v1 | Accepted | #47 |
 
 Decisions owned elsewhere: F8 memory budgets and R6 SQLite heap limit in
 `PERFORMANCE.md` (#20, #52); F12 runners in #11 and #34; F18 links and cloud
