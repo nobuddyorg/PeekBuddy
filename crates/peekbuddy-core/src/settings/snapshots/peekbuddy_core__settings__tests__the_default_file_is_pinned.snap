@@ -10,6 +10,8 @@ theme = "system"
 first_run = true
 
 [store]
+max_age_days = 30
+max_total_mb = 2048
 
 [view]
 coalesce_ms = 150

@@ -24,6 +24,7 @@ Status legend: **Proposed** (waiting for evidence), **Accepted**,
 | [0014](0014-contribution-policy.md) | Contribution policy | Accepted | B2, B3 |
 | [0015](0015-raw-win32-tray.md) | Tray on raw Win32 | Accepted | #60 |
 | [0016](0016-pause-keeps-watches-armed.md) | Pause keeps the watches armed | Accepted | #63 |
+| [0017](0017-segment-dictionary.md) | Replicate the dictionary in every segment | Accepted | #54 |
 
 Decisions owned elsewhere: F8 memory budgets and R6 SQLite heap limit in
 `PERFORMANCE.md` (#20, #52); F12 runners in #11 and #34; F18 links and cloud

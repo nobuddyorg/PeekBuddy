@@ -10,16 +10,21 @@
 use std::collections::HashMap;
 use std::fmt;
 use std::path::{Path, PathBuf};
+use std::sync::{Arc, Mutex};
 
 use peekbuddy_core::event::{Event, NameKind, RootIdx};
 use peekbuddy_core::name::WideStr;
 use rusqlite::{Connection, OptionalExtension, params};
 
 use crate::batch::Batch;
+use crate::catalog::{Catalog, SegmentRow, Skipped};
 use crate::ids;
 use crate::interner::{Interner, NodeKey, TOP_LEVEL};
 use crate::names::to_columns;
-use crate::schema::{self, INSERT_EVENT, StoreError, UPSERT_STATS, hour_bucket};
+use crate::retention::{Caps, Retire};
+use crate::schema::{self, INSERT_EVENT, SCHEMA_VERSION, StoreError, UPSERT_STATS, hour_bucket};
+use crate::segment::{self, Rotation, needs_rotation, next_file, parse_name};
+use crate::segments::{SealContext, SegmentState, SystemRows, rotated_row, seal_and_enforce};
 
 /// Cache size in KiB (negative pragma values are KiB): 2 MB, spike #35.
 const CACHE_KIB: i64 = 2 * 1024;
@@ -135,6 +140,23 @@ pub struct Writer {
     roots: Vec<Option<RootRow>>,
     stats: HashMap<(i64, i64, i64), (i64, i64, i64)>,
     path: Option<PathBuf>,
+    /// The roots as registered, to register them again in the next segment.
+    registered: Vec<RootInfo>,
+    /// Day segments, when the writer rotates (#54).
+    segments: Option<SegmentState>,
+    /// The timestamps of the first and last event of the last commit.
+    first_commit_ts: i64,
+    last_commit_ts: i64,
+}
+
+/// What a rotating writer needs (#54).
+pub struct SegmentsConfig {
+    /// Directory, day function and size cap.
+    pub rotation: Rotation,
+    /// The retention caps.
+    pub caps: Caps,
+    /// The viewer's side of the retirement handshake.
+    pub retire: Arc<dyn Retire + Send + Sync>,
 }
 
 fn pragmas(conn: &Connection) -> rusqlite::Result<()> {
@@ -184,6 +206,10 @@ impl Writer {
             roots: Vec::new(),
             stats: HashMap::new(),
             path: None,
+            registered: Vec::new(),
+            segments: None,
+            first_commit_ts: 0,
+            last_commit_ts: 0,
         })
     }
 
@@ -272,6 +298,8 @@ impl Writer {
             )?;
         }
         tx.commit()?;
+        self.registered.retain(|known| known.idx != info.idx);
+        self.registered.push(info.clone());
         let slot = usize::from(info.idx.0);
         if self.roots.len() <= slot {
             self.roots.resize(slot + 1, None);
@@ -327,7 +355,16 @@ impl Writer {
         cursors: &[Cursor],
         spill: Option<(u32, u64)>,
     ) -> Result<Commit, WriteError> {
+        self.rotate_if_needed(batches);
         let result = self.write_inner(batches, cursors, spill);
+        if let (Ok(commit), Some(seg)) = (&result, self.segments.as_mut())
+            && commit.rows > 0
+        {
+            seg.last_ts = seg.last_ts.max(self.last_commit_ts);
+            if seg.first_ts == 0 {
+                seg.first_ts = self.first_commit_ts;
+            }
+        }
         if result.is_err() {
             self.interner.clear();
         }
@@ -340,6 +377,7 @@ impl Writer {
         cursors: &[Cursor],
         spill: Option<(u32, u64)>,
     ) -> Result<Commit, WriteError> {
+        let extra = self.take_system_rows();
         let Self {
             conn,
             interner,
@@ -353,9 +391,10 @@ impl Writer {
         let first = *next_id;
         let mut id = first;
         let mut last_ts = 0u64;
+        let mut first_ts = 0u64;
         {
             let mut insert = tx.prepare_cached(INSERT_EVENT)?;
-            for batch in batches {
+            for batch in extra.iter().chain(batches) {
                 for (event, name) in batch.iter() {
                     let root = if event.root == RootIdx::NONE {
                         NO_ROOT
@@ -374,6 +413,9 @@ impl Writer {
                         .or_insert((0, id, id));
                     entry.0 += 1;
                     entry.2 = id;
+                    if first_ts == 0 {
+                        first_ts = event.ts;
+                    }
                     last_ts = event.ts;
                     id += 1;
                 }
@@ -398,6 +440,8 @@ impl Writer {
         }
         tx.commit()?;
         *next_id = id;
+        self.first_commit_ts = first_ts.cast_signed();
+        self.last_commit_ts = last_ts.cast_signed();
         let commit = Commit {
             rows: u64::try_from(id - first).unwrap_or(0),
             first_id: first,
@@ -455,6 +499,267 @@ impl Writer {
                 .query_row("PRAGMA wal_checkpoint(TRUNCATE)", [], |row| {
                     Ok((row.get(0)?, row.get(1)?, row.get(2)?))
                 })?;
+        Ok(())
+    }
+
+    /// Opens the day segments under `config.rotation.dir`: brings the catalog
+    /// in line with the files, continues the id sequence from the newest
+    /// segment (or creates the first one for the day of `now`, FILETIME
+    /// ticks), and applies the retention caps once. Files that look like
+    /// segments but cannot be used are left alone and returned.
+    ///
+    /// # Errors
+    ///
+    /// A [`WriteError`] when the directory, the catalog or the segment cannot
+    /// be opened.
+    pub fn open_segments(
+        config: SegmentsConfig,
+        now: u64,
+    ) -> Result<(Self, Vec<Skipped>), WriteError> {
+        let SegmentsConfig {
+            rotation,
+            caps,
+            retire,
+        } = config;
+        let io = |error: std::io::Error| WriteError::Store(StoreError::Io(error.to_string()));
+        std::fs::create_dir_all(&rotation.dir).map_err(io)?;
+        let catalog = Catalog::open(&rotation.dir.join("catalog.db"))
+            .map_err(|error| WriteError::Store(StoreError::Io(error.to_string())))?;
+        let (rows, skipped) = segment::reconcile_catalog(&rotation.dir, &catalog)
+            .map_err(|error| WriteError::Store(StoreError::Io(error.to_string())))?;
+        let today = (rotation.day_of)(now);
+        let current = rows.last().cloned();
+        let (file, existing) = match current {
+            Some(row) => (row.file.clone(), Some(row)),
+            None => (today.file_name(0), None),
+        };
+        let mut writer = Self::open(&rotation.dir.join(&file))?;
+        let next_id = catalog.next_id().map_err(WriteError::Sqlite)?;
+        writer.set_next_id(next_id);
+        let day = parse_name(&file).map_or(today, |(day, _)| day);
+        let first_id = existing
+            .as_ref()
+            .filter(|row| row.rows > 0)
+            .map_or(writer.next_id(), |row| row.first_id);
+        let (first_ts, last_ts) = existing
+            .as_ref()
+            .map_or((0, 0), |row| (row.first_ts, row.last_ts));
+        catalog
+            .put(&SegmentRow {
+                file: file.clone(),
+                first_id,
+                last_id: writer.next_id() - 1,
+                first_ts,
+                last_ts,
+                rows: writer.next_id() - first_id,
+                bytes: existing.as_ref().map_or(0, |row| row.bytes),
+                sealed: false,
+                schema_version: i64::from(SCHEMA_VERSION),
+                purge_pending: false,
+            })
+            .map_err(WriteError::Sqlite)?;
+        let system: SystemRows = Arc::default();
+        let context = SealContext {
+            dir: rotation.dir.clone(),
+            catalog: Arc::new(Mutex::new(catalog)),
+            caps,
+            retire,
+            system,
+        };
+        let _ = context.enforce(now.cast_signed());
+        writer.segments = Some(SegmentState {
+            rotation,
+            context,
+            file,
+            day,
+            first_id,
+            first_ts,
+            last_ts,
+            sealers: Vec::new(),
+        });
+        Ok((writer, skipped))
+    }
+
+    /// The name of the segment file being written, when the writer rotates.
+    #[must_use]
+    pub fn segment_file(&self) -> Option<&str> {
+        self.segments.as_ref().map(|seg| seg.file.as_str())
+    }
+
+    /// The catalog of a rotating writer.
+    #[must_use]
+    pub fn catalog(&self) -> Option<Arc<Mutex<Catalog>>> {
+        self.segments
+            .as_ref()
+            .map(|seg| Arc::clone(&seg.context.catalog))
+    }
+
+    /// Writes the system rows that are waiting (retention purges whose
+    /// sealing thread finished after the last commit).
+    ///
+    /// # Errors
+    ///
+    /// [`WriteError`].
+    pub fn flush_system_rows(&mut self) -> Result<(), WriteError> {
+        let waiting = self
+            .segments
+            .as_ref()
+            .is_some_and(|seg| seg.context.system.lock().is_ok_and(|rows| !rows.is_empty()));
+        if waiting {
+            self.write(&[], &[])?;
+        }
+        Ok(())
+    }
+
+    /// Waits for the sealing threads of earlier rotations.
+    pub fn wait_background(&mut self) {
+        if let Some(seg) = self.segments.as_mut() {
+            for thread in seg.sealers.drain(..) {
+                let _ = thread.join();
+            }
+        }
+    }
+
+    /// The rows rotation and retention queued, as a batch for the next commit.
+    fn take_system_rows(&self) -> Option<Batch> {
+        let seg = self.segments.as_ref()?;
+        let rows = std::mem::take(&mut *seg.context.system.lock().ok()?);
+        if rows.is_empty() {
+            return None;
+        }
+        let mut batch = Batch::with_capacity(rows.len(), 64 * rows.len() + 256);
+        for row in rows {
+            let _ = batch.push(row.event, &row.name);
+        }
+        Some(batch)
+    }
+
+    /// Rotates before a write whose first event belongs to a later day, or
+    /// when the file is over the size cap. A failure keeps writing to the
+    /// current segment: losing events is worse than a big file.
+    fn rotate_if_needed(&mut self, batches: &[Batch]) {
+        let Some(ts) = batches
+            .iter()
+            .find_map(|batch| batch.iter().next().map(|(event, _)| event.ts))
+        else {
+            return;
+        };
+        let Some(seg) = self.segments.as_ref() else {
+            return;
+        };
+        let day = (seg.rotation.day_of)(ts);
+        let size = self.path.as_ref().map_or(0, |path| {
+            let main = std::fs::metadata(path).map_or(0, |meta| meta.len());
+            main + self.wal_bytes()
+        });
+        // An empty file is rotated for a new day (it is dropped) but never
+        // for its size: there is nothing to seal.
+        let empty = self.next_id == seg.first_id;
+        let size = if empty { 0 } else { size };
+        if needs_rotation(seg.day, day, size, seg.rotation.size_cap) {
+            let _ = self.rotate(ts, day);
+        }
+    }
+
+    /// Closes the current segment and continues in the next one.
+    fn rotate(&mut self, ts: u64, day: segment::DayKey) -> Result<(), WriteError> {
+        let Some(mut seg) = self.segments.take() else {
+            return Ok(());
+        };
+        let outcome = self.rotate_inner(&mut seg, ts, day);
+        self.segments = Some(seg);
+        outcome
+    }
+
+    fn rotate_inner(
+        &mut self,
+        seg: &mut SegmentState,
+        ts: u64,
+        day: segment::DayKey,
+    ) -> Result<(), WriteError> {
+        let dir = seg.rotation.dir.clone();
+        let _ = self.checkpoint_truncate();
+        let empty = self.next_id == seg.first_id;
+        let old_path = dir.join(&seg.file);
+        let old_bytes =
+            std::fs::metadata(&old_path).map_or(0, |meta| i64::try_from(meta.len()).unwrap_or(0));
+        let old_row = SegmentRow {
+            file: seg.file.clone(),
+            first_id: seg.first_id,
+            last_id: self.next_id - 1,
+            first_ts: seg.first_ts,
+            last_ts: seg.last_ts,
+            rows: self.next_id - seg.first_id,
+            bytes: old_bytes,
+            sealed: false,
+            schema_version: i64::from(SCHEMA_VERSION),
+            purge_pending: false,
+        };
+        let catalog_rows = {
+            let catalog = seg.context.catalog.lock().map_err(|_| poisoned())?;
+            catalog.list().map_err(WriteError::Sqlite)?
+        };
+        let new_file = next_file(&seg.file, day, &catalog_rows);
+        let new_path = dir.join(&new_file);
+        let new_conn = schema::open(&new_path)?;
+        pragmas(&new_conn)?;
+        let carried = carry_over(&self.conn)?;
+        let old_roots = self.roots.clone();
+        // Swap: from here on the writer is in the new file.
+        drop(std::mem::replace(&mut self.conn, new_conn));
+        self.interner = Interner::new();
+        self.stats.clear();
+        self.roots.clear();
+        for info in std::mem::take(&mut self.registered) {
+            self.register_root(&info)?;
+        }
+        restore_carried(&self.conn, &carried, &old_roots, &self.roots)?;
+        let catalog = seg.context.catalog.lock().map_err(|_| poisoned())?;
+        if empty {
+            drop(std::fs::remove_file(&old_path));
+            for suffix in ["-wal", "-shm"] {
+                drop(std::fs::remove_file(
+                    dir.join(format!("{}{suffix}", seg.file)),
+                ));
+            }
+            catalog.remove(&seg.file).map_err(WriteError::Sqlite)?;
+        } else {
+            catalog.put(&old_row).map_err(WriteError::Sqlite)?;
+        }
+        catalog
+            .put(&SegmentRow {
+                file: new_file.clone(),
+                first_id: self.next_id,
+                last_id: self.next_id - 1,
+                first_ts: 0,
+                last_ts: 0,
+                rows: 0,
+                bytes: 0,
+                sealed: false,
+                schema_version: i64::from(SCHEMA_VERSION),
+                purge_pending: false,
+            })
+            .map_err(WriteError::Sqlite)?;
+        drop(catalog);
+        if !empty {
+            if let Ok(mut rows) = seg.context.system.lock() {
+                rows.push(rotated_row(ts, &old_row, &new_file));
+            }
+            let context = seg.context.clone();
+            let sealed_file = seg.file.clone();
+            if let Ok(thread) = std::thread::Builder::new()
+                .name(String::from("seal"))
+                .spawn(move || seal_and_enforce(&context, &sealed_file, ts.cast_signed()))
+            {
+                seg.sealers.push(thread);
+            }
+        }
+        seg.file = new_file;
+        seg.day = day;
+        seg.first_id = self.next_id;
+        seg.first_ts = 0;
+        seg.last_ts = 0;
+        self.path = Some(new_path);
         Ok(())
     }
 
@@ -533,6 +838,78 @@ fn insert_event(
         Option::<i64>::None,
         Option::<i64>::None,
     ])?;
+    Ok(())
+}
+
+fn poisoned() -> WriteError {
+    WriteError::Store(StoreError::Io(String::from("the catalog lock is poisoned")))
+}
+
+/// What a new segment inherits from the one before: the replay position of
+/// the spill file and the capture cursors.
+struct Carried {
+    meta: Vec<(String, i64)>,
+    cursors: Vec<(i64, i64, Option<i64>, i64, i64)>,
+}
+
+fn carry_over(conn: &Connection) -> Result<Carried, WriteError> {
+    let mut meta = Vec::new();
+    for key in ["spill_gen", "spill_offset"] {
+        let value: Option<i64> = conn
+            .query_row("SELECT value FROM meta WHERE key = ?1", [key], |row| {
+                row.get(0)
+            })
+            .optional()?;
+        if let Some(value) = value {
+            meta.push((key.to_owned(), value));
+        }
+    }
+    let mut statement =
+        conn.prepare("SELECT root_id, vol_id, usn, last_event_id, ts FROM cursor")?;
+    let cursors = statement
+        .query_map([], |row| {
+            Ok((
+                row.get(0)?,
+                row.get(1)?,
+                row.get(2)?,
+                row.get(3)?,
+                row.get(4)?,
+            ))
+        })?
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(Carried { meta, cursors })
+}
+
+fn restore_carried(
+    conn: &Connection,
+    carried: &Carried,
+    old_roots: &[Option<RootRow>],
+    new_roots: &[Option<RootRow>],
+) -> Result<(), WriteError> {
+    for (key, value) in &carried.meta {
+        conn.execute(
+            "INSERT INTO meta (key, value) VALUES (?1, ?2) \
+             ON CONFLICT (key) DO UPDATE SET value = excluded.value",
+            params![key, value],
+        )?;
+    }
+    for &(root_id, vol_id, usn, last_event_id, ts) in &carried.cursors {
+        // The ids differ between files: go through the root's index.
+        let Some(index) = old_roots
+            .iter()
+            .position(|row| row.is_some_and(|r| r.root == root_id && r.vol == vol_id))
+        else {
+            continue;
+        };
+        let Some(Some(new)) = new_roots.get(index) else {
+            continue;
+        };
+        conn.execute(
+            "INSERT INTO cursor (root_id, vol_id, usn, last_event_id, ts) \
+             VALUES (?1, ?2, ?3, ?4, ?5) ON CONFLICT (root_id, vol_id) DO NOTHING",
+            params![new.root, new.vol, usn, last_event_id, ts],
+        )?;
+    }
     Ok(())
 }
 
