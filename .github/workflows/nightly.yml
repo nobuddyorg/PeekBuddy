@@ -102,6 +102,11 @@ jobs:
         with:
           tool: cargo-nextest@0.9.149
       - run: cargo nextest run --workspace --profile ci --locked --no-tests=pass
+      # The one test that is too long for a PR: 10 million events through the
+      # deriver (#41). The other ignored tests are child entry points and a
+      # fixture writer, and stay ignored.
+      - name: Ten million events through the deriver
+        run: cargo nextest run -p peekbuddy-core --profile ci --locked --run-ignored ignored-only -E 'test(ten_million_distinct_paths)'
 
   stress:
     name: fs-serial stress

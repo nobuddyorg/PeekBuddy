@@ -203,3 +203,27 @@ fn tempdir() -> std::path::PathBuf {
     std::fs::create_dir_all(&p).unwrap();
     p
 }
+
+#[test]
+fn dropping_the_wrappers_returns_the_handle_count_to_its_baseline() {
+    use peekbuddy_win::metrics::{current_process, handle_count};
+
+    let dir = std::env::temp_dir();
+    // Warm up anything the first call opens lazily.
+    drop(open_dir(&dir));
+    let baseline = handle_count(current_process()).unwrap();
+    {
+        let mut handles = Vec::new();
+        for _ in 0..20 {
+            let (_, dir) = open_dir(&dir);
+            handles.push(dir);
+        }
+        let iocp = Iocp::new(1).unwrap();
+        for (index, handle) in handles.iter().enumerate() {
+            iocp.associate(handle, index).unwrap();
+        }
+        let during = handle_count(current_process()).unwrap();
+        assert!(during >= baseline + 21, "{during} vs {baseline}");
+    }
+    assert_eq!(handle_count(current_process()).unwrap(), baseline);
+}
