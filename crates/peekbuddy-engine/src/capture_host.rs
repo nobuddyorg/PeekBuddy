@@ -21,10 +21,11 @@ use std::time::Duration;
 use peekbuddy_core::capture::EventSink;
 use peekbuddy_core::event::{Event, GapReason, Kind, RootIdx, VolIdx, WatchState};
 use peekbuddy_core::filter::{FilterSet, Scratch};
-use peekbuddy_core::lifecycle::{Action, Machine, Signal, State};
+use peekbuddy_core::lifecycle::{Action, Machine, Reason, Signal, State};
 use peekbuddy_core::name::{WideStr, fold_upper};
 use peekbuddy_core::pause::{PausableSink, Pause};
 use peekbuddy_core::perf::Counters;
+use peekbuddy_core::perf::Milestone;
 use peekbuddy_store::batch::Batch;
 use peekbuddy_store::pipeline::{Producer, Push};
 use peekbuddy_win::io::error::WinError;
@@ -86,6 +87,10 @@ pub struct Services {
     pub clock: Clock,
     /// Registers a root for volume notifications (query-remove, lock, ...).
     pub notifier: Option<NotifierFactory>,
+    /// Records a milestone (ETW and the probe's table).
+    pub milestone: Arc<dyn Fn(Milestone) + Send + Sync>,
+    /// Told once per root when it is armed or has failed to arm.
+    pub ready: Option<Arc<crate::instrument::ReadyGate>>,
 }
 
 /// A real probe.
@@ -112,6 +117,8 @@ struct Inner {
     parents: Mutex<Option<Watcher>>,
     waiting: Waiting,
     reconciler: Mutex<Option<Reconciler>>,
+    /// Roots that already counted for the readiness gate.
+    settled: Mutex<Vec<bool>>,
     /// The volume notification registrations, by root.
     notifiers: Mutex<HashMap<u16, Box<dyn Send + Sync>>>,
     /// Registrations that live as long as the host.
@@ -553,6 +560,7 @@ impl Host {
             parents: Mutex::new(None),
             waiting: Arc::new(Mutex::new(HashMap::new())),
             reconciler: Mutex::new(reconciler),
+            settled: Mutex::new(vec![false; count]),
             notifiers: Mutex::new(HashMap::new()),
             keep: Mutex::new(Vec::new()),
             exclude,
@@ -754,6 +762,7 @@ fn handle(inner: &Arc<Inner>, root: RootIdx, signal: Signal) {
     let Some(index) = index_of(inner, root) else {
         return;
     };
+    milestones_of(inner, signal);
     let (out, vol) = {
         let mut machines = lock(&inner.machines);
         let Some(machine) = machines.get_mut(index) else {
@@ -762,14 +771,63 @@ fn handle(inner: &Arc<Inner>, root: RootIdx, signal: Signal) {
         (machine.signal(signal), spec_of(inner, root).map(|w| w.vol))
     };
     if let Some(transition) = out.transition {
-        let mut services = lock(&inner.services);
-        let (ts, qpc) = (services.clock)();
-        services
-            .rows
-            .row(transition.to_event(root, vol.unwrap_or(VolIdx(0)), ts, qpc));
+        {
+            let mut services = lock(&inner.services);
+            let (ts, qpc) = (services.clock)();
+            services
+                .rows
+                .row(transition.to_event(root, vol.unwrap_or(VolIdx(0)), ts, qpc));
+        }
+        crate::instrument::log(&format!(
+            "watch {}: {:?} -> {:?} ({:?})",
+            root.0, transition.from, transition.to, transition.reason
+        ));
+        if transition.to == State::Live && transition.reason == Reason::Armed {
+            (lock(&inner.services).milestone)(Milestone::WatcherArmed);
+        }
+        if transition.from == State::Arming {
+            settle(inner, index);
+        }
     }
     for action in out.actions() {
         act(inner, root, action);
+    }
+}
+
+/// The milestones a signal stands for: gaps and the reconcile's ends.
+fn milestones_of(inner: &Inner, signal: Signal) {
+    let milestones: &[Milestone] = match signal {
+        Signal::Gap(GapReason::BufferOverflow | GapReason::NotifyEnumDir) => {
+            &[Milestone::Overflow, Milestone::Gap]
+        }
+        Signal::Gap(_) => &[Milestone::Gap],
+        Signal::ReconcileStarted => &[Milestone::ReconcileStart],
+        Signal::ReconcileDone | Signal::ReconcileCancelled => &[Milestone::ReconcileEnd],
+        _ => &[],
+    };
+    if !milestones.is_empty() {
+        let services = lock(&inner.services);
+        for &milestone in milestones {
+            (services.milestone)(milestone);
+        }
+    }
+}
+
+/// A root left `Arming` (armed or failed): it no longer holds up readiness.
+fn settle(inner: &Inner, index: usize) {
+    let first = {
+        let mut settled = lock(&inner.settled);
+        settled.get_mut(index).is_some_and(|flag| {
+            let first = !*flag;
+            *flag = true;
+            first
+        })
+    };
+    if first {
+        let gate = lock(&inner.services).ready.clone();
+        if let Some(gate) = gate {
+            gate.done();
+        }
     }
 }
 
