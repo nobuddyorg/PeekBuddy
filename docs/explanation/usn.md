@@ -44,9 +44,21 @@ the journal's next USN gives exactly one gap row, then a reconcile and a read
 from the journal's current end. A first run starts at the end: there is no
 history to be missing. Errors 1181, 1179 and 1178 map to the same gaps.
 
+## The reader
+
+`peekbuddy_win::usn::Journal` (feature `usn`, off by default) opens the volume
+on its GUID path as a directory (the `guid-dir` handle of the spike), queries
+the journal with `FSCTL_QUERY_USN_JOURNAL` and reads with
+`FSCTL_READ_UNPRIVILEGED_USN_JOURNAL`, version 2 and 3 records, without
+waiting for new records. Both calls are overlapped on a private event and
+waited for. The Windows test creates a file on the volume of the temp
+directory and finds its create record by file reference number; it reads, and
+never creates or deletes a journal. It does nothing on a volume without one.
+
 ## What is not here
 
-The reader (volume handles, the IOCP, the synchronous fallback on ReFS) and
-the Windows and destructive tests that need a journal. Linux NTFS drivers
+The IOCP reader that stays pending until data arrives, `CancelIoEx` on stop,
+the synchronous fallback on `ReFS` (error 1784), the `OpenFileById` name
+lookup, the engine wiring, and the destructive tests that need a VHD. Linux NTFS drivers
 write no journal records and keep the journal id, which is an undetectable
 gap; it is a limit of the source, not of this code.
