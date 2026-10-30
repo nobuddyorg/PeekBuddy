@@ -1,0 +1,46 @@
+[package]
+name = "peekbuddy-fuzz"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4.12"
+peekbuddy-core = { path = "../crates/peekbuddy-core" }
+
+# Its own workspace: cargo-fuzz builds with the nightly toolchain and
+# sanitizer flags that the main workspace does not use.
+[workspace]
+
+[[bin]]
+name = "notify_parse"
+path = "fuzz_targets/notify_parse.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "usn_decode"
+path = "fuzz_targets/usn_decode.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "export_read"
+path = "fuzz_targets/export_read.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "filter_compile"
+path = "fuzz_targets/filter_compile.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "settings_load"
+path = "fuzz_targets/settings_load.rs"
+test = false
+doc = false
