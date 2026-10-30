@@ -20,6 +20,11 @@ fn segment(data: &Path) -> PathBuf {
     std::fs::read_dir(data.join("segments"))
         .unwrap()
         .map(|entry| entry.unwrap().path())
+        .filter(|path| {
+            path.file_name()
+                .and_then(|n| n.to_str())
+                .is_some_and(|n| n.starts_with("events-"))
+        })
         .find(|path| path.extension().is_some_and(|ext| ext == "db"))
         .unwrap_or_else(|| PathBuf::from("no-segment-was-created"))
 }
@@ -248,4 +253,92 @@ fn a_crash_marker_gives_exactly_one_abnormal_exit_row() {
         )
         .unwrap();
     assert_eq!(name, "crash-20261026T120000Z.log");
+}
+
+/// The first event of today closes an older segment: the id sequence goes on
+/// in a new file that starts with the rotation row, and the old one is
+/// sealed in the catalog (#54).
+#[test]
+fn the_first_event_of_today_rotates_an_older_segment() {
+    use peekbuddy_core::event::{Event, Flags, Kind, NameKind, NameRef, RootIdx, Source, VolIdx};
+    use peekbuddy_store::batch::Batch;
+    use peekbuddy_store::catalog::Catalog;
+    use peekbuddy_store::writer::Writer;
+
+    let dir = TestDir::new("store-rotate").unwrap();
+    let data = dir.path().join("data");
+    let segments = data.join("segments");
+    std::fs::create_dir_all(&segments).unwrap();
+    // A segment from long ago, with two rows.
+    let old = segments.join("events-2020-01-01.db");
+    {
+        let mut writer = Writer::open(&old).unwrap();
+        let mut batch = Batch::with_capacity(2, 256);
+        for ts in [132_000_000_000_000_000_u64, 132_000_000_000_000_001] {
+            let event = Event {
+                ts,
+                qpc: 0,
+                src_ts: 0,
+                source: Source::System,
+                kind: Kind::EngineStarted,
+                raw_mask: 0,
+                source_info: 0,
+                is_dir: false,
+                size: 0,
+                attrs: 0,
+                reparse_tag: 0,
+                file_id: 0,
+                parent_file_id: 0,
+                usn: 0,
+                vol: VolIdx(0),
+                root: RootIdx::NONE,
+                name: NameRef::EMPTY,
+                name_kind: NameKind::Unknown,
+                flags: Flags::NONE,
+            };
+            batch.push(event, &[]).unwrap();
+        }
+        writer.write(&[batch], &[]).unwrap();
+        writer.checkpoint_truncate().unwrap();
+    }
+    let _ = run_with_events(&dir, 20);
+
+    // The synthetic events are stamped in 2022 and the engine's own rows with
+    // today's time, so the day changes more than once: every file after the
+    // first starts with a rotation row and the ids never skip.
+    let catalog = Catalog::open(&segments.join("catalog.db")).unwrap();
+    let rows = catalog.list().unwrap();
+    assert!(rows.len() >= 2, "{rows:?}");
+    assert_eq!(
+        (rows[0].file.as_str(), rows[0].first_id, rows[0].last_id),
+        ("events-2020-01-01.db", 1, 2)
+    );
+    assert!(rows[0].sealed, "the old segment was sealed");
+    let mut next = 1;
+    for (index, row) in rows.iter().enumerate() {
+        let conn = Connection::open(segments.join(&row.file)).unwrap();
+        assert_eq!(
+            count(&conn, "SELECT min(id) FROM event"),
+            next,
+            "{}",
+            row.file
+        );
+        if index > 0 {
+            assert_eq!(
+                count(&conn, &format!("SELECT kind FROM event WHERE id = {next}")),
+                4352,
+                "{} does not start with a rotation row",
+                row.file
+            );
+        }
+        next = count(&conn, "SELECT max(id) FROM event") + 1;
+    }
+    let events: i64 = rows
+        .iter()
+        .map(|row| {
+            let conn = Connection::open(segments.join(&row.file)).unwrap();
+            count(&conn, "SELECT count(*) FROM event WHERE source = 0")
+        })
+        .sum();
+    assert_eq!(events, 20);
 }

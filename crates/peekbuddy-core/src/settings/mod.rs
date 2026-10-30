@@ -210,8 +210,18 @@ pub fn to_toml(settings: &Settings) -> Result<String, String> {
 /// The file written on first run: nothing watched, first-run flag set.
 #[must_use]
 pub fn default_toml() -> String {
-    to_toml(&Settings::default()).unwrap_or_default()
+    let mut settings = Settings::default();
+    // The caps of a fresh install are written out, so they are visible and
+    // editable; a file without them has no caps.
+    settings.store.max_age_days = Some(DEFAULT_MAX_AGE_DAYS);
+    settings.store.max_total_mb = Some(DEFAULT_MAX_TOTAL_MB);
+    to_toml(&settings).unwrap_or_default()
 }
+
+/// The retention age written to a new settings file: 30 days.
+pub const DEFAULT_MAX_AGE_DAYS: u32 = 30;
+/// The retention size written to a new settings file: 2 GB.
+pub const DEFAULT_MAX_TOTAL_MB: u64 = 2048;
 
 #[cfg(test)]
 mod tests {
