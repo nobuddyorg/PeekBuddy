@@ -287,10 +287,13 @@ jobs:
             # First run: an empty local gh-pages branch for the action to
             # commit into; its push creates the remote branch.
             echo "no gh-pages branch yet: no baseline"
+            # Not `git switch -` below: the checkout is detached and has no
+            # previous branch to go back to.
+            start="$(git rev-parse HEAD)"
             git switch --orphan gh-pages
             git -c user.name=github-actions -c user.email=github-actions@github.com \
               commit --allow-empty -m "chore: start gh-pages for the bench trend"
-            git switch --detach -
+            git switch --detach "${start}"
             echo "exists=false" >> "${GITHUB_OUTPUT}"
           fi
       - name: Bench trend
