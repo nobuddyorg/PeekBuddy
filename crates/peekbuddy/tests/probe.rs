@@ -152,7 +152,8 @@ fn diagnostics_full_shows_the_data_directory() {
     );
 }
 
-/// The engine proper, without the shell: ready well inside five seconds.
+/// The engine proper, without the shell, becomes ready. The bound only catches a
+/// hang: hosted runners need 5 s and more (#196), the budget is the perf job.
 #[test]
 fn a_headless_engine_is_ready_quickly() {
     let dir = TestDir::new("probe-headless-ready").unwrap();
@@ -168,5 +169,5 @@ fn a_headless_engine_is_ready_quickly() {
     let ready = milestone(&document, "EngineReady")["firstUs"]
         .as_u64()
         .unwrap();
-    assert!(ready > 0 && ready < 5_000_000, "ready after {ready} us");
+    assert!(ready > 0 && ready < 30_000_000, "ready after {ready} us");
 }
