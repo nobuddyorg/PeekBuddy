@@ -65,4 +65,3 @@ the attribute-only opener of `peekbuddy_win::fs`.
 - the reconcile walk lists a junction as an entry and does not enter it, on the
   baseline and on the walk after a restart;
 - a junction to its own root neither loops nor produces a path through it.
-
