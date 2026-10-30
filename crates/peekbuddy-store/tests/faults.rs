@@ -89,8 +89,13 @@ fn open_writer(db: &Path) -> Writer {
 fn push(producer: &Producer, first: u64, count: u64) -> bool {
     let mut batch = producer.new_batch();
     for ts in first..first + count {
+        // A long name: every batch needs new pages, so a frozen database size
+        // fails the commit at once instead of after the free pages are used.
         batch
-            .push(event(ts), &units(&format!("d\\f{ts}.txt")))
+            .push(
+                event(ts),
+                &units(&format!("d\\f{ts}-{}.txt", "x".repeat(200))),
+            )
             .unwrap();
     }
     matches!(producer.push(batch), Push::Overflow(_))
