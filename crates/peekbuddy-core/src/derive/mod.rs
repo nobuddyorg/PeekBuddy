@@ -660,8 +660,7 @@ impl Deriver {
             burst
                 .paths
                 .get(i)
-                .map(|p| p.display.clone())
-                .unwrap_or_default()
+                .map_or_else(Vec::new, |p| p.display.clone())
         };
         DisplayItem::Group(Group {
             kind,

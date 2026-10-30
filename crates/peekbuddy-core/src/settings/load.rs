@@ -143,8 +143,7 @@ fn from_issue(text: &str, issue: Issue) -> Problem {
         .key_path
         .rsplit('.')
         .next()
-        .map(|part| part.split('[').next().unwrap_or(part))
-        .unwrap_or_default();
+        .map_or("", |part| part.split('[').next().unwrap_or(part));
     let offset = issue
         .value
         .as_deref()

@@ -373,8 +373,7 @@ pub fn scan(dir: &Path) -> std::io::Result<Scan> {
             Err(reason) => out.skipped.push(Skipped {
                 file: path
                     .file_name()
-                    .map(|n| n.to_string_lossy().into_owned())
-                    .unwrap_or_default(),
+                    .map_or_else(String::new, |n| n.to_string_lossy().into_owned()),
                 reason,
             }),
         }
