@@ -19,6 +19,7 @@ pub mod pause;
 pub mod perf;
 pub mod query;
 pub mod reconcile;
+pub mod reparse;
 pub mod settings;
 pub mod usn;
 
