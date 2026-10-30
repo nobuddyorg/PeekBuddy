@@ -15,9 +15,9 @@ e2e = { max-threads = 2 }
 filter = "binary(/^fs_serial/)"
 test-group = "fs-serial"
 
-# The zero-loss suite runs the whole engine under a 50,000-operation burst.
+# The zero-loss and kill suites run the whole engine under churn.
 [[profile.default.overrides]]
-filter = "binary(fs_serial_zero_loss)"
+filter = "binary(fs_serial_zero_loss) | binary(fs_serial_kill)"
 slow-timeout = { period = "60s", terminate-after = 5 }
 
 # The e2e override joins when the first e2e test binary exists (nextest
