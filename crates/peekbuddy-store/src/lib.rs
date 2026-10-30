@@ -7,6 +7,7 @@
 
 pub mod batch;
 pub mod catalog;
+pub mod export;
 pub mod ids;
 pub mod interner;
 pub mod names;

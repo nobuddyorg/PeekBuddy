@@ -5,3 +5,4 @@
 - [Fuzzing](fuzzing.md): add a fuzz target and reproduce a crash.
 - [Profile PeekBuddy](profile.md): pick the tool for a CPU, wakeup, heap or frame question.
 - [Churn generator](churn.md): workload profiles, ledger format and comparator.
+- [Export the log](export.md): CSV and JSON Lines, with the column reference.

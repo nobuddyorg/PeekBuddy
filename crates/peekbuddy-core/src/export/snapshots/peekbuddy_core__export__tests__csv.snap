@@ -1,0 +1,17 @@
+---
+source: crates/peekbuddy-core/src/export/tests.rs
+expression: "text.replace(\"\\r\\n\", \"<CRLF>\\n\")"
+---
+id,ts_utc,ts_local,kind,source,path,old_path,is_dir,size,attrs,raw_mask,file_id,root,marker,flags,path_utf16,old_path_utf16,root_utf16<CRLF>
+1,2026-10-30T12:34:56.1234567Z,2026-10-30T13:34:56.1234567+01:00,created,rdcw,C:\Watched\a.txt,,false,10,32,0x00000001,0000000000000000000000000000abcd,C:\Watched,,0,,,<CRLF>
+2,2026-10-30T12:34:56.1234568Z,2026-10-30T13:34:56.1234568+01:00,modified,usn,"C:\Watched\dir\b,with comma.txt",,false,10,32,0x00000001,0000000000000000000000000000abcd,C:\Watched,,0,,,<CRLF>
+3,2026-10-30T12:34:56.1234569Z,2026-10-30T13:34:56.1234569+01:00,deleted,rdcw,"C:\Watched\say ""hi"".txt",,false,10,32,0x00000001,0000000000000000000000000000abcd,C:\Watched,,0,,,<CRLF>
+4,2026-10-30T12:34:56.1234570Z,2026-10-30T13:34:56.1234570+01:00,renamed_to,rdcw,C:\Watched\new.txt,C:\Watched\old.txt,false,10,32,0x00000001,0000000000000000000000000000abcd,C:\Watched,,0,,,<CRLF>
+5,2026-10-30T12:34:56.1234571Z,2026-10-30T13:34:56.1234571+01:00,reconciled_created,reconcile,C:\Watched\r.txt,,false,,,0x00000001,0000000000000000000000000000abcd,C:\Watched,reconcile,0,,,<CRLF>
+6,2026-10-30T12:34:56.1234572Z,2026-10-30T13:34:56.1234572+01:00,overflow:buffer_overflow,system,,,false,10,32,0x00000001,0000000000000000000000000000abcd,C:\Watched,gap,0,,,<CRLF>
+7,2026-10-30T12:34:56.1234573Z,2026-10-30T13:34:56.1234573+01:00,watch_state:live,system,,,false,10,32,0x00000001,0000000000000000000000000000abcd,C:\Watched,,0,,,<CRLF>
+8,2026-10-30T12:34:56.1234574Z,2026-10-30T13:34:56.1234574+01:00,created,rdcw,"C:\Watched\two
+lines.txt",,false,10,32,0x00000001,0000000000000000000000000000abcd,C:\Watched,,0,,,<CRLF>
+9,2026-10-30T12:34:56.1234575Z,2026-10-30T13:34:56.1234575+01:00,created,rdcw,C:\Watched\א‮gnp.exe,,true,10,32,0x00000001,0000000000000000000000000000abcd,C:\Watched,,0,,,<CRLF>
+10,2026-10-30T12:34:56.1234576Z,2026-10-30T13:34:56.1234576+01:00,created,rdcw,C:\Watched\=cmd|calc.txt,,false,10,32,0x00000001,0000000000000000000000000000abcd,C:\Watched,,0,,,<CRLF>
+11,2026-10-30T12:34:56.1234577Z,2026-10-30T13:34:56.1234577+01:00,created,rdcw,C:\Watched\bad�.txt,,false,10,32,0x00000001,0000000000000000000000000000abcd,C:\Watched,,0,C:\\Watched\\bad\u{D800}.txt,,<CRLF>
