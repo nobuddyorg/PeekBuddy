@@ -102,6 +102,15 @@ pub const PROFILES: &[Profile] = &[
         names: Names::Ascii,
     },
     Profile {
+        name: "burst-50k",
+        mix: PERF_MIX,
+        rate: Rate::Burst {
+            events: 50_000,
+            within_s: 10,
+        },
+        names: Names::Ascii,
+    },
+    Profile {
         name: "sustained-20k",
         mix: PERF_MIX,
         rate: Rate::Steady {
@@ -174,7 +183,13 @@ mod tests {
 
     #[test]
     fn profiles_are_found_by_name() {
-        for name in ["burst-100k", "sustained-20k", "latency-10k", "edge-mix"] {
+        for name in [
+            "burst-100k",
+            "burst-50k",
+            "sustained-20k",
+            "latency-10k",
+            "edge-mix",
+        ] {
             assert_eq!(profile(name).map(|p| p.name), Some(name));
         }
         assert!(profile("nope").is_none());

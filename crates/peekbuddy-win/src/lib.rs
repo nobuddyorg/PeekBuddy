@@ -47,6 +47,8 @@ mod sid;
 #[cfg(windows)]
 pub mod single_instance;
 #[cfg(windows)]
+pub mod suspend;
+#[cfg(windows)]
 pub mod timer;
 #[cfg(windows)]
 pub mod token;

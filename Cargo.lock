@@ -859,6 +859,7 @@ dependencies = [
  "embed-manifest",
  "jsonschema",
  "peekbuddy-alloc",
+ "peekbuddy-churn",
  "peekbuddy-core",
  "peekbuddy-engine",
  "peekbuddy-store",
