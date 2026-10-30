@@ -74,6 +74,11 @@ file record by record and removes it.
   pipeline is closed while the writer is failing, the group it holds is
   appended to the spill file and replayed at the next start; ids around that
   shutdown may then not follow capture order (the `ts` column does).
+- A reader that holds a snapshot keeps the WAL from being reset. Ingest goes
+  on and the log grows; when a passive checkpoint cannot catch up with the log
+  and the file is past twice `wal_checkpoint_bytes` (64 MiB by default),
+  `Stats::wal_blocked` is set. It clears with the first checkpoint that
+  catches up after the reader has let go.
 - If the spill cannot be written either (disk full), the batch is dropped and
   counted in `lost_batches`. The engine must record a gap row and ask for a
   reconcile: a loss is allowed only when it is detected (F2).

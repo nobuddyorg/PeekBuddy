@@ -329,3 +329,46 @@ fn a_reader_holding_a_snapshot_stops_the_wal_resetting_until_it_lets_go() {
     );
     assert!(integrity_ok(&dirs.db()));
 }
+
+#[test]
+fn a_stuck_reader_is_reported_while_ingest_goes_on_and_clears_when_it_lets_go() {
+    let dirs = Dirs::new("stuck");
+    let mut config = Config::new(dirs.spill());
+    config.ring_batches = 8;
+    // A small threshold so the test does not write 64 MiB.
+    config.wal_checkpoint_bytes = 256 * 1024;
+    let pipeline = Pipeline::start(open_writer(&dirs.db()), config).unwrap();
+    let producer = pipeline.producer();
+    push(&producer, 1, 50);
+    pipeline.flush(Duration::from_secs(30)).unwrap();
+
+    // A viewer that opened a snapshot and never closed it.
+    let reader = Connection::open(dirs.db()).unwrap();
+    reader.execute_batch("BEGIN").unwrap();
+    let seen: i64 = reader
+        .query_row("SELECT count(*) FROM event", [], |row| row.get(0))
+        .unwrap();
+    assert_eq!(seen, 50);
+
+    let mut next = 51;
+    wait_for("the stuck reader to be reported", || {
+        push(&producer, next, 20);
+        next += 20;
+        pipeline.stats().wal_blocked
+    });
+    // Ingest went on: more rows are committed than the reader sees.
+    pipeline.flush(Duration::from_secs(60)).unwrap();
+    assert!(pipeline.stats().rows > 50);
+    assert_eq!(pipeline.stats().lost_batches, 0);
+
+    // The reader lets go: the next checkpoints reset the log and clear it.
+    reader.execute_batch("COMMIT").unwrap();
+    wait_for("the report to clear", || {
+        push(&producer, next, 20);
+        next += 20;
+        !pipeline.stats().wal_blocked
+    });
+    pipeline.flush(Duration::from_secs(60)).unwrap();
+    drop(pipeline.close());
+    assert!(integrity_ok(&dirs.db()));
+}

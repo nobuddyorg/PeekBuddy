@@ -92,8 +92,8 @@ What the store promises, and what its tests may therefore assert:
   connection).
 - **A reader that holds a snapshot** keeps the WAL from resetting; ingest
   continues, the log grows, and it is reused once the reader lets go
-  (`tests/faults.rs`). A health event for a reader stuck past a threshold is
-  not implemented.
+  (`tests/faults.rs`). A reader that holds it past twice the checkpoint
+  threshold shows as `Stats::wal_blocked` until it lets go.
 
 The end-to-end proof of zero undetected loss is described in
 [docs/explanation/zero-undetected-loss.md](docs/explanation/zero-undetected-loss.md);

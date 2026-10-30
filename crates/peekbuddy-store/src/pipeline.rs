@@ -82,6 +82,9 @@ pub struct Config {
     pub spill_dir: PathBuf,
     /// Callbacks.
     pub hooks: Hooks,
+    /// WAL size that triggers a passive checkpoint. A log twice that size
+    /// after a checkpoint means a reader holds it ([`Stats::wal_blocked`]).
+    pub wal_checkpoint_bytes: u64,
 }
 
 impl Config {
@@ -95,6 +98,7 @@ impl Config {
             ring_batches: 700,
             spill_dir,
             hooks: Hooks::default(),
+            wal_checkpoint_bytes: WAL_CHECKPOINT_BYTES,
         }
     }
 }
@@ -126,6 +130,10 @@ pub struct Stats {
     pub ring_high_water: usize,
     /// Commits that failed, attempts included.
     pub commit_failures: u64,
+    /// A reader holds a snapshot that keeps the WAL from being reset: the
+    /// log is at least twice the checkpoint size after a checkpoint. Ingest
+    /// continues and the log grows; the state clears when the reader lets go.
+    pub wal_blocked: bool,
     /// The writer cannot commit right now and keeps retrying (a full disk,
     /// a read-only file). Pushes overflow to the spill file meanwhile; the
     /// state clears itself with the first commit that works.
@@ -165,6 +173,7 @@ struct Shared {
     lost: AtomicU64,
     failures: AtomicU64,
     failing: AtomicBool,
+    wal_blocked: AtomicBool,
 }
 
 fn lock<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
@@ -325,6 +334,7 @@ impl Pipeline {
             lost: AtomicU64::new(0),
             failures: AtomicU64::new(0),
             failing: AtomicBool::new(false),
+            wal_blocked: AtomicBool::new(false),
         });
         let (for_writer, for_spiller) = (Arc::clone(&shared), Arc::clone(&shared));
         let spiller = std::thread::Builder::new()
@@ -332,7 +342,15 @@ impl Pipeline {
             .spawn(move || spill_loop(&for_spiller))?;
         let writer = std::thread::Builder::new()
             .name(String::from("writer"))
-            .spawn(move || write_loop(writer, &for_writer, &config.policy, &config.hooks))?;
+            .spawn(move || {
+                write_loop(
+                    writer,
+                    &for_writer,
+                    &config.policy,
+                    &config.hooks,
+                    config.wal_checkpoint_bytes,
+                )
+            })?;
         Ok(Self {
             shared,
             writer: Some(writer),
@@ -359,6 +377,7 @@ impl Pipeline {
             ring_high_water: lock(&self.shared.state).high_water,
             commit_failures: self.shared.failures.load(Ordering::Relaxed),
             failing: self.shared.failing.load(Ordering::Relaxed),
+            wal_blocked: self.shared.wal_blocked.load(Ordering::Relaxed),
         }
     }
 
@@ -586,7 +605,13 @@ fn next_work(
     }
 }
 
-fn write_loop(mut writer: Writer, shared: &Shared, policy: &Policy, hooks: &Hooks) -> Writer {
+fn write_loop(
+    mut writer: Writer,
+    shared: &Shared,
+    policy: &Policy,
+    hooks: &Hooks,
+    wal_checkpoint_bytes: u64,
+) -> Writer {
     let clock = Instant::now();
     let mut pending = Pending::new();
     let mut replay = Batch::standard();
@@ -625,8 +650,16 @@ fn write_loop(mut writer: Writer, shared: &Shared, policy: &Policy, hooks: &Hook
                 commit_group(&mut writer, shared, hooks, &mut batches, &target);
                 dirty_since.get_or_insert_with(Instant::now);
                 // Between batches under sustained churn: size-triggered.
-                if writer.wal_bytes() >= WAL_CHECKPOINT_BYTES {
-                    let _ = writer.checkpoint_passive();
+                if writer.wal_bytes() >= wal_checkpoint_bytes {
+                    // A checkpoint that cannot catch up with the log while the
+                    // file is past twice the threshold: a reader holds a
+                    // snapshot. The file keeps its size after the log is
+                    // reset, so the checkpoint's own answer decides.
+                    if let Ok((log, done)) = writer.checkpoint_passive() {
+                        let blocked = done < log
+                            && writer.wal_bytes() >= wal_checkpoint_bytes.saturating_mul(2);
+                        shared.wal_blocked.store(blocked, Ordering::Relaxed);
+                    }
                     dirty_since = None;
                 }
             }
