@@ -70,8 +70,47 @@ file record by record and removes it.
   counted in `lost_batches`. The engine must record a gap row and ask for a
   reconcile: a loss is allowed only when it is detected (F2).
 
+## Day segments and retention (#54)
+
+One file per local day, `events-YYYY-MM-DD.db` (and `events-YYYY-MM-DD.N.db`
+when the size cap, 1 GiB, forces another rotation within a day), next to a
+small `catalog.db`. The event id is **one sequence across all files**, so a
+cursor works across them and retention only ever removes whole oldest files.
+The catalog lists each segment with its id range, times, rows and size; it is
+a cache and is rebuilt from the files at start. The dictionary is repeated in
+every segment (ADR 0017).
+
+- **Rotation** happens when the first event of a later local day arrives, or
+  when the file is over the cap: never on a timer. The writer checkpoints and
+  closes the file, opens the next one with the same roots registered,
+  carries the spill replay position and the capture cursors over, continues
+  the ids and writes a `SegmentRotated` row first (its `usn` is the last id
+  before, `size` the rows, the name the new file). A clock that moves back
+  keeps writing in the open file; an empty file is dropped, not sealed.
+- **Sealing** runs on a background thread with its own connection:
+  `PRAGMA optimize`, then the segment is marked sealed in the catalog. A
+  sealed segment is never written again.
+- **Retention** (`[store] max_age_days`, `max_total_mb`, `max_rows`) runs
+  after a rotation and at start, deleting the oldest sealed files. The newest
+  segment and any unsealed one are never deleted. Each deletion is a
+  `RetentionPurged` row (`usn` the first id, `size` the rows, `file_id` the
+  bytes, the name the file), written with the next commit.
+- **Retirement handshake**: before a file is deleted the viewer is asked to
+  close it (`Retire::announce`); a delete that fails because the file is still
+  open (Windows does not let SQLite's files be deleted while open) or that is
+  not acknowledged is deferred, remembered in the catalog (`purge_pending`)
+  and tried again at the next rotation or start. There is no viewer yet, so
+  the engine uses a handshake that always acknowledges; the IPC message comes
+  with the viewer (#65).
+- **Readers** walk the catalog newest first with one read-only connection at a
+  time (`segment::NewestFirst`). A segment that was retired in the meantime
+  is a `Retired` step, not an error.
+- **Start** reads the directory: a file with a segment name that is not a
+  usable segment (garbage, a foreign `application_id`, a newer schema) is
+  skipped, left untouched and written to `logs\segments.log`.
+
 ## What this layer does not do
 
 - No coalescing or de-duplication: one row per raw record.
-- No segment rotation or retention (#54), no read paths (#55), no export (#56).
+- No read paths (#55), no export (#56).
 - Settings changes are not applied to the capture layer yet (#68).

@@ -173,6 +173,8 @@ pub enum StoreError {
     },
     /// `meta.schema_version` is not a valid version.
     BadVersion,
+    /// The file system, the catalog or a lock failed (#54).
+    Io(String),
 }
 
 impl fmt::Display for StoreError {
@@ -191,6 +193,7 @@ impl fmt::Display for StoreError {
                 )
             }
             Self::BadVersion => f.write_str("meta.schema_version is not a valid version"),
+            Self::Io(message) => write!(f, "segment storage failed: {message}"),
         }
     }
 }

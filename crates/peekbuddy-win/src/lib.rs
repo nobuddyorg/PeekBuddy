@@ -23,6 +23,8 @@ pub mod console;
 #[cfg(windows)]
 pub mod job;
 #[cfg(windows)]
+pub mod localtime;
+#[cfg(windows)]
 pub mod osinfo;
 #[cfg(windows)]
 pub mod pipe;
