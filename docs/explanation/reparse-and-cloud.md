@@ -55,4 +55,3 @@ must carry `FILE_FLAG_OPEN_NO_RECALL`, which is now on by default. A caller that
 turns it off gets an error, not a handle. `cargo xtask check-deps` fails on a
 `CreateFileW` call anywhere in the workspace outside the directory helper and
 the attribute-only opener of `peekbuddy_win::fs`.
-
