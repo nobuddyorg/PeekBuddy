@@ -424,9 +424,12 @@ impl Machine {
             Signal::Armed => {
                 if state == Arming {
                     // The engine start: the first thing a watch does is
-                    // compare the tree with what was known (#46).
+                    // compare the tree with what was known (#46). The time
+                    // the engine was not running is a gap, and it is written
+                    // as one (F2); a first run has no snapshot, so the walk
+                    // writes nothing then.
                     self.reconcile_wanted = false;
-                    out.push(Action::Reconcile(None));
+                    out.push(Action::Reconcile(Some(GapReason::EngineNotRunning)));
                     self.go(Live, Reason::Armed, &mut out);
                 }
             }
