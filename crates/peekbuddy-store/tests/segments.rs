@@ -12,6 +12,7 @@ use peekbuddy_store::retention::{Caps, NoViewer, Retire};
 use peekbuddy_store::segment::{DayFn, DayKey, NewestFirst, Rotation, Step};
 use peekbuddy_store::writer::{Cursor, RootInfo, SegmentsConfig, VolInfo, Writer};
 use proptest::prelude::*;
+use proptest::test_runner::{Config as ProptestConfig, TestRunner};
 use rusqlite::Connection;
 
 /// 100 ns ticks per hour.
@@ -506,61 +507,80 @@ fn dst_days(lengths: &[u64]) -> DayFn {
     })
 }
 
-// Four cases: each rotates real files, which is slow on a hosted runner; the
-// nightly proptest-long job runs many more.
-proptest! {
-    #![proptest_config(ProptestConfig { cases: 4, ..ProptestConfig::default() })]
+/// Cases for the heavy property tests. `PROPTEST_CASES` (256 in CI) is far too
+/// many for a test that writes database files, and the `proptest!` macro lets
+/// it override any explicit count, so these tests run a `TestRunner` of their
+/// own: four cases by default, `PEEKBUDDY_HEAVY_CASES` for the nightly job.
+fn heavy_cases() -> u32 {
+    std::env::var("PEEKBUDDY_HEAVY_CASES")
+        .ok()
+        .and_then(|text| text.parse().ok())
+        .unwrap_or(4)
+}
 
-    #[test]
-    fn rotation_keeps_the_invariants_with_dst_days_and_a_wandering_clock(
-        lengths in proptest::collection::vec(prop_oneof![Just(23_u64), Just(24), Just(25)], 28),
-        steps in proptest::collection::vec((0_u64..30, any::<bool>(), 1_usize..4), 5..40),
-        cap in prop_oneof![Just(u64::MAX), Just(1_u64), Just(30_000_u64)],
-    ) {
-        let dir = Dir::new(&format!("prop{}", rand_tag()));
-        let day_of = dst_days(&lengths);
-        let mut writer = open(dir.path(), Arc::clone(&day_of), cap, Caps::default(), 1);
-        let mut ts = 1_u64;
-        let mut pushed = 0_u64;
-        for (hours, backwards, count) in steps {
-            // Mostly forward in hours; sometimes the clock steps back.
-            ts = if backwards { ts.saturating_sub(hours * HOUR / 2) } else { ts + hours * HOUR };
-            let stamps: Vec<u64> = (0..count as u64).map(|i| ts + i).collect();
-            writer.write(&[batch(&stamps)], &[]).unwrap();
-            pushed += count as u64;
-        }
-        writer.wait_background();
-        writer.flush_system_rows().unwrap();
-
-        // Every segment, oldest first, with its rows.
-        let catalog = Catalog::open(&dir.path().join("catalog.db")).unwrap();
-        let rows = catalog.list().unwrap();
-        let mut all: Vec<i64> = Vec::new();
-        let mut events = 0_i64;
-        for (index, row) in rows.iter().enumerate() {
-            let path = dir.path().join(&row.file);
-            let in_file = ids(&path);
-            // The catalog row describes the file as it is when it is sealed.
-            if row.sealed {
-                prop_assert_eq!(in_file.first().copied(), Some(row.first_id));
-                prop_assert_eq!(in_file.last().copied(), Some(row.last_id));
-                prop_assert!(index + 1 < rows.len(), "the newest segment is sealed");
+#[test]
+fn rotation_keeps_the_invariants_with_dst_days_and_a_wandering_clock() {
+    let mut runner = TestRunner::new(ProptestConfig {
+        cases: heavy_cases(),
+        ..ProptestConfig::default()
+    });
+    let strategy = (
+        proptest::collection::vec(prop_oneof![Just(23_u64), Just(24), Just(25)], 28),
+        proptest::collection::vec((0_u64..30, any::<bool>(), 1_usize..4), 5..40),
+        prop_oneof![Just(u64::MAX), Just(1_u64), Just(30_000_u64)],
+    );
+    runner
+        .run(&strategy, |(lengths, steps, cap)| {
+            let dir = Dir::new(&format!("prop{}", rand_tag()));
+            let day_of = dst_days(&lengths);
+            let mut writer = open(dir.path(), Arc::clone(&day_of), cap, Caps::default(), 1);
+            let mut ts = 1_u64;
+            let mut pushed = 0_u64;
+            for (hours, backwards, count) in steps {
+                // Mostly forward in hours; sometimes the clock steps back.
+                ts = if backwards {
+                    ts.saturating_sub(hours * HOUR / 2)
+                } else {
+                    ts + hours * HOUR
+                };
+                let stamps: Vec<u64> = (0..count as u64).map(|i| ts + i).collect();
+                writer.write(&[batch(&stamps)], &[]).unwrap();
+                pushed += count as u64;
             }
-            events += count(&path, "SELECT count(*) FROM event WHERE source = 0");
-            all.extend(in_file);
-        }
-        // One contiguous, strictly increasing sequence across the files;
-        // every event is in exactly one file.
-        let expected: Vec<i64> = (1..=i64::try_from(all.len()).unwrap()).collect();
-        prop_assert_eq!(&all, &expected);
-        prop_assert_eq!(events, i64::try_from(pushed).unwrap());
-        // File names are unique and the zone-edge cases never reopened a
-        // sealed file: a sealed file's range is final.
-        let mut names: Vec<&String> = rows.iter().map(|r| &r.file).collect();
-        names.sort();
-        names.dedup();
-        prop_assert_eq!(names.len(), rows.len());
-    }
+            writer.wait_background();
+            writer.flush_system_rows().unwrap();
+
+            // Every segment, oldest first, with its rows.
+            let catalog = Catalog::open(&dir.path().join("catalog.db")).unwrap();
+            let rows = catalog.list().unwrap();
+            let mut all: Vec<i64> = Vec::new();
+            let mut events = 0_i64;
+            for (index, row) in rows.iter().enumerate() {
+                let path = dir.path().join(&row.file);
+                let in_file = ids(&path);
+                // The catalog row describes the file as it is when it is sealed.
+                if row.sealed {
+                    prop_assert_eq!(in_file.first().copied(), Some(row.first_id));
+                    prop_assert_eq!(in_file.last().copied(), Some(row.last_id));
+                    prop_assert!(index + 1 < rows.len(), "the newest segment is sealed");
+                }
+                events += count(&path, "SELECT count(*) FROM event WHERE source = 0");
+                all.extend(in_file);
+            }
+            // One contiguous, strictly increasing sequence across the files;
+            // every event is in exactly one file.
+            let expected: Vec<i64> = (1..=i64::try_from(all.len()).unwrap()).collect();
+            prop_assert_eq!(&all, &expected);
+            prop_assert_eq!(events, i64::try_from(pushed).unwrap());
+            // File names are unique and the zone-edge cases never reopened a
+            // sealed file: a sealed file's range is final.
+            let mut names: Vec<&String> = rows.iter().map(|r| &r.file).collect();
+            names.sort();
+            names.dedup();
+            prop_assert_eq!(names.len(), rows.len());
+            Ok(())
+        })
+        .unwrap();
 }
 
 fn rand_tag() -> u64 {

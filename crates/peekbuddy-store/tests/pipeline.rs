@@ -13,6 +13,7 @@ use peekbuddy_store::pipeline::{Config, Hooks, Pipeline, Push};
 use peekbuddy_store::policy::Policy;
 use peekbuddy_store::writer::{Cursor, RootInfo, VolInfo, Writer};
 use proptest::prelude::*;
+use proptest::test_runner::{Config as ProptestConfig, TestRunner};
 use rusqlite::Connection;
 
 fn event(ts: u64) -> Event {
@@ -400,50 +401,62 @@ fn start_with_gate(dirs: &Dirs, stalled: &Arc<AtomicBool>) -> Pipeline {
     Pipeline::start(open_writer(&dirs.db()), config).unwrap()
 }
 
-// Four cases: each one writes real database files, and on a hosted runner the
-// 24 it had took between 40 and 120 s, the nextest limit (#184), and eight
-// were still near 50 s with the segment writer around. The nightly
-// proptest-long job runs it with many more.
-proptest! {
-    #![proptest_config(ProptestConfig { cases: 4, .. ProptestConfig::default() })]
+/// Cases for the heavy property tests. `PROPTEST_CASES` (256 in CI) is far too
+/// many for a test that writes database files, and the `proptest!` macro lets
+/// it override any explicit count, so these tests run a `TestRunner` of their
+/// own: four cases by default, `PEEKBUDDY_HEAVY_CASES` for the nightly job.
+fn heavy_cases() -> u32 {
+    std::env::var("PEEKBUDDY_HEAVY_CASES")
+        .ok()
+        .and_then(|text| text.parse().ok())
+        .unwrap_or(4)
+}
 
-    #[test]
-    fn any_interleaving_gives_every_pushed_row_exactly_once_in_order(ops in ops()) {
-        let dirs = Dirs::new(&format!("prop{}", rand_tag()));
-        let stalled = Arc::new(AtomicBool::new(false));
-        let mut pipeline = start_with_gate(&dirs, &stalled);
-        let mut next_ts = 1u64;
-        let mut pushed: Vec<u64> = Vec::new();
-        for op in ops {
-            match op {
-                Op::Push(count) => {
-                    let producer = pipeline.producer();
-                    let count = u64::from(count);
-                    push_events(&producer, next_ts, count);
-                    pushed.extend(next_ts..next_ts + count);
-                    next_ts += count;
-                }
-                Op::Stall => stalled.store(true, Ordering::Release),
-                Op::Resume => stalled.store(false, Ordering::Release),
-                Op::Flush => {
-                    stalled.store(false, Ordering::Release);
-                    pipeline.flush(Duration::from_secs(30)).unwrap();
-                }
-                Op::Restart => {
-                    // A restart after a flush: nothing in flight is lost.
-                    stalled.store(false, Ordering::Release);
-                    pipeline.flush(Duration::from_secs(30)).unwrap();
-                    drop(pipeline.close());
-                    pipeline = start_with_gate(&dirs, &stalled);
+#[test]
+fn any_interleaving_gives_every_pushed_row_exactly_once_in_order() {
+    let mut runner = TestRunner::new(ProptestConfig {
+        cases: heavy_cases(),
+        ..ProptestConfig::default()
+    });
+    runner
+        .run(&ops(), |ops| {
+            let dirs = Dirs::new(&format!("prop{}", rand_tag()));
+            let stalled = Arc::new(AtomicBool::new(false));
+            let mut pipeline = start_with_gate(&dirs, &stalled);
+            let mut next_ts = 1u64;
+            let mut pushed: Vec<u64> = Vec::new();
+            for op in ops {
+                match op {
+                    Op::Push(count) => {
+                        let producer = pipeline.producer();
+                        let count = u64::from(count);
+                        push_events(&producer, next_ts, count);
+                        pushed.extend(next_ts..next_ts + count);
+                        next_ts += count;
+                    }
+                    Op::Stall => stalled.store(true, Ordering::Release),
+                    Op::Resume => stalled.store(false, Ordering::Release),
+                    Op::Flush => {
+                        stalled.store(false, Ordering::Release);
+                        pipeline.flush(Duration::from_secs(30)).unwrap();
+                    }
+                    Op::Restart => {
+                        // A restart after a flush: nothing in flight is lost.
+                        stalled.store(false, Ordering::Release);
+                        pipeline.flush(Duration::from_secs(30)).unwrap();
+                        drop(pipeline.close());
+                        pipeline = start_with_gate(&dirs, &stalled);
+                    }
                 }
             }
-        }
-        stalled.store(false, Ordering::Release);
-        pipeline.flush(Duration::from_secs(30)).unwrap();
-        drop(pipeline.close());
-        prop_assert_eq!(stored_ts(&dirs.db()), pushed);
-        prop_assert!(ids_are_contiguous(&dirs.db()));
-    }
+            stalled.store(false, Ordering::Release);
+            pipeline.flush(Duration::from_secs(30)).unwrap();
+            drop(pipeline.close());
+            prop_assert_eq!(stored_ts(&dirs.db()), pushed);
+            prop_assert!(ids_are_contiguous(&dirs.db()));
+            Ok(())
+        })
+        .unwrap();
 }
 
 fn rand_tag() -> u64 {
