@@ -9,19 +9,23 @@
     reason = "test helpers outside #[test] fns may unwrap"
 )]
 
-mod support;
+#[path = "support/engine.rs"]
+mod engine;
+#[path = "support/judge.rs"]
+mod judge;
 
 use std::collections::BTreeMap;
 use std::path::Path;
 use std::time::Duration;
 
+use engine::{all_rows, quit, spawn, wait_for_window, wait_until_settled};
+use judge::{Run, judge};
 use peekbuddy_churn::exec::windows::{WinClock, WinTarget};
 use peekbuddy_churn::exec::{Config, run};
 use peekbuddy_churn::plan::Shape;
 use peekbuddy_churn::profile::profile;
 use peekbuddy_testkit::TestDir;
 use rusqlite::{Connection, OpenFlags};
-use support::{Run, all_rows, judge, quit, spawn, wait_for_window, wait_until_settled};
 
 /// Kills in the smoke variant; the nightly job runs many more.
 const KILLS: usize = 5;

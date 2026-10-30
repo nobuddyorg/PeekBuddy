@@ -16,9 +16,13 @@ use peekbuddy_churn::plan::Shape;
 use peekbuddy_churn::profile::profile;
 use peekbuddy_testkit::TestDir;
 use peekbuddy_win::suspend::suspend_process;
-mod support;
+#[path = "support/engine.rs"]
+mod engine;
+#[path = "support/judge.rs"]
+mod judge;
 
-use support::{Run, judge, quit, spawn, wait_for_window, wait_until_settled};
+use engine::{quit, spawn, wait_for_window, wait_until_settled};
+use judge::{Run, judge};
 
 /// Starts the engine on a tree, runs the churn, lets the log settle and stops
 /// the engine; returns what the comparator needs.
