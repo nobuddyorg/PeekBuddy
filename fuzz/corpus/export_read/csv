@@ -1,0 +1,2 @@
+id,ts_utc,ts_local,kind,source,path,old_path,is_dir,size,attrs,raw_mask,file_id,root,marker,flags,path_utf16,old_path_utf16,root_utf16
+1,2026-10-30T12:34:56.1234567Z,2026-10-30T12:34:56.1234567+00:00,created,rdcw,C:\a.txt,,false,10,32,0x00000001,0000000000000000000000000000abcd,C:\,,0,,,

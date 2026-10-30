@@ -1,0 +1,6 @@
+version = 1
+[general]
+first_run = false
+[[watch]]
+id = "w0"
+path = 'C:\Users\x\Docs'

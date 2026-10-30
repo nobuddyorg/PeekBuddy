@@ -14,7 +14,7 @@ members = [
   "xtask",
 ]
 # Spikes are throwaway measurement code with their own workspaces.
-exclude = ["spikes"]
+exclude = ["spikes", "fuzz"]
 
 [workspace.package]
 version = "0.0.0"
