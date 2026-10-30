@@ -35,7 +35,8 @@ fn start(data: &Path) -> (Engine, WindowHandle) {
         .spawn()
         .unwrap();
     let class = Names::new(Some(data)).window_class;
-    let deadline = Instant::now() + Duration::from_secs(20);
+    // An instrumented engine on a loaded hosted runner needs more than 20 s (#196).
+    let deadline = Instant::now() + Duration::from_secs(60);
     let window = loop {
         if let Some(window) = WindowHandle::find(&class) {
             break window;
