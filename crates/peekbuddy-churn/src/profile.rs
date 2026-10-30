@@ -193,7 +193,7 @@ mod tests {
             assert_eq!(profile(name).map(|p| p.name), Some(name));
         }
         assert!(profile("nope").is_none());
-        assert_eq!(PROFILES.len(), 4);
+        assert_eq!(PROFILES.len(), 5);
     }
 
     #[test]
