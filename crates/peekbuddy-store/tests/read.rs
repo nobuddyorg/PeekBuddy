@@ -548,8 +548,8 @@ fn name_searches_have_the_documented_results() {
     named(
         &dir,
         &[
-            units("Caf\u{e9}.txt"),
-            units("cafe.txt"),
+            units("Cr\u{e8}me.txt"),
+            units("creme.txt"),
             units("\u{c4}PFEL.md"),
             units("\u{65e5}\u{672c}\u{8a9e}.txt"),
             lone.clone(),
@@ -557,7 +557,7 @@ fn name_searches_have_the_documented_results() {
     );
     let reader = Reader::new(dir.path());
     // Three characters or more: the trigram index folds case and diacritics.
-    assert_eq!(found(&reader, "CAFE"), ["Caf\u{e9}.txt", "cafe.txt"]);
+    assert_eq!(found(&reader, "CREME"), ["Cr\u{e8}me.txt", "creme.txt"]);
     assert_eq!(found(&reader, "\u{e4}pf"), ["\u{c4}PFEL.md"]);
     // Fewer than three: LIKE, which folds ASCII case only.
     assert_eq!(

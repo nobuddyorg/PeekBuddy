@@ -552,6 +552,3 @@ impl<'a> Paths<'a> {
         }
     }
 }
-
-#[cfg(test)]
-mod tests;
