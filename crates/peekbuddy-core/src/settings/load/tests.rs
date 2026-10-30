@@ -37,7 +37,11 @@ fn the_default_file_loads_to_the_default() {
     else {
         panic!("default did not load");
     };
-    assert_eq!(*settings, Settings::default());
+    // A new file also writes the retention caps of a fresh install.
+    let mut expected = Settings::default();
+    expected.store.max_age_days = Some(crate::settings::DEFAULT_MAX_AGE_DAYS);
+    expected.store.max_total_mb = Some(crate::settings::DEFAULT_MAX_TOTAL_MB);
+    assert_eq!(*settings, expected);
     assert_eq!(migrated_from, None);
     assert!(settings.general.first_run);
     assert_eq!(settings.watches, []);

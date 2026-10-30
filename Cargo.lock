@@ -861,6 +861,7 @@ dependencies = [
  "peekbuddy-alloc",
  "peekbuddy-core",
  "peekbuddy-engine",
+ "peekbuddy-store",
  "peekbuddy-testkit",
  "peekbuddy-viewer",
  "peekbuddy-win",

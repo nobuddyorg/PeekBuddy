@@ -6,12 +6,16 @@
 #![forbid(unsafe_code)]
 
 pub mod batch;
+pub mod catalog;
 pub mod ids;
 pub mod interner;
 pub mod names;
 pub mod pipeline;
 pub mod policy;
+pub mod retention;
 pub mod schema;
+pub mod segment;
+pub mod segments;
 pub mod snapshot;
 pub mod spill;
 pub mod writer;

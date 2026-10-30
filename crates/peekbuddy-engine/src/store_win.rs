@@ -5,15 +5,18 @@
 //! Day rotation and retention are #54; this opens the segment of the current
 //! UTC day. Capture (#45) will push batches through [`Store::producer`].
 
+use std::fmt::Write as _;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
-use std::time::{Duration, SystemTime};
+use std::time::Duration;
 
 use peekbuddy_core::event::RootIdx;
 use peekbuddy_core::perf::{CounterSnapshot, Counters};
 use peekbuddy_core::settings::Settings;
 use peekbuddy_store::pipeline::{CommitInfo, Config, Hooks, Pipeline, Producer};
-use peekbuddy_store::writer::{RootInfo, VolInfo, Writer};
+use peekbuddy_store::retention::{Caps, NoViewer};
+use peekbuddy_store::segment::{DEFAULT_SIZE_CAP, DayKey, Rotation};
+use peekbuddy_store::writer::{RootInfo, SegmentsConfig, VolInfo, Writer};
 use peekbuddy_win::io::dir::DirHandle;
 use peekbuddy_win::io::open::OpenOptions;
 use peekbuddy_win::io::path::to_long_path;
@@ -47,12 +50,21 @@ impl std::fmt::Debug for Store {
     }
 }
 
-/// `segments\YYYYMMDD.db` for the current UTC day.
-#[must_use]
-pub fn segment_path(data: &DataDir, now: SystemTime) -> PathBuf {
-    let stamp = crate::crash::utc_stamp(now);
-    data.segments
-        .join(format!("{}.db", stamp.get(..8).unwrap_or("00000000")))
+/// The retention caps of the settings.
+fn caps_of(settings: &Settings) -> Caps {
+    Caps {
+        max_age_days: settings.store.max_age_days,
+        max_total_bytes: settings
+            .store
+            .max_total_mb
+            .map(|mb| mb.saturating_mul(1024 * 1024)),
+        max_rows: settings.store.max_rows,
+    }
+}
+
+/// Now as FILETIME ticks.
+fn now_filetime() -> u64 {
+    crate::pause_ctl::now_ticks().0
 }
 
 fn volume_of(path: &str) -> Option<(VolInfo, Vec<u16>)> {
@@ -87,8 +99,33 @@ impl Store {
         counters: &Arc<Counters>,
         commits: &Arc<Mutex<CommitLog>>,
     ) -> std::io::Result<Self> {
-        let path = segment_path(data, SystemTime::now());
-        let mut writer = Writer::open(&path).map_err(std::io::Error::other)?;
+        let (mut writer, skipped) = Writer::open_segments(
+            SegmentsConfig {
+                rotation: Rotation {
+                    dir: data.segments.clone(),
+                    day_of: Arc::new(|ts| {
+                        let (year, month, day) = peekbuddy_win::localtime::local_day(ts);
+                        DayKey { year, month, day }
+                    }),
+                    size_cap: DEFAULT_SIZE_CAP,
+                },
+                caps: caps_of(settings),
+                retire: Arc::new(NoViewer),
+            },
+            now_filetime(),
+        )
+        .map_err(std::io::Error::other)?;
+        if !skipped.is_empty() {
+            // A health event: the files stay where they are, untouched.
+            let mut text = String::new();
+            for file in &skipped {
+                let _ = writeln!(text, "{} skipped: {}", file.file, file.reason);
+            }
+            let _ = std::fs::write(data.logs.join("segments.log"), text);
+        }
+        let path = data
+            .segments
+            .join(writer.segment_file().unwrap_or("events.db"));
         let mut roots = 0;
         // Paused watches are registered too: pausing and resuming write
         // state rows for them (#63).
@@ -151,6 +188,12 @@ impl Store {
     pub fn close(&mut self) {
         if let Some(pipeline) = self.pipeline.take() {
             self.writer = pipeline.close();
+        }
+        if let Some(writer) = self.writer.as_mut() {
+            // Sealing threads of earlier rotations, and the purge rows they
+            // queued after the last commit.
+            writer.wait_background();
+            let _ = writer.flush_system_rows();
         }
     }
 

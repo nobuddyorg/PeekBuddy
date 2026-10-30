@@ -30,9 +30,9 @@ take effect on the next start: nothing watches the file.
 | `[general] autostart` | bool | false | the intent; the Run key is #63 |
 | `[general] theme` | `system`, `light`, `dark` | `system` | |
 | `[general] first_run` | bool | true | cleared by onboarding (#70) |
-| `[store] max_age_days` | integer 1-36500 | none | no cap when absent |
-| `[store] max_total_mb` | integer >= 1 | none | |
-| `[store] max_rows` | integer >= 1 | none | |
+| `[store] max_age_days` | integer 1-36500 | 30 in a new file | no cap when absent; a segment whose newest event is older goes |
+| `[store] max_total_mb` | integer >= 1 | 2048 in a new file | no cap when absent; the oldest segments go while the total is over |
+| `[store] max_rows` | integer >= 1 | none | no cap when absent; counted over all segments |
 | `[view] coalesce_ms` | integer 50-500 | 150 | |
 | `[view] columns` | list of `time`, `kind`, `path`, `size`, `process`, `volume` | `time`, `kind`, `path` | no repeats, at least one |
 | `[filters] exclude_globs` | list of globs | empty | gitignore style, see [filters](filters.md) |
