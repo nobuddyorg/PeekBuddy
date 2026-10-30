@@ -8,6 +8,11 @@ license.workspace = true
 repository.workspace = true
 publish.workspace = true
 
+[features]
+# The USN journal reader (#47, ADR 0018). Off in v1: the unprivileged read
+# returns no names, so the shipped capture path is RDCW with reconciliation.
+usn = []
+
 [dependencies]
 peekbuddy-core = { workspace = true }
 tracelogging = { workspace = true }

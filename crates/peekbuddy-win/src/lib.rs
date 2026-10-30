@@ -54,6 +54,8 @@ pub mod timer;
 pub mod token;
 #[cfg(windows)]
 pub mod tray;
+#[cfg(all(windows, feature = "usn"))]
+pub mod usn;
 #[cfg(windows)]
 pub mod window;
 
