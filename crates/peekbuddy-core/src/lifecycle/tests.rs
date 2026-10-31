@@ -487,3 +487,96 @@ prop_state_machine! {
     #[test]
     fn any_signal_order_keeps_the_invariants(sequential 1..80 => Sut);
 }
+
+#[test]
+fn each_gap_reason_has_its_own_transition_reason() {
+    for (gap, reason) in [
+        (GapReason::RingFull, Reason::RingFull),
+        (GapReason::ParserError, Reason::ParseError),
+        (GapReason::BufferOverflow, Reason::Overflow),
+        (GapReason::NotifyEnumDir, Reason::Overflow),
+        (GapReason::JournalEntryDeleted, Reason::Overflow),
+        (GapReason::JournalIdChanged, Reason::Overflow),
+        (GapReason::EngineNotRunning, Reason::Overflow),
+    ] {
+        let mut m = live();
+        let out = m.signal(Signal::Gap(gap));
+        assert_eq!(out.transition.unwrap().reason, reason, "{gap:?}");
+    }
+}
+
+#[test]
+fn the_machine_remembers_that_the_user_paused() {
+    let mut m = live();
+    assert!(!m.user_paused());
+    let _ = m.signal(Signal::UserPause);
+    assert!(m.user_paused());
+}
+
+#[test]
+fn volume_events_suspend_a_running_watch_with_their_own_reason() {
+    for (signal, why, reason) in [
+        (Signal::QueryRemove, Why::QueryRemove, Reason::QueryRemove),
+        (Signal::VolumeLock, Why::Locked, Reason::VolumeLocked),
+        (Signal::Dismount, Why::Locked, Reason::VolumeDismounted),
+    ] {
+        let mut m = live();
+        let out = m.signal(signal);
+        assert_eq!(m.state(), State::Suspended(why), "{signal:?}");
+        assert_eq!(out.transition.unwrap().reason, reason, "{signal:?}");
+        assert_eq!(actions(&out), [Action::CloseHandle], "{signal:?}");
+        // The same event again changes nothing.
+        assert_eq!(m.signal(signal), Outcome::default(), "{signal:?}");
+    }
+}
+
+#[test]
+fn a_later_volume_event_replaces_the_reason_without_closing_twice() {
+    let mut m = live();
+    let _ = m.signal(Signal::QueryRemove);
+    let out = m.signal(Signal::VolumeLock);
+    assert_eq!(m.state(), State::Suspended(Why::Locked));
+    assert_eq!(out.transition.unwrap().reason, Reason::VolumeLocked);
+    assert_eq!(actions(&out), Vec::<Action>::new());
+    // Locked already: a dismount is the same suspension, not a new row.
+    assert_eq!(m.signal(Signal::Dismount), Outcome::default());
+}
+
+#[test]
+fn a_lost_watch_does_not_react_to_volume_events() {
+    for signal in [Signal::QueryRemove, Signal::VolumeLock, Signal::Dismount] {
+        let mut m = live();
+        let _ = m.signal(Signal::RootDeleted);
+        assert!(matches!(m.state(), State::Lost(_)));
+        let before = m.state();
+        assert_eq!(m.signal(signal), Outcome::default(), "{signal:?}");
+        assert_eq!(m.state(), before, "{signal:?}");
+    }
+}
+
+#[test]
+fn a_refusal_only_resumes_what_it_refuses() {
+    // The removal that was refused resumes; a failed lock does not.
+    let mut m = live();
+    let _ = m.signal(Signal::QueryRemove);
+    assert_eq!(m.signal(Signal::LockFailed), Outcome::default());
+    assert_eq!(m.state(), State::Suspended(Why::QueryRemove));
+    let out = m.signal(Signal::QueryRemoveFailed);
+    assert_eq!(out.transition.unwrap().reason, Reason::QueryRemoveFailed);
+
+    // A refused removal does not unlock a locked volume.
+    let mut m = live();
+    let _ = m.signal(Signal::VolumeLock);
+    assert_eq!(m.signal(Signal::QueryRemoveFailed), Outcome::default());
+    assert_eq!(m.state(), State::Suspended(Why::Locked));
+    let out = m.signal(Signal::LockFailed);
+    assert_eq!(out.transition.unwrap().reason, Reason::VolumeBack);
+
+    // And a refused removal does not bring back a watch whose device went.
+    let mut m = live();
+    let _ = m.signal(Signal::RemoveComplete);
+    let lost = m.state();
+    assert!(matches!(lost, State::Lost(_)));
+    assert_eq!(m.signal(Signal::QueryRemoveFailed), Outcome::default());
+    assert_eq!(m.state(), lost);
+}
