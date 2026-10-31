@@ -722,7 +722,9 @@ mod tests {
 
     #[test]
     fn a_field_may_be_as_long_as_the_limit_and_no_longer() {
-        let limit = MAX_FIELD;
+        // A literal, so that a change of the constant is seen: one MiB less 64.
+        let limit = 1_048_512;
+        assert_eq!(MAX_FIELD, limit);
         let mut at_limit = u32::try_from(limit).unwrap().to_le_bytes().to_vec();
         at_limit.resize(4 + limit, b'x');
         assert_eq!(Reader(&at_limit).bytes().map(<[u8]>::len), Ok(limit));

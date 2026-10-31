@@ -580,3 +580,13 @@ fn a_refusal_only_resumes_what_it_refuses() {
     assert_eq!(m.signal(Signal::QueryRemoveFailed), Outcome::default());
     assert_eq!(m.state(), lost);
 }
+
+#[test]
+fn a_deleted_root_and_a_moved_root_are_lost_for_their_own_reasons() {
+    let mut m = live();
+    let out = m.signal(Signal::RootDeleted);
+    assert_eq!(out.transition.unwrap().reason, Reason::RootDeleted);
+    let mut m = live();
+    let out = m.signal(Signal::RootMoved);
+    assert_eq!(out.transition.unwrap().reason, Reason::RootMoved);
+}
