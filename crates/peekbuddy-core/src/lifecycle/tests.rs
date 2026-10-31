@@ -590,3 +590,21 @@ fn a_deleted_root_and_a_moved_root_are_lost_for_their_own_reasons() {
     let out = m.signal(Signal::RootMoved);
     assert_eq!(out.transition.unwrap().reason, Reason::RootMoved);
 }
+
+#[test]
+fn a_root_that_goes_while_paused_by_the_user_is_lost_but_not_while_locked() {
+    // Paused by the user: the root is still watched in spirit, so its loss counts.
+    let mut m = live();
+    let _ = m.signal(Signal::UserPause);
+    let out = m.signal(Signal::RootDeleted);
+    assert_eq!(m.state(), State::Lost(Reason::RootDeleted));
+    assert_eq!(out.transition.unwrap().reason, Reason::RootDeleted);
+    // Suspended by a locked volume: the handle is closed and nothing can be said.
+    for signal in [Signal::RootDeleted, Signal::RootMoved] {
+        let mut m = live();
+        let _ = m.signal(Signal::VolumeLock);
+        let before = m.state();
+        assert_eq!(m.signal(signal), Outcome::default(), "{signal:?}");
+        assert_eq!(m.state(), before);
+    }
+}
