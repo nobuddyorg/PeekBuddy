@@ -278,7 +278,9 @@ impl Transition {
             src_ts: 0,
             source: Source::System,
             kind: Kind::WatchStateChanged(self.to.watch_state()),
-            raw_mask: (u32::from(from_byte) << 16) | u32::from(self.reason.code()),
+            // Disjoint bits (the reason code is a byte): `+` equals `|` and has no
+            // equivalent `^` mutant.
+            raw_mask: (u32::from(from_byte) << 16) + u32::from(self.reason.code()),
             source_info: 0,
             is_dir: false,
             size: self.missed,

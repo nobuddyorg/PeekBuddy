@@ -498,8 +498,8 @@ mod tests {
     use proptest::prelude::*;
 
     use super::{
-        Command, Counters, DecodeError, FrameDecoder, MAX_FRAME, Message, PROTOCOL_VERSION,
-        WatchStateCode, decode, encode,
+        Command, Counters, DecodeError, FrameDecoder, MAX_FIELD, MAX_FRAME, Message,
+        PROTOCOL_VERSION, Reader, WatchStateCode, decode, encode,
     };
 
     fn text() -> impl Strategy<Value = String> {
@@ -687,5 +687,52 @@ mod tests {
             assert!(encode(&Message::Resync { from_id: 7 }, &mut out));
         }
         assert_eq!(out.as_ptr(), pointer);
+    }
+    #[test]
+    fn decode_errors_say_what_is_wrong() {
+        for (error, text) in [
+            (DecodeError::BadLength(5), "frame length 5 is out of range"),
+            (DecodeError::UnknownType(77), "unknown message type 77"),
+            (DecodeError::BadPayload("u8"), "bad payload: u8"),
+            (DecodeError::BadText, "text is not valid UTF-8"),
+            (DecodeError::BadValue("state"), "state has an invalid value"),
+        ] {
+            assert_eq!(error.to_string(), text);
+        }
+    }
+
+    #[test]
+    fn the_frame_length_limit_is_exact() {
+        // The largest body the prefix may announce: the frame is not complete
+        // yet, so the decoder asks for more.
+        let body = u32::try_from(MAX_FRAME - 4).unwrap();
+        assert_eq!(decode(&body.to_le_bytes()), Ok(None));
+        let too_big = body + 1;
+        assert_eq!(
+            decode(&too_big.to_le_bytes()),
+            Err(DecodeError::BadLength(too_big))
+        );
+        // The smallest: a type and nothing else.
+        assert_eq!(decode(&1_u32.to_le_bytes()), Err(DecodeError::BadLength(1)));
+        assert!(matches!(
+            decode(&[2, 0, 0, 0, 0xFF, 0xFF]),
+            Err(DecodeError::UnknownType(_))
+        ));
+    }
+
+    #[test]
+    fn a_field_may_be_as_long_as_the_limit_and_no_longer() {
+        // A literal, so that a change of the constant is seen: one MiB less 64.
+        let limit = 1_048_512;
+        assert_eq!(MAX_FIELD, limit);
+        let mut at_limit = u32::try_from(limit).unwrap().to_le_bytes().to_vec();
+        at_limit.resize(4 + limit, b'x');
+        assert_eq!(Reader(&at_limit).bytes().map(<[u8]>::len), Ok(limit));
+        let mut over = u32::try_from(limit + 1).unwrap().to_le_bytes().to_vec();
+        over.resize(4 + limit + 1, b'x');
+        assert_eq!(
+            Reader(&over).bytes(),
+            Err(DecodeError::BadPayload("field too long"))
+        );
     }
 }
