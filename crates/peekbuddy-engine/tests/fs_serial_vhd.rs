@@ -155,8 +155,15 @@ fn a_vhd_can_be_detached_while_watched_and_comes_back_on_attach() {
         "select vdisk file=\"{}\"\ndetach vdisk\n",
         vhd.display()
     ));
+    // On the hosted runner diskpart can report the disk as already detached
+    // (0x80070057) when the volume went away under the engine's watch: the
+    // states below still have to show it.
+    let already = detached
+        .as_ref()
+        .err()
+        .is_some_and(|text| text.contains("already detached"));
     assert!(
-        detached.is_ok(),
+        detached.is_ok() || already,
         "detach failed (a handle of the engine may have kept the volume): {detached:?}"
     );
     wait_for("suspended or lost", || {
