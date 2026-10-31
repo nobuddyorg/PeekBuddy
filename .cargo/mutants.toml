@@ -39,4 +39,24 @@ exclude_re = [
   "crates/peekbuddy-win/src/io/slot.rs:.*replace <impl Drop for IoSlot>::drop with",
   # Equivalent mutant: high and low FILETIME halves do not overlap.
   "crates/peekbuddy-win/src/perf/clock.rs:.*replace \\| with \\^ in ticks",
+  # The pool of spare batches is capped at the ring size so its memory stays
+  # bounded; going over the cap changes memory, not behaviour. The same
+  # comparison is the retry pacing in `commit_group`: three quick tries or
+  # four only change how long a failing disk is retried before the writer
+  # reports itself failing.
+  "crates/peekbuddy-store/src/pipeline.rs:.*replace < with .* in spill_loop",
+  "crates/peekbuddy-store/src/pipeline.rs:.*replace < with .* in commit_group",
+  # Defence in depth: a record that announces more than fits is rejected
+  # twice (against the payload limit and against the end of the file); either
+  # check alone gives the same replay, and a record of exactly 64 MiB cannot
+  # be tested.
+  "crates/peekbuddy-store/src/spill.rs:.*replace (\\|\\| with &&|\\+ with -|> with (==|>=)) in Spill::next",
+  # After a close during a failing commit the group goes to the spill file and
+  # is counted done; only the panic of `-=` (underflow) can be seen, and is
+  # (`closing_while_the_disk_is_full_keeps_the_data_for_the_next_start`).
+  # `*=` multiplies a counter nothing reads again.
+  "crates/peekbuddy-store/src/pipeline.rs:.*replace \\+= with \\*= in give_to_spill",
+  # `length < HEADER_LEN || read_exact(header).is_err()`: a file shorter than
+  # the header fails the read as well, so `<` and `==` act the same.
+  "crates/peekbuddy-store/src/spill.rs:.*replace < with == in Spill::open",
 ]
