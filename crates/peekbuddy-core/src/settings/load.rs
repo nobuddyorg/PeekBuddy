@@ -204,32 +204,6 @@ fn unknown_issues(table: &toml::Table) -> Vec<Issue> {
     out
 }
 
-fn is_known(keys: &[&str], key: &str) -> bool {
-    keys.contains(&key)
-}
-
-/// Removes keys this build does not know, for reading a newer file.
-fn strip_unknown(table: &mut toml::Table) {
-    table.retain(|key, _| is_known(TOP_KEYS, key));
-    for (name, keys) in [
-        ("general", GENERAL_KEYS),
-        ("store", STORE_KEYS),
-        ("view", VIEW_KEYS),
-        ("filters", FILTER_KEYS),
-    ] {
-        if let Some(toml::Value::Table(section)) = table.get_mut(name) {
-            section.retain(|key, _| is_known(keys, key));
-        }
-    }
-    if let Some(toml::Value::Array(items)) = table.get_mut("watch") {
-        for item in items {
-            if let toml::Value::Table(watch) = item {
-                watch.retain(|key, _| is_known(WATCH_KEYS, key));
-            }
-        }
-    }
-}
-
 fn syntax_problem(text: &str, error: &toml::de::Error) -> Problem {
     let (line, column) = error.span().map_or((None, None), |span| {
         let (line, column) = line_column(text, span.start);
@@ -275,7 +249,8 @@ pub fn load_with(text: &str, ctx: &Context, target: u32, steps: &[Step]) -> Load
     };
 
     if version > target {
-        strip_unknown(&mut table);
+        // Keys this build does not know are ignored by the deserialiser, and a
+        // file it cannot read at all still loads as the defaults.
         let settings = table.try_into::<Settings>().unwrap_or_default();
         return Loaded::TooNew {
             version,
