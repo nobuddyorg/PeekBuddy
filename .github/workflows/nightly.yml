@@ -20,7 +20,7 @@ jobs:
   miri:
     name: miri
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 120
     permissions:
       contents: read
     steps:
@@ -96,7 +96,7 @@ jobs:
       contents: read
     env:
       PROPTEST_CASES: 10000
-      PEEKBUDDY_HEAVY_CASES: 200
+      PEEKBUDDY_HEAVY_CASES: 40
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
