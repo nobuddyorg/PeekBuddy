@@ -251,7 +251,9 @@ fn closing_while_the_disk_is_full_keeps_the_data_for_the_next_start() {
     // Shut down with the disk still full: the data goes to the spill file.
     let stats_before = pipeline.stats();
     assert_eq!(stats_before.lost_batches, 0);
-    drop(pipeline.close());
+    let writer = pipeline.close();
+    assert!(writer.is_some(), "the writer thread ended in a panic");
+    drop(writer);
     assert!(u64::try_from(stored_ts(&dirs.db()).len()).unwrap() < next - 1);
 
     // The next start, with space, replays it.
@@ -383,4 +385,36 @@ fn a_stuck_reader_is_reported_while_ingest_goes_on_and_clears_when_it_lets_go() 
     pipeline.flush(Duration::from_secs(60)).unwrap();
     drop(pipeline.close());
     assert!(integrity_ok(&dirs.db()));
+}
+
+#[test]
+fn a_reader_that_holds_the_log_only_shows_once_the_file_is_far_past_the_threshold() {
+    let dirs = Dirs::new("not-yet");
+    let mut config = Config::new(dirs.spill());
+    config.ring_batches = 8;
+    config.wal_checkpoint_bytes = 256 * 1024;
+    let pipeline = Pipeline::start(open_writer(&dirs.db()), config).unwrap();
+    let producer = pipeline.producer();
+    push(&producer, 1, 50);
+    pipeline.flush(Duration::from_secs(30)).unwrap();
+    let reader = Connection::open(dirs.db()).unwrap();
+    reader.execute_batch("BEGIN").unwrap();
+    let _: i64 = reader
+        .query_row("SELECT count(*) FROM event", [], |row| row.get(0))
+        .unwrap();
+
+    // Grow the log just past the checkpoint size: the checkpoint cannot catch
+    // up because the reader holds it, but the file is not twice the size yet.
+    let wal = dirs.db().with_extension("db-wal");
+    let size = || std::fs::metadata(&wal).map_or(0, |m| m.len());
+    let mut next = 51;
+    while size() < 256 * 1024 {
+        push(&producer, next, 20);
+        next += 20;
+        pipeline.flush(Duration::from_secs(30)).unwrap();
+    }
+    assert!(size() < 512 * 1024, "the log grew past twice the size");
+    assert!(!pipeline.stats().wal_blocked, "reported too early");
+    reader.execute_batch("COMMIT").unwrap();
+    drop(pipeline.close());
 }

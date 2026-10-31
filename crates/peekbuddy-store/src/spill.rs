@@ -549,4 +549,39 @@ mod tests {
         spill.finish().unwrap();
         std::fs::remove_dir_all(&dir).unwrap();
     }
+
+    #[test]
+    fn a_record_of_more_than_a_megabyte_replays() {
+        // Past 64 KiB and past 1 MiB: the payload limit is 64 MiB, and a
+        // limit computed with the wrong operator would be far below it.
+        let dir = dir("megabyte");
+        let mut spill = Spill::open(&dir, 0, 0).unwrap();
+        let mut big = Batch::with_capacity(14_000, 14_000 * 32);
+        for ts in 1..=14_000u64 {
+            big.push(event(ts, 0), &units(r"d\f")).unwrap();
+        }
+        spill.append(&big).unwrap();
+        assert!(
+            spill.pending_bytes() > 1_200_000,
+            "{}",
+            spill.pending_bytes()
+        );
+        // Read into a batch as large as the one written.
+        let mut into = Batch::with_capacity(14_000, 14_000 * 32);
+        assert!(spill.next(&mut into).unwrap().is_some());
+        assert_eq!(into.iter().count(), 14_000);
+        assert!(spill.next(&mut into).unwrap().is_none());
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn finishing_reports_a_file_that_cannot_be_removed() {
+        let dir = dir("unremovable");
+        let mut spill = Spill::open(&dir, 0, 0).unwrap();
+        // A directory where the file belongs: removing it as a file fails with
+        // something other than "not found".
+        std::fs::create_dir_all(dir.join(super::FILE_NAME)).unwrap();
+        assert!(spill.finish().is_err());
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
 }
