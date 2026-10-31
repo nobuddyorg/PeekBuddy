@@ -96,6 +96,17 @@ fn wide(path: &Path) -> Vec<u16> {
     path.as_os_str().encode_wide().collect()
 }
 
+/// The volume GUID path a directory lives on.
+fn volume_of(path: &Path) -> Vec<u16> {
+    use peekbuddy_win::io::dir::DirHandle;
+    use peekbuddy_win::io::open::OpenOptions;
+    use peekbuddy_win::io::volume::volume_identity;
+
+    let long = to_long_path(&wide(path)).unwrap();
+    let dir = DirHandle::open(&long, OpenOptions::default()).unwrap();
+    volume_identity(&dir, &long).unwrap().guid_path
+}
+
 #[test]
 fn a_vhd_can_be_detached_while_watched_and_comes_back_on_attach() {
     if !enabled() {
@@ -110,6 +121,20 @@ fn a_vhd_can_be_detached_while_watched_and_comes_back_on_attach() {
         vhd.display(),
         mount.display()
     ));
+    // Without this a disk that was not (or no longer is) attached would leave
+    // the test watching a plain folder of the system volume.
+    assert_ne!(
+        volume_of(&mount),
+        volume_of(&base),
+        "the mount folder is not on the virtual disk; diskpart says: {:?}",
+        diskpart(&format!(
+            "select vdisk file=\"{}\"
+detail vdisk
+list vdisk
+",
+            vhd.display()
+        ))
+    );
     let tree = mount.join("watched");
     std::fs::create_dir_all(&tree).unwrap();
     std::fs::write(tree.join("a.txt"), b"x").unwrap();
