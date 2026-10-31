@@ -4,7 +4,7 @@ use super::super::migrate::Step;
 use super::super::{
     COLUMNS, CURRENT_VERSION, Filters, Settings, Store, Theme, View, Watch, default_toml, to_toml,
 };
-use super::{Context, Loaded, Problem, load, load_with};
+use super::{Context, Loaded, Problem, closest, distance, load, load_with};
 
 fn ctx() -> Context {
     Context {
@@ -288,4 +288,85 @@ proptest! {
     fn arbitrary_bytes_never_panic(bytes in proptest::collection::vec(any::<u8>(), 0..400)) {
         let _ = load(&String::from_utf8_lossy(&bytes), &ctx());
     }
+}
+
+#[test]
+fn the_edit_distance_counts_insertions_deletions_and_substitutions() {
+    for (a, b, d) in [
+        ("", "", 0),
+        ("abc", "", 3),
+        ("", "abc", 3),
+        ("same", "same", 0),
+        ("kitten", "sitting", 3),
+        ("flaw", "lawn", 2),
+        ("watch", "wacth", 2),
+        ("a", "b", 1),
+    ] {
+        assert_eq!(distance(a, b), d, "{a} -> {b}");
+    }
+}
+
+#[test]
+fn a_typo_gets_the_closest_known_name_and_a_stranger_gets_none() {
+    assert_eq!(
+        closest("wach", ["store", "watch"]),
+        Some("watch".to_owned())
+    );
+    assert_eq!(closest("WATCH", ["watch"]), Some("watch".to_owned()));
+    assert_eq!(closest("zzzzzzzz", ["watch", "store"]), None);
+    // The allowed distance grows with the candidate: a quarter of its length,
+    // at least 2.
+    let long = "abcdefghijklmnop";
+    assert_eq!(closest("wxyzefghijklmnop", [long]), Some(long.to_owned()));
+    assert_eq!(closest("vwxyzfghijklmnop", [long]), None);
+    // And it stays below the length of the word typed.
+    assert_eq!(closest("ab", ["cd"]), None);
+    assert_eq!(closest("ab", ["ac"]), Some("ac".to_owned()));
+    assert_eq!(closest("", ["a"]), None);
+    // The nearer of two wins.
+    assert_eq!(
+        closest("storr", ["stoat", "store"]),
+        Some("store".to_owned())
+    );
+}
+
+#[test]
+fn a_newer_file_keeps_the_keys_this_build_knows_and_drops_the_rest() {
+    let text = "version = 7\nfuture_top = 1\n[general]\nfirst_run = false\nfuture_key = 2\n\
+[store]\nmax_age_days = 5\nfuture = 3\n[view]\nfuture = 3\n[filters]\nfuture = 3\n\
+[[watch]]\nid = \"w0\"\npath = 'C:\\Data'\nfuture = 4\n";
+    match load(text, &ctx()) {
+        Loaded::TooNew { settings, .. } => {
+            assert!(!settings.general.first_run);
+            assert_eq!(settings.store.max_age_days, Some(5));
+            assert_eq!(settings.watches.len(), 1);
+            assert_eq!(settings.watches[0].id, "w0");
+        }
+        other => panic!("{other:?}"),
+    }
+}
+
+#[test]
+fn a_problem_in_an_indented_line_points_at_the_key_not_the_margin() {
+    let text = "version = 1\n[general]\n   frist_run = true\n";
+    let found = problems(text);
+    let unknown = found
+        .iter()
+        .find(|p| p.key_path == "general.frist_run")
+        .unwrap();
+    assert_eq!((unknown.line, unknown.column), (Some(3), Some(4)));
+}
+
+#[test]
+fn a_buffer_size_is_judged_even_when_the_path_is_not_valid() {
+    let with = |kib: u32| {
+        format!("version = 1\n[[watch]]\nid = \"w0\"\npath = 'relative\\dir'\nbuffer_kib = {kib}\n")
+    };
+    let small = messages(&with(2));
+    assert!(small.contains("buffer"), "{small}");
+    let fine = messages(&with(64));
+    assert!(!fine.contains("buffer"), "{fine}");
+    assert!(fine.contains("absolute"), "{fine}");
+    let big = messages(&with(2048));
+    assert!(big.contains("buffer"), "{big}");
 }

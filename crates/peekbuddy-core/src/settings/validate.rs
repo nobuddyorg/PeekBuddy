@@ -371,7 +371,42 @@ pub(crate) fn validate(settings: &mut Settings, ctx: &Context) -> Vec<Issue> {
 
 #[cfg(test)]
 mod tests {
-    use super::{Context, is_inside, normalize_root};
+    use super::{Context, is_drive, is_drive_path, is_inside, is_unc, normalize_root, valid_id};
+
+    #[test]
+    fn drive_names_and_paths_are_told_apart() {
+        for yes in ["C:", "z:", "A:"] {
+            assert!(is_drive(yes), "{yes}");
+        }
+        for no in ["", "C", "C:x", "1:", "CC:", ":C", "C;"] {
+            assert!(!is_drive(no), "{no}");
+        }
+        for yes in [r"C:\", r"C:\dir", "C:"] {
+            assert!(is_drive_path(yes), "{yes}");
+        }
+        for no in ["C:dir", r"1:\x", "", "C", r"\C:\"] {
+            assert!(!is_drive_path(no), "{no}");
+        }
+    }
+
+    #[test]
+    fn unc_paths_are_recognised_by_their_prefix() {
+        assert!(is_unc(r"\\?\UNC\server\share"));
+        assert!(!is_unc(r"\\?\C:\dir"));
+        assert!(!is_unc(r"C:\dir"));
+    }
+
+    #[test]
+    fn watch_ids_are_short_lowercase_names() {
+        let longest = "x".repeat(64);
+        let too_long = "x".repeat(65);
+        for yes in ["a", "w0", "my-watch_1", longest.as_str()] {
+            assert!(valid_id(yes), "{yes}");
+        }
+        for no in ["", "A", "a b", "a.b", "ä", too_long.as_str()] {
+            assert!(!valid_id(no), "{no}");
+        }
+    }
 
     #[test]
     fn paths_are_normalised_to_the_verbatim_form() {
