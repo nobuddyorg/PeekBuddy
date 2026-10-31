@@ -991,7 +991,7 @@ pub(crate) mod tests {
     use super::{Cursor, RootInfo, VolInfo, WriteError, Writer};
     use crate::batch::Batch;
     use crate::batch::tests::{event, units};
-    use crate::schema;
+    use crate::schema::{self, StoreError};
 
     pub(crate) fn memory_writer() -> Writer {
         let mut conn = Connection::open_in_memory().unwrap();
@@ -1030,6 +1030,83 @@ pub(crate) mod tests {
             .connection()
             .query_row(sql, [], |row| row.get(0))
             .unwrap()
+    }
+
+    #[test]
+    fn errors_display_their_cause() {
+        assert_eq!(
+            WriteError::UnknownRoot(7).to_string(),
+            "event for unregistered root 7"
+        );
+        let sqlite = WriteError::Sqlite(rusqlite::Error::QueryReturnedNoRows);
+        assert!(sqlite.to_string().starts_with("SQLite error: "));
+        let store = WriteError::Store(StoreError::Io(String::from("disk gone")));
+        assert!(store.to_string().contains("disk gone"));
+    }
+
+    #[test]
+    fn the_id_sequence_only_moves_forward() {
+        let mut writer = memory_writer();
+        writer.set_next_id(100);
+        assert_eq!(writer.next_id(), 100);
+        writer.set_next_id(5);
+        assert_eq!(writer.next_id(), 100);
+    }
+
+    #[test]
+    fn the_page_count_is_the_databases() {
+        let writer = memory_writer();
+        let pragma: u32 = writer
+            .connection()
+            .query_row("PRAGMA page_count", [], |row| row.get(0))
+            .unwrap();
+        assert!(pragma > 1);
+        assert_eq!(writer.page_count().unwrap(), pragma);
+    }
+
+    #[test]
+    fn the_kind_column_is_tag_times_256_plus_payload() {
+        let mut writer = memory_writer();
+        let mut overflow = event(1, 0);
+        overflow.kind = peekbuddy_core::event::Kind::from_wire(9, 2).unwrap();
+        let mut batch = Batch::with_capacity(2, 64);
+        batch.push(overflow, &units("a.txt")).unwrap();
+        writer.write(&[batch], &[]).unwrap();
+        assert_eq!(count(&writer, "SELECT kind FROM event"), 9 * 256 + 2);
+    }
+
+    #[test]
+    fn only_the_last_component_carries_the_file_id() {
+        let mut writer = memory_writer();
+        let mut with_id = Batch::with_capacity(4, 256);
+        let mut one = event(1, 0);
+        one.file_id = 0x0102_0304;
+        with_id.push(one, &units(r"dir\inner.txt")).unwrap();
+        let mut none = event(2, 0);
+        none.file_id = 0;
+        with_id.push(none, &units(r"dir\other.txt")).unwrap();
+        writer.write(&[with_id], &[]).unwrap();
+        assert_eq!(
+            count(
+                &writer,
+                "SELECT count(*) FROM node WHERE name = 'dir' AND file_id IS NULL"
+            ),
+            1
+        );
+        assert_eq!(
+            count(
+                &writer,
+                "SELECT count(*) FROM node WHERE name = 'inner.txt' AND file_id IS NOT NULL"
+            ),
+            1
+        );
+        assert_eq!(
+            count(
+                &writer,
+                "SELECT count(*) FROM node WHERE name = 'other.txt' AND file_id IS NULL"
+            ),
+            1
+        );
     }
 
     #[test]
