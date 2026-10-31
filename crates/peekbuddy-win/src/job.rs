@@ -197,7 +197,14 @@ mod tests {
             .unwrap();
         job.assign(child.as_handle()).unwrap();
         child.wait().unwrap();
-        let accounting = job.accounting().unwrap();
+        // The job's count of live processes can lag a moment behind the exit of
+        // the child (a console host it started, on a loaded machine).
+        let deadline = Instant::now() + Duration::from_secs(10);
+        let mut accounting = job.accounting().unwrap();
+        while accounting.active_processes != 0 && Instant::now() < deadline {
+            std::thread::sleep(Duration::from_millis(20));
+            accounting = job.accounting().unwrap();
+        }
         assert_eq!(accounting.active_processes, 0);
         assert!(accounting.total_processes >= 1);
         assert!(accounting.user_ticks + accounting.kernel_ticks > 0);
