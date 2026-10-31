@@ -406,6 +406,129 @@ fn start_with_gate(dirs: &Dirs, stalled: &Arc<AtomicBool>) -> Pipeline {
     Pipeline::start(open_writer(&dirs.db()), config).unwrap()
 }
 
+/// A pipeline whose writer blocks inside the first commit until released.
+fn blocked_pipeline(dirs: &Dirs, writer: Writer) -> (Pipeline, Arc<AtomicBool>, Arc<AtomicBool>) {
+    let blocked = Arc::new(AtomicBool::new(true));
+    let entered = Arc::new(AtomicBool::new(false));
+    let mut config = config(dirs);
+    config.hooks = Hooks {
+        before_commit: Some({
+            let (blocked, entered) = (Arc::clone(&blocked), Arc::clone(&entered));
+            Arc::new(move || {
+                entered.store(true, Ordering::Release);
+                while blocked.load(Ordering::Acquire) {
+                    std::thread::sleep(Duration::from_millis(2));
+                }
+            })
+        }),
+        on_commit: None,
+        before_attempt: None,
+    };
+    (Pipeline::start(writer, config).unwrap(), blocked, entered)
+}
+
+fn wait_until(what: &str, mut condition: impl FnMut() -> bool) {
+    let until = std::time::Instant::now() + Duration::from_secs(20);
+    while !condition() {
+        assert!(std::time::Instant::now() < until, "timed out: {what}");
+        std::thread::sleep(Duration::from_millis(2));
+    }
+}
+
+#[test]
+fn the_ring_holds_exactly_its_capacity_and_the_next_batch_overflows() {
+    let dirs = Dirs::new("capacity");
+    let (pipeline, blocked, entered) = blocked_pipeline(&dirs, open_writer(&dirs.db()));
+    let producer = pipeline.producer();
+    // The writer takes the first batch and stops inside the commit.
+    assert!(!push_events(&producer, 1, 5));
+    wait_until("the writer to take a batch", || {
+        entered.load(Ordering::Acquire)
+    });
+    // The ring has room for four more (`config` sets `ring_batches` to 4).
+    let overflowed: Vec<bool> = (0..5)
+        .map(|index| push_events(&producer, 10 + index * 5, 5))
+        .collect();
+    assert_eq!(overflowed, [false, false, false, false, true]);
+    blocked.store(false, Ordering::Release);
+    pipeline.flush(Duration::from_secs(20)).unwrap();
+    drop(pipeline.close());
+}
+
+#[test]
+fn a_cursor_queued_for_one_root_does_not_replace_another_roots() {
+    let dirs = Dirs::new("two-cursors");
+    let mut writer = open_writer(&dirs.db());
+    writer
+        .register_root(&RootInfo {
+            idx: RootIdx(1),
+            vol: VolInfo {
+                guid: String::from("vol-1"),
+                serial: 1,
+                letter: Some(String::from("C:")),
+                journal_id: None,
+            },
+            path: units(r"\\?\C:\other"),
+            recursive: true,
+        })
+        .unwrap();
+    let (pipeline, blocked, entered) = blocked_pipeline(&dirs, writer);
+    let producer = pipeline.producer();
+    push_events(&producer, 1, 5);
+    wait_until("the writer to stop", || entered.load(Ordering::Acquire));
+    // Queued while the writer is stopped: the latest per root is kept.
+    for (root, usn) in [(0, 10), (1, 20), (0, 30)] {
+        producer.set_cursor(Cursor {
+            root: RootIdx(root),
+            usn: Some(usn),
+        });
+    }
+    push_events(&producer, 10, 5);
+    blocked.store(false, Ordering::Release);
+    pipeline.flush(Duration::from_secs(20)).unwrap();
+    drop(pipeline.close());
+    let conn = Connection::open(dirs.db()).unwrap();
+    let mut statement = conn
+        .prepare("SELECT usn FROM cursor ORDER BY root_id")
+        .unwrap();
+    let usns: Vec<i64> = statement
+        .query_map([], |row| row.get(0))
+        .unwrap()
+        .map(Result::unwrap)
+        .collect();
+    assert_eq!(usns, [30, 20]);
+}
+
+#[test]
+fn the_debug_output_names_the_types() {
+    let dirs = Dirs::new("debug");
+    let pipeline = Pipeline::start(open_writer(&dirs.db()), config(&dirs)).unwrap();
+    assert!(format!("{pipeline:?}").contains("Pipeline"));
+    assert!(format!("{:?}", pipeline.producer()).contains("Producer"));
+    assert!(format!("{:?}", Hooks::default()).contains("Hooks"));
+    drop(pipeline.close());
+}
+
+#[test]
+fn the_producer_reports_the_batches_that_were_lost() {
+    let dirs = Dirs::new("producer-lost");
+    let (pipeline, blocked, entered) = blocked_pipeline(&dirs, open_writer(&dirs.db()));
+    // The spill directory disappears: appending to it fails, like a full disk.
+    std::fs::remove_dir_all(dirs.spill()).unwrap();
+    let producer = pipeline.producer();
+    push_events(&producer, 1, 5);
+    wait_until("the writer to stop", || entered.load(Ordering::Acquire));
+    for index in 0..12u64 {
+        push_events(&producer, 10 + index * 5, 5);
+    }
+    wait_until("lost batches to be counted", || {
+        producer.lost_batches() >= 2
+    });
+    assert_eq!(producer.lost_batches(), pipeline.stats().lost_batches);
+    blocked.store(false, Ordering::Release);
+    drop(pipeline.close());
+}
+
 /// Cases for the heavy property tests. `PROPTEST_CASES` (256 in CI) is far too
 /// many for a test that writes database files, and the `proptest!` macro lets
 /// it override any explicit count, so these tests run a `TestRunner` of their

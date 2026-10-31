@@ -483,4 +483,70 @@ mod tests {
         assert_eq!(collect(&mut again), []);
         std::fs::remove_dir_all(&dir).unwrap();
     }
+
+    #[test]
+    fn a_record_of_ordinary_size_replays() {
+        // Far more than a few kilobytes: the payload limit is 64 MiB.
+        let dir = dir("large");
+        let mut spill = Spill::open(&dir, 0, 0).unwrap();
+        spill.append(&batch(1, 60)).unwrap();
+        assert!(spill.pending_bytes() > 4_096);
+        assert_eq!(collect(&mut spill).len(), 60);
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn a_record_that_announces_more_than_the_limit_is_a_torn_tail() {
+        let dir = dir("announce");
+        std::fs::create_dir_all(&dir).unwrap();
+        let mut file = b"PBSP".to_vec();
+        file.extend_from_slice(&1_u32.to_le_bytes());
+        // 64 MiB and one byte, a checksum, and a few bytes that are not it.
+        file.extend_from_slice(&67_108_865_u32.to_le_bytes());
+        file.extend_from_slice(&0_u32.to_le_bytes());
+        file.extend_from_slice(&[7; 16]);
+        std::fs::write(dir.join(super::FILE_NAME), &file).unwrap();
+        let mut spill = Spill::open(&dir, 0, 0).unwrap();
+        assert!(spill.has_pending());
+        let mut into = Batch::with_capacity(64, 4096);
+        assert_eq!(spill.next(&mut into).unwrap(), None);
+        assert!(!spill.has_pending());
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn a_file_with_only_its_header_is_a_valid_empty_spill() {
+        let dir = dir("header-only");
+        std::fs::create_dir_all(&dir).unwrap();
+        let mut file = b"PBSP".to_vec();
+        file.extend_from_slice(&5_u32.to_le_bytes());
+        std::fs::write(dir.join(super::FILE_NAME), &file).unwrap();
+        let spill = Spill::open(&dir, 9, 0).unwrap();
+        assert_eq!(spill.generation(), 5);
+        assert!(!spill.has_pending());
+        assert!(dir.join(super::FILE_NAME).exists());
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn pending_bytes_counts_what_is_written_and_not_yet_replayed() {
+        let dir = dir("pending");
+        let mut spill = Spill::open(&dir, 0, 0).unwrap();
+        assert_eq!(spill.pending_bytes(), 0);
+        spill.append(&batch(1, 4)).unwrap();
+        let length = std::fs::metadata(dir.join(super::FILE_NAME)).unwrap().len();
+        assert_eq!(spill.pending_bytes(), length - 8);
+        assert_eq!(collect(&mut spill).len(), 4);
+        assert_eq!(spill.pending_bytes(), 0);
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn finishing_without_a_file_is_not_an_error() {
+        let dir = dir("no-file");
+        let mut spill = Spill::open(&dir, 0, 0).unwrap();
+        spill.finish().unwrap();
+        spill.finish().unwrap();
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
 }
