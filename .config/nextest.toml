@@ -26,6 +26,11 @@ slow-timeout = { period = "60s", terminate-after = 5 }
 filter = "test(ten_million_distinct_paths)"
 slow-timeout = { period = "300s", terminate-after = 4 }
 
+# The segment rotation property test runs 200 cases in the nightly.
+[[profile.default.overrides]]
+filter = "test(rotation_keeps_the_invariants_with_dst_days_and_a_wandering_clock)"
+slow-timeout = { period = "120s", terminate-after = 5 }
+
 # The e2e override joins when the first e2e test binary exists (nextest
 # rejects a filter that matches no binary):
 #
