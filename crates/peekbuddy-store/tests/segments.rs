@@ -359,14 +359,26 @@ fn retention_deletes_the_oldest_and_writes_a_purge_row_with_the_range() {
             .unwrap();
         writer.wait_background();
     }
+    let current = dir.path().join(writer.segment_file().unwrap());
+    let purge_rows = || {
+        count(
+            &current,
+            "SELECT count(*) FROM event WHERE kind = 4608 AND source = 3",
+        )
+    };
+    let before = purge_rows();
     writer.flush_system_rows().unwrap();
+    assert!(purge_rows() > before, "the last purge was still waiting");
+    // Nothing waits any more: a second flush writes nothing.
+    let after = purge_rows();
+    writer.flush_system_rows().unwrap();
+    assert_eq!(purge_rows(), after);
     // Only the segments within two days of the last rotation stay.
     let left = files(dir.path());
     assert!(left.len() <= 4 && left.len() >= 2, "{left:?}");
     assert!(!left.contains(&String::from("events-2026-10-01.db")));
     // Every purge is a RetentionPurged row (18 << 8) in the open segment,
     // with the id range of the segment it removed.
-    let current = dir.path().join(writer.segment_file().unwrap());
     let purged = count(
         &current,
         "SELECT count(*) FROM event WHERE kind = 4608 AND source = 3",
@@ -587,4 +599,131 @@ fn rand_tag() -> u64 {
     use std::sync::atomic::{AtomicU64, Ordering};
     static NEXT: AtomicU64 = AtomicU64::new(0);
     NEXT.fetch_add(1, Ordering::Relaxed)
+}
+
+fn catalog_row(dir: &Path, file: &str) -> peekbuddy_store::catalog::SegmentRow {
+    Catalog::open(&dir.join("catalog.db"))
+        .unwrap()
+        .get(file)
+        .unwrap()
+        .unwrap()
+}
+
+#[test]
+fn the_catalog_row_of_a_fresh_segment_is_empty_and_consistent() {
+    let dir = Dir::new("fresh-row");
+    drop(open(
+        dir.path(),
+        plain_days(),
+        u64::MAX,
+        Caps::default(),
+        10,
+    ));
+    let row = catalog_row(dir.path(), "events-2026-10-01.db");
+    assert_eq!((row.first_id, row.last_id, row.rows), (1, 0, 0));
+    assert_eq!((row.first_ts, row.last_ts), (0, 0));
+}
+
+#[test]
+fn a_restart_keeps_the_first_id_and_the_counts_of_a_segment_with_rows() {
+    let dir = Dir::new("restart-row");
+    {
+        let mut writer = open(dir.path(), plain_days(), u64::MAX, Caps::default(), 10);
+        writer.write(&[batch(&[10, 11, 12])], &[]).unwrap();
+        writer.wait_background();
+        writer.checkpoint_truncate().unwrap();
+    }
+    drop(open(
+        dir.path(),
+        plain_days(),
+        u64::MAX,
+        Caps::default(),
+        20,
+    ));
+    let row = catalog_row(dir.path(), "events-2026-10-01.db");
+    assert_eq!((row.first_id, row.last_id, row.rows), (1, 3, 3));
+    assert_eq!((row.first_ts, row.last_ts), (10, 12));
+}
+
+#[test]
+fn the_sealed_row_carries_the_first_and_last_timestamp() {
+    let dir = Dir::new("sealed-ts");
+    let mut writer = open(dir.path(), plain_days(), u64::MAX, Caps::default(), 10);
+    writer.write(&[batch(&[10, 11])], &[]).unwrap();
+    writer.write(&[batch(&[15])], &[]).unwrap();
+    writer.write(&[batch(&[DAY + 1])], &[]).unwrap();
+    writer.wait_background();
+    let row = catalog_row(dir.path(), "events-2026-10-01.db");
+    assert_eq!((row.first_ts, row.last_ts), (10, 15));
+    assert_eq!((row.first_id, row.last_id, row.rows), (1, 3, 3));
+}
+
+#[test]
+fn the_wal_counts_towards_the_size_cap_without_being_multiplied() {
+    let dir = Dir::new("cap-wal");
+    // Far above main + wal (about 100 KB), far below main * wal.
+    let mut writer = open(dir.path(), plain_days(), 500_000, Caps::default(), 10);
+    writer.write(&[batch(&[10])], &[]).unwrap();
+    assert!(writer.wal_bytes() > 1_000);
+    writer.write(&[batch(&[11])], &[]).unwrap();
+    assert_eq!(files(dir.path()).len(), 1, "{:?}", files(dir.path()));
+}
+
+#[test]
+fn the_final_checkpoint_empties_the_wal() {
+    let dir = Dir::new("truncate");
+    let mut writer = open(dir.path(), plain_days(), u64::MAX, Caps::default(), 10);
+    writer.write(&[batch(&[10, 11])], &[]).unwrap();
+    assert!(writer.wal_bytes() > 0);
+    writer.checkpoint_truncate().unwrap();
+    assert_eq!(writer.wal_bytes(), 0);
+}
+
+#[test]
+fn cursors_of_two_roots_on_one_volume_each_follow_the_rotation() {
+    let dir = Dir::new("two-cursors");
+    let mut writer = open(dir.path(), plain_days(), u64::MAX, Caps::default(), 10);
+    writer
+        .register_root(&RootInfo {
+            idx: RootIdx(1),
+            vol: VolInfo {
+                guid: String::from("vol-1"),
+                serial: 1,
+                letter: Some(String::from("C:")),
+                journal_id: None,
+            },
+            path: units(r"\?\C:\Other"),
+            recursive: true,
+        })
+        .unwrap();
+    writer
+        .write(
+            &[batch(&[10])],
+            &[
+                Cursor {
+                    root: RootIdx(0),
+                    usn: Some(70),
+                },
+                Cursor {
+                    root: RootIdx(1),
+                    usn: Some(71),
+                },
+            ],
+        )
+        .unwrap();
+    writer.write(&[batch(&[DAY + 1])], &[]).unwrap();
+    let new_file = dir.path().join("events-2026-10-02.db");
+    let conn = Connection::open(&new_file).unwrap();
+    let mut statement = conn
+        .prepare("SELECT root.path, cursor.usn FROM cursor JOIN root ON root.id = cursor.root_id ORDER BY cursor.usn")
+        .unwrap();
+    let rows: Vec<(String, i64)> = statement
+        .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))
+        .unwrap()
+        .map(Result::unwrap)
+        .collect();
+    assert_eq!(rows.len(), 2, "{rows:?}");
+    assert_eq!(rows[0].1, 70);
+    assert_eq!(rows[1].1, 71);
+    assert_ne!(rows[0].0, rows[1].0);
 }

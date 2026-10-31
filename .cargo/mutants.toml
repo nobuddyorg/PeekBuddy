@@ -59,4 +59,16 @@ exclude_re = [
   # `length < HEADER_LEN || read_exact(header).is_err()`: a file shorter than
   # the header fails the read as well, so `<` and `==` act the same.
   "crates/peekbuddy-store/src/spill.rs:.*replace < with == in Spill::open",
+  # The page cache and journal size limits are tuning constants; other
+  # values change speed and disk use, not what is stored.
+  "crates/peekbuddy-store/src/writer.rs:(30|32|34):.*replace \\* with",
+  # Debug-only invariant: `check_cursors` feeds a `debug_assert_eq!`, which
+  # cannot fail while the code is correct.
+  "crates/peekbuddy-store/src/writer.rs:.*Writer::check_cursors",
+  # `commit.rows > 0`: a commit without rows leaves both commit timestamps
+  # at 0, so `>=` writes the same ones.
+  "crates/peekbuddy-store/src/writer.rs:.*replace > with >= in Writer::write_with_spill",
+  # A segment row without rows has first_id == next_id, so `>= 0` picks the
+  # same first id.
+  "crates/peekbuddy-store/src/writer.rs:.*replace > with >= in Writer::open_segments",
 ]
