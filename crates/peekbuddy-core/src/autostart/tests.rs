@@ -96,3 +96,16 @@ fn an_explicit_toggle_on_leaves_an_untouched_approval_alone() {
     assert_eq!(a.set(true), Ok(Status::On));
     assert_eq!(a.registry().approved, None);
 }
+
+#[test]
+fn every_write_to_the_memory_registry_is_counted_once() {
+    let mut registry = MemoryRegistry::default();
+    registry.set_run_value("a").unwrap();
+    assert_eq!(registry.writes, 1);
+    registry.set_approved(&[2, 0, 0, 0]).unwrap();
+    assert_eq!(registry.writes, 2);
+    registry.delete_run_value().unwrap();
+    assert_eq!(registry.writes, 3);
+    assert_eq!(registry.run_value(), None);
+    assert_eq!(registry.approved(), Some(vec![2, 0, 0, 0]));
+}

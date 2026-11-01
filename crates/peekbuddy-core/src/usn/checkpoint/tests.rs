@@ -89,3 +89,63 @@ fn read_errors_map_to_gaps() {
     assert!(needs_synchronous_reads(1784));
     assert!(!needs_synchronous_reads(995));
 }
+
+fn saved(next_usn: i64) -> Checkpoint {
+    Checkpoint {
+        journal_id: 7,
+        next_usn,
+    }
+}
+
+#[test]
+fn the_lowest_valid_usn_itself_still_resumes() {
+    assert_eq!(
+        plan_resume(Some(saved(1_000)), &NOW),
+        Resume::Continue { from: 1_000 }
+    );
+    assert!(matches!(
+        plan_resume(Some(saved(999)), &NOW),
+        Resume::Gap { .. }
+    ));
+}
+
+#[test]
+fn the_first_usn_of_the_journal_is_the_other_lower_bound() {
+    let now = JournalData {
+        journal_id: 7,
+        first_usn: 2_000,
+        next_usn: 5_000,
+        lowest_valid_usn: 1_000,
+    };
+    assert_eq!(
+        plan_resume(Some(saved(2_000)), &now),
+        Resume::Continue { from: 2_000 }
+    );
+    // Valid by the lowest bound, before the first entry: a gap.
+    assert_eq!(
+        plan_resume(Some(saved(1_999)), &now),
+        Resume::Gap {
+            reason: GapReason::JournalEntryDeleted,
+            from: 5_000
+        }
+    );
+    assert_eq!(
+        plan_resume(Some(saved(1_500)), &now),
+        Resume::Gap {
+            reason: GapReason::JournalEntryDeleted,
+            from: 5_000
+        }
+    );
+}
+
+#[test]
+fn a_saved_usn_at_the_end_of_the_journal_resumes() {
+    assert_eq!(
+        plan_resume(Some(saved(5_000)), &NOW),
+        Resume::Continue { from: 5_000 }
+    );
+    assert!(matches!(
+        plan_resume(Some(saved(5_001)), &NOW),
+        Resume::Gap { .. }
+    ));
+}
