@@ -59,6 +59,13 @@ fn diskpart(script: &str) -> Result<String, String> {
     }
 }
 
+/// The path with its long names, without the verbatim prefix diskpart rejects.
+fn long_path(path: &Path) -> PathBuf {
+    let canonical = std::fs::canonicalize(path).unwrap();
+    let text = canonical.to_string_lossy();
+    PathBuf::from(text.strip_prefix(r"\\?\").unwrap_or(&text))
+}
+
 /// What diskpart says about the virtual disk.
 fn detail(vhd: &Path) -> Result<String, String> {
     diskpart(&format!(
@@ -155,9 +162,13 @@ fn a_vhd_can_be_detached_while_watched_and_comes_back_on_attach() {
     if !enabled() {
         return;
     }
-    let base: PathBuf = std::env::temp_dir().join(format!("pbvhd-{}", std::process::id()));
+    let short: PathBuf = std::env::temp_dir().join(format!("pbvhd-{}", std::process::id()));
+    std::fs::create_dir_all(short.join("mount")).unwrap();
+    // The runner's temp directory is an 8.3 path (RUNNER~1): diskpart lists
+    // the disk under the long name and `select vdisk` of the short one finds a
+    // second, never attached entry, so the detach did nothing.
+    let base = long_path(&short);
     let mount = base.join("mount");
-    std::fs::create_dir_all(&mount).unwrap();
     let vhd = base.join("disk.vhd");
     new_disk(&vhd, &mount, &base);
     let tree = mount.join("watched");
