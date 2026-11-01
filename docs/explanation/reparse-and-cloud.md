@@ -46,6 +46,16 @@ The rules are the ones in issue #49. The lab matrix (#36) could not measure
 `OneDrive` on a hosted runner, so the rule set is not widened beyond them
 until an owner run supplies the missing cells.
 
+### Tagging at ingest
+
+`ReadDirectoryChangesExW` reports a modification with the attributes after the change
+and no reason mask, so `classify` has nothing to compare. `ChurnCache` keeps
+the last attributes per cloud file (direct-mapped, 2048 slots, allocated when
+the first cloud file shows up). The RDCW decoder sets `Flags::CLOUD_CHURN`
+on a modify whose attribute delta is exactly a flip of the sync-state bits.
+A first sighting, a data write (attributes unchanged), a create, a delete or
+a cache collision is never tagged: the row is shown, never hidden by mistake.
+
 ## Opening files without waking them
 
 Watching must never download a cloud file. `DirHandle::open` is where capture

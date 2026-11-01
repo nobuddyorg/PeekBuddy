@@ -22,6 +22,9 @@
 
 use crate::event::map::usn_reason as reason;
 
+mod cache;
+pub use cache::ChurnCache;
+
 /// Reparse tags.
 pub mod tag {
     /// `IO_REPARSE_TAG_MOUNT_POINT`: a junction or volume mount point.
