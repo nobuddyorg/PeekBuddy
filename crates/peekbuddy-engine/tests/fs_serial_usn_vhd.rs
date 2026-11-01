@@ -322,9 +322,25 @@ fn a_deleted_and_recreated_journal_is_one_gap_and_reading_goes_on() {
     disk.create_journal("0x100000", "0x40000");
     wait_until("the gap", || !gap_rows(&started.rows).is_empty());
     std::fs::write(disk.root().join("after.txt"), b"x").unwrap();
-    wait_until("the file after the gap", || {
-        has_row(&started.rows, "after.txt", Kind::Created)
-    });
+    let deadline = Instant::now() + Duration::from_secs(30);
+    while !has_row(&started.rows, "after.txt", Kind::Created) {
+        if Instant::now() >= deadline {
+            let rows: Vec<String> = started
+                .rows
+                .lock()
+                .unwrap()
+                .iter()
+                .map(|(event, name)| format!("{:?} {name}", event.kind))
+                .collect();
+            let ended = started.runner.stop();
+            let report = format!(
+                "no row after the gap; the runner ended with {ended:?}; gaps {:?}; rows {rows:?}",
+                started.gaps.lock().unwrap()
+            );
+            assert_eq!(report, "", "the file after the gap");
+        }
+        std::thread::sleep(Duration::from_millis(50));
+    }
     assert_eq!(gap_rows(&started.rows), [GapReason::JournalIdChanged]);
     assert_eq!(*started.gaps.lock().unwrap(), [GapReason::JournalIdChanged]);
     assert!(started.runner.stop().is_none());
