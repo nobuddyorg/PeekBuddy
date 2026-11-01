@@ -236,3 +236,79 @@ fn a_file_reference_number_resolves_to_its_path_and_a_deleted_one_does_not() {
     std::fs::remove_file(&file).unwrap();
     assert!(journal.resolve_path(frn, &mut out).is_err());
 }
+
+/// The identity of the volume that holds `dir`, for `SyncReader::spawn`.
+fn guid_path_of(dir: &Dir) -> Vec<u16> {
+    let long = to_long_path(&wide(&dir.0)).unwrap();
+    let handle = DirHandle::open(&long, OpenOptions::default()).unwrap();
+    volume_identity(&handle, &long).unwrap().guid_path
+}
+
+#[test]
+fn the_synchronous_reader_delivers_records_through_the_port() {
+    let dir = Dir(std::env::temp_dir().join(format!("pb-usn-sync-{}", std::process::id())));
+    std::fs::create_dir_all(&dir.0).unwrap();
+    let Some((_, data)) = journal_of(&dir).unwrap() else {
+        return;
+    };
+    let iocp = std::sync::Arc::new(Iocp::new(1).unwrap());
+    let mut reader = SyncReader::spawn(
+        &guid_path_of(&dir),
+        DEFAULT_BUFFER,
+        data.journal_id,
+        data.next_usn,
+        std::sync::Arc::clone(&iocp),
+        9,
+    )
+    .unwrap();
+    let mut batch = Batch::new(4);
+    let mut out = Vec::new();
+
+    let file = dir.0.join("sync.txt");
+    std::fs::write(&file, b"x").unwrap();
+    let frn = crate::fs::file_id(&file).unwrap();
+
+    let deadline = Instant::now() + Duration::from_secs(10);
+    loop {
+        let completion = one_completion(&iocp, &mut batch);
+        assert_eq!(completion.key, 9);
+        reader.take(&mut out).unwrap().unwrap();
+        let found = records(&out)
+            .unwrap()
+            .flatten()
+            .any(|record| record.frn == frn && record.reason & usn_reason::FILE_CREATE != 0);
+        if found {
+            break;
+        }
+        assert!(Instant::now() < deadline, "no create record for the file");
+    }
+    // Nothing is waiting once taken.
+    assert!(reader.take(&mut out).is_none());
+    reader.stop();
+}
+
+#[test]
+fn stopping_the_synchronous_reader_ends_a_blocked_read() {
+    let dir = Dir(std::env::temp_dir().join(format!("pb-usn-syncstop-{}", std::process::id())));
+    std::fs::create_dir_all(&dir.0).unwrap();
+    let Some((_, data)) = journal_of(&dir).unwrap() else {
+        return;
+    };
+    let iocp = std::sync::Arc::new(Iocp::new(1).unwrap());
+    // Start at the end: the read blocks until something is written.
+    let mut reader = SyncReader::spawn(
+        &guid_path_of(&dir),
+        DEFAULT_BUFFER,
+        data.journal_id,
+        data.next_usn,
+        iocp,
+        1,
+    )
+    .unwrap();
+    std::thread::sleep(Duration::from_millis(100));
+    let started = Instant::now();
+    reader.stop();
+    assert!(started.elapsed() < Duration::from_secs(5));
+    // Stopping again is a no-op.
+    reader.stop();
+}

@@ -4,7 +4,7 @@
 use std::io;
 use std::os::windows::io::{AsRawHandle, FromRawHandle as _, OwnedHandle, RawHandle};
 
-use super::open::{LIST_DIRECTORY, OpenOptions, SHARE_ALL};
+use super::open::{LIST_DIRECTORY, OVERLAPPED, OpenOptions, SHARE_ALL};
 use super::slot::IoSlot;
 use super::sys::{CancelIoEx, CreateFileW, ERROR_NOT_FOUND, INVALID_HANDLE_VALUE, OPEN_EXISTING};
 
@@ -36,11 +36,26 @@ impl DirHandle {
     /// The OS error when the directory cannot be opened, or
     /// `InvalidInput` for a path with a NUL.
     pub fn open(long_path: &[u16], options: OpenOptions) -> io::Result<Self> {
+        Self::open_with(long_path, options.flags())
+    }
+
+    /// Like [`DirHandle::open`] but without `FILE_FLAG_OVERLAPPED`: calls on
+    /// the handle block the calling thread, and the handle cannot join a
+    /// completion port. For the synchronous journal reads of `ReFS` (#212).
+    ///
+    /// # Errors
+    ///
+    /// As [`DirHandle::open`].
+    pub fn open_synchronous(long_path: &[u16], options: OpenOptions) -> io::Result<Self> {
+        Self::open_with(long_path, options.flags() & !OVERLAPPED)
+    }
+
+    fn open_with(long_path: &[u16], flags: u32) -> io::Result<Self> {
         if long_path.contains(&0) {
             return Err(io::ErrorKind::InvalidInput.into());
         }
         // The capture-side policy: listing access, never a recall.
-        super::open::check(LIST_DIRECTORY, options.flags())
+        super::open::check(LIST_DIRECTORY, flags)
             .map_err(|error| io::Error::new(io::ErrorKind::InvalidInput, error))?;
         let mut name = Vec::with_capacity(long_path.len() + 1);
         name.extend_from_slice(long_path);
@@ -54,7 +69,7 @@ impl DirHandle {
                 SHARE_ALL,
                 std::ptr::null(),
                 OPEN_EXISTING,
-                options.flags(),
+                flags,
                 std::ptr::null_mut(),
             )
         };

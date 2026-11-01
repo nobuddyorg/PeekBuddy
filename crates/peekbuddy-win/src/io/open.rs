@@ -7,6 +7,8 @@
 /// `FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OVERLAPPED`: open a directory for
 /// overlapped I/O.
 pub const BASE_FLAGS: u32 = 0x4200_0000;
+/// `FILE_FLAG_OVERLAPPED`, the bit [`BASE_FLAGS`] has for asynchronous I/O.
+pub const OVERLAPPED: u32 = 0x4000_0000;
 /// `FILE_FLAG_OPEN_REPARSE_POINT`: open a link itself, not its target.
 pub const OPEN_REPARSE_POINT: u32 = 0x0020_0000;
 /// `FILE_FLAG_OPEN_NO_RECALL`: never recall a cloud file by opening it.
