@@ -165,3 +165,14 @@ fn a_scan_describes_good_files_and_reports_every_bad_one() {
     assert_eq!(std::fs::read(dir.join("notes.txt")).unwrap(), b"hello");
     std::fs::remove_dir_all(&dir).unwrap();
 }
+
+#[test]
+fn catalog_errors_say_what_happened() {
+    let newer = CatalogError::TooNew(99).to_string();
+    assert!(
+        newer.starts_with("catalog.db is version 99; this build reads "),
+        "{newer}"
+    );
+    let sqlite = CatalogError::Sqlite(rusqlite::Error::InvalidQuery).to_string();
+    assert!(sqlite.starts_with("SQLite error: "), "{sqlite}");
+}
