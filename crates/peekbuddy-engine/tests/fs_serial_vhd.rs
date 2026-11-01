@@ -84,10 +84,14 @@ impl EventSink for Quiet {
     }
 }
 
-fn wait_for(what: &str, mut done: impl FnMut() -> bool) {
+fn wait_for(what: &str, states: &States, mut done: impl FnMut() -> bool) {
     let deadline = Instant::now() + Duration::from_secs(60);
     while !done() {
-        assert!(Instant::now() < deadline, "timed out waiting for {what}");
+        assert!(
+            Instant::now() < deadline,
+            "timed out waiting for {what}; the watch went through {:?}",
+            states.0.lock().unwrap()
+        );
         std::thread::sleep(Duration::from_millis(100));
     }
 }
@@ -171,7 +175,7 @@ list vdisk
     )
     .unwrap();
     watch_system(&host);
-    wait_for("live", || {
+    wait_for("live", &states, || {
         states.0.lock().unwrap().contains(&WatchState::Live)
     });
 
@@ -191,7 +195,7 @@ list vdisk
         detached.is_ok() || already,
         "detach failed (a handle of the engine may have kept the volume): {detached:?}"
     );
-    wait_for("suspended or lost", || {
+    wait_for("suspended or lost", &states, || {
         states.0.lock().unwrap().iter().any(|s| {
             matches!(
                 s,
@@ -204,7 +208,7 @@ list vdisk
         "select vdisk file=\"{}\"\nattach vdisk\n",
         vhd.display()
     ));
-    wait_for("restored", || {
+    wait_for("restored", &states, || {
         states.0.lock().unwrap().contains(&WatchState::Restored)
     });
     drop(host);
