@@ -87,6 +87,7 @@ pub struct UsnRunner {
     iocp: Arc<Iocp>,
     stop: Arc<AtomicBool>,
     counters: Arc<Mutex<Counters>>,
+    synchronous: Arc<AtomicBool>,
     thread: Option<JoinHandle<Option<io::Error>>>,
 }
 
@@ -115,6 +116,7 @@ impl UsnRunner {
         let iocp = Arc::new(Iocp::new(1)?);
         let stop = Arc::new(AtomicBool::new(false));
         let counters = Arc::new(Mutex::new(Counters::default()));
+        let synchronous = Arc::new(AtomicBool::new(false));
         let (ready_tx, ready_rx) = mpsc::channel();
         let job = Job {
             vol: spec.vol,
@@ -127,6 +129,7 @@ impl UsnRunner {
             iocp: Arc::clone(&iocp),
             stop: Arc::clone(&stop),
             counters: Arc::clone(&counters),
+            synchronous: Arc::clone(&synchronous),
         };
         // The journal handles hold OVERLAPPED state that must not cross
         // threads, so everything is opened on the thread that uses it; the
@@ -139,6 +142,7 @@ impl UsnRunner {
                 iocp,
                 stop,
                 counters,
+                synchronous,
                 thread: Some(thread),
             }),
             Ok(Err(error)) => {
@@ -156,6 +160,13 @@ impl UsnRunner {
     #[must_use]
     pub fn counters(&self) -> Counters {
         *self.counters.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+
+    /// Whether the volume refused overlapped reads (`ReFS`, Dev Drive) and
+    /// the runner reads on a thread of its own.
+    #[must_use]
+    pub fn uses_synchronous_reads(&self) -> bool {
+        self.synchronous.load(Ordering::SeqCst)
     }
 
     /// Stops reading: the pending read is cancelled and the thread joined.
@@ -185,6 +196,7 @@ struct Job {
     iocp: Arc<Iocp>,
     stop: Arc<AtomicBool>,
     counters: Arc<Mutex<Counters>>,
+    synchronous: Arc<AtomicBool>,
 }
 
 /// Name lookups for the feed: the control handle resolves reference numbers,
@@ -417,6 +429,7 @@ impl Job {
         match self.switch_to_sync(control, st.journal_id, st.next) {
             Ok(sync) => {
                 st.mode = Reader::Sync(sync);
+                self.synchronous.store(true, Ordering::SeqCst);
                 None
             }
             Err(error) => Some(error),
