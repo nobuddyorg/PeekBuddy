@@ -290,3 +290,72 @@ fn a_created_or_deleted_cloud_file_is_never_churn() {
     d.decode(&buf, buf.len(), STAMP, &mut sink);
     assert!(sink.0.iter().all(|(_, flags)| *flags == Flags::NONE));
 }
+
+/// Keeps the events it takes.
+#[derive(Default)]
+struct Grab {
+    events: Vec<Event>,
+    accept: bool,
+    ends: usize,
+}
+
+impl EventSink for Grab {
+    fn push(&mut self, event: &Event, _name: &[u16]) -> bool {
+        self.events.push(*event);
+        self.accept
+    }
+
+    fn batch_end(&mut self) {
+        self.ends += 1;
+    }
+}
+
+#[test]
+fn a_decoder_reads_the_class_it_was_switched_to() {
+    let buf = extended(&[(1, "doc.docx", 77, 0x20, 0)]);
+    let mut ring = Ring {
+        room: 4,
+        ..Ring::default()
+    };
+    let mut d = Decoder::new(RootIdx(0), VolIdx(0), Class::Plain, &[]);
+    d.set_class(Class::Extended);
+    d.decode(&buf, buf.len(), STAMP, &mut ring);
+    assert_eq!(ring.got, [(Kind::Created, "doc.docx".to_owned())]);
+}
+
+#[test]
+fn every_decoded_buffer_is_counted() {
+    let buf = plain(&[(1, "a")]);
+    let mut ring = Ring {
+        room: 8,
+        ..Ring::default()
+    };
+    let mut d = decoder(&[]);
+    d.decode(&buf, buf.len(), STAMP, &mut ring);
+    assert_eq!(d.counters().batches, 1);
+    d.decode(&buf, buf.len(), STAMP, &mut ring);
+    assert_eq!(d.counters().batches, 2);
+}
+
+#[test]
+fn a_boxed_sink_forwards_the_answer_and_the_batch_end() {
+    let buf = plain(&[(1, "a")]);
+    let mut d = decoder(&[]);
+    let event = {
+        let mut grab = Grab {
+            accept: true,
+            ..Grab::default()
+        };
+        d.decode(&buf, buf.len(), STAMP, &mut grab);
+        *grab.events.first().unwrap()
+    };
+    for accept in [true, false] {
+        let mut boxed: Box<Grab> = Box::new(Grab {
+            accept,
+            ..Grab::default()
+        });
+        assert_eq!(boxed.push(&event, &[]), accept);
+        boxed.batch_end();
+        assert_eq!((boxed.events.len(), boxed.ends), (1, 1));
+    }
+}

@@ -79,6 +79,9 @@ exclude_re = [
   # `by_id` only holds non-zero file ids, so a created entry with file id 0
   # never finds a partner and the match guard is always true when it matters.
   "crates/peekbuddy-core/src/reconcile/walk.rs:.*replace match guard entry.meta.file_id != 0 with true in settle",
+  # Equivalent mutants: the reason bits of `NEVER` and `STATE_ONLY` are
+  # disjoint constants, so `|` and `^` build the same masks.
+  "crates/peekbuddy-core/src/reparse/mod.rs:.*replace \\| with \\^",
   # `unwrap_or(i64::MAX / 2)` only runs for a time that does not fit an i64,
   # and `ts` is clamped to MAX_TS first.
   "crates/peekbuddy-core/src/export/mod.rs:.*replace / with % in civil",

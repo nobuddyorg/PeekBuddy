@@ -218,3 +218,30 @@ proptest! {
         }
     }
 }
+
+#[test]
+fn a_record_with_a_name_is_not_withheld() {
+    let buf = buffer(0, &[record(&spec(3, 1, "named"))]);
+    let (recs, _) = decode(&buf);
+    assert!(!recs[0].name_withheld());
+}
+
+#[test]
+fn decode_errors_say_what_is_wrong() {
+    assert_eq!(
+        DecodeError::NoHeader.to_string(),
+        "journal buffer shorter than its header"
+    );
+    assert_eq!(
+        DecodeError::BadLength { at: 8 }.to_string(),
+        "bad record length at offset 8"
+    );
+    assert_eq!(
+        DecodeError::UnknownVersion { at: 16, major: 9 }.to_string(),
+        "unknown record version 9 at offset 16"
+    );
+    assert_eq!(
+        DecodeError::BadName { at: 24 }.to_string(),
+        "name outside the record at offset 24"
+    );
+}
