@@ -83,9 +83,10 @@ impl Disk {
             letter,
         };
         let script = format!(
-            "create vdisk file=\"{}\" maximum={megabytes} type=expandable\nattach vdisk\ncreate partition primary\nformat fs={fs} quick label=pbusn\nassign mount=\"{}\"\n",
+            "create vdisk file=\"{}\" maximum={megabytes} type=expandable\nattach vdisk\ncreate partition primary\nformat fs={fs} quick label=pbusn\nassign mount=\"{}\"\nassign letter={}\n",
             disk.vhd.display(),
-            disk.mount.display()
+            disk.mount.display(),
+            disk.letter
         );
         if let Err(why) = diskpart(&script) {
             assert_ne!(fs, "ntfs", "diskpart failed: {why}");
