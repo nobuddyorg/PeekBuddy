@@ -603,3 +603,64 @@ impl<'a> Paths<'a> {
         }
     }
 }
+
+#[cfg(test)]
+mod path_cache_tests {
+    use rusqlite::params;
+
+    use super::*;
+
+    /// A node table with just the columns `Paths` reads.
+    fn tree(nodes: i64) -> Connection {
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch(
+            "CREATE TABLE node (id INTEGER PRIMARY KEY, parent_id INTEGER NOT NULL, \
+             name TEXT NOT NULL, name_w BLOB);",
+        )
+        .unwrap();
+        let mut insert = conn
+            .prepare("INSERT INTO node (id, parent_id, name) VALUES (?1, ?2, ?3)")
+            .unwrap();
+        for id in 1..=nodes {
+            insert.execute(params![id, 0, format!("n{id}")]).unwrap();
+        }
+        drop(insert);
+        conn
+    }
+
+    #[test]
+    fn the_path_cache_never_outgrows_its_bound_whatever_the_log_size() {
+        let nodes = i64::try_from(PATH_CACHE_NODES * 3).unwrap();
+        let conn = tree(nodes);
+        let mut paths = Paths::new(&conn);
+        for id in 1..=nodes {
+            let (parent, name) = paths.node(id).unwrap();
+            assert_eq!(parent, TOP_LEVEL);
+            assert_eq!(String::from_utf16_lossy(&name), format!("n{id}"));
+            assert!(paths.cache.len() <= PATH_CACHE_NODES);
+        }
+        // The same bound for a log a tenth of the size: memory follows the
+        // constant, not the log.
+        let small = tree(i64::try_from(PATH_CACHE_NODES / 10).unwrap());
+        let mut paths = Paths::new(&small);
+        for id in 1..=i64::try_from(PATH_CACHE_NODES / 10).unwrap() {
+            paths.node(id).unwrap();
+        }
+        assert_eq!(paths.cache.len(), PATH_CACHE_NODES / 10);
+    }
+
+    #[test]
+    fn a_chain_of_nodes_gives_the_joined_path_and_the_leaf_name() {
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch(
+            "CREATE TABLE node (id INTEGER PRIMARY KEY, parent_id INTEGER NOT NULL, \
+             name TEXT NOT NULL, name_w BLOB);
+             INSERT INTO node VALUES (1, 0, 'a', NULL), (2, 1, 'b', NULL), (3, 2, 'c.txt', NULL);",
+        )
+        .unwrap();
+        let mut paths = Paths::new(&conn);
+        let (name, path) = paths.path_of(3);
+        assert_eq!(String::from_utf16_lossy(&name), "c.txt");
+        assert_eq!(String::from_utf16_lossy(&path), r"a\b\c.txt");
+    }
+}
