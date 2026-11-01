@@ -99,6 +99,12 @@ impl Disk {
             volume_of(&disk.base),
             "the mount folder is not on the virtual disk"
         );
+        // #228: one volume reached by drive letter and by mount folder is the
+        // same volume.
+        let by_letter = identity_of(Path::new(&format!("{letter}:\\")));
+        let by_mount = identity_of(&disk.mount);
+        assert_eq!(by_letter.guid_path, by_mount.guid_path);
+        assert_eq!(by_letter.serial, by_mount.serial);
         Some(disk)
     }
 
@@ -140,8 +146,8 @@ fn long_path(path: &Path) -> PathBuf {
     PathBuf::from(text.strip_prefix(r"\\?\").unwrap_or(&text))
 }
 
-/// The volume GUID path a directory lives on.
-fn volume_of(path: &Path) -> Vec<u16> {
+/// The identity of the volume a directory lives on.
+fn identity_of(path: &Path) -> peekbuddy_win::io::volume::VolumeIdentity {
     use std::os::windows::ffi::OsStrExt as _;
 
     use peekbuddy_win::io::dir::DirHandle;
@@ -152,7 +158,12 @@ fn volume_of(path: &Path) -> Vec<u16> {
     let wide: Vec<u16> = path.as_os_str().encode_wide().collect();
     let long = to_long_path(&wide).unwrap();
     let dir = DirHandle::open(&long, OpenOptions::default()).unwrap();
-    volume_identity(&dir, &long).unwrap().guid_path
+    volume_identity(&dir, &long).unwrap()
+}
+
+/// The volume GUID path a directory lives on.
+fn volume_of(path: &Path) -> Vec<u16> {
+    identity_of(path).guid_path
 }
 
 type Rows = Arc<Mutex<Vec<(Event, String)>>>;
