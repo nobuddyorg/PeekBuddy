@@ -882,7 +882,7 @@ fn arb_path() -> impl Strategy<Value = String> {
 proptest! {
     // A failing case is found fast; shrinking it a long time only slows a
     // mutation run down.
-    #![proptest_config(ProptestConfig { cases: 2000, max_shrink_iters: 100, ..ProptestConfig::default() })]
+    #![proptest_config(ProptestConfig { cases: if cfg!(miri) { 8 } else { 2000 }, max_shrink_iters: 100, ..ProptestConfig::default() })]
 
     #[test]
     fn compiled_verdict_equals_the_reference(

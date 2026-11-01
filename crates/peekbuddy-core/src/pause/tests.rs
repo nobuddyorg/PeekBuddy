@@ -330,7 +330,7 @@ impl StateMachineTest for Sut {
 }
 
 prop_state_machine! {
-    #![proptest_config(ProptestConfig { cases: 256, ..ProptestConfig::default() })]
+    #![proptest_config(ProptestConfig { cases: if cfg!(miri) { 8 } else { 256 }, ..ProptestConfig::default() })]
 
     #[test]
     fn pause_matches_its_model(sequential 1..60 => Sut);
