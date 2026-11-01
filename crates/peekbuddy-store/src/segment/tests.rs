@@ -116,3 +116,62 @@ fn a_scan_becomes_catalog_rows_with_every_but_the_newest_sealed() {
         ]
     );
 }
+
+#[test]
+fn the_default_size_cap_is_one_gibibyte() {
+    assert_eq!(DEFAULT_SIZE_CAP, 1_073_741_824);
+}
+
+#[test]
+fn a_rotation_shows_its_directory_and_cap_in_debug_output() {
+    let rotation = Rotation {
+        dir: PathBuf::from("some-segment-dir"),
+        day_of: Arc::new(|_| day(2026, 1, 1)),
+        size_cap: 777,
+    };
+    let text = format!("{rotation:?}");
+    assert!(text.contains("Rotation"), "{text}");
+    assert!(text.contains("some-segment-dir"), "{text}");
+    assert!(text.contains("size_cap: 777"), "{text}");
+}
+
+#[test]
+fn reconciling_drops_rows_of_missing_files_and_keeps_what_the_catalog_knows() {
+    let dir = std::env::temp_dir().join(format!("pb-reconcile-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    for name in ["events-2026-10-01.db", "events-2026-10-02.db"] {
+        drop(crate::schema::open(&dir.join(name)).unwrap());
+    }
+    let catalog = Catalog::open_in_memory().unwrap();
+    // The first file was marked for purging, the newest was sealed by an
+    // earlier run, and a third row names a file that is gone.
+    catalog
+        .put(&SegmentRow {
+            sealed: true,
+            purge_pending: true,
+            ..row("events-2026-10-01.db", 0)
+        })
+        .unwrap();
+    catalog
+        .put(&SegmentRow {
+            sealed: true,
+            ..row("events-2026-10-02.db", 0)
+        })
+        .unwrap();
+    catalog.put(&row("events-2026-09-30.db", 0)).unwrap();
+
+    let (rows, skipped) = reconcile_catalog(&dir, &catalog).unwrap();
+    assert!(skipped.is_empty(), "{skipped:?}");
+    let files: Vec<&str> = rows.iter().map(|r| r.file.as_str()).collect();
+    assert_eq!(files, ["events-2026-10-01.db", "events-2026-10-02.db"]);
+    let first = rows.first().unwrap();
+    let newest = rows.get(1).unwrap();
+    assert!(first.purge_pending, "the purge mark is kept");
+    assert!(first.sealed);
+    // The scan would leave the newest segment open; the catalog's word that
+    // it was sealed stays.
+    assert!(newest.sealed);
+    assert!(!newest.purge_pending);
+    std::fs::remove_dir_all(&dir).unwrap();
+}
