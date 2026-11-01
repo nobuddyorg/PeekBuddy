@@ -1,6 +1,6 @@
 # 0005. Choose the viewer renderer by measurement
 
-- Status: Accepted for arm64; x64 proposed (spike #33 reported, one owner run left)
+- Status: Accepted (x64 decided on report 0003, 2026-11-01)
 - Date: 2026-10-22
 - Implemented or verified by: #33, #65
 
@@ -28,16 +28,22 @@ Decided: arm64 always uses wgpu with the DX12 backend only (confirmed on
 opengl 2.0+" wherever only the GDI OpenGL 1.1 implementation exists, which is
 the case on the hosted images and on Snapdragon without the Store pack).
 
-Proposed: on x64, unify on wgpu/DX12 if the owner run measures it within about
-15 MB of glow; otherwise use glow on x64. The hosted runners cannot decide it
-(no OpenGL 2.0), and wgpu on WARP shows 295 to 304 MB private bytes, which
-says nothing about a real adapter. See report 0003.
+Decided (2026-11-01, on the x64 run of report 0003, Intel N150): the viewer
+starts on wgpu/DX12 on both architectures, because one renderer is cheaper to
+build and test and the viewer skeleton (#65) must not wait for a second
+backend. The measured gap is far beyond the 15 MB rule (wgpu uses about
+260 MB more private bytes and the exe is 7 MB larger), so x64 moves to glow
+once the viewer exists, behind a cargo feature, with arm64 staying on wgpu.
+That switch is its own issue; until then the viewer memory budget is
+calibrated on wgpu and tightened when glow lands. A second GPU and a cold-start
+run sharpen the numbers but do not change the decision (#84).
 
 ## Consequences
 
 - Good: arm64 works on devices without OpenGL.
-- Bad: until the owner run, two x64 configurations stay possible; the exe is
-  13.6 MB with wgpu against 6.5 MB with glow, over the 5 MB target either way.
+- Bad: until the glow switch, x64 pays about 260 MB more private bytes; the
+  exe is 13.6 MB with wgpu against 6.5 MB with glow, over the 5 MB target
+  either way.
 - The engine role of the single exe loads `dxgi`, `opengl32`, `glu32` and
   `dxcore` through static imports of the renderer crates (report 0003).
 
