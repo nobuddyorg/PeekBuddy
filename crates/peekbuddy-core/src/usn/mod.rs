@@ -10,5 +10,6 @@
 //! `peekbuddy-win` behind the `usn` feature, which stays off in v1 (ADR 0018).
 
 pub mod checkpoint;
+pub mod feed;
 pub mod record;
 pub mod scope;

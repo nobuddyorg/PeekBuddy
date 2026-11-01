@@ -39,3 +39,7 @@ harness = false
 [[test]]
 name = "reconcile_alloc"
 harness = false
+
+[[test]]
+name = "usn_alloc"
+harness = false
