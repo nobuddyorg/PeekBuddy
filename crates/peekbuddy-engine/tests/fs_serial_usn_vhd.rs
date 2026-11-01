@@ -438,7 +438,7 @@ fn refs_reads_fall_back_to_the_synchronous_reader_and_still_deliver() {
     }
     // ReFS wants a larger disk than NTFS; a runner without ReFS says so and
     // skips (the warning is the record that this ran nothing).
-    let Some(disk) = Disk::new("refs", 'X', "refs", 1024) else {
+    let Some(disk) = Disk::new("refs", 'X', "refs", 4096) else {
         return;
     };
     // ReFS creates its journal when asked; ignore "already there".
