@@ -78,8 +78,34 @@ batch once the buffers have grown) and announced on the engine's completion
 port, so the consumer loop is the same. `stop` sets a flag and repeats
 `CancelSynchronousIo` until the thread has left the kernel.
 
+## From buffers to events
+
+`usn::feed::Feed` turns a buffer into events: the scope decides, the name is
+relative to the root like an RDCW name, and a record without a name asks a
+`Names` for its path (`OpenFileById`). A failed lookup never drops the row:
+it is written with the parent path and `NAME_UNRESOLVED`. A full sink owes
+one `RingFull` row, a damaged buffer a `ParserError` row. After the first
+buffer a file record allocates nothing (`tests/usn_alloc.rs`). `usn::walk`
+fills a scope from the reconcile walker's `DirSource`, never entering a
+reparse point.
+
+## The engine runner
+
+`peekbuddy_engine::usn_source::UsnRunner` (feature `usn`) watches one root.
+It plans the resume from the saved checkpoint: an intact journal continues
+without a gap; a changed journal id, entries deleted or a USN beyond the
+journal write exactly one gap row and ask for a reconcile through `OnGap`.
+A volume without a journal is an error from `start`, and the caller stays on
+RDCW. Reads are pending (no wakeups while idle) on a private completion
+port; `stop` posts a message, cancels the read and joins. The position
+saved after each buffer is the next USN, saved after the events of that
+buffer were offered to the sink, so the writer queue orders it behind them.
+The `Checkpoints` and `OnGap` hooks are what the store and the reconciler
+plug into.
+
 ## What is not here
 
-The engine wiring and the destructive tests that need a VHD. Linux NTFS drivers
+The store-backed `Checkpoints`, the host switch that prefers the journal,
+and the destructive tests that need a VHD. Linux NTFS drivers
 write no journal records and keep the journal id, which is an undetectable
 gap; it is a limit of the source, not of this code.

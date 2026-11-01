@@ -13,3 +13,4 @@ pub mod checkpoint;
 pub mod feed;
 pub mod record;
 pub mod scope;
+pub mod walk;
