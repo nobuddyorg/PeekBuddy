@@ -356,7 +356,8 @@ fn leaf_of(path: &[u16]) -> &[u16] {
 
 /// `path` below `root_path` (both volume-relative), without the separator;
 /// `None` when `path` is not below it.
-fn relative_to<'a>(path: &'a [u16], root_path: &[u16]) -> Option<&'a [u16]> {
+#[must_use]
+pub fn relative_to<'a>(path: &'a [u16], root_path: &[u16]) -> Option<&'a [u16]> {
     let head = path.get(..root_path.len())?;
     if !eq_ignore_case_ordinal(
         WideStr::new(head),

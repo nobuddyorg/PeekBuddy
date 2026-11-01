@@ -38,6 +38,8 @@ pub mod settings;
 pub mod store_win;
 #[cfg(windows)]
 pub mod tray_win;
+#[cfg(all(windows, feature = "usn"))]
+pub mod usn_source;
 
 use std::path::PathBuf;
 

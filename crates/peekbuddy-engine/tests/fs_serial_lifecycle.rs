@@ -439,3 +439,39 @@ fn the_milestones_follow_the_watch_arming_gaps_and_reconciles() {
         seen(Milestone::ReconcileStart) >= 2 && seen(Milestone::ReconcileEnd) >= 2
     });
 }
+
+#[test]
+fn arm_ingest_and_stop_cycles_leave_the_handle_count_where_the_first_left_it() {
+    use peekbuddy_win::metrics::{current_process, handle_count};
+
+    // F8/#27: three cycles of arming a watch, ingesting and stopping; after
+    // the third the process holds as many handles as after the first. The
+    // first cycle warms up whatever is opened lazily.
+    let mut after_first = 0;
+    for cycle in 0..3 {
+        {
+            let fx = start(&format!("handles{cycle}"), None);
+            wait_for("live", || fx.log.has_state(WatchState::Live, ARMED));
+            std::fs::write(fx.scratch.tree().join("cycle.txt"), b"y").unwrap();
+            wait_for("the event", || {
+                fx.log.names(Kind::Created).iter().any(|n| n == "cycle.txt")
+            });
+        }
+        let settled = |expected: Option<u32>| {
+            // Threads and handles go a moment after the drop returns.
+            let deadline = Instant::now() + Duration::from_secs(5);
+            loop {
+                let now = handle_count(current_process()).unwrap();
+                if expected.is_none_or(|e| now == e) || Instant::now() >= deadline {
+                    return now;
+                }
+                std::thread::sleep(Duration::from_millis(50));
+            }
+        };
+        if cycle == 0 {
+            after_first = settled(None);
+        } else if cycle == 2 {
+            assert_eq!(settled(Some(after_first)), after_first);
+        }
+    }
+}
