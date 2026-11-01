@@ -75,11 +75,22 @@ pub struct Verdict {
     pub action: Action,
 }
 
-impl Verdict {
-    fn ignored() -> Self {
+/// [`Verdict`] without the path, which [`Scope::apply_into`] writes to a
+/// buffer of the caller's.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Decision {
+    /// See [`Verdict::accept`].
+    pub accept: bool,
+    /// See [`Verdict::path_partial`].
+    pub path_partial: bool,
+    /// See [`Verdict::action`].
+    pub action: Action,
+}
+
+impl Decision {
+    const fn ignored() -> Self {
         Self {
             accept: false,
-            parent_path: Vec::new(),
             path_partial: false,
             action: Action::None,
         }
@@ -197,38 +208,71 @@ impl Scope {
     /// The path of directory `frn` relative to the root, and whether a name
     /// on the way is missing. `None` when the chain does not reach the root
     /// (a member whose parent was never learned).
-    fn path_of(&self, frn: u128) -> Option<(Vec<u16>, bool)> {
-        let mut parts: Vec<&[u16]> = Vec::new();
+    /// Writes the path of `frn` relative to the root (components joined by
+    /// `\`, empty for the root) into `out`, reusing its capacity. Returns
+    /// whether some directory on the chain has no name yet, or `None` when
+    /// `frn` is not under the root.
+    pub fn path_into(&self, frn: u128, out: &mut Vec<u16>) -> Option<bool> {
+        out.clear();
+        // First pass: the length. One separator is counted per component and
+        // the one before the first is taken off below.
+        let mut len = 0_usize;
         let mut partial = false;
         let mut at = frn;
-        for _ in 0..MAX_DEPTH {
-            if at == self.root {
-                let mut path = Vec::new();
-                for (index, part) in parts.iter().rev().enumerate() {
-                    if index > 0 {
-                        path.push(BACKSLASH);
-                    }
-                    path.extend_from_slice(part);
-                }
-                return Some((path, partial));
+        let mut depth = 0_usize;
+        while at != self.root {
+            if depth >= MAX_DEPTH {
+                return None;
             }
             let dir = self.dirs.get(&at)?;
-            if dir.name.is_empty() {
-                partial = true;
+            partial |= dir.name.is_empty();
+            len += dir.name.len() + 1;
+            at = dir.parent;
+            depth += 1;
+        }
+        let total = len.saturating_sub(1);
+        out.resize(total, 0);
+        // Second pass: fill from the end, leaf first.
+        let mut end = total;
+        at = frn;
+        while at != self.root {
+            let dir = self.dirs.get(&at)?;
+            let start = end.saturating_sub(dir.name.len());
+            if let Some(slot) = out.get_mut(start..end) {
+                slot.copy_from_slice(&dir.name);
             }
-            parts.push(&dir.name);
+            end = start;
+            if end > 0 {
+                end -= 1;
+                if let Some(slot) = out.get_mut(end) {
+                    *slot = BACKSLASH;
+                }
+            }
             at = dir.parent;
         }
-        None
+        Some(partial)
     }
 
-    /// Decides one record and applies its effect on the set. `name_hint` is
-    /// the record's name when the read returned one.
+    /// Decides one record and applies its effect on the set. The path of the
+    /// record's parent goes into `path` (see [`Scope::apply_into`]).
     pub fn apply(&mut self, rec: &Record<'_>) -> Verdict {
+        let mut parent_path = Vec::new();
+        let decision = self.apply_into(rec, &mut parent_path);
+        Verdict {
+            accept: decision.accept,
+            parent_path,
+            path_partial: decision.path_partial,
+            action: decision.action,
+        }
+    }
+
+    /// Like [`Scope::apply`], with the parent path written into `path`
+    /// instead of a new vector: a file record allocates nothing once `path`
+    /// has grown to the longest path seen.
+    pub fn apply_into(&mut self, rec: &Record<'_>, path: &mut Vec<u16>) -> Decision {
         let is_dir = rec.is_dir();
         let parent_member = self.contains(rec.parent);
         let frn_member = is_dir && self.contains(rec.frn);
-        let name = rec.name_units();
 
         // The path before the change: a member directory's own parent chain
         // while the map still has its old place, else the record's parent.
@@ -237,33 +281,38 @@ impl Scope {
         } else {
             Some(rec.parent)
         };
-        let (parent_path, path_partial) = before
-            .and_then(|parent| self.path_of(parent))
-            .unwrap_or((Vec::new(), true));
+        let path_partial =
+            if let Some(partial) = before.and_then(|parent| self.path_into(parent, path)) {
+                partial
+            } else {
+                path.clear();
+                true
+            };
 
-        let mut verdict = Verdict {
+        let mut decision = Decision {
             accept: parent_member || frn_member,
-            parent_path,
             path_partial,
             action: Action::None,
         };
         if !is_dir {
             if !parent_member {
-                return Verdict::ignored();
+                path.clear();
+                return Decision::ignored();
             }
-            return verdict;
+            return decision;
         }
 
+        let name = rec.name_units();
         if rec.reason & reason::FILE_DELETE != 0 {
             self.remove_subtree(rec.frn);
         } else if rec.reason & reason::FILE_CREATE != 0 && parent_member {
             self.insert(rec.frn, rec.parent, &name);
-            verdict.action = needs(&name, rec.frn);
+            decision.action = needs(&name, rec.frn);
         } else if rec.reason & reason::RENAME_NEW_NAME != 0 {
             if parent_member {
                 let known = self.contains(rec.frn);
                 self.insert(rec.frn, rec.parent, &name);
-                verdict.action = if known {
+                decision.action = if known {
                     needs(&name, rec.frn)
                 } else {
                     Action::Walk(rec.frn)
@@ -271,10 +320,10 @@ impl Scope {
             } else if frn_member {
                 // Moved out of the tree: the new-name record is outside.
                 self.remove_subtree(rec.frn);
-                verdict.accept = false;
+                decision.accept = false;
             }
         }
-        verdict
+        decision
     }
 }
 
