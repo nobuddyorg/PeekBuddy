@@ -169,7 +169,9 @@ impl TrayController {
     }
 
     fn try_add(&mut self) -> std::io::Result<()> {
-        self.icon_for()?;
+        self.icon_for().map_err(|error| {
+            std::io::Error::new(error.kind(), format!("making the icon failed ({error})"))
+        })?;
         match &self.icon {
             Some(icon) => self.tray.add(icon, &tooltip(&self.state)),
             None => Err(std::io::Error::other("no icon")),

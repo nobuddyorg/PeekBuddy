@@ -140,13 +140,20 @@ impl Tray {
         data.uCallbackMessage = CALLBACK_MESSAGE;
         data.hIcon = icon.0;
         copy_units(tip, &mut data.szTip);
-        if Self::notify(NIM_ADD, &data).is_err() {
+        if let Err(added) = Self::notify(NIM_ADD, &data) {
             // Already added (a repeated TaskbarCreated): modify instead.
-            Self::notify(NIM_MODIFY, &data)?;
+            Self::notify(NIM_MODIFY, &data).map_err(|modified| {
+                std::io::Error::new(
+                    modified.kind(),
+                    format!("NIM_ADD failed ({added}) and NIM_MODIFY failed ({modified})"),
+                )
+            })?;
         }
         let mut version = self.data();
         version.Anonymous.uVersion = NOTIFYICON_VERSION_4;
-        Self::notify(NIM_SETVERSION, &version)
+        Self::notify(NIM_SETVERSION, &version).map_err(|error| {
+            std::io::Error::new(error.kind(), format!("NIM_SETVERSION failed ({error})"))
+        })
     }
 
     /// Changes icon and tooltip.
