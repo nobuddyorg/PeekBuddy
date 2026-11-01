@@ -727,3 +727,23 @@ fn cursors_of_two_roots_on_one_volume_each_follow_the_rotation() {
     assert_eq!(rows[1].1, 71);
     assert_ne!(rows[0].0, rows[1].0);
 }
+
+#[test]
+fn a_rotating_writer_describes_its_segment_state_in_debug_output() {
+    let dir = Dir::new("debug");
+    let writer = open(
+        dir.path(),
+        plain_days(),
+        u64::MAX,
+        Caps {
+            max_age_days: None,
+            max_total_bytes: None,
+            max_rows: None,
+        },
+        1,
+    );
+    let text = format!("{writer:?}");
+    assert!(text.contains("SegmentState"), "{text}");
+    assert!(text.contains("events-2026-10-01.db"), "{text}");
+    assert!(text.contains("first_id"), "{text}");
+}

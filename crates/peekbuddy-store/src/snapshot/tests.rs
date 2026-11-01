@@ -178,3 +178,14 @@ fn a_database_from_a_newer_build_is_refused() {
     assert!(matches!(error, OpenError::TooNew(99)), "{error}");
     std::fs::remove_dir_all(path.parent().unwrap()).unwrap();
 }
+
+#[test]
+fn open_errors_say_what_happened() {
+    let newer = OpenError::TooNew(99).to_string();
+    assert!(
+        newer.starts_with("snapshot.db is version 99; this build reads "),
+        "{newer}"
+    );
+    let sqlite = OpenError::Sqlite(rusqlite::Error::InvalidQuery).to_string();
+    assert!(sqlite.starts_with("SQLite error: "), "{sqlite}");
+}

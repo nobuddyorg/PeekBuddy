@@ -34,3 +34,24 @@ fn the_purge_row_carries_the_id_range_rows_and_bytes() {
     assert_eq!((row.event.size, row.event.file_id), (50, 8192));
     assert_eq!(String::from_utf16_lossy(&row.name), "events-2026-10-25.db");
 }
+
+#[test]
+fn a_seal_context_shows_its_directory_and_caps_in_debug_output() {
+    use crate::retention::{Caps, NoViewer};
+
+    let context = SealContext {
+        dir: PathBuf::from("data-dir-name"),
+        catalog: Arc::new(Mutex::new(Catalog::open_in_memory().unwrap())),
+        caps: Caps {
+            max_age_days: Some(7),
+            max_total_bytes: None,
+            max_rows: None,
+        },
+        retire: Arc::new(NoViewer),
+        system: Arc::default(),
+    };
+    let text = format!("{context:?}");
+    assert!(text.contains("SealContext"), "{text}");
+    assert!(text.contains("data-dir-name"), "{text}");
+    assert!(text.contains("max_age_days: Some(7)"), "{text}");
+}

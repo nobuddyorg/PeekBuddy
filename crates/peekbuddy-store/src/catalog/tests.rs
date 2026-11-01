@@ -165,3 +165,44 @@ fn a_scan_describes_good_files_and_reports_every_bad_one() {
     assert_eq!(std::fs::read(dir.join("notes.txt")).unwrap(), b"hello");
     std::fs::remove_dir_all(&dir).unwrap();
 }
+
+#[test]
+fn catalog_errors_say_what_happened() {
+    let newer = CatalogError::TooNew(99).to_string();
+    assert!(
+        newer.starts_with("catalog.db is version 99; this build reads "),
+        "{newer}"
+    );
+    let sqlite = CatalogError::Sqlite(rusqlite::Error::InvalidQuery).to_string();
+    assert!(sqlite.starts_with("SQLite error: "), "{sqlite}");
+}
+
+#[test]
+fn a_date_of_the_wrong_length_is_not_a_segment_name() {
+    // Every position is a digit or the right dash, only the length is off.
+    for bad in ["events-2026-10-2.db", "events-2026-10-266.db"] {
+        assert!(!is_segment_name(bad), "{bad}");
+    }
+}
+
+#[test]
+fn a_segment_from_a_newer_schema_is_refused_by_describe() {
+    let dir = scratch("newer-schema");
+    let path = dir.join("events-2026-10-03.db");
+    let conn = crate::schema::open(&path).unwrap();
+    conn.execute_batch(&format!(
+        "PRAGMA user_version = {};",
+        i64::from(SCHEMA_VERSION) + 1
+    ))
+    .unwrap();
+    drop(conn);
+    let error = describe(&path).unwrap_err();
+    assert!(error.contains("newer than this build"), "{error}");
+    // The current version is described.
+    let conn = Connection::open(&path).unwrap();
+    conn.execute_batch(&format!("PRAGMA user_version = {SCHEMA_VERSION};"))
+        .unwrap();
+    drop(conn);
+    assert_eq!(describe(&path).unwrap().rows, 0);
+    std::fs::remove_dir_all(&dir).unwrap();
+}
