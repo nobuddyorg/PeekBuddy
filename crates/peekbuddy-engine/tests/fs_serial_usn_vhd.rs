@@ -63,12 +63,14 @@ struct Disk {
     vhd: PathBuf,
     mount: PathBuf,
     base: PathBuf,
+    /// `fsutil usn` wants a drive letter, not a mount folder.
+    letter: char,
 }
 
 impl Disk {
     /// `None` (after saying why on stdout) when the file system cannot be
     /// put on a disk of this runner; every other failure fails the test.
-    fn new(tag: &str, fs: &str, megabytes: u32) -> Option<Self> {
+    fn new(tag: &str, letter: char, fs: &str, megabytes: u32) -> Option<Self> {
         let base = std::env::temp_dir().join(format!("pbusn-{tag}-{}", std::process::id()));
         std::fs::create_dir_all(base.join("mount")).unwrap();
         // The runner's temp directory is an 8.3 path: diskpart wants long
@@ -78,6 +80,7 @@ impl Disk {
             vhd: base.join("disk.vhdx"),
             mount: base.join("mount"),
             base,
+            letter,
         };
         let script = format!(
             "create vdisk file=\"{}\" maximum={megabytes} type=expandable\nattach vdisk\ncreate partition primary\nformat fs={fs} quick label=pbusn\nassign mount=\"{}\"\n",
@@ -99,7 +102,7 @@ impl Disk {
     }
 
     fn mount_arg(&self) -> String {
-        format!("{}\\", self.mount.display())
+        format!("{}:", self.letter)
     }
 
     fn create_journal(&self, max: &str, delta: &str) {
@@ -238,7 +241,7 @@ fn a_deleted_and_recreated_journal_is_one_gap_and_reading_goes_on() {
     if !enabled() {
         return;
     }
-    let Some(disk) = Disk::new("recreate", "ntfs", 128) else {
+    let Some(disk) = Disk::new("recreate", 'U', "ntfs", 128) else {
         return;
     };
     disk.create_journal("0x100000", "0x40000");
@@ -269,7 +272,7 @@ fn a_journal_recreated_while_stopped_is_one_gap_at_the_next_start() {
     if !enabled() {
         return;
     }
-    let Some(disk) = Disk::new("idchange", "ntfs", 128) else {
+    let Some(disk) = Disk::new("idchange", 'V', "ntfs", 128) else {
         return;
     };
     disk.create_journal("0x100000", "0x40000");
@@ -299,7 +302,7 @@ fn a_journal_that_wrapped_while_stopped_is_one_entry_deleted_gap() {
     if !enabled() {
         return;
     }
-    let Some(disk) = Disk::new("wrap", "ntfs", 256) else {
+    let Some(disk) = Disk::new("wrap", 'W', "ntfs", 256) else {
         return;
     };
     // The smallest journal NTFS accepts, so a few thousand files push the
@@ -337,7 +340,7 @@ fn refs_reads_fall_back_to_the_synchronous_reader_and_still_deliver() {
     }
     // ReFS wants a larger disk than NTFS; a runner without ReFS says so and
     // skips (the warning is the record that this ran nothing).
-    let Some(disk) = Disk::new("refs", "refs", 1024) else {
+    let Some(disk) = Disk::new("refs", 'X', "refs", 1024) else {
         return;
     };
     // ReFS creates its journal when asked; ignore "already there".
