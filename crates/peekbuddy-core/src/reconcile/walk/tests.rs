@@ -101,6 +101,7 @@ fn the_first_walk_writes_the_snapshot_and_one_baseline_row() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "100k entries are too slow for Miri")]
 fn a_baseline_of_a_100k_entry_tree_is_one_row() {
     let mut t = MemoryTree::new();
     for d in 0..1000_u128 {

@@ -942,7 +942,7 @@ fn bounded_run(events: u64) {
 
 #[test]
 fn many_distinct_paths_keep_the_open_groups_bounded() {
-    bounded_run(200_000);
+    bounded_run(if cfg!(miri) { 300 } else { 200_000 });
 }
 
 #[test]
