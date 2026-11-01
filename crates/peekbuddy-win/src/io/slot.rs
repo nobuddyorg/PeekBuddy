@@ -169,3 +169,30 @@ impl Drop for IoSlot {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn slot_errors_say_what_is_wrong() {
+        assert_eq!(
+            SlotError::BadSize.to_string(),
+            "the buffer size must be a non-zero multiple of 4 that fits a DWORD"
+        );
+        assert_eq!(SlotError::Pending.to_string(), "the slot has I/O pending");
+        assert_eq!(
+            SlotError::NotPending.to_string(),
+            "the slot has no I/O pending"
+        );
+    }
+
+    #[test]
+    fn a_slot_shows_its_size_and_state_in_debug_output() {
+        let slot = IoSlot::new(64).unwrap();
+        let text = format!("{slot:?}");
+        assert!(text.contains("IoSlot"), "{text}");
+        assert!(text.contains("len: 64"), "{text}");
+        assert!(text.contains("pending: false"), "{text}");
+    }
+}
