@@ -898,7 +898,7 @@ impl StateMachineTest for Sut {
 }
 
 prop_state_machine! {
-    #![proptest_config(ProptestConfig { cases: 300, max_shrink_iters: 200, ..ProptestConfig::default() })]
+    #![proptest_config(ProptestConfig { cases: if cfg!(miri) { 8 } else { 300 }, max_shrink_iters: 200, ..ProptestConfig::default() })]
 
     #[test]
     fn the_deriver_never_hides_or_reorders_a_raw_row(sequential 1..80 => Sut);

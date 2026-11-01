@@ -524,7 +524,7 @@ impl Model {
 }
 
 proptest! {
-    #![proptest_config(ProptestConfig { cases: 200, ..ProptestConfig::default() })]
+    #![proptest_config(ProptestConfig { cases: if cfg!(miri) { 8 } else { 200 }, ..ProptestConfig::default() })]
 
     #[test]
     fn a_reconcile_leaves_the_snapshot_equal_to_the_tree_and_explains_every_change(

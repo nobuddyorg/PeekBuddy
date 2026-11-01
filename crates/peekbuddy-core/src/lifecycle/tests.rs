@@ -482,7 +482,7 @@ impl StateMachineTest for Sut {
 }
 
 prop_state_machine! {
-    #![proptest_config(ProptestConfig { cases: 512, ..ProptestConfig::default() })]
+    #![proptest_config(ProptestConfig { cases: if cfg!(miri) { 8 } else { 512 }, ..ProptestConfig::default() })]
 
     #[test]
     fn any_signal_order_keeps_the_invariants(sequential 1..80 => Sut);
