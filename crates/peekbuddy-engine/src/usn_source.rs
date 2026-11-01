@@ -23,7 +23,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc;
 use std::sync::{Arc, Mutex, PoisonError};
 use std::thread::JoinHandle;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use peekbuddy_core::capture::{EventSink, Stamp};
 use peekbuddy_core::event::{GapReason, RootIdx, VolIdx};
@@ -49,6 +49,10 @@ const KEY_READ: usize = 1;
 const KEY_STOP: usize = 2;
 /// `ERROR_OPERATION_ABORTED`.
 const ERROR_OPERATION_ABORTED: i32 = 995;
+/// How long a journal that is being recreated is waited for, and how often
+/// it is asked.
+const REQUERY_FOR: Duration = Duration::from_secs(20);
+const REQUERY_EVERY: Duration = Duration::from_millis(100);
 /// How long a cancelled read may take to report.
 const DRAIN_TIMEOUT: Duration = Duration::from_secs(5);
 /// The longest volume-relative path resolved for a name.
@@ -535,13 +539,8 @@ impl Job {
         feed.gap(reason, Stamp { ts, qpc }, &mut self.sink);
         self.sink.batch_end();
         (self.on_gap)(reason);
-        let mut query: Journal = match Journal::open(control.guid_path(), DEFAULT_BUFFER) {
-            Ok(journal) => journal,
-            Err(_) => return Recovery::Fatal,
-        };
-        let data: JournalData = match query.query() {
-            Ok(data) => data,
-            Err(_) => return Recovery::Fatal,
+        let Some(data) = self.requery(control) else {
+            return Recovery::Fatal;
         };
         *next = data.next_usn;
         *journal_id = data.journal_id;
@@ -561,6 +560,32 @@ struct Setup {
     feed: Feed,
     next: i64,
     journal_id: u64,
+}
+
+impl Job {
+    /// The journal's data after a gap. While a journal is being recreated
+    /// (deleted, not yet active) the query fails with 1178 or 1179; it is
+    /// repeated for a bounded time, the only wait outside the idle path.
+    fn requery(&self, control: &Journal) -> Option<JournalData> {
+        let mut query = Journal::open(control.guid_path(), DEFAULT_BUFFER).ok()?;
+        let deadline = Instant::now() + REQUERY_FOR;
+        loop {
+            match query.query() {
+                Ok(data) => return Some(data),
+                Err(error) => {
+                    let recreating = error
+                        .raw_os_error()
+                        .and_then(|code| u32::try_from(code).ok())
+                        .is_some_and(|code| gap_for_error(code).is_some());
+                    if !recreating || Instant::now() >= deadline || self.stop.load(Ordering::SeqCst)
+                    {
+                        return None;
+                    }
+                    std::thread::sleep(REQUERY_EVERY);
+                }
+            }
+        }
+    }
 }
 
 enum Recovery {
