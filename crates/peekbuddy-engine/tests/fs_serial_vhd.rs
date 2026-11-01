@@ -59,6 +59,17 @@ fn diskpart(script: &str) -> Result<String, String> {
     }
 }
 
+/// What diskpart says about the virtual disk.
+fn detail(vhd: &Path) -> Result<String, String> {
+    diskpart(&format!(
+        "select vdisk file=\"{}\"
+detail vdisk
+list vdisk
+",
+        vhd.display()
+    ))
+}
+
 /// A diskpart step that must work.
 fn must(script: &str) {
     let result = diskpart(script);
@@ -85,12 +96,22 @@ impl EventSink for Quiet {
 }
 
 fn wait_for(what: &str, states: &States, mut done: impl FnMut() -> bool) {
+    wait_for_with(what, states, String::new, &mut done);
+}
+
+fn wait_for_with(
+    what: &str,
+    states: &States,
+    context: impl Fn() -> String,
+    done: &mut impl FnMut() -> bool,
+) {
     let deadline = Instant::now() + Duration::from_secs(60);
     while !done() {
         assert!(
             Instant::now() < deadline,
-            "timed out waiting for {what}; the watch went through {:?}",
-            states.0.lock().unwrap()
+            "timed out waiting for {what}; the watch went through {:?}; {}",
+            states.0.lock().unwrap(),
+            context()
         );
         std::thread::sleep(Duration::from_millis(100));
     }
@@ -111,6 +132,24 @@ fn volume_of(path: &Path) -> Vec<u16> {
     volume_identity(&dir, &long).unwrap().guid_path
 }
 
+/// Creates the virtual disk and mounts it on `mount`, which must then be on
+/// another volume than `base`.
+fn new_disk(vhd: &Path, mount: &Path, base: &Path) {
+    must(&format!(
+        "create vdisk file=\"{}\" maximum=64 type=expandable\nattach vdisk\ncreate partition primary\nformat fs=ntfs quick label=pbtest\nassign mount=\"{}\"\n",
+        vhd.display(),
+        mount.display()
+    ));
+    // Without this a disk that was not (or no longer is) attached would leave
+    // the test watching a plain folder of the system volume.
+    assert_ne!(
+        volume_of(mount),
+        volume_of(base),
+        "the mount folder is not on the virtual disk; diskpart says: {:?}",
+        detail(vhd)
+    );
+}
+
 #[test]
 fn a_vhd_can_be_detached_while_watched_and_comes_back_on_attach() {
     if !enabled() {
@@ -120,25 +159,7 @@ fn a_vhd_can_be_detached_while_watched_and_comes_back_on_attach() {
     let mount = base.join("mount");
     std::fs::create_dir_all(&mount).unwrap();
     let vhd = base.join("disk.vhd");
-    must(&format!(
-        "create vdisk file=\"{}\" maximum=64 type=expandable\nattach vdisk\ncreate partition primary\nformat fs=ntfs quick label=pbtest\nassign mount=\"{}\"\n",
-        vhd.display(),
-        mount.display()
-    ));
-    // Without this a disk that was not (or no longer is) attached would leave
-    // the test watching a plain folder of the system volume.
-    assert_ne!(
-        volume_of(&mount),
-        volume_of(&base),
-        "the mount folder is not on the virtual disk; diskpart says: {:?}",
-        diskpart(&format!(
-            "select vdisk file=\"{}\"
-detail vdisk
-list vdisk
-",
-            vhd.display()
-        ))
-    );
+    new_disk(&vhd, &mount, &base);
     let tree = mount.join("watched");
     std::fs::create_dir_all(&tree).unwrap();
     std::fs::write(tree.join("a.txt"), b"x").unwrap();
@@ -195,14 +216,27 @@ list vdisk
         detached.is_ok() || already,
         "detach failed (a handle of the engine may have kept the volume): {detached:?}"
     );
-    wait_for("suspended or lost", &states, || {
-        states.0.lock().unwrap().iter().any(|s| {
-            matches!(
-                s,
-                WatchState::SuspendedQueryRemove | WatchState::SuspendedLocked | WatchState::Lost
+    wait_for_with(
+        "suspended or lost",
+        &states,
+        || {
+            format!(
+                "detach said {detached:?}; the watched file is {:?}; diskpart now: {:?}",
+                std::fs::metadata(tree.join("a.txt")).map(|m| m.len()),
+                detail(&vhd)
             )
-        })
-    });
+        },
+        &mut || {
+            states.0.lock().unwrap().iter().any(|s| {
+                matches!(
+                    s,
+                    WatchState::SuspendedQueryRemove
+                        | WatchState::SuspendedLocked
+                        | WatchState::Lost
+                )
+            })
+        },
+    );
 
     must(&format!(
         "select vdisk file=\"{}\"\nattach vdisk\n",
