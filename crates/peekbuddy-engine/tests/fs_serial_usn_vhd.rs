@@ -211,15 +211,59 @@ fn start(dir: &Path, saved: &Saved) -> Started {
         root: RootIdx(2),
         path: dir,
     };
-    let runner = UsnRunner::start(
+    let started = UsnRunner::start(
         &spec,
         Box::new(saved.clone()),
         Box::new(Collect(Arc::clone(&rows))),
         on_gap,
         now_ticks,
-    )
-    .unwrap();
+    );
+    let runner = started
+        .map_err(|error| format!("start failed: {error}; {}", diagnose(dir)))
+        .unwrap();
     Started { runner, rows, gaps }
+}
+
+/// Replays the setup of the runner step by step and says which one fails.
+fn diagnose(dir: &Path) -> String {
+    use std::os::windows::ffi::OsStrExt as _;
+
+    use peekbuddy_win::io::dir::DirHandle;
+    use peekbuddy_win::io::open::OpenOptions;
+    use peekbuddy_win::io::path::to_long_path;
+    use peekbuddy_win::io::volume::volume_identity;
+    use peekbuddy_win::usn::{DEFAULT_BUFFER, Journal};
+
+    let wide: Vec<u16> = dir.as_os_str().encode_wide().collect();
+    let long = match to_long_path(&wide) {
+        Ok(long) => long,
+        Err(error) => return format!("to_long_path: {error:?}"),
+    };
+    let handle = match DirHandle::open(&long, OpenOptions::default()) {
+        Ok(handle) => handle,
+        Err(error) => return format!("open the root: {error}"),
+    };
+    let identity = match volume_identity(&handle, &long) {
+        Ok(identity) => identity,
+        Err(error) => return format!("volume_identity: {error}"),
+    };
+    let frn = match peekbuddy_win::fs::file_id(dir) {
+        Ok(frn) => frn,
+        Err(error) => return format!("file_id: {error}"),
+    };
+    let mut journal = match Journal::open(&identity.guid_path, DEFAULT_BUFFER) {
+        Ok(journal) => journal,
+        Err(error) => return format!("Journal::open: {error}"),
+    };
+    let query = match journal.query() {
+        Ok(data) => format!("{data:?}"),
+        Err(error) => return format!("query: {error}"),
+    };
+    let mut out = vec![0_u16; 4096];
+    match journal.resolve_path(frn, &mut out) {
+        Ok(len) => format!("all steps work: {query}; root path {len} units"),
+        Err(error) => format!("resolve_path of frn {frn:#x}: {error}; {query}"),
+    }
 }
 
 fn wait_until(what: &str, mut done: impl FnMut() -> bool) {
