@@ -208,3 +208,11 @@ proptest! {
         prop_assert_eq!(classify(&c), None);
     }
 }
+
+#[test]
+fn a_source_without_reasons_is_not_churn_unless_the_attributes_flip() {
+    // No reason and nothing changed: nothing says this is sync noise.
+    assert_eq!(classify(&change(CLOUD, 0, 0, PLAIN, PLAIN)), None);
+    // No reason, but the sync-state bits flipped.
+    assert!(classify(&change(CLOUD, 0, 0, PLAIN, PLAIN | attr::PINNED)).is_some());
+}

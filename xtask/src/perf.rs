@@ -659,7 +659,7 @@ fn measure(options: &Options) -> Result<(Vec<Row>, Value), String> {
     }
     rows.push(not_exercised(
         "engine.handles.stable",
-        "needs arm/ingest/pause/resume cycles (#63, #45)",
+        "asserted in-process by fs_serial_lifecycle (three arm/ingest/stop cycles, #27); the exe-level cycles need the pipe client",
     ));
     rows.push(not_exercised(
         "ingest",

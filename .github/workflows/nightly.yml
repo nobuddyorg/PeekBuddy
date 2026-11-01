@@ -135,10 +135,44 @@ jobs:
           tool: cargo-nextest@0.9.149
       - run: cargo nextest run --workspace --profile ci --locked --no-tests=pass -E 'binary(/^fs_serial/)' --stress-duration 30m
 
+  soak:
+    name: kill soak (${{ matrix.runner }})
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [windows-2025, windows-11-vs2026-arm]
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Rust toolchain
+        run: rustup toolchain install && rustup show
+      - uses: taiki-e/install-action@1e29709c0ec63babbe8f266397a465f29a825f91 # v2.87.31
+        with:
+          tool: cargo-nextest@0.9.149
+      # The engine is killed at 30 seeded random points, three times with
+      # other seeds; every restart must find sound segments and every
+      # committed row unchanged (#216). The smoke variant (5 kills) runs in
+      # the PR tests.
+      - name: Kill soak, three seeds
+        shell: pwsh
+        env:
+          PEEKBUDDY_KILLS: "30"
+        run: |
+          foreach ($seed in 11, 23, 47) {
+            $env:PEEKBUDDY_KILL_SEED = $seed
+            cargo nextest run --locked --profile ci -p peekbuddy -E 'binary(fs_serial_kill)'
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
+
   vhd:
     name: vhd detach and attach (#48)
     runs-on: windows-2025
-    timeout-minutes: 20
+    timeout-minutes: 40
     permissions:
       contents: read
     steps:
@@ -155,6 +189,21 @@ jobs:
       - run: cargo nextest run --locked --profile ci -p peekbuddy-engine -E 'binary(fs_serial_vhd)'
         env:
           PEEKBUDDY_VHD_TESTS: "1"
+      # Destructive: journals of the vdisk are deleted, recreated and wrapped
+      # (#214); the journals of the system volumes are never touched.
+      - name: USN source on a vdisk (#214)
+        run: cargo nextest run --locked --profile ci -p peekbuddy-engine --features usn -E 'binary(fs_serial_usn_vhd)'
+        env:
+          PEEKBUDDY_VHD_TESTS: "1"
+          PEEKBUDDY_VHD_NOTES: ${{ runner.temp }}\vhd-notes.txt
+      - name: Say what the USN vdisk tier skipped
+        if: always()
+        shell: pwsh
+        run: |
+          $notes = Join-Path $env:RUNNER_TEMP 'vhd-notes.txt'
+          if (Test-Path $notes) {
+            Get-Content $notes | ForEach-Object { Write-Output "::warning title=USN vdisk tier skipped::$_" }
+          }
 
   beta:
     name: beta canary
@@ -336,7 +385,7 @@ jobs:
   report:
     name: report
     if: always() && github.event_name == 'schedule'
-    needs: [miri, fuzz, proptest-long, stress, vhd, beta, fresh-deps, mutants, mutants-core-linux, bench-trend]
+    needs: [miri, fuzz, proptest-long, stress, soak, vhd, beta, fresh-deps, mutants, mutants-core-linux, bench-trend]
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:

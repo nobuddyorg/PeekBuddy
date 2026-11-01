@@ -158,7 +158,13 @@ impl TrayController {
     /// taskbar-less session): the engine keeps capturing and `TaskbarCreated`
     /// retries. Returns whether the icon is shown.
     pub fn show(&mut self) -> bool {
-        self.present = self.try_add().is_ok();
+        self.present = match self.try_add() {
+            Ok(()) => true,
+            Err(error) => {
+                crate::instrument::log(&format!("tray: the icon could not be added: {error}"));
+                false
+            }
+        };
         self.present
     }
 

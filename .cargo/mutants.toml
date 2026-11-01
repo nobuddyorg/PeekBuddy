@@ -82,4 +82,10 @@ exclude_re = [
   # Equivalent mutants: the bits of `DATA_ACCESS` are disjoint, so `|` and
   # `^` build the same mask.
   "crates/peekbuddy-win/src/io/open.rs:.*replace \\| with \\^",
+  # Equivalent mutants: the reason bits of `NEVER` and `STATE_ONLY` are
+  # disjoint constants, so `|` and `^` build the same masks.
+  "crates/peekbuddy-core/src/reparse/mod.rs:.*replace \\| with \\^",
+  # `unwrap_or(i64::MAX / 2)` only runs for a time that does not fit an i64,
+  # and `ts` is clamped to MAX_TS first.
+  "crates/peekbuddy-core/src/export/mod.rs:.*replace / with % in civil",
 ]

@@ -40,12 +40,17 @@ pub struct DirLister {
 impl DirLister {
     /// A lister for the root at `root_long`, a `\\?\` path as made by
     /// [`to_long_path`](crate::io::path::to_long_path), without a trailing
-    /// separator.
+    /// separator (the root of a volume keeps its own).
     #[must_use]
     pub fn new(root_long: &[u16]) -> Self {
         let mut root = root_long.to_vec();
         while root.last() == Some(&u16::from(b'\\')) && root.len() > 1 {
             root.pop();
+        }
+        // The root directory of a volume keeps its separator: `\\?\U:` and
+        // `\\?\Volume{...}` name the volume device, not the directory.
+        if root.last() == Some(&u16::from(b':')) || root.last() == Some(&u16::from(b'}')) {
+            root.push(u16::from(b'\\'));
         }
         Self {
             root,
@@ -57,7 +62,9 @@ impl DirLister {
         let mut full = Vec::with_capacity(self.root.len() + 1 + path.len());
         full.extend_from_slice(&self.root);
         if !path.is_empty() {
-            full.push(u16::from(b'\\'));
+            if full.last() != Some(&u16::from(b'\\')) {
+                full.push(u16::from(b'\\'));
+            }
             full.extend_from_slice(path);
         }
         full
@@ -182,5 +189,46 @@ impl Drop for BackgroundMode {
             // is valid for the call.
             unsafe { SetThreadPriority(thread, THREAD_MODE_BACKGROUND_END) };
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn wide(text: &str) -> Vec<u16> {
+        text.encode_utf16().collect()
+    }
+
+    #[test]
+    fn a_volume_root_keeps_its_separator_and_other_roots_lose_theirs() {
+        assert_eq!(DirLister::new(&wide(r"\\?\U:\")).root, wide(r"\\?\U:\"));
+        assert_eq!(DirLister::new(&wide(r"\\?\U:")).root, wide(r"\\?\U:\"));
+        assert_eq!(
+            DirLister::new(&wide(r"\\?\Volume{1-2}\")).root,
+            wide(r"\\?\Volume{1-2}\")
+        );
+        assert_eq!(
+            DirLister::new(&wide(r"\\?\C:\Users\x\")).root,
+            wide(r"\\?\C:\Users\x")
+        );
+    }
+
+    #[test]
+    fn paths_below_a_volume_root_have_one_separator() {
+        let root = DirLister::new(&wide(r"\\?\U:\"));
+        assert_eq!(root.full_path(&[]), wide(r"\\?\U:\"));
+        assert_eq!(root.full_path(&wide("a")), wide(r"\\?\U:\a"));
+        let deep = DirLister::new(&wide(r"\\?\C:\Users"));
+        assert_eq!(deep.full_path(&wide("a")), wide(r"\\?\C:\Users\a"));
+    }
+
+    #[test]
+    fn the_root_directory_of_the_system_volume_can_be_listed() {
+        let drive = std::env::var("SystemDrive").unwrap_or_else(|_| String::from("C:"));
+        let mut lister = DirLister::new(&wide(&format!(r"\\?\{drive}\")));
+        let mut listing = Listing::new();
+        lister.list(&[], &mut listing).unwrap();
+        assert_ne!(listing.len(), 0);
     }
 }

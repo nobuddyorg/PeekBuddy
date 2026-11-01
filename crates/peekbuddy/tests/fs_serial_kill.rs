@@ -27,8 +27,18 @@ use peekbuddy_churn::profile::profile;
 use peekbuddy_testkit::TestDir;
 use rusqlite::{Connection, OpenFlags};
 
-/// Kills in the smoke variant; the nightly job runs many more.
-const KILLS: usize = 5;
+/// Kills in the smoke variant.
+const SMOKE_KILLS: usize = 5;
+
+/// How many times the engine is killed: `PEEKBUDDY_KILLS`, 5 by default. The
+/// nightly soak sets it higher and varies `PEEKBUDDY_KILL_SEED` (#216).
+fn kills() -> usize {
+    std::env::var("PEEKBUDDY_KILLS")
+        .ok()
+        .and_then(|text| text.parse().ok())
+        .filter(|&count| count > 0)
+        .unwrap_or(SMOKE_KILLS)
+}
 
 /// A seeded generator for the kill points (xorshift64).
 struct Rng(u64);
@@ -156,7 +166,7 @@ fn killing_the_engine_at_random_points_loses_nothing_it_does_not_cover() {
     });
 
     let mut rng = Rng(seed());
-    for kill in 0..KILLS {
+    for kill in 0..kills() {
         std::thread::sleep(Duration::from_millis(rng.between(300, 1_800)));
         let committed = snapshot(&data);
         engine.0.kill().unwrap();
@@ -195,7 +205,8 @@ fn killing_the_engine_at_random_points_loses_nothing_it_does_not_cover() {
     assert_eq!(
         verdict.report.undetected,
         Vec::<u64>::new(),
-        "undetected loss after {KILLS} kills (seed {}): {}",
+        "undetected loss after {} kills (seed {}): {}",
+        kills(),
         seed(),
         verdict.summary
     );

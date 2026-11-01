@@ -23,7 +23,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc;
 use std::sync::{Arc, Mutex, PoisonError};
 use std::thread::JoinHandle;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use peekbuddy_core::capture::{EventSink, Stamp};
 use peekbuddy_core::event::{GapReason, RootIdx, VolIdx};
@@ -49,6 +49,10 @@ const KEY_READ: usize = 1;
 const KEY_STOP: usize = 2;
 /// `ERROR_OPERATION_ABORTED`.
 const ERROR_OPERATION_ABORTED: i32 = 995;
+/// How long a journal that is being recreated is waited for, and how often
+/// it is asked.
+const REQUERY_FOR: Duration = Duration::from_secs(20);
+const REQUERY_EVERY: Duration = Duration::from_millis(100);
 /// How long a cancelled read may take to report.
 const DRAIN_TIMEOUT: Duration = Duration::from_secs(5);
 /// The longest volume-relative path resolved for a name.
@@ -83,6 +87,7 @@ pub struct UsnRunner {
     iocp: Arc<Iocp>,
     stop: Arc<AtomicBool>,
     counters: Arc<Mutex<Counters>>,
+    synchronous: Arc<AtomicBool>,
     thread: Option<JoinHandle<Option<io::Error>>>,
 }
 
@@ -111,6 +116,7 @@ impl UsnRunner {
         let iocp = Arc::new(Iocp::new(1)?);
         let stop = Arc::new(AtomicBool::new(false));
         let counters = Arc::new(Mutex::new(Counters::default()));
+        let synchronous = Arc::new(AtomicBool::new(false));
         let (ready_tx, ready_rx) = mpsc::channel();
         let job = Job {
             vol: spec.vol,
@@ -123,6 +129,7 @@ impl UsnRunner {
             iocp: Arc::clone(&iocp),
             stop: Arc::clone(&stop),
             counters: Arc::clone(&counters),
+            synchronous: Arc::clone(&synchronous),
         };
         // The journal handles hold OVERLAPPED state that must not cross
         // threads, so everything is opened on the thread that uses it; the
@@ -135,6 +142,7 @@ impl UsnRunner {
                 iocp,
                 stop,
                 counters,
+                synchronous,
                 thread: Some(thread),
             }),
             Ok(Err(error)) => {
@@ -152,6 +160,13 @@ impl UsnRunner {
     #[must_use]
     pub fn counters(&self) -> Counters {
         *self.counters.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+
+    /// Whether the volume refused overlapped reads (`ReFS`, Dev Drive) and
+    /// the runner reads on a thread of its own.
+    #[must_use]
+    pub fn uses_synchronous_reads(&self) -> bool {
+        self.synchronous.load(Ordering::SeqCst)
     }
 
     /// Stops reading: the pending read is cancelled and the thread joined.
@@ -181,6 +196,7 @@ struct Job {
     iocp: Arc<Iocp>,
     stop: Arc<AtomicBool>,
     counters: Arc<Mutex<Counters>>,
+    synchronous: Arc<AtomicBool>,
 }
 
 /// Name lookups for the feed: the control handle resolves reference numbers,
@@ -413,6 +429,7 @@ impl Job {
         match self.switch_to_sync(control, st.journal_id, st.next) {
             Ok(sync) => {
                 st.mode = Reader::Sync(sync);
+                self.synchronous.store(true, Ordering::SeqCst);
                 None
             }
             Err(error) => Some(error),
@@ -535,13 +552,8 @@ impl Job {
         feed.gap(reason, Stamp { ts, qpc }, &mut self.sink);
         self.sink.batch_end();
         (self.on_gap)(reason);
-        let mut query: Journal = match Journal::open(control.guid_path(), DEFAULT_BUFFER) {
-            Ok(journal) => journal,
-            Err(_) => return Recovery::Fatal,
-        };
-        let data: JournalData = match query.query() {
-            Ok(data) => data,
-            Err(_) => return Recovery::Fatal,
+        let Some(data) = self.requery(control) else {
+            return Recovery::Fatal;
         };
         *next = data.next_usn;
         *journal_id = data.journal_id;
@@ -561,6 +573,32 @@ struct Setup {
     feed: Feed,
     next: i64,
     journal_id: u64,
+}
+
+impl Job {
+    /// The journal's data after a gap. While a journal is being recreated
+    /// (deleted, not yet active) the query fails with 1178 or 1179; it is
+    /// repeated for a bounded time, the only wait outside the idle path.
+    fn requery(&self, control: &Journal) -> Option<JournalData> {
+        let mut query = Journal::open(control.guid_path(), DEFAULT_BUFFER).ok()?;
+        let deadline = Instant::now() + REQUERY_FOR;
+        loop {
+            match query.query() {
+                Ok(data) => return Some(data),
+                Err(error) => {
+                    let recreating = error
+                        .raw_os_error()
+                        .and_then(|code| u32::try_from(code).ok())
+                        .is_some_and(|code| gap_for_error(code).is_some());
+                    if !recreating || Instant::now() >= deadline || self.stop.load(Ordering::SeqCst)
+                    {
+                        return None;
+                    }
+                    std::thread::sleep(REQUERY_EVERY);
+                }
+            }
+        }
+    }
 }
 
 enum Recovery {
