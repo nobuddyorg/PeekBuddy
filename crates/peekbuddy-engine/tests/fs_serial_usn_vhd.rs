@@ -108,6 +108,13 @@ impl Disk {
         Some(disk)
     }
 
+    /// The root of the disk by its drive letter. The mount folder cannot be
+    /// the watched path: opened as a link it is a folder of the host volume,
+    /// and its file id means nothing on the disk.
+    fn root(&self) -> PathBuf {
+        PathBuf::from(format!("{}:\\", self.letter))
+    }
+
     fn mount_arg(&self) -> String {
         format!("{}:", self.letter)
     }
@@ -302,8 +309,8 @@ fn a_deleted_and_recreated_journal_is_one_gap_and_reading_goes_on() {
     };
     disk.create_journal("0x100000", "0x40000");
     let saved = Saved::default();
-    let mut started = start(&disk.mount, &saved);
-    std::fs::write(disk.mount.join("before.txt"), b"x").unwrap();
+    let mut started = start(&disk.root(), &saved);
+    std::fs::write(disk.root().join("before.txt"), b"x").unwrap();
     wait_until("the first file", || {
         has_row(&started.rows, "before.txt", Kind::Created)
     });
@@ -314,7 +321,7 @@ fn a_deleted_and_recreated_journal_is_one_gap_and_reading_goes_on() {
     disk.delete_journal();
     disk.create_journal("0x100000", "0x40000");
     wait_until("the gap", || !gap_rows(&started.rows).is_empty());
-    std::fs::write(disk.mount.join("after.txt"), b"x").unwrap();
+    std::fs::write(disk.root().join("after.txt"), b"x").unwrap();
     wait_until("the file after the gap", || {
         has_row(&started.rows, "after.txt", Kind::Created)
     });
@@ -333,8 +340,8 @@ fn a_journal_recreated_while_stopped_is_one_gap_at_the_next_start() {
     };
     disk.create_journal("0x100000", "0x40000");
     let saved = Saved::default();
-    let mut first = start(&disk.mount, &saved);
-    std::fs::write(disk.mount.join("one.txt"), b"x").unwrap();
+    let mut first = start(&disk.root(), &saved);
+    std::fs::write(disk.root().join("one.txt"), b"x").unwrap();
     wait_until("the first file", || {
         has_row(&first.rows, "one.txt", Kind::Created)
     });
@@ -343,9 +350,9 @@ fn a_journal_recreated_while_stopped_is_one_gap_at_the_next_start() {
     disk.delete_journal();
     disk.create_journal("0x100000", "0x40000");
 
-    let mut second = start(&disk.mount, &saved);
+    let mut second = start(&disk.root(), &saved);
     assert_eq!(gap_rows(&second.rows), [GapReason::JournalIdChanged]);
-    std::fs::write(disk.mount.join("two.txt"), b"x").unwrap();
+    std::fs::write(disk.root().join("two.txt"), b"x").unwrap();
     wait_until("the file after the gap", || {
         has_row(&second.rows, "two.txt", Kind::Created)
     });
@@ -365,24 +372,24 @@ fn a_journal_that_wrapped_while_stopped_is_one_entry_deleted_gap() {
     // saved position out of it.
     disk.create_journal("0x100000", "0x40000");
     let saved = Saved::default();
-    let mut first = start(&disk.mount, &saved);
-    std::fs::write(disk.mount.join("old.txt"), b"x").unwrap();
+    let mut first = start(&disk.root(), &saved);
+    std::fs::write(disk.root().join("old.txt"), b"x").unwrap();
     wait_until("the first file", || {
         has_row(&first.rows, "old.txt", Kind::Created)
     });
     assert!(first.runner.stop().is_none());
 
     for index in 0..30_000 {
-        std::fs::write(disk.mount.join(format!("wrap-{index}.txt")), b"x").unwrap();
+        std::fs::write(disk.root().join(format!("wrap-{index}.txt")), b"x").unwrap();
     }
 
-    let mut second = start(&disk.mount, &saved);
+    let mut second = start(&disk.root(), &saved);
     assert_eq!(gap_rows(&second.rows), [GapReason::JournalEntryDeleted]);
     assert_eq!(
         *second.gaps.lock().unwrap(),
         [GapReason::JournalEntryDeleted]
     );
-    std::fs::write(disk.mount.join("fresh.txt"), b"x").unwrap();
+    std::fs::write(disk.root().join("fresh.txt"), b"x").unwrap();
     wait_until("the file after the gap", || {
         has_row(&second.rows, "fresh.txt", Kind::Created)
     });
@@ -411,9 +418,9 @@ fn refs_reads_fall_back_to_the_synchronous_reader_and_still_deliver() {
         ],
     );
     let saved = Saved::default();
-    let mut started = start(&disk.mount, &saved);
-    std::fs::create_dir_all(disk.mount.join("dir")).unwrap();
-    std::fs::write(disk.mount.join("dir").join("refs.txt"), b"x").unwrap();
+    let mut started = start(&disk.root(), &saved);
+    std::fs::create_dir_all(disk.root().join("dir")).unwrap();
+    std::fs::write(disk.root().join("dir").join("refs.txt"), b"x").unwrap();
     wait_until("a file on ReFS", || {
         has_row(&started.rows, r"dir\refs.txt", Kind::Created)
     });
