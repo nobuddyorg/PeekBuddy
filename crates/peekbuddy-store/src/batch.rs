@@ -149,4 +149,15 @@ pub(crate) mod tests {
         batch.push(event(9, 0), &units("y")).unwrap();
         assert_eq!(batch.events.as_ptr(), before);
     }
+
+    #[test]
+    fn a_batch_is_empty_until_an_event_is_pushed_and_again_after_clear() {
+        let mut batch = Batch::with_capacity(4, 64);
+        assert!(batch.is_empty());
+        batch.push(event(1, 0), &units("a")).unwrap();
+        assert!(!batch.is_empty());
+        assert_eq!(batch.len(), 1);
+        batch.clear();
+        assert!(batch.is_empty());
+    }
 }

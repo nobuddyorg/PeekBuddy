@@ -82,6 +82,10 @@ exclude_re = [
   # Equivalent mutants: the bits of `DATA_ACCESS` are disjoint, so `|` and
   # `^` build the same mask.
   "crates/peekbuddy-win/src/io/open.rs:.*replace \\| with \\^",
+  # Equivalent mutant: the guard `path.exists()` follows a successful
+  # read-only open of the same path, so it only differs when the file vanishes
+  # between the two calls, which no test can arrange.
+  "crates/peekbuddy-store/src/segment.rs:.*replace match guard path.exists\\(\\) with true in NewestFirst::next_segment",
   # Equivalent mutants: the reason bits of `NEVER` and `STATE_ONLY` are
   # disjoint constants, so `|` and `^` build the same masks.
   "crates/peekbuddy-core/src/reparse/mod.rs:.*replace \\| with \\^",
