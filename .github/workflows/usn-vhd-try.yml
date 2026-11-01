@@ -1,0 +1,25 @@
+# Temporary: runs only the USN vdisk tier while #214 is developed. Removed
+# before the merge.
+name: usn-vhd-try
+on:
+  push:
+    branches: [issue/214-usn-vhd]
+permissions:
+  contents: read
+jobs:
+  vhd:
+    runs-on: windows-2025
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Rust toolchain
+        run: rustup toolchain install && rustup show
+      - uses: taiki-e/install-action@1e29709c0ec63babbe8f266397a465f29a825f91 # v2.87.31
+        with:
+          tool: cargo-nextest@0.9.149
+      - name: USN source on a vdisk
+        run: cargo nextest run --locked --profile ci -p peekbuddy-engine --features usn -E 'binary(fs_serial_usn_vhd)'
+        env:
+          PEEKBUDDY_VHD_TESTS: "1"
