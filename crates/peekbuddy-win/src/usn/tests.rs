@@ -312,3 +312,51 @@ fn stopping_the_synchronous_reader_ends_a_blocked_read() {
     // Stopping again is a no-op.
     reader.stop();
 }
+
+#[test]
+fn the_default_buffer_is_64_kib() {
+    assert_eq!(DEFAULT_BUFFER, 65_536);
+}
+
+#[test]
+fn a_foreign_completion_or_an_idle_slot_is_refused_by_finish() {
+    let dir = Dir(std::env::temp_dir().join(format!("pb-usn-finish-{}", std::process::id())));
+    std::fs::create_dir_all(&dir.0).unwrap();
+    let Some((mut journal, data)) = journal_of(&dir).unwrap() else {
+        return;
+    };
+    let iocp = Iocp::new(1).unwrap();
+    journal.associate(&iocp, 1).unwrap();
+    let mut batch = Batch::new(4);
+
+    // Nothing pending: any completion is refused.
+    let idle = Completion {
+        key: 1,
+        overlapped: 0,
+        bytes: 0,
+        status: crate::io::error::WinError::from_code(0),
+    };
+    assert!(matches!(
+        journal.finish(&idle),
+        Err(error) if error.kind() == io::ErrorKind::InvalidInput
+    ));
+
+    // A read pending, a completion that is not its own: refused, and the
+    // read is still pending.
+    journal.begin_wait(data.journal_id, data.next_usn).unwrap();
+    assert!(matches!(
+        journal.finish(&idle),
+        Err(error) if error.kind() == io::ErrorKind::InvalidInput
+    ));
+    assert!(journal.is_pending());
+    journal.cancel().unwrap();
+    let own = one_completion(&iocp, &mut batch);
+    let _ = journal.finish(&own);
+    assert!(!journal.is_pending());
+
+    // The completion of a read that was finished already: refused again.
+    assert!(matches!(
+        journal.finish(&own),
+        Err(error) if error.kind() == io::ErrorKind::InvalidInput
+    ));
+}

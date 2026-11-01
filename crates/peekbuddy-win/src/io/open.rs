@@ -183,4 +183,16 @@ mod tests {
             assert_eq!(check(LIST_DIRECTORY, flags), Ok(()));
         }
     }
+
+    #[test]
+    fn policy_errors_say_which_rule_was_broken() {
+        assert_eq!(
+            PolicyError::DataAccess(0x2).to_string(),
+            "the access 0x2 reads or changes data"
+        );
+        assert_eq!(
+            PolicyError::WouldRecall.to_string(),
+            "the flags would let a cloud file be recalled"
+        );
+    }
 }
