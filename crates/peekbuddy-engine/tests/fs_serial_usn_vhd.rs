@@ -241,6 +241,14 @@ fn start(dir: &Path, saved: &Saved) -> Started {
     Started { runner, rows, gaps }
 }
 
+/// `FirstUsn` of the journal of the disk, read-only.
+fn first_usn(disk: &Disk) -> i64 {
+    use peekbuddy_win::usn::{DEFAULT_BUFFER, Journal};
+
+    let mut journal = Journal::open(&volume_of(&disk.root()), DEFAULT_BUFFER).unwrap();
+    journal.query().unwrap().first_usn
+}
+
 /// Replays the setup of the runner step by step and says which one fails.
 fn diagnose(dir: &Path) -> String {
     use std::os::windows::ffi::OsStrExt as _;
@@ -414,8 +422,22 @@ fn a_journal_that_wrapped_while_stopped_is_one_entry_deleted_gap() {
     });
     assert!(first.runner.stop().is_none());
 
-    for index in 0..30_000 {
-        std::fs::write(disk.root().join(format!("wrap-{index}.txt")), b"x").unwrap();
+    // NTFS trims the journal lazily, in steps of the allocation delta: write
+    // until `FirstUsn` has passed the saved position, in rounds, instead of
+    // trusting one fixed number of files.
+    let saved_usn = saved.load().unwrap().next_usn;
+    let mut written = 0;
+    let deadline = Instant::now() + Duration::from_secs(120);
+    while first_usn(&disk) <= saved_usn {
+        assert!(
+            Instant::now() < deadline,
+            "the journal did not wrap after {written} files"
+        );
+        for _ in 0..10_000 {
+            std::fs::write(disk.root().join(format!("wrap-{written}.txt")), b"x").unwrap();
+            written += 1;
+        }
+        std::thread::sleep(Duration::from_millis(500));
     }
 
     let mut second = start(&disk.root(), &saved);
