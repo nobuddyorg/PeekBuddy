@@ -38,6 +38,7 @@ pub const DEFAULT_BUFFER: usize = 64 * 1024;
 /// An open journal of one volume.
 #[derive(Debug)]
 pub struct Journal {
+    guid_path: Vec<u16>,
     volume: DirHandle,
     event: OwnedHandle,
     slot: IoSlot,
@@ -66,11 +67,18 @@ impl Journal {
         let slot = IoSlot::new(buffer_bytes)
             .map_err(|error| io::Error::new(io::ErrorKind::InvalidInput, error))?;
         Ok(Self {
+            guid_path: guid_path.to_vec(),
             volume,
             event,
             slot,
             on_port: false,
         })
+    }
+
+    /// The volume GUID path this journal was opened on.
+    #[must_use]
+    pub fn guid_path(&self) -> &[u16] {
+        &self.guid_path
     }
 
     /// Makes the volume handle's completions arrive on `iocp` with `key`, for
