@@ -197,3 +197,96 @@ fn relative_prefix_compares_ignoring_case() {
     assert_eq!(relative_prefix(&root, &units(r"\\?\C:\Users")), None);
     assert_eq!(relative_prefix(&root, &units(r"\\?\D:\Users\me\x")), None);
 }
+
+/// Extended-class records: `(action, name, file id, attributes, tag)`.
+fn extended(records: &[(u32, &str, i64, u32, u32)]) -> Vec<u8> {
+    use crate::notify::layout;
+    let header = Class::Extended.header_len();
+    let mut out = Vec::new();
+    for (index, (action, name, id, attrs, tag)) in records.iter().enumerate() {
+        let name = units(name);
+        let size = (header + name.len() * 2).next_multiple_of(8);
+        let start = out.len();
+        out.resize(start + size, 0);
+        let next = if index + 1 == records.len() { 0 } else { size };
+        let mut put = |at: usize, bytes: &[u8]| {
+            out.get_mut(start + at..start + at + bytes.len())
+                .unwrap()
+                .copy_from_slice(bytes);
+        };
+        put(
+            layout::NEXT_ENTRY_OFFSET,
+            &u32::try_from(next).unwrap().to_le_bytes(),
+        );
+        put(layout::ACTION, &action.to_le_bytes());
+        put(layout::FILE_ATTRIBUTES, &attrs.to_le_bytes());
+        put(layout::REPARSE_TAG, &tag.to_le_bytes());
+        put(layout::FILE_ID, &id.to_le_bytes());
+        put(
+            layout::EXTENDED_NAME_LENGTH,
+            &u32::try_from(name.len() * 2).unwrap().to_le_bytes(),
+        );
+        for (i, unit) in name.iter().enumerate() {
+            put(header + i * 2, &unit.to_le_bytes());
+        }
+    }
+    out
+}
+
+/// A sink that keeps the flags of what it takes.
+#[derive(Default)]
+struct Flagged(Vec<(Kind, Flags)>);
+
+impl EventSink for Flagged {
+    fn push(&mut self, event: &Event, _name: &[u16]) -> bool {
+        self.0.push((event.kind, event.flags));
+        true
+    }
+}
+
+#[test]
+fn a_flip_of_the_sync_bits_on_a_cloud_file_is_tagged_as_churn() {
+    use crate::reparse::{attr, tag};
+    let archive = 0x20;
+    let dehydrated = archive | attr::RECALL_ON_DATA_ACCESS | attr::OFFLINE;
+    let buf = extended(&[
+        (1, "doc.docx", 77, dehydrated, tag::CLOUD),
+        // Hydrated: only sync bits changed.
+        (3, "doc.docx", 77, archive, tag::CLOUD),
+        // The same attributes again, a data write: not churn.
+        (3, "doc.docx", 77, archive, tag::CLOUD),
+        // A plain file is never looked at.
+        (3, "plain.txt", 78, archive, 0),
+        // Another file, first sighting after a modify: nothing to compare.
+        (3, "other.docx", 79, archive | attr::PINNED, tag::CLOUD),
+    ]);
+    let mut sink = Flagged::default();
+    let mut d = Decoder::new(RootIdx(0), VolIdx(0), Class::Extended, &[]);
+    d.decode(&buf, buf.len(), STAMP, &mut sink);
+    let flags: Vec<Flags> = sink.0.iter().map(|(_, f)| *f).collect();
+    assert_eq!(
+        flags,
+        [
+            Flags::NONE,
+            Flags::CLOUD_CHURN,
+            Flags::NONE,
+            Flags::NONE,
+            Flags::NONE
+        ]
+    );
+}
+
+#[test]
+fn a_created_or_deleted_cloud_file_is_never_churn() {
+    use crate::reparse::{attr, tag};
+    let archive = 0x20;
+    let buf = extended(&[
+        (3, "a", 5, archive | attr::OFFLINE, tag::CLOUD),
+        // Same file, attributes flipped, but the action is a delete.
+        (2, "a", 5, archive, tag::CLOUD),
+    ]);
+    let mut sink = Flagged::default();
+    let mut d = Decoder::new(RootIdx(0), VolIdx(0), Class::Extended, &[]);
+    d.decode(&buf, buf.len(), STAMP, &mut sink);
+    assert!(sink.0.iter().all(|(_, flags)| *flags == Flags::NONE));
+}

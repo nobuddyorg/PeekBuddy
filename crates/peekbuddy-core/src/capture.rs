@@ -24,6 +24,7 @@ use crate::event::{
 };
 use crate::name::fold_upper_into;
 use crate::notify::{self, Class, ParseError};
+use crate::reparse::ChurnCache;
 
 /// One reading of the clocks: the wall time and a monotonic count taken
 /// when a completion was dequeued. RDCW records carry no event time, so every
@@ -119,6 +120,7 @@ pub struct Decoder {
     folded: Vec<u16>,
     owed: [u32; GapReason::ALL.len()],
     counters: Counters,
+    churn: ChurnCache,
 }
 
 /// The separator that ends a path component in a notify name.
@@ -146,6 +148,7 @@ impl Decoder {
             folded: vec![0; MAX_NAME_UNITS],
             owed: [0; GapReason::ALL.len()],
             counters: Counters::default(),
+            churn: ChurnCache::new(),
         }
     }
 
@@ -287,7 +290,7 @@ impl Decoder {
     ) -> bool {
         let copied = record.name.copy_into(&mut self.name);
         let len = copied.unwrap_or(0);
-        let flags = if copied.is_some() {
+        let mut flags = if copied.is_some() {
             Flags::NONE
         } else {
             Flags::NAME_UNRESOLVED
@@ -298,12 +301,23 @@ impl Decoder {
             return true;
         }
         let extended = record.extended;
+        let kind = rdcw_kind(record.action.raw());
+        if let Some(e) = extended
+            && self.churn.observe(
+                u128::from(e.file_id.cast_unsigned()),
+                e.reparse_tag,
+                e.attributes,
+            )
+            && kind == Kind::Modified
+        {
+            flags = flags.union(Flags::CLOUD_CHURN);
+        }
         let event = Event {
             ts: stamp.ts,
             qpc: stamp.qpc,
             src_ts: 0,
             source: Source::Rdcw,
-            kind: rdcw_kind(record.action.raw()),
+            kind,
             raw_mask: record.action.raw(),
             source_info: 0,
             is_dir: extended.is_some_and(|e| e.is_dir()),
