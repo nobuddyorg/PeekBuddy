@@ -445,3 +445,38 @@ pub(crate) mod tests {
         assert!(!Kind::Modified.is_reconcile());
     }
 }
+
+#[cfg(test)]
+mod name_tests {
+    use super::{GapReason, WatchState};
+
+    #[test]
+    fn the_export_names_of_reasons_and_states_are_fixed() {
+        assert_eq!(
+            GapReason::ALL.map(GapReason::name),
+            [
+                "buffer_overflow",
+                "notify_enum_dir",
+                "journal_entry_deleted",
+                "journal_id_changed",
+                "parser_error",
+                "engine_not_running",
+                "ring_full",
+            ]
+        );
+        assert_eq!(
+            WatchState::ALL.map(WatchState::name),
+            [
+                "arming",
+                "live",
+                "overflowed",
+                "reconciling",
+                "suspended_by_user",
+                "suspended_query_remove",
+                "lost",
+                "restored",
+                "suspended_locked",
+            ]
+        );
+    }
+}

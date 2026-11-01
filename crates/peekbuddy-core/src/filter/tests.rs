@@ -996,3 +996,10 @@ proptest! {
         let _ = set.eval(&ev, WideStr::new(&units), &mut Scratch::new());
     }
 }
+
+#[test]
+fn the_set_of_all_kinds_has_one_bit_per_kind_class() {
+    assert_eq!(KindSet::ALL.0.count_ones(), 26);
+    assert_eq!(KindSet::ALL.0 >> 26, 0);
+    assert_eq!(KindSet::EMPTY.0, 0);
+}

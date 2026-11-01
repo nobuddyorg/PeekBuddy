@@ -357,4 +357,45 @@ autostrat = true
         };
         assert!(invalid.describe().contains("3:1: oops"));
     }
+
+    #[test]
+    fn a_file_that_cannot_be_read_is_a_problem_and_nothing_is_written() {
+        let data = data("unreadable");
+        // A directory where the file should be: reading it fails with
+        // something other than "not found".
+        std::fs::create_dir_all(&data.settings).unwrap();
+        let loaded = load_or_create(&data);
+        let problems = match &loaded.state {
+            State::Invalid { problems } => problems.clone(),
+            other => Vec::from([format!("not a problem: {other:?}")]),
+        };
+        assert!(
+            problems.iter().any(|p| p.contains("could not be read")),
+            "{problems:?}"
+        );
+        assert!(data.settings.is_dir());
+        clean(&data);
+    }
+
+    #[test]
+    fn a_watch_inside_the_data_directory_is_refused() {
+        let data = data("inside");
+        let inside = data.root.join("watched");
+        let path = inside
+            .to_string_lossy()
+            .trim_start_matches(r"\\?\")
+            .to_owned();
+        std::fs::write(
+            &data.settings,
+            format!("version = 1\n[[watch]]\nid = \"w0\"\npath = '{path}'\n"),
+        )
+        .unwrap();
+        let loaded = load_or_create(&data);
+        assert!(
+            matches!(loaded.state, State::Invalid { .. }),
+            "{:?}",
+            loaded.state
+        );
+        clean(&data);
+    }
 }
