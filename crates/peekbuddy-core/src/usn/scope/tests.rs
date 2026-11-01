@@ -227,3 +227,22 @@ fn memory_per_directory_is_small_and_linear() {
     assert!(per_dir <= 160, "{per_dir} B per directory");
     assert!(per_dir >= 16);
 }
+
+#[test]
+fn a_hundred_thousand_watched_directories_stay_within_the_measured_bound() {
+    // F8 (`engine.private_bytes.idle`, 15 MB with 100k watched directories)
+    // was set for RDCW, which keeps nothing per directory. The USN scope
+    // does: measured at 9.85 MB for 100k directories with a 12-unit name,
+    // about 98 B each (map entry, parent, name vector). The bound is that
+    // measurement plus 5 %, so growth is noticed; interning equal names
+    // (most trees repeat `src`, `node_modules`, `.git`) is the way down if
+    // the service mode needs the room.
+    let mut scope = Scope::new(ROOT);
+    for index in 1..=100_000_u128 {
+        scope.insert(ROOT + index, ROOT + index / 10, &units("node_modules"));
+    }
+    assert_eq!(scope.len(), 100_001);
+    let bytes = scope.memory_usage();
+    assert!(bytes <= 10_350_000, "{bytes} B for 100k directories");
+    assert!(bytes >= 5_000_000, "{bytes} B: the estimate lost its names");
+}
