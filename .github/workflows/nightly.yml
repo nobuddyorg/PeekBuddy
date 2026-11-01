@@ -172,7 +172,7 @@ jobs:
   vhd:
     name: vhd detach and attach (#48)
     runs-on: windows-2025
-    timeout-minutes: 20
+    timeout-minutes: 40
     permissions:
       contents: read
     steps:
@@ -189,6 +189,21 @@ jobs:
       - run: cargo nextest run --locked --profile ci -p peekbuddy-engine -E 'binary(fs_serial_vhd)'
         env:
           PEEKBUDDY_VHD_TESTS: "1"
+      # Destructive: journals of the vdisk are deleted, recreated and wrapped
+      # (#214); the journals of the system volumes are never touched.
+      - name: USN source on a vdisk (#214)
+        run: cargo nextest run --locked --profile ci -p peekbuddy-engine --features usn -E 'binary(fs_serial_usn_vhd)'
+        env:
+          PEEKBUDDY_VHD_TESTS: "1"
+          PEEKBUDDY_VHD_NOTES: ${{ runner.temp }}\vhd-notes.txt
+      - name: Say what the USN vdisk tier skipped
+        if: always()
+        shell: pwsh
+        run: |
+          $notes = Join-Path $env:RUNNER_TEMP 'vhd-notes.txt'
+          if (Test-Path $notes) {
+            Get-Content $notes | ForEach-Object { Write-Output "::warning title=USN vdisk tier skipped::$_" }
+          }
 
   beta:
     name: beta canary
