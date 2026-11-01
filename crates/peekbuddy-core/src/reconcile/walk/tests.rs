@@ -600,3 +600,76 @@ proptest! {
 fn path_text_helper_round_trips() {
     assert_eq!(path_text(&u("a\\b")), "a\\b");
 }
+
+#[test]
+fn the_finish_row_carries_the_elapsed_time_in_100_tick_units() {
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    static CALLS: AtomicU64 = AtomicU64::new(0);
+    // The first call is the start of the run; every later one is 10_000
+    // ticks after it.
+    fn jumping() -> (u64, u64) {
+        let first = CALLS.fetch_add(1, Ordering::Relaxed) == 0;
+        (1, if first { 0 } else { 10_000 })
+    }
+
+    let mut t = tree(&[("a.txt", file(1, 1, 1, 1))]);
+    let mut s = MemorySnapshot::new();
+    reconcile(&mut t, &mut s, None);
+    let cancel = AtomicBool::new(false);
+    let cfg = Config {
+        root: RootIdx(1),
+        vol: VolIdx(0),
+        reason: None,
+        cancel: &cancel,
+        clock: jumping,
+    };
+    let mut rows = Rows::new();
+    run(&cfg, &mut t, &mut s, &mut rows).unwrap();
+    let finish = rows
+        .rows
+        .iter()
+        .find(|row| row.0 == Kind::ReconcileFinished)
+        .unwrap();
+    assert_eq!(finish.2.src_ts, 100);
+}
+
+#[test]
+fn a_deleted_reparse_directory_does_not_take_a_subtree_with_it() {
+    let (mut t, mut s) = baselined(&[("keep.txt", file(1, 1, 1, 1))]);
+    // A junction row that has a child in the snapshot (it was a plain
+    // directory when the child was recorded).
+    let junction = Meta {
+        attributes: REPARSE_DIR,
+        reparse_tag: 0xA000_0003,
+        ..dir(5)
+    };
+    let id = s.upsert(1, 0, &u("link"), &junction, None).unwrap();
+    s.upsert(1, id, &u("inside.txt"), &file(6, 1, 1, 1), None)
+        .unwrap();
+    let (_, rows) = reconcile(&mut t, &mut s, None);
+    assert_eq!(
+        rows.differences(),
+        [(Kind::ReconciledDeleted, String::from("link"))]
+    );
+}
+
+#[test]
+fn a_snapshot_reports_its_size_and_emptiness() {
+    let mut s = MemorySnapshot::new();
+    assert!(s.is_empty());
+    assert_eq!(s.len(), 0);
+    s.upsert(1, 0, &u("a"), &file(1, 1, 1, 1), None).unwrap();
+    assert!(!s.is_empty());
+    assert_eq!(s.len(), 1);
+}
+
+#[test]
+fn a_committed_transaction_cannot_be_rolled_back() {
+    let mut s = MemorySnapshot::new();
+    s.begin().unwrap();
+    s.upsert(1, 0, &u("a"), &file(1, 1, 1, 1), None).unwrap();
+    s.commit().unwrap();
+    s.rollback();
+    assert_eq!(s.len(), 1);
+}

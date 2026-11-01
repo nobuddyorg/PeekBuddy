@@ -71,4 +71,12 @@ exclude_re = [
   # A segment row without rows has first_id == next_id, so `>= 0` picks the
   # same first id.
   "crates/peekbuddy-store/src/writer.rs:.*replace > with >= in Writer::open_segments",
+  # `MemorySnapshot::paths` stops at a missing parent row (the `let ... else
+  # break`) and the hop count only guards a parent cycle, which the API
+  # cannot build: `&&` with `||`, `<` with `<=` and `+=` with `-=` or `*=`
+  # change nothing a test can reach.
+  "crates/peekbuddy-core/src/reconcile/memory.rs:.*MemorySnapshot::paths",
+  # `by_id` only holds non-zero file ids, so a created entry with file id 0
+  # never finds a partner and the match guard is always true when it matters.
+  "crates/peekbuddy-core/src/reconcile/walk.rs:.*replace match guard entry.meta.file_id != 0 with true in settle",
 ]
