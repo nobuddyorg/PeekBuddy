@@ -1,0 +1,43 @@
+﻿
+Found 129 mutants to test
+ INFO Auto-set test timeout to 147s
+TIMEOUT  crates/peekbuddy-core/src/reconcile/memory.rs:14:5: replace split -> (&[u16], &[u16]) with 
+(Vec::leak(Vec::new()), Vec::leak(Vec::new())) in 127s build + 147s test
+TIMEOUT  crates/peekbuddy-core/src/reconcile/memory.rs:14:46: replace == with != in split in 13s build + 147s test
+MISSED   crates/peekbuddy-core/src/reconcile/memory.rs:130:31: replace && with || in MemorySnapshot::paths in 17s 
+build + 36s test
+MISSED   crates/peekbuddy-core/src/reconcile/memory.rs:130:39: replace < with <= in MemorySnapshot::paths in 12s build 
++ 27s test
+MISSED   crates/peekbuddy-core/src/reconcile/memory.rs:139:22: replace += with -= in MemorySnapshot::paths in 11s 
+build + 28s test
+MISSED   crates/peekbuddy-core/src/reconcile/memory.rs:139:22: replace += with *= in MemorySnapshot::paths in 13s 
+build + 26s test
+MISSED   crates/peekbuddy-core/src/reconcile/memory.rs:156:9: replace MemorySnapshot::is_empty -> bool with true in 
+13s build + 28s test
+MISSED   crates/peekbuddy-core/src/reconcile/memory.rs:156:9: replace MemorySnapshot::is_empty -> bool with false in 
+14s build + 30s test
+MISSED   crates/peekbuddy-core/src/reconcile/memory.rs:178:9: replace <impl Snapshot for MemorySnapshot>::commit -> 
+Result<(), Infallible> with Ok(()) in 16s build + 35s test
+TIMEOUT  crates/peekbuddy-core/src/reconcile/memory.rs:209:23: replace += with -= in <impl Snapshot for 
+MemorySnapshot>::upsert in 11s build + 147s test
+TIMEOUT  crates/peekbuddy-core/src/reconcile/memory.rs:209:23: replace += with *= in <impl Snapshot for 
+MemorySnapshot>::upsert in 12s build + 147s test
+TIMEOUT  crates/peekbuddy-core/src/reconcile/walk.rs:65:5: replace join -> Vec<u16> with vec![] in 13s build + 147s 
+test
+ERROR scenario execution internal error err=failed to spawn C:\Users\Matthias 
+Eggert\scoop\persist\rustup\.rustup\toolchains\1.99.1-x86_64-pc-windows-msvc\bin\cargo.exe test --no-run 
+--profile=mutants --verbose --package=peekbuddy-core@0.0.0 --all-features
+    Nicht genügend Systemressourcen, um den angeforderten Dienst auszuführen. (os error 1450) phase=Build
+ERROR Worker thread failed: failed to stat "C:\\Users\\MATTHI~1\\AppData\\Local\\Temp\\cargo-mutants-PeekBuddy-Cysm24.t
+mp\\crates\\peekbuddy-core\\src\\reconcile\\walk.rs": Nicht genügend Systemressourcen, um den angeforderten Dienst 
+auszuführen. (os error 1450)
+ERROR Worker thread failed: Nicht genügend Systemressourcen, um den angeforderten Dienst auszuführen. (os error 1450)
+MISSED   crates/peekbuddy-core/src/reconcile/walk.rs:313:63: replace / with * in walk in 23s build + 20s test
+MISSED   crates/peekbuddy-core/src/reconcile/walk.rs:363:33: replace || with && in settle in 6s build + 19s test
+MISSED   crates/peekbuddy-core/src/reconcile/walk.rs:391:28: replace match guard entry.meta.file_id != 0 with true in 
+settle in 4s build + 18s test
+Error: failed to stat "C:\\Users\\MATTHI~1\\AppData\\Local\\Temp\\cargo-mutants-PeekBuddy-Cysm24.tmp\\crates\\peekbuddy
+-core\\src\\reconcile\\walk.rs": Nicht genügend Systemressourcen, um den angeforderten Dienst auszuführen. (os error 
+1450)
+
+
