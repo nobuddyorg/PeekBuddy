@@ -127,4 +127,30 @@ mod tests {
         assert!(text.contains("architecture: "), "{text}");
         assert!(text.contains("data mode: installed"), "{text}");
     }
+
+    #[test]
+    fn the_data_directory_is_redacted_by_where_it_lives() {
+        use std::path::Path;
+
+        use super::redact;
+        use crate::portable::Decision;
+
+        assert_eq!(
+            redact(Path::new(r"D:\tools\pb\data"), Decision::Portable),
+            r"<exe folder>\data"
+        );
+        let local =
+            known_folders::get_known_folder_path(known_folders::KnownFolder::LocalAppData).unwrap();
+        assert_eq!(
+            redact(
+                &local.join("nobuddy").join("PeekBuddy"),
+                Decision::Installed(None)
+            ),
+            r"%LOCALAPPDATA%\nobuddy\PeekBuddy"
+        );
+        assert_eq!(
+            redact(Path::new(r"D:\elsewhere"), Decision::Installed(None)),
+            "<custom location>"
+        );
+    }
 }
