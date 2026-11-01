@@ -318,9 +318,16 @@ fn a_deleted_and_recreated_journal_is_one_gap_and_reading_goes_on() {
 
     // The journal goes away under a pending read and comes back with a new
     // id.
+    let old_id = saved.load().unwrap().journal_id;
     disk.delete_journal();
     disk.create_journal("0x100000", "0x40000");
     wait_until("the gap", || !gap_rows(&started.rows).is_empty());
+    // What happens between the gap and the runner reading the new journal is
+    // the gap's to cover (a reconcile); only a file written after the runner
+    // saved the new journal id must arrive.
+    wait_until("the new journal id", || {
+        saved.load().is_some_and(|c| c.journal_id != old_id)
+    });
     std::fs::write(disk.root().join("after.txt"), b"x").unwrap();
     let deadline = Instant::now() + Duration::from_secs(30);
     while !has_row(&started.rows, "after.txt", Kind::Created) {
@@ -334,8 +341,10 @@ fn a_deleted_and_recreated_journal_is_one_gap_and_reading_goes_on() {
                 .collect();
             let ended = started.runner.stop();
             let report = format!(
-                "no row after the gap; the runner ended with {ended:?}; gaps {:?}; rows {rows:?}",
-                started.gaps.lock().unwrap()
+                "no row after the gap; the runner ended with {ended:?}; gaps {:?}; counters {:?}; saved {:?}; rows {rows:?}",
+                started.gaps.lock().unwrap(),
+                started.runner.counters(),
+                saved.load()
             );
             assert_eq!(report, "", "the file after the gap");
         }
