@@ -87,7 +87,7 @@ fn set_mount_point(name: &[u16], buffer: &[u8], size: u32) -> std::io::Result<()
         CreateFileW(
             name.as_ptr(),
             GENERIC_WRITE,
-            0,
+            SHARE_ALL,
             std::ptr::null(),
             OPEN_EXISTING,
             // Disjoint bits: `+` equals `|` and has no equivalent `^` mutant.
