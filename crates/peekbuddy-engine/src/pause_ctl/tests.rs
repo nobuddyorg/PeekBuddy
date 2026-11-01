@@ -141,3 +141,43 @@ fn a_newer_settings_file_is_never_written() {
     assert!(ctl.pause().is_paused(RootIdx(0)));
     assert_eq!(rows.states().len(), 1);
 }
+
+#[test]
+fn the_clock_reads_wall_time_in_filetime_ticks_and_a_rising_monotonic_count() {
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    /// 100 ns ticks from 1601-01-01 to 1970-01-01.
+    const UNIX_EPOCH_TICKS: u64 = 116_444_736_000_000_000;
+    let (wall, mono) = now_ticks();
+    let expected = UNIX_EPOCH_TICKS
+        + u64::try_from(
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+                / 100,
+        )
+        .unwrap();
+    // Within a second of the system clock.
+    assert!(wall.abs_diff(expected) < 10_000_000, "{wall} vs {expected}");
+    std::thread::sleep(std::time::Duration::from_millis(5));
+    let (later_wall, later_mono) = now_ticks();
+    assert!(later_wall > wall);
+    assert!(later_mono > mono);
+    // 5 ms are at least 50,000 ticks.
+    assert!(later_mono - mono >= 50_000, "{mono} -> {later_mono}");
+}
+
+#[test]
+fn the_pause_control_describes_itself_in_debug_output() {
+    let ctl = PauseCtl::new(
+        Settings::default(),
+        std::env::temp_dir().join("pb-pausectl-debug.toml"),
+        false,
+        Box::new(Rows::default()),
+        now_ticks,
+    );
+    let text = format!("{ctl:?}");
+    assert!(text.contains("PauseCtl"), "{text}");
+    assert!(text.contains("global: false"), "{text}");
+}

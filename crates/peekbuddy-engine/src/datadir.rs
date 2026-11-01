@@ -171,4 +171,18 @@ mod tests {
         assert_eq!(decision, Decision::Installed(None));
         assert!(root.ends_with(r"nobuddy\PeekBuddy"), "{root:?}");
     }
+
+    #[test]
+    fn program_files_is_a_protected_folder_and_a_temp_dir_is_not() {
+        let folders = super::protected_folders();
+        assert_ne!(folders, Vec::<std::path::PathBuf>::new());
+        assert!(
+            folders.iter().all(|folder| folder.is_absolute()),
+            "{folders:?}"
+        );
+        let program_files =
+            known_folders::get_known_folder_path(known_folders::KnownFolder::ProgramFiles).unwrap();
+        assert!(probe(&program_files).in_protected_folder);
+        assert!(!probe(&temp("not-protected")).in_protected_folder);
+    }
 }
