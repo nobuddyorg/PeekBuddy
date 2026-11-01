@@ -62,12 +62,24 @@ volume costs no wakeups; `finish` takes its result from the dequeued
 completion; `cancel` ends a pending read with a 995 completion, after which the
 journal reads again. On a port the waiting `query` and `read` are refused.
 
-## What is not here
+## Names
 
 `Journal::resolve_path` gives the volume-relative path of a file reference
 number with `OpenFileById` (attribute-only, no reparse follow, no recall); a
 deleted file or a reused slot is an error, never another file's name.
 
-The synchronous fallback on `ReFS` (error 1784), the engine wiring, and the destructive tests that need a VHD. Linux NTFS drivers
+## The synchronous fallback
+
+On `ReFS` and Dev Drive the overlapped read fails with error 1784
+(`needs_synchronous_reads`). `usn::SyncReader` then opens the volume without
+`FILE_FLAG_OVERLAPPED` and blocks one dedicated thread in the waiting read.
+Each result is swapped into the consumer's buffer (`take`, no allocation per
+batch once the buffers have grown) and announced on the engine's completion
+port, so the consumer loop is the same. `stop` sets a flag and repeats
+`CancelSynchronousIo` until the thread has left the kernel.
+
+## What is not here
+
+The engine wiring and the destructive tests that need a VHD. Linux NTFS drivers
 write no journal records and keep the journal id, which is an undetectable
 gap; it is a limit of the source, not of this code.

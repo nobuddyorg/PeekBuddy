@@ -338,5 +338,8 @@ fn request_bytes(request: &READ_USN_JOURNAL_DATA_V1) -> Vec<u8> {
     out
 }
 
+mod sync;
+pub use sync::SyncReader;
+
 #[cfg(test)]
 mod tests;
