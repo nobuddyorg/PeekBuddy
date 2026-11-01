@@ -90,8 +90,18 @@ impl Disk {
         );
         if let Err(why) = diskpart(&script) {
             assert_ne!(fs, "ntfs", "diskpart failed: {why}");
-            let mut out = std::io::stdout();
-            let _ = writeln!(out, "::warning::{fs} could not be put on a vdisk: {why}");
+            // A passing test shows no output, so the reason goes to a file
+            // the workflow turns into a warning annotation (never a silent
+            // pass).
+            if let Some(notes) = std::env::var_os("PEEKBUDDY_VHD_NOTES") {
+                let mut file = std::fs::OpenOptions::new()
+                    .create(true)
+                    .append(true)
+                    .open(notes)
+                    .unwrap();
+                let why = why.replace(['\r', '\n'], " ");
+                writeln!(file, "{fs} could not be put on a vdisk: {why}").unwrap();
+            }
             return None;
         }
         assert_ne!(

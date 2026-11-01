@@ -161,6 +161,15 @@ jobs:
         run: cargo nextest run --locked --profile ci -p peekbuddy-engine --features usn -E 'binary(fs_serial_usn_vhd)'
         env:
           PEEKBUDDY_VHD_TESTS: "1"
+          PEEKBUDDY_VHD_NOTES: ${{ runner.temp }}\vhd-notes.txt
+      - name: Say what the USN vdisk tier skipped
+        if: always()
+        shell: pwsh
+        run: |
+          $notes = Join-Path $env:RUNNER_TEMP 'vhd-notes.txt'
+          if (Test-Path $notes) {
+            Get-Content $notes | ForEach-Object { Write-Output "::warning title=USN vdisk tier skipped::$_" }
+          }
 
   beta:
     name: beta canary
