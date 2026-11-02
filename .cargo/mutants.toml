@@ -113,4 +113,16 @@ exclude_re = [
   # Windows treats a class registered without an instance as one of this
   # module, so the window class works the same without `hInstance`.
   "crates/peekbuddy-win/src/window.rs:.*delete field hInstance from struct WNDCLASSEXW",
+  # The mode flags of the pipe are zero (`PIPE_TYPE_BYTE`, `PIPE_READMODE_BYTE`,
+  # `PIPE_WAIT`) or disjoint bits, so `^` builds the same value as `|`; `&` drops
+  # `PIPE_REJECT_REMOTE_CLIENTS`, which only a client on another machine can
+  # tell, and `INSTANCES + 2` is `INSTANCES * 2` for INSTANCES == 2. The same
+  # holds for the impersonation flags of `PipeClient::connect`.
+  "crates/peekbuddy-win/src/pipe.rs:.*replace . with . in (create_instance|PipeClient::connect)",
+  # The pipe buffers are advisory sizes: a pipe with another size carries the
+  # same bytes (the 20 kB payload of the echo test goes through either way).
+  "crates/peekbuddy-win/src/pipe.rs:49:",
+  # The security descriptor is freed after the pipe was created; a leak cannot
+  # be observed by a test.
+  "crates/peekbuddy-win/src/pipe.rs:.*<impl Drop for Dacl>::drop",
 ]
