@@ -1,0 +1,53 @@
+name: tmp perf
+on:
+  push:
+    branches: [issue/269-perf]
+permissions:
+  contents: read
+jobs:
+  perf-selfcheck:
+    # The perf harness has to be able to fail (#269): two runs of one exe in
+    # A/B mode must not fail, and each of three builds with a deliberate
+    # regression must fail the row that guards against it.
+    name: perf harness self-check (${{ matrix.runner }})
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [windows-2025, windows-11-vs2026-arm]
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Rust toolchain
+        run: rustup toolchain install && rustup show
+      - name: Build the exe and the exe with the deliberate regressions
+        run: |
+          cargo build --release --locked -p peekbuddy
+          cargo build --release --locked -p peekbuddy --features inject --target-dir target/inject
+      - name: The whole harness
+        run: cargo xtask perf --scenario all --exe target/release/peekbuddy.exe --out target/perf/all.json
+      - name: The harness does not fail an exe against itself
+        run: cargo xtask perf --scenario startup --exe target/release/peekbuddy.exe --ab target/release/peekbuddy.exe --out target/perf/self-ab.json
+      - name: A timer that wakes every second fails the idle wake gate
+        env:
+          PEEKBUDDY_INJECT: timer
+        run: cargo xtask perf --scenario idle --exe target/inject/release/peekbuddy.exe --expect-fail engine.idle.wakes --out target/perf/inject-timer.json
+      - name: A leaked handle per cycle fails handle stability
+        env:
+          PEEKBUDDY_INJECT: handle-leak
+        run: cargo xtask perf --scenario handles --exe target/inject/release/peekbuddy.exe --expect-fail engine.handles.stable --out target/perf/inject-handle.json
+      - name: A dropped row without a gap fails undetected loss
+        env:
+          PEEKBUDDY_INJECT: drop-row
+        run: cargo xtask perf --scenario ingest --profile latency-10k --exe target/inject/release/peekbuddy.exe --expect-fail ingest.undetected_loss --out target/perf/inject-drop.json
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: perf-selfcheck-${{ matrix.runner }}
+          path: target/perf/*.json
+          if-no-files-found: warn
+
