@@ -806,6 +806,9 @@ fn ingest_rows(budgets: &[Budget], doc: &Value, rows: &mut Vec<Row>) -> Result<f
                 &note,
             ));
         }
+        // The small profile of the harness self-check: no budget, only the
+        // loss count below.
+        "edge-mix" => {}
         other => return Err(format!("no rows are defined for the profile {other}")),
     }
     Ok(number_of(doc, "undetected")? + number_of(doc, "unfinishedGaps")?)

@@ -29,7 +29,7 @@ jobs:
           cargo build --release --locked -p peekbuddy
           cargo build --release --locked -p peekbuddy --features inject --target-dir target/inject
       - name: The whole harness
-        run: cargo xtask perf --scenario all --profile latency-10k --exe target/release/peekbuddy.exe --out target/perf/all.json
+        run: cargo xtask perf --scenario all --profile edge-mix --exe target/release/peekbuddy.exe --out target/perf/all.json
       - name: The harness does not fail an exe against itself
         run: cargo xtask perf --scenario startup --exe target/release/peekbuddy.exe --ab target/release/peekbuddy.exe --out target/perf/self-ab.json
       - name: A timer that wakes every second fails the idle wake gate
@@ -43,7 +43,7 @@ jobs:
       - name: A dropped row without a gap fails undetected loss
         env:
           PEEKBUDDY_INJECT: drop-row
-        run: cargo xtask perf --scenario ingest --profile latency-10k --exe target/inject/release/peekbuddy.exe --expect-fail ingest.undetected_loss --out target/perf/inject-drop.json
+        run: cargo xtask perf --scenario ingest --profile edge-mix --exe target/inject/release/peekbuddy.exe --expect-fail ingest.undetected_loss --out target/perf/inject-drop.json
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
