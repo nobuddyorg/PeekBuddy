@@ -1,0 +1,23 @@
+name: tmp vhd 266
+on:
+  push:
+    branches: [issue/266-durability]
+permissions:
+  contents: read
+jobs:
+  vhd:
+    runs-on: windows-2025
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Rust toolchain
+        run: rustup toolchain install && rustup show
+      - uses: taiki-e/install-action@1e29709c0ec63babbe8f266397a465f29a825f91 # v2.87.31
+        with:
+          tool: cargo-nextest@0.9.149
+      - name: Full volume
+        run: cargo nextest run --locked --profile ci -p peekbuddy-store -E 'binary(vhd_full) or binary(spill_kill)'
+        env:
+          PEEKBUDDY_VHD_TESTS: "1"
