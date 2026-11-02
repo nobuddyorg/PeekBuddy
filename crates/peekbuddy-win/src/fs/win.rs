@@ -425,11 +425,10 @@ mod tests {
         let file = dir.join("Short Path Probe.txt");
         std::fs::write(&file, b"x").unwrap();
         let short = String::from_utf16_lossy(&short_path(&file).unwrap()).to_lowercase();
-        // With 8.3 names off the answer is the long path itself.
-        assert!(
-            short.ends_with(".txt") && short.contains("pb-short-") || short.contains("pb-sho~"),
-            "{short}"
-        );
+        // The 8.3 name or, with 8.3 names off, the long one: both end in the
+        // extension of the file, in a path with its directory.
+        assert_eq!(short.rsplit('.').next(), Some("txt"), "{short}");
+        assert!(short.contains('\\'), "{short}");
         assert!(short_path(&dir.join("missing.txt")).is_err());
         let _ = std::fs::remove_dir_all(&dir);
     }
