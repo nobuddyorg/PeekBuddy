@@ -6,6 +6,7 @@
 use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use std::time::Duration;
 
 use peekbuddy_core::event::{Event, Flags, Kind, NameKind, NameRef, RootIdx, Source, VolIdx};
 use peekbuddy_core::filter::{FilterSet, KindSet, Pattern, Rule};
@@ -13,7 +14,7 @@ use peekbuddy_core::query::{
     CancelFlag, Direction, Filter, PAGE_SIZE, Page, PageRequest, TimeRange,
 };
 use peekbuddy_store::batch::Batch;
-use peekbuddy_store::read::{Reader, explain};
+use peekbuddy_store::read::{Reader, explain, explain_selective};
 use peekbuddy_store::retention::{Caps, NoViewer};
 use peekbuddy_store::segment::{DayFn, DayKey, Rotation};
 use peekbuddy_store::writer::{RootInfo, SegmentsConfig, VolInfo, Writer};
@@ -666,8 +667,33 @@ fn name_searches_have_the_documented_results() {
     assert_eq!(page.rows.first().map(|row| row.name.clone()), Some(lone));
 }
 
+/// Calls a request again with the resume cursor until the scan is through;
+/// returns every row found and the number of calls.
+fn resumed(reader: &Reader, filter: &Filter) -> (Vec<String>, usize) {
+    let cancel = CancelFlag::new();
+    let (mut found, mut calls, mut cursor) = (Vec::new(), 0, None);
+    loop {
+        let page = reader
+            .page(
+                &PageRequest {
+                    cursor,
+                    ..PageRequest::newest(1, filter.clone())
+                },
+                &cancel,
+            )
+            .unwrap();
+        calls += 1;
+        found.extend(page.rows.iter().map(|row| text(&row.path)));
+        assert!(calls < 10_000, "the scan never ends");
+        match page.resume {
+            Some(at) => cursor = Some(at),
+            None => return (found, calls),
+        }
+    }
+}
+
 #[test]
-fn a_rare_pattern_stops_at_the_scan_step_and_resumes() {
+fn a_rare_pattern_stops_at_the_time_budget_and_resumes() {
     let dir = Dir::new("scanstep");
     let total = 45_000_u64;
     let names: Vec<Vec<u16>> = (0..total)
@@ -680,41 +706,139 @@ fn a_rare_pattern_stops_at_the_scan_step_and_resumes() {
         })
         .collect();
     named(&dir, &names);
-    let reader = Reader::new(dir.path());
     let set = FilterSet::compile(&[Rule::include(Pattern::Glob(String::from("needle*")))]).unwrap();
     let filter = Filter {
         pattern: Some(Arc::new(set)),
         ..Filter::default()
     };
-    let cancel = CancelFlag::new();
+    // No time at all: every call scans one chunk and hands back a cursor.
+    let reader = Reader::new(dir.path()).with_scan_budget(Duration::ZERO);
     let first = reader
-        .page(&PageRequest::newest(1, filter.clone()), &cancel)
+        .page(&PageRequest::newest(1, filter.clone()), &CancelFlag::new())
         .unwrap();
     assert_eq!(first.rows, []);
     assert!(first.more);
-    let resume = first.resume.unwrap();
-    assert!(
-        first.scanned >= 20_000 && first.scanned < 45_000,
-        "{}",
-        first.scanned
-    );
-    // Resuming from the cursor reaches the match.
-    let mut cursor = Some(resume);
-    let mut hits = 0;
-    while let Some(at) = cursor {
-        let page = reader
-            .page(
-                &PageRequest {
-                    cursor: Some(at),
-                    ..PageRequest::newest(1, filter.clone())
-                },
-                &cancel,
-            )
+    assert!(first.resume.is_some());
+    assert_eq!(first.scanned, 1_000, "one chunk, not a row count of 20,000");
+    let (found, calls) = resumed(&reader, &filter);
+    assert_eq!(found.len(), 1);
+    assert!(calls >= 45, "{calls} calls for 45,000 rows");
+    // With the real budget the same scan needs fewer, longer calls.
+    let (found, fewer) = resumed(&Reader::new(dir.path()), &filter);
+    assert_eq!(found.len(), 1);
+    assert!(fewer <= calls, "{fewer} > {calls}");
+}
+
+#[test]
+fn a_broad_filter_on_old_rows_is_scanned_in_windows_and_resumes() {
+    let dir = Dir::new("windows");
+    // The first 25,000 rows (the oldest) are in `needle`, the next 25,000
+    // (the newest) are not: a newest-first page has to walk past all of them,
+    // and more than SELECTIVE_EVENTS rows match, so the ids are walked.
+    let names: Vec<Vec<u16>> = (0..50_000_u64)
+        .map(|index| {
+            if index < 25_000 {
+                units(&format!(r"needle\needle-f{index}.dat"))
+            } else {
+                units(&format!(r"common\f{index}.dat"))
+            }
+        })
+        .collect();
+    named(&dir, &names);
+    let by_name = Filter {
+        name: Some(String::from("needle")),
+        ..Filter::default()
+    };
+    let by_subtree = Filter {
+        subtree: Some(units(r"C:\Watched\needle")),
+        ..Filter::default()
+    };
+    let by_kind = Filter {
+        kinds: Some(KindSet::of(&[Kind::Deleted])),
+        ..Filter::default()
+    };
+    // No time at all: one window per call.
+    let tight = Reader::new(dir.path()).with_scan_budget(Duration::ZERO);
+    let ordinary = Reader::new(dir.path());
+    for (label, filter) in [("name", &by_name), ("subtree", &by_subtree)] {
+        let first = tight
+            .page(&PageRequest::newest(1, filter.clone()), &CancelFlag::new())
             .unwrap();
-        hits += page.rows.len();
-        cursor = page.resume;
+        assert!(
+            first.resume.is_some(),
+            "{label}: one window is not the end: scanned {}, more {}, rows {}",
+            first.scanned,
+            first.more,
+            first.rows.len()
+        );
+        assert!(first.more, "{label}");
+        assert_eq!(
+            first.rows,
+            [],
+            "{label}: the newest rows are not in the filter"
+        );
+        let (found, calls) = resumed(&tight, filter);
+        assert_eq!((found.len(), calls > 1), (PAGE_SIZE, true), "{label}");
+        let (found, _) = resumed(&ordinary, filter);
+        assert_eq!(found.len(), PAGE_SIZE, "{label}");
     }
-    assert_eq!(hits, 1);
+    // A filter that matches nothing ends, and ends empty.
+    let (found, _) = resumed(&tight, &by_kind);
+    assert_eq!(found, Vec::<String>::new());
+}
+
+#[test]
+fn a_filter_with_few_events_is_answered_through_the_index_in_one_call() {
+    let dir = Dir::new("selective");
+    let names: Vec<Vec<u16>> = (0..50_000_u64)
+        .map(|index| {
+            if index == 5 {
+                units(r"rare\needle-item.txt")
+            } else {
+                units(&format!(r"common\f{index}.dat"))
+            }
+        })
+        .collect();
+    named(&dir, &names);
+    // Even with no time at all: no window to walk, so no resume.
+    let tight = Reader::new(dir.path()).with_scan_budget(Duration::ZERO);
+    for filter in [
+        Filter {
+            name: Some(String::from("needle-item")),
+            ..Filter::default()
+        },
+        Filter {
+            subtree: Some(units(r"C:\Watched\rare")),
+            ..Filter::default()
+        },
+    ] {
+        let page = tight
+            .page(&PageRequest::newest(1, filter), &CancelFlag::new())
+            .unwrap();
+        assert_eq!(page.rows.len(), 1);
+        assert_eq!(page.resume, None);
+        assert!(!page.more);
+    }
+}
+
+#[test]
+fn a_window_that_finds_a_whole_page_does_not_scan_the_rest() {
+    let dir = Dir::new("firstwindow");
+    let names: Vec<Vec<u16>> = (0..30_000_u64)
+        .map(|index| units(&format!(r"same\f{index}.dat")))
+        .collect();
+    named(&dir, &names);
+    let filter = Filter {
+        name: Some(String::from("f2")),
+        ..Filter::default()
+    };
+    let page = Reader::new(dir.path())
+        .page(&PageRequest::newest(1, filter), &CancelFlag::new())
+        .unwrap();
+    assert_eq!(page.rows.len(), PAGE_SIZE);
+    assert!(page.more);
+    // Nowhere near the whole store was looked at to fill a page.
+    assert!(page.scanned < 30_000, "{}", page.scanned);
 }
 
 #[test]
@@ -782,7 +906,33 @@ fn the_query_plans_use_an_index() {
                 !plan.iter().any(|line| line.starts_with("SCAN e")),
                 "{label} scans the event table: {plan:?}"
             );
+            // No page ever sorts all its matches before the first row: the
+            // subtree and name filters walk the ids in order (#267).
+            assert!(
+                !plan.iter().any(|line| line.contains("TEMP B-TREE")),
+                "{label} sorts in a temp b-tree: {plan:?}"
+            );
             writeln!(out, "{label} {direction:?}").unwrap();
+            for line in plan {
+                writeln!(out, "  {line}").unwrap();
+            }
+        }
+    }
+    // A filter on nodes with few events takes the other statement: the index
+    // finds them and a sort orders them. It is chosen per segment by a capped
+    // count (`SELECTIVE_EVENTS`), so the sort never has much to sort.
+    for (label, filter) in shapes
+        .iter()
+        .filter(|(label, _)| matches!(*label, "subtree" | "name" | "short name"))
+    {
+        for direction in [Direction::Older, Direction::Newer] {
+            let plan = explain_selective(&conn, filter, direction).unwrap();
+            assert!(
+                plan.iter()
+                    .any(|line| line.contains("USING INDEX event_node")),
+                "{label} selective does not use event_node: {plan:?}"
+            );
+            writeln!(out, "{label} selective {direction:?}").unwrap();
             for line in plan {
                 writeln!(out, "  {line}").unwrap();
             }

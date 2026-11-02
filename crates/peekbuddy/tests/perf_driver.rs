@@ -40,7 +40,7 @@ use peekbuddy_win::metrics;
 use peekbuddy_win::pipe::PipeClient;
 use serde_json::json;
 
-use engine::{Kill, quit, wait_for_window, wait_until_settled};
+use engine::{Kill, quit, quit_within, wait_for_window, wait_until_settled};
 use judge::{Run, judge, raw_kind, relative};
 
 /// 100 ns ticks from 1601-01-01 to 1970-01-01.
@@ -216,7 +216,9 @@ fn ingest() {
     stop.store(true, Ordering::Release);
     let sightings = poller.join().unwrap();
     sampler.join().unwrap();
-    quit(window, &mut engine.child.0);
+    let closing = Instant::now();
+    quit_within(window, &mut engine.child.0, Duration::from_mins(15));
+    let shutdown_seconds = closing.elapsed().as_secs_f64();
 
     let verdict = judge(
         &Run {
@@ -259,6 +261,7 @@ fn ingest() {
         "ledgerEvents": outcome.events,
         "achievedPerSecond": outcome.achieved_per_s,
         "churnSeconds": churn_seconds,
+        "shutdownSeconds": shutdown_seconds,
         "undetected": verdict.report.undetected.len(),
         "gapRows": verdict.gaps,
         "unfinishedGaps": verdict.unfinished_gaps,

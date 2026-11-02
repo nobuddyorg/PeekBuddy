@@ -23,5 +23,11 @@ rusqlite = { workspace = true }
 name = "hot_paths"
 harness = false
 
+# The query layer at 1M and 10M rows (#267); does nothing unless
+# PEEKBUDDY_QUERY_ROWS is set.
+[[bench]]
+name = "query"
+harness = false
+
 [lints]
 workspace = true

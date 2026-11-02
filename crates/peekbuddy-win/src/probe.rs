@@ -120,3 +120,103 @@ pub fn probe_root(root_long: &[u16]) -> Probe {
         },
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use peekbuddy_core::lifecycle::Verdict;
+
+    use super::{Probe, code, probe_root, volume_root};
+
+    fn w(text: &str) -> Vec<u16> {
+        text.encode_utf16().collect()
+    }
+
+    #[test]
+    fn a_drive_path_has_a_volume_root() {
+        assert_eq!(volume_root(&w(r"\\?\C:\dir\sub")), Some(w(r"\\?\C:\")));
+        assert_eq!(volume_root(&w(r"\\?\z:\x")), Some(w(r"\\?\z:\")));
+        // Just the drive, no further path.
+        assert_eq!(volume_root(&w(r"\\?\D:")), Some(w(r"\\?\D:\")));
+    }
+
+    #[test]
+    fn anything_else_has_no_drive_to_ask() {
+        assert_eq!(volume_root(&w(r"\\?\UNC\server\share\x")), None);
+        assert_eq!(volume_root(&w(r"\\?\Volume{1234}\x")), None);
+        // Not a letter, no colon, too short.
+        assert_eq!(volume_root(&w(r"\\?\1:\x")), None);
+        assert_eq!(volume_root(&w(r"\\?\C-\x")), None);
+        assert_eq!(volume_root(&w(r"\\?\C")), None);
+        assert_eq!(volume_root(&w("")), None);
+        // A non-ASCII "letter" is no drive.
+        assert_eq!(volume_root(&w("\\\\?\\\u{E4}:\\x")), None);
+    }
+
+    #[test]
+    fn an_os_error_is_its_code_and_other_errors_are_zero() {
+        assert_eq!(code(&std::io::Error::from_raw_os_error(5)), 5);
+        assert_eq!(code(&std::io::Error::from_raw_os_error(2)), 2);
+        assert_eq!(code(&std::io::Error::other("no code")), 0);
+    }
+
+    #[test]
+    fn the_verdicts_of_the_probes() {
+        assert_eq!(Probe::Ok.verdict(), Some(Verdict::Ok));
+        assert_eq!(Probe::NotReady.verdict(), Some(Verdict::NotReady));
+        assert_eq!(Probe::VolumeGone.verdict(), Some(Verdict::Gone));
+        assert_eq!(Probe::RootGone.verdict(), None);
+    }
+
+    fn long(path: &std::path::Path) -> Vec<u16> {
+        let canonical = std::fs::canonicalize(path).unwrap();
+        canonical.to_string_lossy().encode_utf16().collect()
+    }
+
+    #[test]
+    fn an_existing_directory_is_ok() {
+        let dir = std::env::temp_dir().join(format!("pb-probe-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        assert_eq!(probe_root(&long(&dir)), Probe::Ok);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn a_deleted_directory_on_a_live_volume_is_a_gone_root() {
+        let dir = std::env::temp_dir().join(format!("pb-probe-gone-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = long(&dir);
+        std::fs::remove_dir_all(&dir).unwrap();
+        assert_eq!(probe_root(&path), Probe::RootGone);
+    }
+
+    #[test]
+    fn a_path_below_a_file_is_a_gone_root_too() {
+        let dir = std::env::temp_dir().join(format!("pb-probe-file-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let file = dir.join("f.txt");
+        std::fs::write(&file, b"x").unwrap();
+        let mut path = long(&file);
+        path.extend(r"\below".encode_utf16());
+        assert_eq!(probe_root(&path), Probe::RootGone);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn a_volume_that_does_not_exist_is_gone() {
+        // The first drive letter that is not in use.
+        // SAFETY: GetLogicalDrives takes no arguments.
+        let used = unsafe { windows_sys::Win32::Storage::FileSystem::GetLogicalDrives() };
+        let free = (0..26u8).rev().find(|bit| used & (1 << bit) == 0).unwrap();
+        let path = format!(r"\\?\{}:\gone\dir", char::from(b'A' + free));
+        assert_eq!(probe_root(&w(&path)), Probe::VolumeGone);
+    }
+
+    #[test]
+    fn a_unc_or_guid_path_that_is_missing_is_a_gone_root() {
+        // No drive letter to ask: the root is reported, not the volume.
+        assert_eq!(
+            probe_root(&w(r"\\?\Volume{00000000-0000-0000-0000-000000000000}\x")),
+            Probe::RootGone
+        );
+    }
+}

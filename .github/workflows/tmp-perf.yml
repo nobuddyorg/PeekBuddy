@@ -11,7 +11,7 @@ jobs:
     # regression must fail the row that guards against it.
     name: perf harness self-check (${{ matrix.runner }})
     runs-on: ${{ matrix.runner }}
-    timeout-minutes: 60
+    timeout-minutes: 120
     strategy:
       fail-fast: false
       matrix:
@@ -29,7 +29,7 @@ jobs:
           cargo build --release --locked -p peekbuddy
           cargo build --release --locked -p peekbuddy --features inject --target-dir target/inject
       - name: The whole harness
-        run: cargo xtask perf --scenario all --exe target/release/peekbuddy.exe --out target/perf/all.json
+        run: cargo xtask perf --scenario all --profile latency-10k --exe target/release/peekbuddy.exe --out target/perf/all.json
       - name: The harness does not fail an exe against itself
         run: cargo xtask perf --scenario startup --exe target/release/peekbuddy.exe --ab target/release/peekbuddy.exe --out target/perf/self-ab.json
       - name: A timer that wakes every second fails the idle wake gate

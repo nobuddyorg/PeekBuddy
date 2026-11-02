@@ -663,7 +663,10 @@ mod tests {
 
     use peekbuddy_core::ipc::Message;
 
-    use super::{PipeClient, PipeServer, Reply, current_user_sid, stable_hash, user_pipe_name};
+    use super::{
+        Dacl, PipeClient, PipeServer, Reply, client_is_allowed, create_instance, current_user_sid,
+        new_event, stable_hash, user_pipe_name, wait_two,
+    };
 
     fn name(tag: &str) -> String {
         format!(r"\\.\pipe\PeekBuddy-test-{tag}-{}", std::process::id())
@@ -804,5 +807,129 @@ mod tests {
             Some(Message::Selftest { payload: vec![7] })
         );
         server.stop();
+    }
+
+    #[test]
+    fn the_name_hash_is_fnv_1a() {
+        // The published test vectors of FNV-1a (64 bit).
+        assert_eq!(stable_hash(""), 0xcbf2_9ce4_8422_2325);
+        assert_eq!(stable_hash("a"), 0xaf63_dc4c_8601_ec8c);
+        assert_eq!(stable_hash("foobar"), 0x8594_4171_f739_67e8);
+    }
+
+    #[test]
+    fn a_reply_holds_exactly_what_was_sent() {
+        let mut reply = Reply::default();
+        assert_eq!(reply.bytes(), &[] as &[u8]);
+        let message = Message::Selftest {
+            payload: vec![5, 6],
+        };
+        assert!(reply.send(&message));
+        let mut expected = Vec::new();
+        assert!(peekbuddy_core::ipc::encode(&message, &mut expected));
+        assert_eq!(reply.bytes(), expected.as_slice());
+        assert_ne!(expected.len(), 0);
+    }
+
+    #[test]
+    fn waiting_on_two_events_says_which_fired_or_that_none_did() {
+        use windows_sys::Win32::System::Threading::SetEvent;
+
+        use std::os::windows::io::AsRawHandle as _;
+
+        let (event, stop) = (new_event().unwrap(), new_event().unwrap());
+        assert_eq!(wait_two(&event, &stop, 10), None);
+        // SAFETY: `stop` is a live event handle.
+        unsafe { SetEvent(stop.as_raw_handle()) };
+        assert_eq!(wait_two(&event, &stop, 10), Some(false));
+        // SAFETY: `event` is a live event handle.
+        unsafe { SetEvent(event.as_raw_handle()) };
+        // Both are set: the first handle wins.
+        assert_eq!(wait_two(&event, &stop, 10), Some(true));
+        let (event, stop) = (new_event().unwrap(), new_event().unwrap());
+        // SAFETY: `event` is a live event handle.
+        unsafe { SetEvent(event.as_raw_handle()) };
+        assert_eq!(wait_two(&event, &stop, 10), Some(true));
+    }
+
+    #[test]
+    fn the_security_attributes_point_at_the_descriptor() {
+        use std::mem::size_of;
+
+        let dacl = Dacl::for_current_user().unwrap();
+        let attributes = dacl.attributes();
+        assert_eq!(
+            usize::try_from(attributes.nLength).unwrap(),
+            size_of::<windows_sys::Win32::Security::SECURITY_ATTRIBUTES>()
+        );
+        assert!(!attributes.lpSecurityDescriptor.is_null());
+        assert_eq!(attributes.bInheritHandle, 0);
+    }
+
+    #[test]
+    fn a_client_is_allowed_only_for_the_user_the_server_was_told() {
+        let name = name("allowed");
+        let pipe = create_instance(&name, true).unwrap();
+        let _client = PipeClient::connect(&name, None, Duration::from_secs(5)).unwrap();
+        let own = current_user_sid().unwrap();
+        assert!(client_is_allowed(&pipe, &own));
+        // Another user's SID (the local system account) is refused.
+        assert!(!client_is_allowed(&pipe, "S-1-5-18"));
+        assert!(!client_is_allowed(&pipe, ""));
+    }
+
+    #[test]
+    fn a_pipe_that_is_not_connected_has_no_allowed_client() {
+        let name = name("alone");
+        let pipe = create_instance(&name, true).unwrap();
+        assert!(!client_is_allowed(&pipe, &current_user_sid().unwrap()));
+    }
+
+    #[test]
+    fn a_client_waits_for_a_server_that_starts_late_and_gives_up_in_time() {
+        let late = name("late");
+        let starter = std::thread::spawn({
+            let late = late.clone();
+            move || {
+                std::thread::sleep(Duration::from_millis(300));
+                PipeServer::start(&late, &echo()).unwrap()
+            }
+        });
+        let mut client = PipeClient::connect(&late, None, Duration::from_secs(10)).unwrap();
+        client
+            .send(&Message::Selftest { payload: vec![3] })
+            .unwrap();
+        assert_eq!(
+            client.receive().unwrap(),
+            Some(Message::Selftest { payload: vec![3] })
+        );
+        drop(client);
+        drop(starter.join().unwrap());
+
+        let absent = name("never");
+        let clock = std::time::Instant::now();
+        let error = PipeClient::connect(&absent, None, Duration::from_millis(400)).unwrap_err();
+        assert_eq!(error.raw_os_error(), Some(2), "{error:?}");
+        let waited = clock.elapsed();
+        assert!(waited >= Duration::from_millis(400), "{waited:?}");
+        assert!(waited < Duration::from_secs(5), "{waited:?}");
+    }
+
+    #[test]
+    fn a_pipe_closed_under_the_client_reads_as_the_end() {
+        let name = name("broken");
+        let pipe = create_instance(&name, true).unwrap();
+        let mut client = PipeClient::connect(&name, None, Duration::from_secs(5)).unwrap();
+        drop(pipe);
+        assert_eq!(client.receive().unwrap(), None);
+    }
+
+    #[test]
+    fn dropping_the_server_stops_it() {
+        let name = name("dropped");
+        let server = PipeServer::start(&name, &echo()).unwrap();
+        assert!(format!("{server:?}").contains("PipeServer"));
+        drop(server);
+        assert!(PipeClient::connect(&name, None, Duration::from_millis(300)).is_err());
     }
 }

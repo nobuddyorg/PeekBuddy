@@ -70,8 +70,14 @@ pub fn wait_for_window(data: &Path, child: &mut Child) -> WindowHandle {
 }
 
 pub fn quit(window: WindowHandle, child: &mut Child) {
+    quit_within(window, child, Duration::from_secs(120));
+}
+
+/// Closing flushes the rows of a burst to a disk a hosted runner shares; the
+/// perf harness lets the engine take as long as it needs and reports it.
+pub fn quit_within(window: WindowHandle, child: &mut Child, limit: Duration) {
     window.post_close().unwrap();
-    let deadline = Instant::now() + Duration::from_secs(30);
+    let deadline = Instant::now() + limit;
     loop {
         if let Some(status) = child.try_wait().unwrap() {
             assert!(status.success(), "{status:?}");

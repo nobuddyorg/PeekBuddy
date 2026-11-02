@@ -453,4 +453,95 @@ mod tests {
         assert!(parent.is_null());
         assert_eq!(visible, 0);
     }
+
+    #[test]
+    fn a_wide_string_is_compared_up_to_and_with_its_terminator() {
+        use super::wide_is;
+
+        let units = |text: &str| -> Vec<u16> { text.encode_utf16().chain(Some(0)).collect() };
+        assert!(wide_is(units("abc").as_ptr(), "abc"));
+        assert!(wide_is(units("").as_ptr(), ""));
+        assert!(!wide_is(units("abx").as_ptr(), "abc"));
+        assert!(!wide_is(units("ab").as_ptr(), "abc"));
+        assert!(!wide_is(units("abcd").as_ptr(), "abc"));
+        assert!(!wide_is(std::ptr::null(), ""));
+    }
+
+    #[test]
+    fn a_handle_keeps_its_raw_value() {
+        assert_eq!(WindowHandle::from_raw(42).raw(), 42);
+        assert_eq!(WindowHandle::from_raw(-7).raw(), -7);
+    }
+
+    #[test]
+    fn messages_sent_from_another_thread_are_answered() {
+        use windows_sys::Win32::UI::WindowsAndMessaging::{WM_NULL, WM_USER};
+
+        let class = class("send");
+        let seen = Rc::new(RefCell::new(Vec::new()));
+        let sink = Rc::clone(&seen);
+        let window =
+            HiddenWindow::create(&class, move |event, _| sink.borrow_mut().push(event)).unwrap();
+        let handle = window.handle();
+        let sender = std::thread::spawn(move || {
+            // The loop starts after this thread; retry until it answers.
+            let mut tries = 0;
+            while handle.send_timeout(WM_NULL, 0, 0, 200).is_err() {
+                tries += 1;
+                assert!(tries < 100, "the window never answered");
+                std::thread::sleep(std::time::Duration::from_millis(20));
+            }
+            let null = handle.send_timeout(WM_NULL, 0, 0, 1000).unwrap();
+            let user = handle.send_timeout(WM_USER + 5, 1, 2, 1000).unwrap();
+            let query = handle.query_end_session(1000).unwrap();
+            handle.end_session(1000).unwrap();
+            let command = handle.send_timeout(0x0111, 77, 0, 1000).unwrap();
+            handle.post_close().unwrap();
+            (null, user, query, command)
+        });
+        assert_eq!(window.run_message_loop(), 0);
+        let (null, user, query, command) = sender.join().unwrap();
+        // Unknown messages are answered 0 by default processing; the query is
+        // always answered TRUE.
+        assert_eq!((null, user, command), (0, 0, 0));
+        assert!(query);
+        let events = seen.borrow().clone();
+        assert!(events.contains(&WindowEvent::QueryEndSession), "{events:?}");
+        assert!(
+            events.contains(&WindowEvent::EndSession { ending: true }),
+            "{events:?}"
+        );
+        assert!(events.contains(&WindowEvent::Command(77)), "{events:?}");
+        assert_eq!(events.last(), Some(&WindowEvent::Close));
+    }
+
+    #[test]
+    fn a_message_to_a_window_that_does_not_exist_is_an_error() {
+        use windows_sys::Win32::UI::WindowsAndMessaging::WM_NULL;
+
+        let nobody = WindowHandle::from_raw(0x00F0_0D00);
+        assert!(nobody.send_timeout(WM_NULL, 0, 0, 200).is_err());
+        assert!(nobody.query_end_session(200).is_err());
+        assert!(nobody.end_session(200).is_err());
+        assert!(nobody.post_close().is_err());
+    }
+
+    #[test]
+    fn two_windows_of_one_class_can_be_made_one_after_the_other() {
+        let class = class("twice");
+        let first = HiddenWindow::create(&class, |_, _| {}).unwrap();
+        let first_handle = first.handle();
+        drop(first);
+        // The window is gone with the guard, the class stays registered.
+        assert_eq!(WindowHandle::find(&class), None);
+        let second = HiddenWindow::create(&class, |_, _| {}).unwrap();
+        assert_ne!(second.handle(), first_handle);
+        assert_eq!(WindowHandle::find(&class), Some(second.handle()));
+    }
+
+    #[test]
+    fn the_window_says_what_it_is_when_printed() {
+        let window = HiddenWindow::create(&class("debug"), |_, _| {}).unwrap();
+        assert!(format!("{window:?}").contains("HiddenWindow"));
+    }
 }

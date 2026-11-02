@@ -374,12 +374,12 @@ unit = "ms"
 bound = "max"
 limit = 100
 class = "timing"
-gate = "pr-ab"
+gate = "nightly-trend"
 scenario = "query-bench"
 status = "provisional"
-source = "F5, recalibrated by #35"
-workload = "1M-row store, glob filter"
-how = "benchmark in benches (#26)"
+source = "F5, recalibrated by #35, #267"
+workload = "1M-row store, glob filter that one row in a thousand matches"
+how = "criterion bench query/filtered_first_1m (nightly query bench job)"
 arch = ["x86_64", "aarch64"]
 
 [[budget]]
@@ -660,6 +660,78 @@ status = "provisional"
 source = "#26, #49, #265"
 workload = "criterion bench reparse/classify_8"
 how = "cargo xtask bench-ab (same-runner A/B, warn +15 %, fail +50 %)"
+arch = ["x86_64"]
+
+[[budget]]
+id = "bench.query.page_keyset_10m"
+metric = "one keyset page of 200 rows from the middle of the log, paths built"
+unit = "ns"
+bound = "max"
+limit = 2000000
+class = "timing"
+gate = "nightly-trend"
+scenario = "query-bench"
+status = "provisional"
+source = "#267, #55"
+workload = "10M-row store (a million files, ten events each), no filter"
+how = "criterion bench query/page_keyset_10m in the nightly query bench job (series `query benches` on gh-pages, alert at +25 %)"
+arch = ["x86_64"]
+
+[[budget]]
+id = "bench.query.fts_lookup_10m"
+metric = "first page of a name filter answered by the trigram index"
+unit = "ns"
+bound = "max"
+class = "timing"
+gate = "nightly-trend"
+scenario = "query-bench"
+status = "provisional"
+source = "#267, #55"
+workload = "10M-row store, a word that one file in a thousand has"
+how = "criterion bench query/fts_lookup_10m in the nightly query bench job (series `query benches` on gh-pages, alert at +25 %)"
+arch = ["x86_64"]
+
+[[budget]]
+id = "bench.query.subtree_resolve_10m"
+metric = "first page of a directory subtree filter (the subtree is resolved first)"
+unit = "ns"
+bound = "max"
+class = "timing"
+gate = "nightly-trend"
+scenario = "query-bench"
+status = "provisional"
+source = "#267, #55"
+workload = "10M-row store, one directory of ten thousand"
+how = "criterion bench query/subtree_resolve_10m in the nightly query bench job (series `query benches` on gh-pages, alert at +25 %)"
+arch = ["x86_64"]
+
+[[budget]]
+id = "bench.query.regex_post_filter_1m"
+metric = "the whole log through a regex post-filter in time boxed steps"
+unit = "ns"
+bound = "max"
+class = "timing"
+gate = "nightly-trend"
+scenario = "query-bench"
+status = "provisional"
+source = "#267, #55"
+workload = "1M-row store, a regex that ten rows match"
+how = "criterion bench query/regex_post_filter_1m in the nightly query bench job (series `query benches` on gh-pages, alert at +25 %)"
+arch = ["x86_64"]
+
+[[budget]]
+id = "bench.query.filtered_first_1m"
+metric = "calls until the first filtered row"
+unit = "ns"
+bound = "max"
+limit = 100000000
+class = "timing"
+gate = "nightly-trend"
+scenario = "query-bench"
+status = "provisional"
+source = "#267, #55"
+workload = "1M-row store, glob filter that one row in a thousand matches"
+how = "criterion bench query/filtered_first_1m in the nightly query bench job (series `query benches` on gh-pages, alert at +25 %)"
 arch = ["x86_64"]
 
 [[budget]]

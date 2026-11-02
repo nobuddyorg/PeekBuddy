@@ -95,4 +95,34 @@ exclude_re = [
   # Equivalent mutant: the root is a member of every scope, so the set is
   # never empty and `is_empty` is always false.
   "crates/peekbuddy-core/src/usn/scope/mod.rs:.*replace Scope::is_empty -> bool with false",
+  # `RtlSetProcessPlaceholderCompatibilityMode` fails only for a mode the
+  # call does not know, and the mode is a constant: `true` is what the call
+  # returns on every machine a test can run on.
+  "crates/peekbuddy-win/src/osinfo.rs:.*replace expose_placeholders -> bool with true",
+  # `RtlGetVersion` does not fail for a valid structure (its status is never
+  # negative here) and does not need the size field for the plain structure.
+  "crates/peekbuddy-win/src/osinfo.rs:.*(delete field dwOSVersionInfoSize|replace < with > in os_build)",
+  # `ERROR_NOT_READY` is what a drive without a medium (an empty card reader
+  # or optical drive) answers; neither runner has one and a test cannot make
+  # one. The branches only pick the `NotReady` verdict over `VolumeGone`.
+  "crates/peekbuddy-win/src/probe.rs:.*(delete match arm ERROR_NOT_READY in probe_root|replace match guard code\\(&inner\\) == ERROR_NOT_READY with (true|false) in probe_root|replace == with != in probe_root)",
+  # `FSCTL_IS_VOLUME_MOUNTED` fails on a handle that is open only when the
+  # volume goes away under it; the vdisk detach test of the nightly (#48)
+  # drives that path through the lifecycle states, not through this function.
+  "crates/peekbuddy-win/src/probe.rs:.*(replace is_mounted -> .* with Ok|replace == with != in is_mounted)",
+  # Windows treats a class registered without an instance as one of this
+  # module, so the window class works the same without `hInstance`.
+  "crates/peekbuddy-win/src/window.rs:.*delete field hInstance from struct WNDCLASSEXW",
+  # The mode flags of the pipe are zero (`PIPE_TYPE_BYTE`, `PIPE_READMODE_BYTE`,
+  # `PIPE_WAIT`) or disjoint bits, so `^` builds the same value as `|`; `&` drops
+  # `PIPE_REJECT_REMOTE_CLIENTS`, which only a client on another machine can
+  # tell, and `INSTANCES + 2` is `INSTANCES * 2` for INSTANCES == 2. The same
+  # holds for the impersonation flags of `PipeClient::connect`.
+  "crates/peekbuddy-win/src/pipe.rs:.*replace . with . in (create_instance|PipeClient::connect)",
+  # The pipe buffers are advisory sizes: a pipe with another size carries the
+  # same bytes (the 20 kB payload of the echo test goes through either way).
+  "crates/peekbuddy-win/src/pipe.rs:49:",
+  # The security descriptor is freed after the pipe was created; a leak cannot
+  # be observed by a test.
+  "crates/peekbuddy-win/src/pipe.rs:.*<impl Drop for Dacl>::drop",
 ]
