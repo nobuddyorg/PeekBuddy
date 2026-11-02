@@ -94,7 +94,7 @@ jobs:
         with:
           shared-key: lint-x64
           save-if: ${{ github.ref == 'refs/heads/main' }}
-      - uses: taiki-e/install-action@1e29709c0ec63babbe8f266397a465f29a825f91 # v2.87.31
+      - uses: taiki-e/install-action@5488ac5a951645ce95062214902ac4b6bc1a1037 # v2.87.32
         with:
           tool: cargo-machete@0.9.2
       - run: cargo fmt --all --check
@@ -128,7 +128,7 @@ jobs:
         with:
           shared-key: test-x64
           save-if: ${{ github.ref == 'refs/heads/main' }}
-      - uses: taiki-e/install-action@1e29709c0ec63babbe8f266397a465f29a825f91 # v2.87.31
+      - uses: taiki-e/install-action@5488ac5a951645ce95062214902ac4b6bc1a1037 # v2.87.32
         with:
           tool: cargo-nextest@0.9.149
       - name: USN backend tests (feature off in v1, #212)
@@ -257,7 +257,7 @@ jobs:
         with:
           shared-key: coverage-x64
           save-if: ${{ github.ref == 'refs/heads/main' }}
-      - uses: taiki-e/install-action@1e29709c0ec63babbe8f266397a465f29a825f91 # v2.87.31
+      - uses: taiki-e/install-action@5488ac5a951645ce95062214902ac4b6bc1a1037 # v2.87.32
         with:
           tool: cargo-nextest@0.9.149,cargo-llvm-cov@0.9.1
       - run: cargo llvm-cov nextest --workspace --all-features --locked --profile ci --no-tests=pass --lcov --output-path lcov.info
@@ -286,7 +286,7 @@ jobs:
         with:
           shared-key: mutants-x64
           save-if: false
-      - uses: taiki-e/install-action@1e29709c0ec63babbe8f266397a465f29a825f91 # v2.87.31
+      - uses: taiki-e/install-action@5488ac5a951645ce95062214902ac4b6bc1a1037 # v2.87.32
         with:
           tool: cargo-nextest@0.9.149,cargo-mutants@27.1.0
       - name: Diff against the base
@@ -363,7 +363,7 @@ jobs:
         with:
           shared-key: test-arm64
           save-if: ${{ github.ref == 'refs/heads/main' }}
-      - uses: taiki-e/install-action@1e29709c0ec63babbe8f266397a465f29a825f91 # v2.87.31
+      - uses: taiki-e/install-action@5488ac5a951645ce95062214902ac4b6bc1a1037 # v2.87.32
         with:
           tool: cargo-nextest@0.9.149
       - run: cargo nextest run --workspace --profile ci --locked --no-tests=pass
