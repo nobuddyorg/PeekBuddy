@@ -17,21 +17,24 @@
 //!
 //! Kinds, watch root, time range, a directory subtree and a name substring are
 //! answered by the database. A glob or regex is a post-filter in Rust over the
-//! reconstructed path with the compiled matcher of #40: it scans in bounded
-//! steps and reports progress (`scanned`), so a rare pattern over millions of
-//! rows never freezes a frame.
+//! reconstructed path with the compiled matcher of #40. Whatever cannot use an
+//! index (a pattern, a kind, a subtree, a name, hidden flags) scans in **time
+//! boxed steps**: a call ends after about [`SCAN_BUDGET`], hands back what it
+//! has with a cursor to continue from, and reports progress (`scanned`), so a
+//! rare filter over millions of rows never freezes a frame.
 
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::time::Duration;
 
 use crate::event::{Flags, Kind, Source};
 use crate::filter::{FilterSet, KindSet};
 
 /// Rows in a page.
 pub const PAGE_SIZE: usize = 200;
-/// Rows one call scans for a post-filter before it hands back what it has
-/// (and a cursor to continue from).
-pub const SCAN_STEP: usize = 20_000;
+/// How long one call scans, at most about, before it hands back what it has
+/// (and a cursor to continue from). A frame at 120 Hz has 8 ms.
+pub const SCAN_BUDGET: Duration = Duration::from_millis(4);
 
 /// Which way a page goes from its cursor.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

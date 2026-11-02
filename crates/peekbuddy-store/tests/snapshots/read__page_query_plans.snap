@@ -3,23 +3,31 @@ source: crates/peekbuddy-store/tests/read.rs
 expression: out
 ---
 none Older
-  SEARCH e USING INTEGER PRIMARY KEY (rowid<?)
+  SEARCH e USING INTEGER PRIMARY KEY (rowid>? AND rowid<?)
+  SEARCH n USING INTEGER PRIMARY KEY (rowid=?) LEFT-JOIN
 none Newer
-  SEARCH e USING INTEGER PRIMARY KEY (rowid>?)
+  SEARCH e USING INTEGER PRIMARY KEY (rowid>? AND rowid<?)
+  SEARCH n USING INTEGER PRIMARY KEY (rowid=?) LEFT-JOIN
 kinds Older
-  SEARCH e USING INTEGER PRIMARY KEY (rowid<?)
+  SEARCH e USING INTEGER PRIMARY KEY (rowid>? AND rowid<?)
+  SEARCH n USING INTEGER PRIMARY KEY (rowid=?) LEFT-JOIN
 kinds Newer
-  SEARCH e USING INTEGER PRIMARY KEY (rowid>?)
+  SEARCH e USING INTEGER PRIMARY KEY (rowid>? AND rowid<?)
+  SEARCH n USING INTEGER PRIMARY KEY (rowid=?) LEFT-JOIN
 root Older
-  SEARCH e USING INDEX event_root (root_id=? AND id<?)
+  SEARCH e USING INDEX event_root (root_id=? AND id>? AND id<?)
+  SEARCH n USING INTEGER PRIMARY KEY (rowid=?) LEFT-JOIN
 root Newer
-  SEARCH e USING INDEX event_root (root_id=? AND id>?)
+  SEARCH e USING INDEX event_root (root_id=? AND id>? AND id<?)
+  SEARCH n USING INTEGER PRIMARY KEY (rowid=?) LEFT-JOIN
 time Older
   SEARCH e USING INTEGER PRIMARY KEY (rowid>? AND rowid<?)
+  SEARCH n USING INTEGER PRIMARY KEY (rowid=?) LEFT-JOIN
 time Newer
   SEARCH e USING INTEGER PRIMARY KEY (rowid>? AND rowid<?)
+  SEARCH n USING INTEGER PRIMARY KEY (rowid=?) LEFT-JOIN
 subtree Older
-  SEARCH e USING INDEX event_node (node_id=? AND id<?)
+  SEARCH e USING INTEGER PRIMARY KEY (rowid>? AND rowid<?)
   LIST SUBQUERY 3
   MATERIALIZE sub
   SETUP
@@ -28,8 +36,57 @@ subtree Older
   SCAN sub
   SEARCH n USING COVERING INDEX node_key (parent_id=?)
   SCAN sub
-  USE TEMP B-TREE FOR ORDER BY
+  CREATE BLOOM FILTER
+  SEARCH n USING INTEGER PRIMARY KEY (rowid=?) LEFT-JOIN
 subtree Newer
+  SEARCH e USING INTEGER PRIMARY KEY (rowid>? AND rowid<?)
+  LIST SUBQUERY 3
+  MATERIALIZE sub
+  SETUP
+  SCAN CONSTANT ROW
+  RECURSIVE STEP
+  SCAN sub
+  SEARCH n USING COVERING INDEX node_key (parent_id=?)
+  SCAN sub
+  CREATE BLOOM FILTER
+  SEARCH n USING INTEGER PRIMARY KEY (rowid=?) LEFT-JOIN
+name Older
+  SEARCH e USING INTEGER PRIMARY KEY (rowid>? AND rowid<?)
+  LIST SUBQUERY 1
+  SCAN node_fts VIRTUAL TABLE INDEX 0:M1
+  CREATE BLOOM FILTER
+  SEARCH n USING INTEGER PRIMARY KEY (rowid=?) LEFT-JOIN
+name Newer
+  SEARCH e USING INTEGER PRIMARY KEY (rowid>? AND rowid<?)
+  LIST SUBQUERY 1
+  SCAN node_fts VIRTUAL TABLE INDEX 0:M1
+  CREATE BLOOM FILTER
+  SEARCH n USING INTEGER PRIMARY KEY (rowid=?) LEFT-JOIN
+short name Older
+  SEARCH e USING INTEGER PRIMARY KEY (rowid>? AND rowid<?)
+  LIST SUBQUERY 1
+  SCAN node USING COVERING INDEX node_key
+  CREATE BLOOM FILTER
+  SEARCH n USING INTEGER PRIMARY KEY (rowid=?) LEFT-JOIN
+short name Newer
+  SEARCH e USING INTEGER PRIMARY KEY (rowid>? AND rowid<?)
+  LIST SUBQUERY 1
+  SCAN node USING COVERING INDEX node_key
+  CREATE BLOOM FILTER
+  SEARCH n USING INTEGER PRIMARY KEY (rowid=?) LEFT-JOIN
+subtree selective Older
+  SEARCH e USING INDEX event_node (node_id=? AND id<?)
+  LIST SUBQUERY 3
+  MATERIALIZE sub
+  SETUP
+  SCAN CONSTANT ROW
+  RECURSIVE STEP
+  SCAN sub
+  SEARCH n USING COVERING INDEX node_key (parent_id=?)
+  SCAN sub
+  SEARCH n USING INTEGER PRIMARY KEY (rowid=?) LEFT-JOIN
+  USE TEMP B-TREE FOR ORDER BY
+subtree selective Newer
   SEARCH e USING INDEX event_node (node_id=? AND id>?)
   LIST SUBQUERY 3
   MATERIALIZE sub
@@ -39,24 +96,29 @@ subtree Newer
   SCAN sub
   SEARCH n USING COVERING INDEX node_key (parent_id=?)
   SCAN sub
+  SEARCH n USING INTEGER PRIMARY KEY (rowid=?) LEFT-JOIN
   USE TEMP B-TREE FOR ORDER BY
-name Older
+name selective Older
   SEARCH e USING INDEX event_node (node_id=? AND id<?)
   LIST SUBQUERY 1
   SCAN node_fts VIRTUAL TABLE INDEX 0:M1
+  SEARCH n USING INTEGER PRIMARY KEY (rowid=?) LEFT-JOIN
   USE TEMP B-TREE FOR ORDER BY
-name Newer
+name selective Newer
   SEARCH e USING INDEX event_node (node_id=? AND id>?)
   LIST SUBQUERY 1
   SCAN node_fts VIRTUAL TABLE INDEX 0:M1
+  SEARCH n USING INTEGER PRIMARY KEY (rowid=?) LEFT-JOIN
   USE TEMP B-TREE FOR ORDER BY
-short name Older
+short name selective Older
   SEARCH e USING INDEX event_node (node_id=? AND id<?)
   LIST SUBQUERY 1
   SCAN node USING COVERING INDEX node_key
+  SEARCH n USING INTEGER PRIMARY KEY (rowid=?) LEFT-JOIN
   USE TEMP B-TREE FOR ORDER BY
-short name Newer
+short name selective Newer
   SEARCH e USING INDEX event_node (node_id=? AND id>?)
   LIST SUBQUERY 1
   SCAN node USING COVERING INDEX node_key
+  SEARCH n USING INTEGER PRIMARY KEY (rowid=?) LEFT-JOIN
   USE TEMP B-TREE FOR ORDER BY

@@ -136,18 +136,38 @@ it is never ruled out by its `rows` or `last_id`.
 | kinds | `kind / 256 IN (...)`, walking the id order |
 | watch root | the root id of that segment by path, then `event_root` |
 | time range | `stats.min_id/max_id` of the hours bound the ids, `ts` refines |
-| directory subtree | recursive CTE over `node(parent_id)`, then `event_node` |
-| name, 3+ characters | the trigram index (folds case and diacritics) |
-| name, shorter | `LIKE` on `node` (folds ASCII case only) |
+| directory subtree | recursive CTE over `node(parent_id)`, membership of `+node_id` |
+| name, 3+ characters | the trigram index (folds case and diacritics), membership of `+node_id` |
+| name, shorter | `LIKE` on `node` (folds ASCII case only), membership of `+node_id` |
+| hidden flags | `flags & mask = 0`; `Reader::hidden` counts the other side |
 
 A glob or regex runs in Rust over the reconstructed path with the matcher of
-the filter engine, 1000 rows at a time. After 20,000 rows scanned a request
-returns what it has and a `resume` cursor; a cancel flag is checked between
-chunks. Each page carries the generation of its request so the viewer can
-drop stale answers. A segment deleted by retention shows up in
-`Page::retired` and is skipped. The plans of every query shape are snapshot
-tested (`tests/snapshots/read__page_query_plans.snap`): none scans the event
-table without an index, but a subtree or name filter sorts its matches.
+the filter engine, 1000 rows at a time. Everything that cannot start from an
+index (a pattern, kinds, a subtree, a name, hidden flags) is **time boxed**: it
+walks the segment in windows of ids, and a call ends after about 4 ms
+(`query::SCAN_BUDGET`) with what it has and a `resume` cursor. The window starts
+at 4,096 ids, doubles while windows are cheap and halves when one takes more than
+half the budget. A cancel flag is checked between windows and chunks. Each page
+carries the generation of its request so the viewer can drop stale answers. A
+segment deleted by retention shows up in `Page::retired` and is skipped.
+
+The subtree and name filters test `+node_id` (the unary plus keeps SQLite from
+using the `event_node` index): with the index the plan found the matching nodes
+first and then had to sort every matching event (`USE TEMP B-TREE FOR ORDER BY`)
+before it could return the first page, which costs time proportional to the
+matches, not to the page. Now the plan walks the ids in order and checks
+membership, and a page that finds its rows early costs what an unfiltered page
+costs. The price is paid by a rare filter, which scans: one window per step.
+The plans of every query shape are snapshot tested
+(`tests/snapshots/read__page_query_plans.snap`), and the test fails on any
+`TEMP B-TREE`.
+
+Each row carries its leaf node with it (a `LEFT JOIN node` by primary key), and a
+`Reader` keeps the directories it has seen per segment (up to 65,536 nodes each,
+eight segments) between calls: a scan in 4 ms steps otherwise looked up the same
+directories again at the start of every step, which was most of its cost. Measured
+at 1M rows on the developer PC (Intel N150, the slowest machine in the project):
+34 s for a full regex scan before, 15.6 s after; the first filtered rows at 26 ms.
 
 ## What this layer does not do
 

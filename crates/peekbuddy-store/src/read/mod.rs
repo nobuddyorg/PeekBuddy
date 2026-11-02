@@ -20,8 +20,19 @@
 //! | hide | `flags & mask = 0`; [`Reader::hidden`] counts the other side |
 //!
 //! A glob or regex runs in Rust over the reconstructed path, in chunks of
-//! [`CHUNK`] rows, checking the cancel flag between chunks and stopping after
-//! [`SCAN_STEP`] rows with a resume cursor.
+//! [`CHUNK`] rows, checking the cancel flag between chunks. Every query that
+//! cannot use an index to find its first page (a pattern, kinds, a subtree, a
+//! name, hidden flags) walks the segment in windows of ids and stops after
+//! [`SCAN_BUDGET`] with a resume cursor; the window grows while windows are
+//! cheap and shrinks when they are not, so a step ends after about the
+//! budget, not after a row count.
+//!
+//! The subtree and name filters test their dictionary ids with `+node_id`,
+//! which keeps SQLite from sorting every match (`USE TEMP B-TREE FOR ORDER
+//! BY`) before it can return the first page: the plan walks the ids in order
+//! and checks membership. A page that finds its rows in the first window costs
+//! the same as without the filter; one that finds none costs one window per
+//! step instead of a sort of everything.
 //!
 //! # Memory
 //!
@@ -29,13 +40,16 @@
 //! [`PATH_CACHE_NODES`] nodes and is dropped when it is full.
 
 use std::collections::HashMap;
+use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
+use std::sync::{Arc, Mutex, PoisonError};
+use std::time::{Duration, Instant};
 
 use peekbuddy_core::event::{Event, Flags, Kind, NameKind, NameRef, RootIdx, Source, VolIdx};
 use peekbuddy_core::filter::Scratch;
 use peekbuddy_core::name::WideStr;
 use peekbuddy_core::query::{
-    CancelFlag, Direction, Filter, Page, PageRequest, Row, SCAN_STEP, fts_phrase, is_indexable,
+    CancelFlag, Direction, Filter, Page, PageRequest, Row, SCAN_BUDGET, fts_phrase, is_indexable,
     like_literal,
 };
 use rusqlite::types::Value;
@@ -50,7 +64,11 @@ use crate::schema::{TICKS_PER_HOUR, hour_bucket};
 /// Rows fetched from SQLite at once for a post-filter.
 pub const CHUNK: usize = 1_000;
 /// Nodes in the path cache of one segment.
-pub const PATH_CACHE_NODES: usize = 8_192;
+pub const PATH_CACHE_NODES: usize = 65_536;
+/// The ids a scan window starts with.
+const FIRST_WINDOW: i64 = 4_096;
+/// The smallest and the largest scan window, in ids.
+const WINDOW_RANGE: (i64, i64) = (256, 4_000_000);
 
 const BACKSLASH: u16 = 0x5C;
 
@@ -58,7 +76,17 @@ const BACKSLASH: u16 = 0x5C;
 #[derive(Debug)]
 pub struct Reader {
     dir: PathBuf,
+    scan_budget: Duration,
+    /// The nodes and roots seen in each segment, kept between calls: a scan
+    /// that runs in 4 ms steps would otherwise look up the same directories
+    /// again at the start of every step. Nodes never change once written, and
+    /// a segment file is never rewritten, so an entry stays right until the
+    /// file is deleted.
+    caches: Mutex<HashMap<String, PathCache>>,
 }
+
+/// Segments whose path caches a reader keeps.
+const KEPT_SEGMENTS: usize = 8;
 
 impl Reader {
     /// A reader over the segments in `dir` (where `catalog.db` lives).
@@ -66,7 +94,33 @@ impl Reader {
     pub fn new(dir: &Path) -> Self {
         Self {
             dir: dir.to_path_buf(),
+            scan_budget: SCAN_BUDGET,
+            caches: Mutex::new(HashMap::new()),
         }
+    }
+
+    /// The same reader with another budget for one scan step (tests use a
+    /// zero budget to get one window per call).
+    #[must_use]
+    pub const fn with_scan_budget(mut self, budget: Duration) -> Self {
+        self.scan_budget = budget;
+        self
+    }
+
+    fn take_cache(&self, file: &str) -> PathCache {
+        self.caches
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .remove(file)
+            .unwrap_or_default()
+    }
+
+    fn keep_cache(&self, file: &str, cache: PathCache) {
+        let mut caches = self.caches.lock().unwrap_or_else(PoisonError::into_inner);
+        if caches.len() >= KEPT_SEGMENTS {
+            caches.clear();
+        }
+        caches.insert(file.to_owned(), cache);
     }
 
     /// The data directory this reader reads.
@@ -88,7 +142,7 @@ impl Reader {
         if request.direction == Direction::Older {
             segments.reverse();
         }
-        let mut walk = Walk::new(request, cancel);
+        let mut walk = Walk::new(request, cancel, self.scan_budget);
         for segment in &segments {
             if walk.finished() {
                 break;
@@ -96,7 +150,12 @@ impl Reader {
             let path = self.dir.join(&segment.file);
             let opened = Connection::open_with_flags(&path, OpenFlags::SQLITE_OPEN_READ_ONLY);
             match opened {
-                Ok(conn) if path.exists() => walk.segment(&conn)?,
+                Ok(conn) if path.exists() => {
+                    let cache = self.take_cache(&segment.file);
+                    let paths = walk.segment(&conn, cache);
+                    self.keep_cache(&segment.file, paths.1);
+                    paths.0?;
+                }
                 _ => walk.page.retired.push(segment.file.clone()),
             }
         }
@@ -153,6 +212,24 @@ pub fn explain(
     query.plan(conn, direction)
 }
 
+/// As [`explain`], for the statement a node filter with few events uses (the
+/// index and a sort); the same as [`explain`] for a filter without nodes.
+///
+/// # Errors
+///
+/// SQLite's error.
+pub fn explain_selective(
+    conn: &Connection,
+    filter: &Filter,
+    direction: Direction,
+) -> rusqlite::Result<Vec<String>> {
+    let Some(mut query) = SegmentQuery::new(conn, filter)? else {
+        return Ok(Vec::new());
+    };
+    query.use_index = query.indexed.is_some();
+    query.plan(conn, direction)
+}
+
 /// Whether `segment` can have ids on the requested side of the cursor. The
 /// catalog row of the segment being written lags (`rows` and `last_id` are
 /// set when it is sealed), so an unsealed segment is never ruled out by them.
@@ -174,10 +251,14 @@ struct Walk<'a> {
     full: bool,
     stopped: bool,
     scratch: Option<Scratch>,
+    budget: Duration,
+    started: Instant,
+    /// Ids the next scan window covers.
+    window: i64,
 }
 
 impl<'a> Walk<'a> {
-    fn new(request: &'a PageRequest, cancel: &'a CancelFlag) -> Self {
+    fn new(request: &'a PageRequest, cancel: &'a CancelFlag, budget: Duration) -> Self {
         Self {
             request,
             cancel,
@@ -190,6 +271,25 @@ impl<'a> Walk<'a> {
             full: false,
             stopped: false,
             scratch: request.filter.pattern.is_some().then(Scratch::new),
+            budget,
+            started: Instant::now(),
+            window: FIRST_WINDOW,
+        }
+    }
+
+    /// Whether this call has used up its time.
+    fn out_of_time(&self) -> bool {
+        self.started.elapsed() >= self.budget
+    }
+
+    /// The window after one that took `took`: twice as big when it was cheap,
+    /// half when it used more than half the budget.
+    fn adapt(&mut self, took: Duration) {
+        let half = self.budget / 2;
+        if took < half / 4 {
+            self.window = self.window.saturating_mul(2).min(WINDOW_RANGE.1);
+        } else if took > half {
+            self.window = (self.window / 2).max(WINDOW_RANGE.0);
         }
     }
 
@@ -211,12 +311,33 @@ impl<'a> Walk<'a> {
     }
 
     /// Reads from one segment until it is exhausted, the page is full, the
-    /// scan step is used up or the request is cancelled.
-    fn segment(&mut self, conn: &Connection) -> Result<(), CatalogError> {
-        let Some(query) = SegmentQuery::new(conn, &self.request.filter)? else {
+    /// time budget is used up or the request is cancelled.
+    fn segment(
+        &mut self,
+        conn: &Connection,
+        cache: PathCache,
+    ) -> (Result<(), CatalogError>, PathCache) {
+        let mut paths = Paths::with_cache(conn, cache);
+        let result = self.scan(conn, &mut paths);
+        (result, paths.into_cache())
+    }
+
+    fn scan(&mut self, conn: &Connection, paths: &mut Paths<'_>) -> Result<(), CatalogError> {
+        let Some(mut query) = SegmentQuery::new(conn, &self.request.filter)? else {
             return Ok(());
         };
-        let mut paths = Paths::new(conn);
+        query.choose(conn)?;
+        let direction = self.request.direction;
+        // Queries that cannot start from an index scan in windows of ids.
+        let bounds = if query.walks_windows() {
+            let Some(bounds) = segment_ids(conn)? else {
+                return Ok(());
+            };
+            Some(bounds)
+        } else {
+            None
+        };
+        let stepped = query.walks_windows() || self.scratch.is_some();
         let limit = self.request.limit;
         loop {
             if self.cancel.is_cancelled() {
@@ -229,7 +350,26 @@ impl<'a> Walk<'a> {
             } else {
                 (limit + 1).saturating_sub(self.rows.len()).max(1)
             };
-            let fetched = query.fetch(conn, self.cursor, self.request.direction, want)?;
+            // The ids this fetch may look at: from `start` to `bound`.
+            let (start, bound) = match (bounds, direction) {
+                (Some((low, high)), Direction::Older) => {
+                    let start = self
+                        .cursor
+                        .map_or(high.saturating_add(1), |at| at.min(high.saturating_add(1)));
+                    (Some(start), start.saturating_sub(self.window).max(low))
+                }
+                (Some((low, high)), Direction::Newer) => {
+                    let start = self
+                        .cursor
+                        .map_or(low.saturating_sub(1), |at| at.max(low.saturating_sub(1)));
+                    (Some(start), start.saturating_add(self.window).min(high))
+                }
+                (None, Direction::Older) => (self.cursor, i64::MIN),
+                (None, Direction::Newer) => (self.cursor, i64::MAX),
+            };
+            let fetch_started = Instant::now();
+            let fetched = query.fetch(conn, start, direction, want, bound)?;
+            let took = fetch_started.elapsed();
             let count = fetched.len();
             for found in fetched {
                 self.page.scanned += 1;
@@ -243,10 +383,26 @@ impl<'a> Walk<'a> {
                     }
                 }
             }
-            if count < want {
+            let exhausted = count < want;
+            if let (Some((low, high)), true) = (bounds, exhausted) {
+                // The window had fewer matches than wanted: it is done, and so
+                // is the segment when the window reached its end.
+                self.cursor = Some(bound);
+                self.page.scanned += start
+                    .map_or(0, |at| at.abs_diff(bound))
+                    .saturating_sub(u64::try_from(count).unwrap_or(0));
+                self.adapt(took);
+                let at_end = match direction {
+                    Direction::Older => bound <= low,
+                    Direction::Newer => bound >= high,
+                };
+                if at_end {
+                    return Ok(());
+                }
+            } else if exhausted {
                 return Ok(());
             }
-            if self.scratch.is_some() && self.page.scanned >= SCAN_STEP as u64 {
+            if stepped && self.out_of_time() {
                 self.page.resume = self.cursor;
                 self.stopped = true;
                 return Ok(());
@@ -303,14 +459,32 @@ struct Found {
     attrs: Option<u32>,
     reparse_tag: u32,
     file_id: u128,
+    /// The node of the row, from the same statement: its parent and exact
+    /// name. `None` when the node row is missing (a damaged file).
+    leaf: Option<(i64, Vec<u16>)>,
 }
 
 /// The `SELECT` of one segment with the filter resolved against that
 /// segment's dictionary (node and root ids differ between files).
 struct SegmentQuery {
+    /// The statement that walks the ids in order and tests node membership
+    /// (`+node_id`): no sort, cost proportional to the ids it looks at.
     sql: String,
+    /// For a filter on nodes: the statement that finds the events of the
+    /// matching nodes through `event_node` and sorts them; and the one that
+    /// counts them (capped), to tell which of the two is cheaper.
+    indexed: Option<(String, String)>,
     params: Vec<Value>,
+    /// The query has no index to start from: it walks windows of ids.
+    windowed: bool,
+    /// The sorting statement was chosen for this segment.
+    use_index: bool,
 }
+
+/// Matching events up to which a node filter is answered through the index
+/// and a sort: sorting them costs about as much as looking at that many ids,
+/// and a rare filter would otherwise walk every id of the segment.
+const SELECTIVE_EVENTS: i64 = 20_000;
 
 impl SegmentQuery {
     /// `None` when the filter cannot match anything in this segment (its root
@@ -328,15 +502,18 @@ impl SegmentQuery {
 
     fn build(conn: &Connection, filter: &Filter, hidden: bool) -> rusqlite::Result<Option<Self>> {
         let mut clauses: Vec<String> = Vec::new();
-        // ?1 cursor, ?2 limit; filter values from ?3 on.
+        let mut windowed = false;
+        // ?1 cursor, ?2 limit, ?3 the end of the id window; filter values from
+        // ?4 on.
         let mut params: Vec<Value> = Vec::new();
         let mut bind = |value: Value| {
             params.push(value);
-            params.len() + 2
+            params.len() + 3
         };
         if let Some(kinds) = filter.kinds.filter(|kinds| !kinds.is_all()) {
             let tags: Vec<String> = kinds.tags().iter().map(u8::to_string).collect();
             clauses.push(format!("e.kind / 256 IN ({})", tags.join(",")));
+            windowed = true;
         }
         if let Some(root) = &filter.root {
             let columns = to_columns(WideStr::new(root));
@@ -369,6 +546,7 @@ impl SegmentQuery {
             }
         }
         let mut prefix = String::new();
+        let mut nodes: Vec<String> = Vec::new();
         if let Some(dir) = &filter.subtree {
             let Some(node) = find_node(conn, dir)? else {
                 return Ok(None);
@@ -378,51 +556,79 @@ impl SegmentQuery {
                 "WITH RECURSIVE sub(id) AS (SELECT ?{at} UNION ALL \
                  SELECT n.id FROM node n JOIN sub ON n.parent_id = sub.id) "
             );
-            clauses.push("e.node_id IN (SELECT id FROM sub)".to_owned());
+            nodes.push("e.node_id IN (SELECT id FROM sub)".to_owned());
+            windowed = true;
         }
         if let Some(name) = filter.name.as_deref().filter(|name| !name.is_empty()) {
             if is_indexable(name) {
                 let at = bind(Value::Text(fts_phrase(name)));
-                clauses.push(format!(
+                nodes.push(format!(
                     "e.node_id IN (SELECT rowid FROM node_fts WHERE node_fts MATCH ?{at})"
                 ));
             } else {
                 let at = bind(Value::Text(like_literal(name)));
-                clauses.push(format!(
+                nodes.push(format!(
                     "e.node_id IN (SELECT id FROM node WHERE name LIKE ?{at} ESCAPE '\\')"
                 ));
             }
         }
+        windowed |= filter.name.as_deref().is_some_and(|name| !name.is_empty());
         let mask = filter.hide.bits();
         if mask != 0 {
             let test = if hidden { "!= 0" } else { "= 0" };
             clauses.push(format!("e.flags & {mask} {test}"));
+            windowed |= !hidden;
         } else if hidden {
             return Ok(None);
         }
+        // The leaf node rides along (its parent and name), so a row costs no
+        // second statement; the join is by primary key from the event side.
         let select = if hidden {
-            "SELECT COUNT(*)"
+            "SELECT COUNT(*) FROM event e"
         } else {
             "SELECT e.id, e.ts, e.kind, e.source, e.raw_mask, e.node_id, e.is_dir, \
              e.size, e.attrs, e.file_id, e.file_id_hi, e.old_node_id, e.root_id, e.flags, \
-             e.reparse_tag"
+             e.reparse_tag, n.parent_id, n.name, n.name_w \
+             FROM event e LEFT JOIN node n ON n.id = e.node_id"
         };
-        let mut sql = format!("{prefix}{select} FROM event e WHERE e.id {{cmp}} ?1");
-        for clause in clauses {
-            sql.push_str(" AND ");
-            sql.push_str(&clause);
+        let (sql, indexed) = statements(&prefix, select, &clauses, &nodes, hidden);
+        Ok(Some(Self {
+            sql,
+            indexed,
+            params,
+            windowed,
+            use_index: false,
+        }))
+    }
+
+    /// Picks the statement for this segment: a node filter whose events are
+    /// few is answered through the index and a sort, any other walks the ids.
+    fn choose(&mut self, conn: &Connection) -> rusqlite::Result<()> {
+        self.use_index = false;
+        if let Some((_, probe)) = &self.indexed {
+            let head = [Value::Null, Value::Null, Value::Null];
+            let found: i64 = conn.prepare_cached(probe)?.query_row(
+                params_from_iter(head.iter().chain(self.params.iter())),
+                |row| row.get(0),
+            )?;
+            self.use_index = found <= SELECTIVE_EVENTS;
         }
-        if !hidden {
-            sql.push_str(" ORDER BY e.id {order}");
-        }
-        sql.push_str(" LIMIT ?2");
-        Ok(Some(Self { sql, params }))
+        Ok(())
+    }
+
+    /// Whether the statement in use walks windows of ids.
+    fn walks_windows(&self) -> bool {
+        self.windowed && !self.use_index
     }
 
     /// The number a counting query returns.
     fn count(&self, conn: &Connection) -> rusqlite::Result<u64> {
         let mut statement = conn.prepare_cached(&self.sql(Direction::Newer))?;
-        let head = [Value::Integer(i64::MIN), Value::Integer(i64::MAX)];
+        let head = [
+            Value::Integer(i64::MIN),
+            Value::Integer(i64::MAX),
+            Value::Integer(i64::MAX),
+        ];
         let found: i64 = statement.query_row(
             params_from_iter(head.iter().chain(self.params.iter())),
             |row| row.get(0),
@@ -433,7 +639,11 @@ impl SegmentQuery {
     fn plan(&self, conn: &Connection, direction: Direction) -> rusqlite::Result<Vec<String>> {
         let sql = format!("EXPLAIN QUERY PLAN {}", self.sql(direction));
         let mut statement = conn.prepare(&sql)?;
-        let head = [Value::Integer(i64::MAX), Value::Integer(200)];
+        let head = [
+            Value::Integer(i64::MAX),
+            Value::Integer(200),
+            Value::Integer(i64::MIN),
+        ];
         let rows = statement.query_map(
             params_from_iter(head.iter().chain(self.params.iter())),
             |row| row.get::<_, String>(3),
@@ -442,11 +652,17 @@ impl SegmentQuery {
     }
 
     fn sql(&self, direction: Direction) -> String {
-        let (cmp, order) = match direction {
-            Direction::Older => ("<", "DESC"),
-            Direction::Newer => (">", "ASC"),
+        let (cmp, win, order) = match direction {
+            Direction::Older => ("<", ">=", "DESC"),
+            Direction::Newer => (">", "<=", "ASC"),
         };
-        self.sql.replace("{cmp}", cmp).replace("{order}", order)
+        let text = match (&self.indexed, self.use_index) {
+            (Some((index, _)), true) => index,
+            _ => &self.sql,
+        };
+        text.replace("{cmp}", cmp)
+            .replace("{win}", win)
+            .replace("{order}", order)
     }
 
     fn fetch(
@@ -455,6 +671,7 @@ impl SegmentQuery {
         cursor: Option<i64>,
         direction: Direction,
         limit: usize,
+        bound: i64,
     ) -> rusqlite::Result<Vec<Found>> {
         let start = match direction {
             Direction::Older => i64::MAX,
@@ -464,6 +681,7 @@ impl SegmentQuery {
         let head = [
             Value::Integer(cursor.unwrap_or(start)),
             Value::Integer(i64::try_from(limit).unwrap_or(i64::MAX)),
+            Value::Integer(bound),
         ];
         let rows = statement.query_map(
             params_from_iter(head.iter().chain(self.params.iter())),
@@ -500,11 +718,70 @@ impl SegmentQuery {
                         .get::<_, Option<i64>>(14)?
                         .and_then(|tag| u32::try_from(tag).ok())
                         .unwrap_or(0),
+                    leaf: match (
+                        row.get::<_, Option<i64>>(15)?,
+                        row.get::<_, Option<String>>(16)?,
+                    ) {
+                        (Some(parent), Some(text)) => {
+                            let wide: Option<Vec<u8>> = row.get(17)?;
+                            from_columns(&text, wide.as_deref())
+                                .map(|name| (parent, name.into_units()))
+                        }
+                        _ => None,
+                    },
                 })
             },
         )?;
         rows.collect()
     }
+}
+
+/// The two statements of a query: the id walk, and for a filter on nodes the
+/// index statement with the capped count that decides between them.
+fn statements(
+    prefix: &str,
+    select: &str,
+    clauses: &[String],
+    nodes: &[String],
+    hidden: bool,
+) -> (String, Option<(String, String)>) {
+    let mut sql = format!("{prefix}{select} WHERE e.id {{cmp}} ?1 AND e.id {{win}} ?3");
+    let mut index = format!("{prefix}{select} WHERE e.id {{cmp}} ?1");
+    let mut probe = String::from("SELECT count(*) FROM (SELECT 1 FROM event e WHERE 1");
+    for clause in clauses {
+        for text in [&mut sql, &mut index, &mut probe] {
+            text.push_str(" AND ");
+            text.push_str(clause);
+        }
+    }
+    for clause in nodes {
+        // The unary plus keeps the planner from the `event_node` index:
+        // the ids are walked in order and the node is looked up.
+        sql.push_str(" AND +");
+        sql.push_str(clause);
+        for text in [&mut index, &mut probe] {
+            text.push_str(" AND ");
+            text.push_str(clause);
+        }
+    }
+    if !hidden {
+        sql.push_str(" ORDER BY e.id {order}");
+        index.push_str(" ORDER BY e.id {order}");
+    }
+    sql.push_str(" LIMIT ?2");
+    index.push_str(" LIMIT ?2");
+    let _ = write!(probe, " LIMIT {})", SELECTIVE_EVENTS + 1);
+    let indexed = (!nodes.is_empty() && !hidden).then(|| (index, format!("{prefix}{probe}")));
+    (sql, indexed)
+}
+
+/// The lowest and the highest event id of the segment; `None` when it is
+/// empty.
+fn segment_ids(conn: &Connection) -> rusqlite::Result<Option<(i64, i64)>> {
+    conn.query_row("SELECT min(id), max(id) FROM event", [], |row| {
+        Ok((row.get::<_, Option<i64>>(0)?, row.get::<_, Option<i64>>(1)?))
+    })
+    .map(|(low, high)| low.zip(high))
 }
 
 fn to_i64(value: u64) -> i64 {
@@ -565,22 +842,34 @@ fn find_node(conn: &Connection, path: &[u16]) -> rusqlite::Result<Option<i64>> {
 /// Builds paths and names from a segment's node tree, with a bounded cache.
 struct Paths<'a> {
     conn: &'a Connection,
-    cache: HashMap<i64, (i64, Vec<u16>)>,
+    cache: PathCache,
+}
+
+/// What a segment's node tree and roots gave so far.
+#[derive(Debug, Default)]
+struct PathCache {
+    nodes: HashMap<i64, (i64, Arc<[u16]>)>,
     roots: HashMap<i64, Vec<u16>>,
 }
 
 impl<'a> Paths<'a> {
+    #[cfg(test)]
     fn new(conn: &'a Connection) -> Self {
-        Self {
-            conn,
-            cache: HashMap::new(),
-            roots: HashMap::new(),
-        }
+        Self::with_cache(conn, PathCache::default())
     }
 
-    /// The parent and exact name of a node.
-    fn node(&mut self, id: i64) -> Option<(i64, Vec<u16>)> {
-        if let Some(hit) = self.cache.get(&id) {
+    fn with_cache(conn: &'a Connection, cache: PathCache) -> Self {
+        Self { conn, cache }
+    }
+
+    fn into_cache(self) -> PathCache {
+        self.cache
+    }
+
+    /// The parent and exact name of a node. `keep` caches it: the parents on
+    /// a path are met again by the next row, the leaf almost never.
+    fn node(&mut self, id: i64, keep: bool) -> Option<(i64, Arc<[u16]>)> {
+        if let Some(hit) = self.cache.nodes.get(&id) {
             return Some(hit.clone());
         }
         let (parent, text, wide): (i64, String, Option<Vec<u8>>) = self
@@ -590,46 +879,53 @@ impl<'a> Paths<'a> {
             .query_row([id], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)))
             .optional()
             .ok()??;
-        let name = from_columns(&text, wide.as_deref())?.into_units();
-        if self.cache.len() >= PATH_CACHE_NODES {
-            self.cache.clear();
+        let name: Arc<[u16]> = from_columns(&text, wide.as_deref())?.into_units().into();
+        if keep {
+            if self.cache.nodes.len() >= PATH_CACHE_NODES {
+                self.cache.nodes.clear();
+            }
+            self.cache.nodes.insert(id, (parent, Arc::clone(&name)));
         }
-        self.cache.insert(id, (parent, name.clone()));
         Some((parent, name))
     }
 
-    /// The name and full path of a node.
+    /// The name and full path of a node, found by its id.
     fn path_of(&mut self, node_id: i64) -> (Vec<u16>, Vec<u16>) {
-        let mut parts: Vec<Vec<u16>> = Vec::new();
-        let mut at = node_id;
-        let mut name = Vec::new();
+        match self.node(node_id, false) {
+            Some((parent, name)) => self.path_below(parent, &name),
+            None => (Vec::new(), Vec::new()),
+        }
+    }
+
+    /// The name and full path of a node whose parent and name are known.
+    fn path_below(&mut self, parent: i64, name: &[u16]) -> (Vec<u16>, Vec<u16>) {
+        let mut parents: Vec<Arc<[u16]>> = Vec::new();
+        let mut at = parent;
         // The tree is acyclic by construction; the bound guards a damaged file.
-        for depth in 0..4_096 {
-            let Some((parent, part)) = self.node(at) else {
+        for _ in 0..4_096 {
+            if at == TOP_LEVEL {
+                break;
+            }
+            let Some((up, part)) = self.node(at, true) else {
                 break;
             };
-            if depth == 0 {
-                name.clone_from(&part);
-            }
-            parts.push(part);
-            if parent == TOP_LEVEL {
-                break;
-            }
-            at = parent;
+            parents.push(part);
+            at = up;
         }
-        let mut path = Vec::new();
-        for (index, part) in parts.iter().rev().enumerate() {
-            if index > 0 {
-                path.push(BACKSLASH);
-            }
+        let mut path = Vec::with_capacity(
+            parents.iter().map(|part| part.len() + 1).sum::<usize>() + name.len(),
+        );
+        for part in parents.iter().rev() {
             path.extend_from_slice(part);
+            path.push(BACKSLASH);
         }
-        (name, path)
+        path.extend_from_slice(name);
+        (name.to_vec(), path)
     }
 
     /// The path of a watch root as stored (cached: a segment has a few).
     fn root(&mut self, id: i64) -> Vec<u16> {
-        if let Some(hit) = self.roots.get(&id) {
+        if let Some(hit) = self.cache.roots.get(&id) {
             return hit.clone();
         }
         let found: Option<(String, Option<Vec<u8>>)> = self
@@ -646,13 +942,16 @@ impl<'a> Paths<'a> {
         let path = found
             .and_then(|(text, wide)| from_columns(&text, wide.as_deref()))
             .map_or_else(Vec::new, peekbuddy_core::name::WideName::into_units);
-        self.roots.insert(id, path.clone());
+        self.cache.roots.insert(id, path.clone());
         path
     }
 
     /// The row with its name and full path.
     fn complete(&mut self, found: &Found) -> Row {
-        let (name, path) = self.path_of(found.node_id);
+        let (name, path) = match &found.leaf {
+            Some((parent, name)) => self.path_below(*parent, name),
+            None => self.path_of(found.node_id),
+        };
         let old_path = found
             .old_node_id
             .map_or_else(Vec::new, |old| self.path_of(old).1);
@@ -707,19 +1006,19 @@ mod path_cache_tests {
         let conn = tree(nodes);
         let mut paths = Paths::new(&conn);
         for id in 1..=nodes {
-            let (parent, name) = paths.node(id).unwrap();
+            let (parent, name) = paths.node(id, true).unwrap();
             assert_eq!(parent, TOP_LEVEL);
             assert_eq!(String::from_utf16_lossy(&name), format!("n{id}"));
-            assert!(paths.cache.len() <= PATH_CACHE_NODES);
+            assert!(paths.cache.nodes.len() <= PATH_CACHE_NODES);
         }
         // The same bound for a log a tenth of the size: memory follows the
         // constant, not the log.
         let small = tree(i64::try_from(PATH_CACHE_NODES / 10).unwrap());
         let mut paths = Paths::new(&small);
         for id in 1..=i64::try_from(PATH_CACHE_NODES / 10).unwrap() {
-            paths.node(id).unwrap();
+            paths.node(id, true).unwrap();
         }
-        assert_eq!(paths.cache.len(), PATH_CACHE_NODES / 10);
+        assert_eq!(paths.cache.nodes.len(), PATH_CACHE_NODES / 10);
     }
 
     #[test]
