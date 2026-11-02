@@ -95,4 +95,11 @@ exclude_re = [
   # Equivalent mutant: the root is a member of every scope, so the set is
   # never empty and `is_empty` is always false.
   "crates/peekbuddy-core/src/usn/scope/mod.rs:.*replace Scope::is_empty -> bool with false",
+  # `RtlSetProcessPlaceholderCompatibilityMode` fails only for a mode the
+  # call does not know, and the mode is a constant: `true` is what the call
+  # returns on every machine a test can run on.
+  "crates/peekbuddy-win/src/osinfo.rs:.*replace expose_placeholders -> bool with true",
+  # `RtlGetVersion` does not fail for a valid structure (its status is never
+  # negative here) and does not need the size field for the plain structure.
+  "crates/peekbuddy-win/src/osinfo.rs:.*(delete field dwOSVersionInfoSize|replace < with > in os_build)",
 ]
