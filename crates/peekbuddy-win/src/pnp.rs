@@ -124,6 +124,15 @@ fn context_ptr<T: ?Sized>(handler: Arc<T>) -> *mut Context<T> {
 }
 
 /// A registration for a directory's volume.
+///
+/// # Contract
+///
+/// Owns the Plug and Play registration for one directory handle, the callback
+/// context, and the directory handle itself. Dropping unregisters first (which
+/// waits for a running callback), then frees the context, then closes the
+/// handle, so a callback never sees a freed context. The handler runs on a
+/// system thread, must return at once and must not drop the watch. The value
+/// may be moved to and dropped on any thread.
 #[derive(Debug)]
 pub struct HandleWatch {
     notify: HCMNOTIFICATION,
@@ -229,6 +238,13 @@ impl Drop for HandleWatch {
 pub type InterfaceHandler = dyn Fn(bool) + Send + Sync;
 
 /// Arrival and removal of volume device interfaces.
+///
+/// # Contract
+///
+/// Owns the registration for device interface arrivals and its callback
+/// context; the same lifetime and threading rules as [`HandleWatch`]: dropped
+/// on any thread but not from the handler, which runs on a system thread and
+/// must return at once.
 #[derive(Debug)]
 pub struct InterfaceWatch {
     notify: HCMNOTIFICATION,
@@ -320,6 +336,12 @@ pub enum PowerEvent {
 pub type PowerHandler = dyn Fn(PowerEvent) + Send + Sync;
 
 /// Suspend and resume notifications.
+///
+/// # Contract
+///
+/// Owns the suspend and resume registration and its callback context; the same
+/// lifetime and threading rules as [`HandleWatch`]: dropped on any thread but
+/// not from the handler, which runs on a system thread and must return at once.
 #[derive(Debug)]
 pub struct PowerWatch {
     registration: *mut core::ffi::c_void,

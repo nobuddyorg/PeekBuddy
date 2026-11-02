@@ -16,6 +16,14 @@ use windows_sys::Win32::System::Threading::{
 };
 
 /// Every thread of a process, suspended until the value is dropped.
+///
+/// # Contract
+///
+/// Owns one handle and one suspend count for every thread it suspended.
+/// Dropping it resumes each of them and closes the handles. The suspended
+/// threads make no progress until then, so the holder must not wait for them
+/// (it must not be, or depend on, a thread of the process it suspended). The
+/// value may be dropped on any thread.
 #[derive(Debug)]
 pub struct Suspended {
     threads: Vec<OwnedHandle>,

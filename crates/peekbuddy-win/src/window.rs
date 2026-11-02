@@ -181,6 +181,14 @@ impl WindowHandle {
 }
 
 /// The hidden window. Dropping it destroys the window.
+///
+/// # Contract
+///
+/// Owns the window and the boxed handler its `GWLP_USERDATA` points to.
+/// Dropping destroys the window first and then frees the handler, so the
+/// window procedure never sees a freed handler. A window is destroyed on the
+/// thread that created it: the value is neither `Send` nor `Sync` and is
+/// dropped where it was made.
 pub struct HiddenWindow {
     hwnd: HWND,
     // Owned by the window through GWLP_USERDATA; freed in `Drop` after the

@@ -55,6 +55,17 @@ fn lock(shared: &Shared) -> MutexGuard<'_, Handoff> {
 }
 
 /// A journal read loop on its own thread.
+///
+/// # Contract
+///
+/// Owns the volume handle and the reader thread. The thread blocks in the
+/// journal read and posts every result to the completion port; dropping the
+/// reader sets the stop flag, cancels the blocked read until the thread has
+/// ended and joins it, so nothing is posted after the drop returns. [`take`]
+/// hands the bytes of a completion to one consumer at a time; the reader may
+/// be dropped on any thread.
+///
+/// [`take`]: SyncReader::take
 #[derive(Debug)]
 pub struct SyncReader {
     shared: Arc<Shared>,

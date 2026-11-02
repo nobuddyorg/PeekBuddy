@@ -1,5 +1,6 @@
 //! The USN source on a disk of its own, where the journal can be deleted,
-//! recreated and wrapped (#214, #212).
+//! recreated and wrapped (#214, #212), and the 8.3 short names of a volume
+//! that generates them (#39, #270).
 //!
 //! Destructive: it creates a virtual disk with diskpart, mounts it on a
 //! folder and changes the journal of that disk with `fsutil`. It needs an
@@ -486,4 +487,129 @@ fn refs_reads_fall_back_to_the_synchronous_reader_and_still_deliver() {
     // switched to its own thread.
     assert!(started.runner.uses_synchronous_reads());
     assert!(started.runner.stop().is_none());
+}
+
+/// Says why a check was skipped: the workflow turns the notes into warning
+/// annotations, so a skip is never silent.
+fn note(text: &str) {
+    if let Some(notes) = std::env::var_os("PEEKBUDDY_VHD_NOTES") {
+        let mut file = std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(notes)
+            .unwrap();
+        writeln!(
+            file,
+            "{}",
+            text.replace([char::from(13), char::from(10)], " ")
+        )
+        .unwrap();
+    }
+}
+
+/// The 8.3 name of `long` in `dir`, read from `dir /x`: the token before the
+/// long name when it has the `~` of a generated name.
+fn short_name_of(dir: &Path, long: &str) -> Option<String> {
+    let listing = run("cmd.exe", &["/c", "dir", "/x", dir.to_str()?]).ok()?;
+    listing.lines().map(str::trim_end).find_map(|line| {
+        let before = line.strip_suffix(long)?;
+        let token = before.split_whitespace().last()?;
+        token.contains('~').then(|| token.to_owned())
+    })
+}
+
+struct NoLife;
+
+impl peekbuddy_win::rdcw::LifecycleSink for NoLife {
+    fn state(
+        &mut self,
+        _: RootIdx,
+        _: peekbuddy_core::event::WatchState,
+        _: peekbuddy_win::rdcw::Detail,
+    ) {
+    }
+    fn reconcile(&mut self, _: RootIdx, _: GapReason) {}
+}
+
+#[test]
+fn a_file_changed_through_its_short_name_has_a_name_the_resolver_knows() {
+    use std::os::windows::ffi::OsStrExt as _;
+
+    use peekbuddy_core::event::NameKind;
+    use peekbuddy_win::rdcw::{RootSpec, Watcher};
+
+    if !enabled() {
+        return;
+    }
+    let Some(disk) = Disk::new("short", 'T', "ntfs", 64) else {
+        return;
+    };
+    // New volumes generate short names unless the system turned them off;
+    // `0` turns generation on for this volume.
+    if let Err(why) = run("fsutil.exe", &["8dot3name", "set", &disk.mount_arg(), "0"]) {
+        note(&format!(
+            "8.3 names could not be enabled on the vdisk: {why}"
+        ));
+        return;
+    }
+    let root = disk.root();
+    if !peekbuddy_win::fs::short_names_generated(&root).unwrap_or(false) {
+        note("the vdisk does not generate 8.3 names even after `fsutil 8dot3name set`");
+        return;
+    }
+    let long = "A Rather Long File Name.txt";
+    std::fs::write(root.join(long), b"one").unwrap();
+    let short = short_name_of(&root, long).expect("the file has a generated short name");
+
+    let rows: Rows = Arc::default();
+    let watcher = Watcher::start(Collect(Arc::clone(&rows)), NoLife).unwrap();
+    watcher
+        .add_root(RootSpec {
+            root: RootIdx(2),
+            vol: VolIdx(1),
+            path: root.as_os_str().encode_wide().collect(),
+            recursive: true,
+            last_access: false,
+            buffer_bytes: 64 * 1024,
+            exclude: Vec::new(),
+            reject: Vec::new(),
+        })
+        .unwrap();
+    std::thread::sleep(Duration::from_millis(300));
+    std::fs::write(root.join(&short), b"changed through the short name").unwrap();
+
+    let about = |name: &str| name.eq_ignore_ascii_case(long) || name.eq_ignore_ascii_case(&short);
+    wait_until("a modification of the file", || {
+        rows.lock()
+            .unwrap()
+            .iter()
+            .any(|(event, name)| event.kind == Kind::Modified && about(name))
+    });
+    let _ = watcher.stop();
+    let events = rows.lock().unwrap().clone();
+    let of_file: Vec<_> = events.iter().filter(|(_, name)| about(name)).collect();
+    assert_ne!(of_file.len(), 0, "no row names the file");
+    // Whatever name the file system reports is one of its two names, and a
+    // row that carries the short one says so.
+    for (event, name) in &of_file {
+        if name.eq_ignore_ascii_case(&short) && !name.eq_ignore_ascii_case(long) {
+            assert!(
+                matches!(event.name_kind, NameKind::Short | NameKind::Both),
+                "{name}: {:?}",
+                event.name_kind
+            );
+        }
+    }
+    // The resolver turns the file id of every row into the long name.
+    let hint = peekbuddy_win::fs::open_directory(&root).unwrap();
+    let mut out = vec![0_u16; 1024];
+    for (event, name) in &of_file {
+        assert_ne!(event.file_id, 0, "{name}: no file id");
+        let len = peekbuddy_win::fs::resolve_long_name(&hint, event.file_id, &mut out).unwrap();
+        let resolved = String::from_utf16_lossy(&out[..len]);
+        assert!(
+            resolved.to_lowercase().ends_with(&long.to_lowercase()),
+            "{name}: resolved to {resolved}"
+        );
+    }
 }

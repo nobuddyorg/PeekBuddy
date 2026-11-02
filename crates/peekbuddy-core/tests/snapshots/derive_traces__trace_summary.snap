@@ -1,0 +1,19 @@
+---
+source: crates/peekbuddy-core/tests/derive_traces.rs
+expression: out
+---
+cargo-build (cargo): 284 events
+  Detail: 211 rows = 197 raw, 0 unpaired, 0 renamed, 14 saved, 0 coalesced
+  Compact: 90 rows = 27 raw, 0 unpaired, 0 renamed, 14 saved, 49 coalesced
+git-checkout (git): 88 events
+  Detail: 39 rows = 31 raw, 0 unpaired, 0 renamed, 8 saved, 0 coalesced
+  Compact: 16 rows = 1 raw, 0 unpaired, 0 renamed, 8 saved, 7 coalesced
+git-commit (git): 98 events
+  Detail: 63 rows = 54 raw, 0 unpaired, 0 renamed, 9 saved, 0 coalesced
+  Compact: 30 rows = 5 raw, 0 unpaired, 0 renamed, 9 saved, 16 coalesced
+robocopy-mirror (robocopy): 84 events
+  Detail: 84 rows = 84 raw, 0 unpaired, 0 renamed, 0 saved, 0 coalesced
+  Compact: 23 rows = 2 raw, 0 unpaired, 0 renamed, 0 saved, 21 coalesced
+tar-extract (bsdtar): 335 events
+  Detail: 175 rows = 135 raw, 0 unpaired, 0 renamed, 40 saved, 0 coalesced
+  Compact: 45 rows = 0 raw, 0 unpaired, 0 renamed, 40 saved, 5 coalesced

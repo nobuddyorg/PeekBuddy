@@ -32,11 +32,17 @@ equally to a fork.
 | `xtask` | Repository automation (`cargo xtask <command>`). | forbidden |
 | `benches` | Micro-benchmarks. | forbidden |
 
-Two checks keep the layout honest:
+Three checks keep the layout honest:
 
 - `cargo xtask check-unsafe`: every crate root has `#![forbid(unsafe_code)]`
   except the allow-list in `xtask/src/unsafe_code.rs` (`peekbuddy-win` and
   `peekbuddy-alloc`).
+- `cargo xtask check-contracts`: a public type of `peekbuddy-win` that owns an
+  OS resource (it implements `Drop`) or crosses threads through
+  `unsafe impl Send` or `Sync` has a `# Contract` section in its docs: what it
+  owns, when that is released, which threads may use it. Public functions are
+  covered by the lints (`missing_docs`, `missing_safety_doc`,
+  `missing_errors_doc`).
 - `cargo xtask check-deps`: `peekbuddy-core` and `peekbuddy-engine` never
   depend on `eframe`, `egui`, `winit`, `wgpu` or `glow` (ADR 0001), and no
   crate uses PDH: no `Win32_System_Performance` feature, no `Pdh*` call, no
