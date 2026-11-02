@@ -461,7 +461,7 @@ mod tests {
         let units = |text: &str| -> Vec<u16> { text.encode_utf16().chain(Some(0)).collect() };
         assert!(wide_is(units("abc").as_ptr(), "abc"));
         assert!(wide_is(units("").as_ptr(), ""));
-        assert!(!wide_is(units("abd").as_ptr(), "abc"));
+        assert!(!wide_is(units("abx").as_ptr(), "abc"));
         assert!(!wide_is(units("ab").as_ptr(), "abc"));
         assert!(!wide_is(units("abcd").as_ptr(), "abc"));
         assert!(!wide_is(std::ptr::null(), ""));
