@@ -15,8 +15,9 @@ mod engine;
 mod judge;
 
 use std::collections::BTreeMap;
+use std::io::Write as _;
 use std::path::Path;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use engine::{all_rows, quit, spawn, wait_for_window, wait_until_settled};
 use judge::{Run, judge};
@@ -38,6 +39,23 @@ fn kills() -> usize {
         .and_then(|text| text.parse().ok())
         .filter(|&count| count > 0)
         .unwrap_or(SMOKE_KILLS)
+}
+
+/// Appends the restart times of this run, in milliseconds, one per line, to
+/// the file `PEEKBUDDY_KILL_REPORT` names. The nightly soak turns the lines
+/// of its seeds into the `durability.restart_to_ready` trend (#266).
+fn report_restarts(millis: &[u128]) {
+    let Some(path) = std::env::var_os("PEEKBUDDY_KILL_REPORT") else {
+        return;
+    };
+    let mut file = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(path)
+        .unwrap();
+    for ms in millis {
+        writeln!(file, "{ms}").unwrap();
+    }
 }
 
 /// A seeded generator for the kill points (xorshift64).
@@ -166,14 +184,19 @@ fn killing_the_engine_at_random_points_loses_nothing_it_does_not_cover() {
     });
 
     let mut rng = Rng(seed());
+    let mut restarts: Vec<u128> = Vec::new();
     for kill in 0..kills() {
         std::thread::sleep(Duration::from_millis(rng.between(300, 1_800)));
         let committed = snapshot(&data);
         engine.0.kill().unwrap();
         engine.0.wait().unwrap();
 
+        // Ready here is the engine's window: from then on a viewer or a second
+        // launch reaches it.
+        let restarted = Instant::now();
         engine = spawn(&data);
         window = wait_for_window(&data, &mut engine.0);
+        restarts.push(restarted.elapsed().as_millis());
         let context = format!("after kill {kill} (seed {})", seed());
         assert_sound(&data, &context);
         let after = snapshot(&data);
@@ -186,6 +209,7 @@ fn killing_the_engine_at_random_points_loses_nothing_it_does_not_cover() {
         }
     }
 
+    report_restarts(&restarts);
     let outcome = churn.join().unwrap();
     let failed: Vec<String> = outcome
         .records

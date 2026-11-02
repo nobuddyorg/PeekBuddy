@@ -4,9 +4,13 @@
 //! instead, and the writer replays them in order once the ring is empty, so id
 //! order is preserved. Each record is `u32 LE length | u32 LE CRC-32 | payload`;
 //! the payload is the batch in the event wire format. A torn tail (a crash in
-//! the middle of an append) ends the replay at the last whole record: the
-//! batch being appended is lost, which the reconcile pass after a restart
-//! reports as a gap, never silently.
+//! the middle of an append) is found when the file is opened: every record
+//! from the replay position on is checked (length, CRC, decode), the file is
+//! cut after the last whole one and the cut is reported ([`Spill::torn_bytes`]).
+//! The batch being appended is lost, which the reconcile pass after a restart
+//! reports as a gap, never silently. Cutting at open matters: records that
+//! are appended after a torn tail would otherwise sit behind garbage and be
+//! discarded with it.
 //!
 //! The file starts with a header, `PBSP` and a `u32` generation. The writer
 //! commits the generation and the offset it has replayed up to in the same
@@ -107,6 +111,36 @@ pub fn decode_batch(payload: &[u8], into: &mut Batch) -> Result<(), String> {
     Ok(())
 }
 
+/// The offset just after the last whole record that starts at or after
+/// `from`, in a file of `end` bytes: `end` when every record is whole.
+fn whole_records(file: &mut File, from: u64, end: u64) -> std::io::Result<u64> {
+    let mut at = from;
+    let mut payload = Vec::new();
+    let mut batch = Batch::standard();
+    while at < end {
+        file.seek(SeekFrom::Start(at))?;
+        let mut header = [0u8; 8];
+        if at + 8 > end || file.read_exact(&mut header).is_err() {
+            break;
+        }
+        let [l0, l1, l2, l3, c0, c1, c2, c3] = header;
+        let length = u32::from_le_bytes([l0, l1, l2, l3]) as usize;
+        let crc = u32::from_le_bytes([c0, c1, c2, c3]);
+        if length > MAX_PAYLOAD || at + 8 + length as u64 > end {
+            break;
+        }
+        payload.resize(length, 0);
+        if file.read_exact(&mut payload).is_err()
+            || crc32(&payload) != crc
+            || decode_batch(&payload, &mut batch).is_err()
+        {
+            break;
+        }
+        at += 8 + length as u64;
+    }
+    Ok(at)
+}
+
 /// The spill file of one data directory.
 #[derive(Debug)]
 pub struct Spill {
@@ -116,6 +150,7 @@ pub struct Spill {
     read: Option<File>,
     read_pos: u64,
     end: u64,
+    torn: u64,
     scratch: Vec<u8>,
     payload: Vec<u8>,
 }
@@ -140,6 +175,7 @@ impl Spill {
             read: None,
             read_pos: 0,
             end: 0,
+            torn: 0,
             scratch: Vec::new(),
             payload: Vec::new(),
         };
@@ -156,6 +192,7 @@ impl Spill {
             // complete): nothing in it can be trusted or needed.
             drop(file);
             let _ = std::fs::remove_file(&spill.path);
+            spill.torn = length;
             return Ok(spill);
         }
         let [_, _, _, _, g0, g1, g2, g3] = header;
@@ -167,7 +204,25 @@ impl Spill {
         } else {
             HEADER_LEN
         };
+        let whole = whole_records(&mut file, spill.read_pos, length)?;
+        drop(file);
+        if whole < length {
+            OpenOptions::new()
+                .write(true)
+                .open(&spill.path)?
+                .set_len(whole)?;
+            spill.end = whole;
+            spill.torn = length - whole;
+        }
         Ok(spill)
+    }
+
+    /// Bytes cut from the end of the file because a record was not whole (a
+    /// crash in the middle of an append), or the whole file when its header
+    /// was not complete. 0 for a file that was whole.
+    #[must_use]
+    pub const fn torn_bytes(&self) -> u64 {
+        self.torn
     }
 
     /// The generation of the file being written or replayed.
@@ -232,8 +287,20 @@ impl Spill {
         record.extend_from_slice(&crc32(&self.payload).to_le_bytes());
         record.extend_from_slice(&self.payload);
         if let Some(file) = &mut self.append {
-            file.write_all(&record)?;
-            file.sync_data()?;
+            let written = file.write_all(&record).and_then(|()| file.sync_data());
+            if let Err(error) = written {
+                // A full disk can leave half a record: cut it, or the records
+                // appended once there is room again would sit behind it and
+                // be discarded with it at the replay.
+                // (An append-only handle may not truncate: open another.)
+                let end = self.end;
+                self.append = None;
+                let _ = OpenOptions::new()
+                    .write(true)
+                    .open(&self.path)
+                    .and_then(|file| file.set_len(end));
+                return Err(error);
+            }
         }
         self.end += record.len() as u64;
         Ok(())
@@ -326,6 +393,13 @@ mod tests {
         batch
     }
 
+    /// Bytes one record of `batch` takes in the file.
+    fn record_len(batch: &Batch) -> usize {
+        let mut payload = Vec::new();
+        encode_batch(batch, &mut Vec::new(), &mut payload).unwrap();
+        8 + payload.len()
+    }
+
     fn collect(spill: &mut Spill) -> Vec<(u64, Vec<u16>)> {
         let mut out = Vec::new();
         let mut into = Batch::with_capacity(64, 4096);
@@ -407,6 +481,96 @@ mod tests {
         let ts: Vec<u64> = collect(&mut again).into_iter().map(|(ts, _)| ts).collect();
         assert_eq!(ts, [1, 2, 3, 4]);
         assert!(!again.has_pending());
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn a_torn_tail_is_cut_at_open_and_reported() {
+        let dir = dir("torn-cut");
+        let mut spill = Spill::open(&dir, 0, 0).unwrap();
+        spill.append(&batch(1, 4)).unwrap();
+        spill.append(&batch(5, 4)).unwrap();
+        drop(spill);
+        let path = dir.join(super::FILE_NAME);
+        let whole = std::fs::read(&path).unwrap();
+        std::fs::write(&path, &whole[..whole.len() - 10]).unwrap();
+        let again = Spill::open(&dir, 0, 0).unwrap();
+        // The second record is gone from the file, not just skipped.
+        let second = whole.len() - record_len(&batch(5, 4));
+        assert_eq!(again.torn_bytes(), (whole.len() - 10 - second) as u64);
+        assert_eq!(again.end(), second as u64);
+        assert_eq!(std::fs::metadata(&path).unwrap().len(), second as u64);
+        // A file that was whole has nothing torn.
+        let clean = Spill::open(&dir, 0, 0).unwrap();
+        assert_eq!(clean.torn_bytes(), 0);
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn batches_appended_after_a_torn_tail_are_not_lost_with_it() {
+        let dir = dir("torn-append");
+        let mut spill = Spill::open(&dir, 0, 0).unwrap();
+        spill.append(&batch(1, 3)).unwrap();
+        spill.append(&batch(4, 3)).unwrap();
+        drop(spill);
+        let path = dir.join(super::FILE_NAME);
+        let whole = std::fs::read(&path).unwrap();
+        std::fs::write(&path, &whole[..whole.len() - 5]).unwrap();
+        // The next run spills before it has replayed the old file.
+        let mut again = Spill::open(&dir, 0, 0).unwrap();
+        again.append(&batch(100, 2)).unwrap();
+        let ts: Vec<u64> = collect(&mut again).into_iter().map(|(ts, _)| ts).collect();
+        assert_eq!(ts, [1, 2, 3, 100, 101]);
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn a_record_with_a_wrong_checksum_ends_the_file_there() {
+        let dir = dir("torn-crc");
+        let mut spill = Spill::open(&dir, 0, 0).unwrap();
+        spill.append(&batch(1, 2)).unwrap();
+        spill.append(&batch(3, 2)).unwrap();
+        spill.append(&batch(5, 2)).unwrap();
+        drop(spill);
+        let path = dir.join(super::FILE_NAME);
+        let mut bytes = std::fs::read(&path).unwrap();
+        // Flip a payload byte of the middle record.
+        let first = record_len(&batch(1, 2));
+        bytes[8 + first + 12] ^= 0xFF;
+        std::fs::write(&path, &bytes).unwrap();
+        let mut again = Spill::open(&dir, 0, 0).unwrap();
+        assert!(again.torn_bytes() > 0);
+        let ts: Vec<u64> = collect(&mut again).into_iter().map(|(ts, _)| ts).collect();
+        assert_eq!(ts, [1, 2]);
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn a_partial_record_header_is_a_torn_tail() {
+        let dir = dir("torn-header");
+        let mut spill = Spill::open(&dir, 0, 0).unwrap();
+        spill.append(&batch(1, 2)).unwrap();
+        drop(spill);
+        let path = dir.join(super::FILE_NAME);
+        let mut bytes = std::fs::read(&path).unwrap();
+        bytes.extend_from_slice(&[9, 0, 0]);
+        std::fs::write(&path, &bytes).unwrap();
+        let mut again = Spill::open(&dir, 0, 0).unwrap();
+        assert_eq!(again.torn_bytes(), 3);
+        assert_eq!(collect(&mut again).len(), 2);
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn a_file_without_a_complete_header_is_dropped_and_reported() {
+        let dir = dir("torn-magic");
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join(super::FILE_NAME);
+        std::fs::write(&path, b"PBS").unwrap();
+        let spill = Spill::open(&dir, 0, 0).unwrap();
+        assert_eq!(spill.torn_bytes(), 3);
+        assert!(!spill.has_pending());
+        assert!(!path.exists());
         std::fs::remove_dir_all(&dir).unwrap();
     }
 
@@ -507,10 +671,11 @@ mod tests {
         file.extend_from_slice(&[7; 16]);
         std::fs::write(dir.join(super::FILE_NAME), &file).unwrap();
         let mut spill = Spill::open(&dir, 0, 0).unwrap();
-        assert!(spill.has_pending());
+        // Found at open: the 24 bytes after the header are cut, not replayed.
+        assert_eq!(spill.torn_bytes(), 24);
+        assert!(!spill.has_pending());
         let mut into = Batch::with_capacity(64, 4096);
         assert_eq!(spill.next(&mut into).unwrap(), None);
-        assert!(!spill.has_pending());
         std::fs::remove_dir_all(&dir).unwrap();
     }
 

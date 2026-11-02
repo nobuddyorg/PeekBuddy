@@ -245,6 +245,8 @@ fn role(kind: Kind) -> Role {
         | Kind::AccessDenied => Role::Barrier,
         Kind::EngineStarted
         | Kind::EngineAbnormalExit
+        | Kind::StoreDegraded
+        | Kind::StoreRecovered
         | Kind::EngineStopped
         | Kind::SegmentRotated
         | Kind::RetentionPurged

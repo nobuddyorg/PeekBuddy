@@ -13,7 +13,7 @@ mod arena;
 mod kind;
 
 pub use arena::{MAX_NAME_UNITS, NameArena, NameRef};
-pub use kind::{GapReason, Kind, WatchState};
+pub use kind::{GapReason, Kind, STORE_WAL_BLOCKED, STORE_WRITE_FAILING, WatchState};
 
 /// Where an event came from.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

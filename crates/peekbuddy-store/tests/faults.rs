@@ -5,13 +5,13 @@
 #![expect(clippy::unwrap_used, reason = "tests unwrap")]
 
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use peekbuddy_core::event::{Event, Flags, Kind, NameKind, NameRef, RootIdx, Source, VolIdx};
 use peekbuddy_store::batch::Batch;
-use peekbuddy_store::pipeline::{Config, Hooks, Pipeline, Producer, Push};
+use peekbuddy_store::pipeline::{Config, Health, Hooks, Pipeline, Producer, Push};
 use peekbuddy_store::writer::{RootInfo, VolInfo, Writer};
 use rusqlite::Connection;
 
@@ -137,11 +137,18 @@ enum Fault {
 }
 
 /// A pipeline whose writer hits `fault` while the returned flag is set.
-fn faulty_pipeline(dirs: &Dirs, fault: Fault, faulting: &Arc<AtomicBool>) -> Pipeline {
+fn faulty_pipeline(
+    dirs: &Dirs,
+    fault: Fault,
+    faulting: &Arc<AtomicBool>,
+    health: &Arc<Mutex<Vec<Health>>>,
+) -> Pipeline {
     let mut config = Config::new(dirs.spill());
     config.ring_batches = 4;
     let (flag, pages) = (Arc::clone(faulting), Arc::new(AtomicU32::new(0)));
+    let told = Arc::clone(health);
     config.hooks = Hooks {
+        on_health: Some(Arc::new(move |change| told.lock().unwrap().push(change))),
         before_attempt: Some(Arc::new(move |writer: &Writer| {
             match (fault, flag.load(Ordering::Relaxed)) {
                 (Fault::Full, true) => {
@@ -189,7 +196,8 @@ fn push_through_the_fault(pipeline: &Pipeline, start: u64) -> u64 {
 fn a_full_disk_loses_nothing_and_recovers_by_itself() {
     let dirs = Dirs::new("full");
     let faulting = Arc::new(AtomicBool::new(false));
-    let pipeline = faulty_pipeline(&dirs, Fault::Full, &faulting);
+    let health = Arc::new(Mutex::new(Vec::new()));
+    let pipeline = faulty_pipeline(&dirs, Fault::Full, &faulting, &health);
     let producer = pipeline.producer();
     // Healthy first: the database has pages to freeze at.
     push(&producer, 1, 50);
@@ -215,13 +223,19 @@ fn a_full_disk_loses_nothing_and_recovers_by_itself() {
     drop(pipeline.close());
     assert_eq!(stored_ts(&dirs.db()), (1..next).collect::<Vec<u64>>());
     assert!(integrity_ok(&dirs.db()));
+    // The change was told once each way, not once per retry.
+    assert_eq!(
+        *health.lock().unwrap(),
+        [Health::Failing, Health::Recovered]
+    );
 }
 
 #[test]
 fn an_unwritable_file_is_the_same_story() {
     let dirs = Dirs::new("readonly");
     let faulting = Arc::new(AtomicBool::new(false));
-    let pipeline = faulty_pipeline(&dirs, Fault::ReadOnly, &faulting);
+    let health = Arc::new(Mutex::new(Vec::new()));
+    let pipeline = faulty_pipeline(&dirs, Fault::ReadOnly, &faulting, &health);
     let producer = pipeline.producer();
     push(&producer, 1, 30);
     pipeline.flush(Duration::from_secs(30)).unwrap();
@@ -236,13 +250,18 @@ fn an_unwritable_file_is_the_same_story() {
     drop(pipeline.close());
     assert_eq!(stored_ts(&dirs.db()), (1..next).collect::<Vec<u64>>());
     assert!(integrity_ok(&dirs.db()));
+    assert_eq!(
+        *health.lock().unwrap(),
+        [Health::Failing, Health::Recovered]
+    );
 }
 
 #[test]
 fn closing_while_the_disk_is_full_keeps_the_data_for_the_next_start() {
     let dirs = Dirs::new("close");
     let faulting = Arc::new(AtomicBool::new(false));
-    let pipeline = faulty_pipeline(&dirs, Fault::Full, &faulting);
+    let health = Arc::new(Mutex::new(Vec::new()));
+    let pipeline = faulty_pipeline(&dirs, Fault::Full, &faulting, &health);
     push(&pipeline.producer(), 1, 50);
     pipeline.flush(Duration::from_secs(30)).unwrap();
 
@@ -339,6 +358,12 @@ fn a_stuck_reader_is_reported_while_ingest_goes_on_and_clears_when_it_lets_go() 
     config.ring_batches = 8;
     // A small threshold so the test does not write 64 MiB.
     config.wal_checkpoint_bytes = 256 * 1024;
+    let health = Arc::new(Mutex::new(Vec::new()));
+    let told = Arc::clone(&health);
+    config.hooks = Hooks {
+        on_health: Some(Arc::new(move |change| told.lock().unwrap().push(change))),
+        ..Hooks::default()
+    };
     let pipeline = Pipeline::start(open_writer(&dirs.db()), config).unwrap();
     let producer = pipeline.producer();
     push(&producer, 1, 50);
@@ -385,6 +410,11 @@ fn a_stuck_reader_is_reported_while_ingest_goes_on_and_clears_when_it_lets_go() 
     pipeline.flush(Duration::from_secs(60)).unwrap();
     drop(pipeline.close());
     assert!(integrity_ok(&dirs.db()));
+    // Told once when it started and once when it ended; ingest never stopped.
+    assert_eq!(
+        *health.lock().unwrap(),
+        [Health::WalBlocked, Health::WalReleased]
+    );
 }
 
 #[test]
