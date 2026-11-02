@@ -11,6 +11,11 @@ use crate::judge::{Run, relative};
 /// the log replayed. Created and reconciled-created add a path, deleted and
 /// renamed-from remove it (and everything below it), renamed-to adds the new
 /// path and moves what was below the old one of a directory.
+///
+/// The two rows of a rename are not always adjacent: with writers in many
+/// directories other events come between the old name and the new name, so a
+/// renamed-to takes the oldest pending renamed-from of its own directory (a
+/// move across directories, which has none there, takes the oldest of all).
 pub fn logged_tree(run: &Run) -> std::collections::BTreeSet<String> {
     use std::collections::BTreeSet;
 
@@ -26,7 +31,7 @@ pub fn logged_tree(run: &Run) -> std::collections::BTreeSet<String> {
         let prefix = format!("{path}\\");
         tree.retain(|entry| entry != path && !entry.starts_with(&prefix));
     };
-    let mut pending_old: Option<String> = None;
+    let mut pending_old: Vec<String> = Vec::new();
     for row in all_rows(&run.data) {
         let Some(path) = relative(&row.path, &root).map(|units| lower(&units)) else {
             continue;
@@ -37,11 +42,21 @@ pub fn logged_tree(run: &Run) -> std::collections::BTreeSet<String> {
             }
             Kind::Deleted | Kind::ReconciledDeleted => remove_below(&mut tree, &path),
             Kind::RenamedFrom => {
-                pending_old = Some(path);
+                pending_old.push(path);
             }
             Kind::RenamedTo | Kind::ReconciledRenamed => {
                 let old = if row.kind == Kind::RenamedTo {
-                    pending_old.take()
+                    let parent =
+                        |entry: &str| entry.rsplit_once('\\').map(|(head, _)| head.to_owned());
+                    let own = pending_old
+                        .iter()
+                        .position(|candidate| parent(candidate) == parent(&path));
+                    own.or(if pending_old.is_empty() {
+                        None
+                    } else {
+                        Some(0)
+                    })
+                    .map(|at| pending_old.remove(at))
                 } else {
                     relative(&row.old_path, &root).map(|units| lower(&units))
                 };
