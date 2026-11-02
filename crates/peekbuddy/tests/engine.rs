@@ -259,13 +259,34 @@ fn wait_until(what: &str, mut condition: impl FnMut() -> bool) {
     }
 }
 
+/// Whether the shell of this session takes an icon from a plain window of
+/// this test process; the icon is removed again.
+fn shell_accepts_icons() -> bool {
+    use peekbuddy_win::tray::{Icon, Tray};
+    use peekbuddy_win::window::HiddenWindow;
+
+    let class = format!("PeekBuddy.Test.Probe.{}", std::process::id());
+    let Ok(window) = HiddenWindow::create(&class, |_, _| {}) else {
+        return false;
+    };
+    let tray = Tray::new(window.handle());
+    let Ok(icon) = Icon::from_bgra(16, &[0xFF; 16 * 16 * 4]) else {
+        return false;
+    };
+    let accepted = tray.add(&icon, "PeekBuddy probe").is_ok();
+    tray.remove();
+    accepted
+}
+
 #[test]
 fn the_tray_icon_comes_back_with_the_taskbar_and_goes_away_on_quit() {
     use peekbuddy_engine::tray_model::Command;
     use peekbuddy_win::tray::{Tray, taskbar_created_message};
 
-    if !peekbuddy_win::tray::taskbar_exists() {
-        // A session without explorer (some arm64 runners) has no tray to test.
+    if !peekbuddy_win::tray::taskbar_exists() || !shell_accepts_icons() {
+        // A session without explorer, or one whose shell rejects every icon
+        // (the hosted arm64 runner: `NIM_ADD` fails with E_FAIL for any
+        // process, #196), has no tray to test.
         return;
     }
     let dir = TestDir::new("engine-tray").unwrap();
