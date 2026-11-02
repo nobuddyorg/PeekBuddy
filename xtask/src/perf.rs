@@ -604,15 +604,28 @@ fn runner_info() -> Value {
     })
 }
 
-fn startup_runs(options: &Options, exe: &Path, tag: &str) -> Result<Vec<Startup>, String> {
-    let mut runs = Vec::new();
+/// Head runs, and base runs when there is a base exe. The two alternate, so
+/// that a runner that is slow for a while (a cold file cache, a neighbour)
+/// slows both the same way: with all head runs first, the same exe compared
+/// with itself differed by 60 % on a hosted runner.
+fn startup_runs(
+    options: &Options,
+    base: Option<&Path>,
+) -> Result<(Vec<Startup>, Vec<Startup>), String> {
+    let (mut head, mut base_runs) = (Vec::new(), Vec::new());
     for index in 0..options.warmup + options.runs {
-        let probe = launch::probe(exe, 0, &format!("{tag}{index}"))?;
+        let probe = launch::probe(&options.exe, 0, &format!("h{index}"))?;
+        let base_probe = base
+            .map(|exe| launch::probe(exe, 0, &format!("b{index}")))
+            .transpose()?;
         if index >= options.warmup {
-            runs.push(startup_from(&probe)?);
+            head.push(startup_from(&probe)?);
+            if let Some(base_probe) = base_probe {
+                base_runs.push(startup_from(&base_probe)?);
+            }
         }
     }
-    Ok(runs)
+    Ok((head, base_runs))
 }
 
 type Detail = serde_json::Map<String, Value>;
@@ -633,7 +646,7 @@ fn measure_startup(
     rows: &mut Vec<Row>,
     detail: &mut Detail,
 ) -> Result<(), String> {
-    let head = startup_runs(options, &options.exe, "h")?;
+    let (head, base) = startup_runs(options, options.ab_base.as_deref())?;
     let ready = stats(&head.iter().map(|run| run.ready_ms).collect::<Vec<_>>());
     let cpu = stats(&head.iter().map(|run| run.cpu_ms).collect::<Vec<_>>());
     let disk = stats(&head.iter().map(|run| run.disk_read_mb).collect::<Vec<_>>());
@@ -653,8 +666,7 @@ fn measure_startup(
         cpu.map_or(0.0, |s| s.median),
         &note,
     );
-    if let Some(base_exe) = &options.ab_base {
-        let base = startup_runs(options, base_exe, "b")?;
+    if options.ab_base.is_some() {
         let base_ready = stats(&base.iter().map(|run| run.ready_ms).collect::<Vec<_>>());
         let base_cpu = stats(&base.iter().map(|run| run.cpu_ms).collect::<Vec<_>>());
         if let (Some(b), Some(h)) = (base_ready, ready) {
