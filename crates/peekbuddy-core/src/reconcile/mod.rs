@@ -291,3 +291,44 @@ pub trait RowOut {
     /// Waits until the rows so far are durable; `false` when they are not.
     fn flush(&mut self) -> bool;
 }
+
+#[cfg(test)]
+mod tests {
+    use super::{Listing, Meta};
+
+    fn w(text: &str) -> Vec<u16> {
+        text.encode_utf16().collect()
+    }
+
+    #[test]
+    fn a_listing_counts_its_entries() {
+        let mut listing = Listing::new();
+        assert!(listing.is_empty());
+        assert_eq!(listing.len(), 0);
+        listing.push(&w("a"), Meta::default(), 1);
+        assert!(!listing.is_empty());
+        assert_eq!(listing.len(), 1);
+    }
+
+    #[test]
+    fn units_taken_from_an_iterator_are_cut_at_the_length_and_keep_their_place() {
+        let mut listing = Listing::new();
+        listing.push(&w("first"), Meta::default(), 1);
+        // The iterator holds more than the length and, in the next call, less.
+        listing.push_units(3, w("second").into_iter(), Meta::default(), 2);
+        listing.push_units(9, w("ab").into_iter(), Meta::default(), 3);
+        let names: Vec<(String, i64)> = listing
+            .items()
+            .iter()
+            .map(|item| (String::from_utf16_lossy(listing.name(item)), item.id))
+            .collect();
+        assert_eq!(
+            names,
+            [
+                (String::from("first"), 1),
+                (String::from("sec"), 2),
+                (String::from("ab"), 3)
+            ]
+        );
+    }
+}

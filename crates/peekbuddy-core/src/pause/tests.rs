@@ -335,3 +335,21 @@ prop_state_machine! {
     #[test]
     fn pause_matches_its_model(sequential 1..60 => Sut);
 }
+
+#[test]
+fn the_end_of_a_batch_reaches_the_inner_sink() {
+    #[derive(Default)]
+    struct Ends(u32);
+    impl EventSink for Ends {
+        fn push(&mut self, _event: &Event, _name: &[u16]) -> bool {
+            true
+        }
+        fn batch_end(&mut self) {
+            self.0 += 1;
+        }
+    }
+    let mut sink = PausableSink::new(Ends::default(), Arc::new(Pause::new()));
+    sink.batch_end();
+    sink.batch_end();
+    assert_eq!(sink.into_inner().0, 2);
+}
