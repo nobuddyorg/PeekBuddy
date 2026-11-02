@@ -828,7 +828,7 @@ mod tests {
         let mut expected = Vec::new();
         assert!(peekbuddy_core::ipc::encode(&message, &mut expected));
         assert_eq!(reply.bytes(), expected.as_slice());
-        assert!(!expected.is_empty());
+        assert_ne!(expected.len(), 0);
     }
 
     #[test]
@@ -906,11 +906,11 @@ mod tests {
         drop(client);
         drop(starter.join().unwrap());
 
-        let never = name("never");
-        let started = std::time::Instant::now();
-        let error = PipeClient::connect(&never, None, Duration::from_millis(400)).unwrap_err();
+        let absent = name("never");
+        let clock = std::time::Instant::now();
+        let error = PipeClient::connect(&absent, None, Duration::from_millis(400)).unwrap_err();
         assert_eq!(error.raw_os_error(), Some(2), "{error:?}");
-        let waited = started.elapsed();
+        let waited = clock.elapsed();
         assert!(waited >= Duration::from_millis(400), "{waited:?}");
         assert!(waited < Duration::from_secs(5), "{waited:?}");
     }

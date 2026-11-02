@@ -2,10 +2,6 @@
 //! progress stops making progress while it is suspended, and goes on when the
 //! guard is dropped.
 #![cfg(windows)]
-#![expect(
-    clippy::unwrap_used,
-    reason = "test helpers outside #[test] fns may unwrap"
-)]
 
 use std::io::Write as _;
 use std::path::{Path, PathBuf};

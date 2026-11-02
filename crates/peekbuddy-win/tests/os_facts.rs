@@ -1,6 +1,10 @@
 //! The facts of `osinfo` against independent queries (`reg.exe`), so a
 //! function that returns a constant, or reads the wrong key, is found (#234).
 #![cfg(windows)]
+#![expect(
+    clippy::unwrap_used,
+    reason = "test helpers outside #[test] fns may unwrap"
+)]
 
 use std::process::Command;
 
