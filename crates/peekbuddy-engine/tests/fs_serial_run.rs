@@ -15,12 +15,14 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use peekbuddy_core::event::Kind;
+use peekbuddy_core::event::{Kind, WatchState};
+use peekbuddy_core::ipc::{Command as IpcCommand, Message, PROTOCOL_VERSION};
 use peekbuddy_core::perf::MilestoneTable;
 use peekbuddy_core::query::{CancelFlag, Direction, Filter, PageRequest};
 use peekbuddy_engine::ipc_server::{ping, pipe_name};
 use peekbuddy_engine::{Exit, Names, Options, ProbeOptions, register_provider, run};
 use peekbuddy_store::read::Reader;
+use peekbuddy_win::pipe::PipeClient;
 use peekbuddy_win::window::WindowHandle;
 
 struct Dir(PathBuf);
@@ -143,9 +145,7 @@ fn the_engine_runs_answers_records_and_reports() {
     assert!(kinds.contains(&Kind::EngineAbnormalExit), "{kinds:?}");
     assert!(kinds.contains(&Kind::BaselineEstablished), "{kinds:?}");
     assert!(
-        kinds.contains(&Kind::WatchStateChanged(
-            peekbuddy_core::event::WatchState::Live
-        )),
+        kinds.contains(&Kind::WatchStateChanged(WatchState::Live)),
         "{kinds:?}"
     );
     assert!(
@@ -193,4 +193,171 @@ fn check_probe(probe_out: &Path) {
         report["counters"]["rowsPersisted"].as_u64().unwrap() >= 1,
         "{report}"
     );
+}
+
+/// An engine running in this process on a data directory with one watch, and
+/// what it needs to be stopped again.
+struct Running {
+    dir: Dir,
+    data: PathBuf,
+    tree: PathBuf,
+    class: String,
+    engine: Option<std::thread::JoinHandle<std::io::Result<Exit>>>,
+}
+
+impl Running {
+    /// `watch` is made relative to the tree; the directories named by
+    /// `create` exist before the start.
+    fn start(tag: &str, watch: &str, create: &str) -> Self {
+        let dir = Dir::new(tag);
+        let data = dir.0.join("data");
+        let tree = dir.0.join("tree");
+        std::fs::create_dir_all(&data).unwrap();
+        std::fs::create_dir_all(tree.join(create)).unwrap();
+        let tree = std::fs::canonicalize(&tree).unwrap();
+        let plain = tree
+            .join(watch)
+            .to_string_lossy()
+            .trim_start_matches(r"\\?\")
+            .to_owned();
+        std::fs::write(
+            data.join("settings.toml"),
+            format!(
+                "version = 1\n[general]\nfirst_run = false\n[[watch]]\nid = \"w0\"\npath = '{plain}'\n"
+            ),
+        )
+        .unwrap();
+        let options = Options {
+            headless: true,
+            data_dir: Some(data.clone()),
+            ..Options::default()
+        };
+        let table = Arc::new(MilestoneTable::new());
+        let engine = std::thread::spawn(move || run(&options, &table, register_provider()));
+        let class = Names::new(Some(&data)).window_class;
+        wait_for("the engine window", || WindowHandle::find(&class).is_some());
+        Self {
+            dir,
+            data,
+            tree,
+            class,
+            engine: Some(engine),
+        }
+    }
+
+    fn has_state(&self, state: WatchState) -> bool {
+        rows(&self.data)
+            .iter()
+            .any(|row| row.kind == Kind::WatchStateChanged(state))
+    }
+
+    fn state_rows(&self, state: WatchState) -> usize {
+        rows(&self.data)
+            .iter()
+            .filter(|row| row.kind == Kind::WatchStateChanged(state))
+            .count()
+    }
+
+    fn has_row(&self, kind: Kind, name: &str) -> bool {
+        let wanted: Vec<u16> = name.encode_utf16().collect();
+        rows(&self.data)
+            .iter()
+            .any(|row| row.kind == kind && row.path.ends_with(&wanted))
+    }
+
+    fn command(&self, command: IpcCommand) {
+        let pipe = pipe_name(Some(&self.data)).unwrap();
+        let exe = std::env::current_exe().unwrap();
+        let mut client = PipeClient::connect(&pipe, Some(&exe), Duration::from_secs(10)).unwrap();
+        client
+            .send(&Message::Hello {
+                protocol_version: PROTOCOL_VERSION,
+                build: String::from("test"),
+            })
+            .unwrap();
+        let _ = client.receive().unwrap();
+        client.send(&Message::Command(command)).unwrap();
+        let _ = client.receive().unwrap();
+    }
+
+    fn stop(mut self) {
+        let window = WindowHandle::find(&self.class).unwrap();
+        window.post_close().unwrap();
+        let exit = self.engine.take().unwrap().join().unwrap().unwrap();
+        assert!(matches!(exit, Exit::Ran { .. }), "{exit:?}");
+        drop(self.dir);
+    }
+}
+
+fn wait_for_armed(engine: &Running, file: &str) {
+    wait_for("the watch to be armed", || {
+        std::fs::write(engine.tree.join(file), b"x").is_ok() && engine.has_row(Kind::Created, file)
+    });
+}
+
+#[test]
+fn a_root_that_is_deleted_and_comes_back_is_watched_again() {
+    let engine = Running::start("lost", "", "");
+    wait_for_armed(&engine, "armed.txt");
+    let lives = engine.state_rows(WatchState::Live);
+
+    std::fs::remove_dir_all(&engine.tree).unwrap();
+    wait_for("the loss of the root", || {
+        engine.has_state(WatchState::Lost)
+    });
+    std::fs::create_dir_all(&engine.tree).unwrap();
+    wait_for("the root to be watched again", || {
+        engine.state_rows(WatchState::Live) > lives || engine.has_state(WatchState::Restored)
+    });
+    wait_for("a file of the new root", || {
+        std::fs::write(engine.tree.join("again.txt"), b"x").is_ok()
+            && engine.has_row(Kind::Created, "again.txt")
+    });
+    engine.stop();
+}
+
+#[test]
+fn a_root_two_levels_below_a_deleted_directory_is_watched_once_it_exists_again() {
+    let engine = Running::start("nested", r"a\b", r"a\b");
+    wait_for_armed(&engine, r"a\b\armed.txt");
+    let lives = engine.state_rows(WatchState::Live);
+
+    std::fs::remove_dir_all(engine.tree.join("a")).unwrap();
+    wait_for("the loss of the root", || {
+        engine.has_state(WatchState::Lost)
+    });
+    std::fs::create_dir_all(engine.tree.join(r"a\b")).unwrap();
+    wait_for("the root to be watched again", || {
+        engine.state_rows(WatchState::Live) > lives || engine.has_state(WatchState::Restored)
+    });
+    wait_for("a file below the root", || {
+        std::fs::write(engine.tree.join(r"a\b\file.txt"), b"x").is_ok()
+            && engine.has_row(Kind::Created, "file.txt")
+    });
+    engine.stop();
+}
+
+#[test]
+fn pausing_a_watch_is_a_row_and_nothing_is_recorded_until_it_resumes() {
+    let engine = Running::start("pause", "", "");
+    wait_for_armed(&engine, "before.txt");
+    let lives = engine.state_rows(WatchState::Live);
+
+    engine.command(IpcCommand::PauseAll);
+    wait_for("the pause", || {
+        engine.has_state(WatchState::SuspendedByUser)
+    });
+    std::fs::write(engine.tree.join("while-paused.txt"), b"x").unwrap();
+    std::thread::sleep(Duration::from_millis(500));
+    assert!(!engine.has_row(Kind::Created, "while-paused.txt"));
+
+    engine.command(IpcCommand::ResumeAll);
+    wait_for("the watch to be live again", || {
+        engine.state_rows(WatchState::Live) > lives
+    });
+    wait_for("a file after the resume", || {
+        std::fs::write(engine.tree.join("after.txt"), b"x").is_ok()
+            && engine.has_row(Kind::Created, "after.txt")
+    });
+    engine.stop();
 }
