@@ -169,6 +169,15 @@ directories again at the start of every step, which was most of its cost. Measur
 at 1M rows on the developer PC (Intel N150, the slowest machine in the project):
 34 s for a full regex scan before, 15.6 s after; the first filtered rows at 26 ms.
 
+A reader opens the catalog read-only (`Catalog::open_for_reading`): the writer's
+open sets pragmas, runs the schema statements and writes `user_version` on
+every call, which was two thirds of the time of a page (12.8 ms to 4.3 ms for a
+keyset page of 200 rows at 10M rows on the same PC; the rest is opening the
+segment, about 2 ms of schema parsing, which ADR 0017 asks for on every call).
+At 10M rows (a million files, ten events each) the first page of a rare name
+costs 49 ms and of a rare subtree 15 ms, through the index; before the
+two-statement choice the id walk needed 880 ms and 830 ms for them.
+
 ## What this layer does not do
 
 - No coalescing or de-duplication: one row per raw record.

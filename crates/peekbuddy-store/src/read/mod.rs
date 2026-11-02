@@ -136,7 +136,7 @@ impl Reader {
     /// SQLite's error, or the catalog's. A segment that disappeared is not an
     /// error: it is listed in [`Page::retired`].
     pub fn page(&self, request: &PageRequest, cancel: &CancelFlag) -> Result<Page, CatalogError> {
-        let catalog = Catalog::open(&self.dir.join("catalog.db"))?;
+        let catalog = Catalog::open_for_reading(&self.dir.join("catalog.db"))?;
         let mut segments = catalog.list()?;
         segments.retain(|segment| reaches(segment, request));
         if request.direction == Direction::Older {
@@ -175,7 +175,7 @@ impl Reader {
         filter: &Filter,
         cancel: &CancelFlag,
     ) -> Result<Option<u64>, CatalogError> {
-        let catalog = Catalog::open(&self.dir.join("catalog.db"))?;
+        let catalog = Catalog::open_for_reading(&self.dir.join("catalog.db"))?;
         let mut total = 0_u64;
         for segment in catalog.list()? {
             if cancel.is_cancelled() {
