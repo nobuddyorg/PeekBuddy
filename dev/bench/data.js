@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1793612439284,
+  "lastUpdate": 1793612490144,
   "repoUrl": "https://github.com/nobuddyorg/PeekBuddy",
   "entries": {
     "benches (windows-2025)": [
@@ -143,6 +143,83 @@ window.BENCHMARK_DATA = {
           {
             "name": "store/intern_miss_1000",
             "value": 4562301.041666666,
+            "unit": "ns"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "name": "Matthias Eggert",
+            "username": "besessener",
+            "email": "8039350+besessener@users.noreply.github.com"
+          },
+          "committer": {
+            "name": "GitHub",
+            "username": "web-flow",
+            "email": "noreply@github.com"
+          },
+          "id": "d10cfdc4c1f9c66139f6ca0f2d8650f0045ee4b3",
+          "message": "test: record real traces, corpus and contracts (#287)\n\nCloses #270",
+          "timestamp": "2026-11-02T09:37:50Z",
+          "url": "https://github.com/nobuddyorg/PeekBuddy/commit/d10cfdc4c1f9c66139f6ca0f2d8650f0045ee4b3"
+        },
+        "date": 1793612487612,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "filter/eval_6_names",
+            "value": 1960.820700046032,
+            "unit": "ns"
+          },
+          {
+            "name": "metrics/process_list_300",
+            "value": 1212.9675731390937,
+            "unit": "ns"
+          },
+          {
+            "name": "notify_parse/extended/64kib",
+            "value": 2885.5222234447992,
+            "unit": "ns"
+          },
+          {
+            "name": "notify_parse/full/64kib",
+            "value": 2952.258505670566,
+            "unit": "ns"
+          },
+          {
+            "name": "notify_parse/plain/64kib",
+            "value": 5501.83061870189,
+            "unit": "ns"
+          },
+          {
+            "name": "perf/counters_event",
+            "value": 0.35499447206402807,
+            "unit": "ns"
+          },
+          {
+            "name": "perf/milestone_record",
+            "value": 6.197647650748151,
+            "unit": "ns"
+          },
+          {
+            "name": "reparse/classify_8",
+            "value": 22.349576831538926,
+            "unit": "ns"
+          },
+          {
+            "name": "store/batch_insert_1000",
+            "value": 3633703.854166667,
+            "unit": "ns"
+          },
+          {
+            "name": "store/intern_hit_1000",
+            "value": 62469.72986937831,
+            "unit": "ns"
+          },
+          {
+            "name": "store/intern_miss_1000",
+            "value": 4457973.541666667,
             "unit": "ns"
           }
         ]
