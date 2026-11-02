@@ -43,7 +43,8 @@ impl Drop for Dir {
 }
 
 fn wait_for(what: &str, mut done: impl FnMut() -> bool) {
-    let until = Instant::now() + Duration::from_secs(30);
+    // A hosted arm runner is slow to start an engine and to rearm a watch.
+    let until = Instant::now() + Duration::from_secs(120);
     while !done() {
         assert!(Instant::now() < until, "timed out waiting for {what}");
         std::thread::sleep(Duration::from_millis(50));
@@ -293,6 +294,23 @@ impl Running {
         let _ = client.receive().unwrap();
     }
 
+    /// Waits for `done`; a timeout says what the log held, so a failure on
+    /// a runner shows what the engine did.
+    fn wait(&self, what: &str, mut done: impl FnMut() -> bool) {
+        let until = Instant::now() + Duration::from_secs(120);
+        while !done() {
+            assert!(
+                Instant::now() < until,
+                "timed out waiting for {what}; the log holds {:?}",
+                rows(&self.data)
+                    .iter()
+                    .map(|row| (row.kind, String::from_utf16_lossy(&row.path)))
+                    .collect::<Vec<_>>()
+            );
+            std::thread::sleep(Duration::from_millis(50));
+        }
+    }
+
     fn stop(mut self) {
         let window = WindowHandle::find(&self.class).unwrap();
         window.post_close().unwrap();
@@ -303,7 +321,7 @@ impl Running {
 }
 
 fn wait_for_armed(engine: &Running, file: &str) {
-    wait_for("the watch to be armed", || {
+    engine.wait("the watch to be armed", || {
         std::fs::write(engine.tree.join(file), b"x").is_ok() && engine.has_row(Kind::Created, file)
     });
 }
@@ -315,14 +333,14 @@ fn a_root_that_is_deleted_and_comes_back_is_watched_again() {
     let lives = engine.state_rows(WatchState::Live);
 
     std::fs::remove_dir_all(&engine.tree).unwrap();
-    wait_for("the loss of the root", || {
+    engine.wait("the loss of the root", || {
         engine.has_state(WatchState::Lost)
     });
     std::fs::create_dir_all(&engine.tree).unwrap();
-    wait_for("the root to be watched again", || {
+    engine.wait("the root to be watched again", || {
         engine.state_rows(WatchState::Live) > lives || engine.has_state(WatchState::Restored)
     });
-    wait_for("a file of the new root", || {
+    engine.wait("a file of the new root", || {
         std::fs::write(engine.tree.join("again.txt"), b"x").is_ok()
             && engine.has_row(Kind::Created, "again.txt")
     });
@@ -336,14 +354,14 @@ fn a_root_two_levels_below_a_deleted_directory_is_watched_once_it_exists_again()
     let lives = engine.state_rows(WatchState::Live);
 
     std::fs::remove_dir_all(engine.tree.join("a")).unwrap();
-    wait_for("the loss of the root", || {
+    engine.wait("the loss of the root", || {
         engine.has_state(WatchState::Lost)
     });
     std::fs::create_dir_all(engine.tree.join(r"a\b")).unwrap();
-    wait_for("the root to be watched again", || {
+    engine.wait("the root to be watched again", || {
         engine.state_rows(WatchState::Live) > lives || engine.has_state(WatchState::Restored)
     });
-    wait_for("a file below the root", || {
+    engine.wait("a file below the root", || {
         std::fs::write(engine.tree.join(r"a\b\file.txt"), b"x").is_ok()
             && engine.has_row(Kind::Created, "file.txt")
     });
@@ -357,7 +375,7 @@ fn pausing_a_watch_is_a_row_and_nothing_is_recorded_until_it_resumes() {
     let lives = engine.state_rows(WatchState::Live);
 
     engine.command(IpcCommand::PauseAll);
-    wait_for("the pause", || {
+    engine.wait("the pause", || {
         engine.has_state(WatchState::SuspendedByUser)
     });
     std::fs::write(engine.tree.join("while-paused.txt"), b"x").unwrap();
@@ -365,10 +383,10 @@ fn pausing_a_watch_is_a_row_and_nothing_is_recorded_until_it_resumes() {
     assert!(!engine.has_row(Kind::Created, "while-paused.txt"));
 
     engine.command(IpcCommand::ResumeAll);
-    wait_for("the watch to be live again", || {
+    engine.wait("the watch to be live again", || {
         engine.state_rows(WatchState::Live) > lives
     });
-    wait_for("a file after the resume", || {
+    engine.wait("a file after the resume", || {
         std::fs::write(engine.tree.join("after.txt"), b"x").is_ok()
             && engine.has_row(Kind::Created, "after.txt")
     });
