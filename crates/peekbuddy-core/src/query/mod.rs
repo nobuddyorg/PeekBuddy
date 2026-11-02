@@ -24,7 +24,7 @@
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
-use crate::event::{Kind, Source};
+use crate::event::{Flags, Kind, Source};
 use crate::filter::{FilterSet, KindSet};
 
 /// Rows in a page.
@@ -66,6 +66,9 @@ pub struct Filter {
     pub name: Option<String>,
     /// Glob or regex rules; a row passes when a rule matches its path.
     pub pattern: Option<Arc<FilterSet>>,
+    /// Rows with any of these flags are hidden (stored, not shown); the
+    /// store counts them for the "N hidden" line (#265).
+    pub hide: Flags,
 }
 
 impl std::fmt::Debug for Filter {
@@ -77,6 +80,7 @@ impl std::fmt::Debug for Filter {
             .field("subtree", &self.subtree.as_ref().map(Vec::len))
             .field("name", &self.name)
             .field("pattern", &self.pattern.is_some())
+            .field("hide", &self.hide)
             .finish()
     }
 }
@@ -91,6 +95,17 @@ impl Filter {
             && self.subtree.is_none()
             && self.name.is_none()
             && self.pattern.is_none()
+            && self.hide == Flags::NONE
+    }
+
+    /// The filter of a fresh view: everything, with cloud sync churn hidden
+    /// (default on; the rows stay in the log and in every export).
+    #[must_use]
+    pub fn default_view() -> Self {
+        Self {
+            hide: Flags::CLOUD_CHURN,
+            ..Self::default()
+        }
     }
 }
 
@@ -143,6 +158,9 @@ pub struct Row {
     pub size: Option<u64>,
     /// The attributes, when known.
     pub attrs: Option<u32>,
+    /// The reparse tag, 0 when the subject is not a reparse point; see
+    /// [`crate::reparse::link_kind`].
+    pub reparse_tag: u32,
     /// The 128-bit file id (0 when unknown).
     pub file_id: u128,
     /// The name (last component), exact UTF-16: the sidecar when the name is

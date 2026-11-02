@@ -9,6 +9,7 @@ use peekbuddy_core::filter::{CompileOptions, FilterSet, Pattern, Rule, Scratch, 
 use peekbuddy_core::name::{CaseMode, WideStr};
 use peekbuddy_core::notify::{Class, layout, parse};
 use peekbuddy_core::perf::{CounterSnapshot, Milestone, MilestoneTable, Role};
+use peekbuddy_core::reparse::{Change, SOURCE_CLIENT_REPLICATION_MANAGEMENT, attr, classify, tag};
 use peekbuddy_store::interner::{Interner, NodeKey, TOP_LEVEL};
 use peekbuddy_store::schema::{self, INSERT_EVENT};
 use peekbuddy_win::metrics::process_list::{
@@ -344,5 +345,64 @@ fn store(c: &mut Criterion) {
     group.finish();
 }
 
-criterion_group!(benches, perf, metrics, notify_parse, filter, store);
+/// The cloud-churn classifier over the mix a sync client and a user make
+/// (#265): placeholders flipping, replicated and user writes, plain files and
+/// links.
+fn reparse(c: &mut Criterion) {
+    use peekbuddy_core::event::map::usn_reason as reason;
+
+    let cloud = tag::CLOUD | 0x6000;
+    let make = |tag: u32, reason: u32, source_info: u32, before: u32, after: u32| Change {
+        tag,
+        tag_before: Some(tag),
+        reason,
+        source_info,
+        attrs_before: Some(before),
+        attrs_after: after,
+    };
+    let changes = [
+        make(
+            cloud,
+            reason::BASIC_INFO_CHANGE | reason::CLOSE,
+            0,
+            0x20,
+            0x20,
+        ),
+        make(
+            cloud,
+            reason::DATA_EXTEND | reason::CLOSE,
+            SOURCE_CLIENT_REPLICATION_MANAGEMENT,
+            0x20,
+            0x20,
+        ),
+        make(cloud, reason::DATA_EXTEND, 0, 0x20, 0x20),
+        make(
+            cloud,
+            reason::REPARSE_POINT_CHANGE,
+            0,
+            0x20 | attr::RECALL_ON_DATA_ACCESS,
+            0x20,
+        ),
+        make(cloud, reason::FILE_CREATE, 0, 0, 0x20),
+        make(0, reason::BASIC_INFO_CHANGE, 0, 0x20, 0x20),
+        make(tag::SYMLINK, reason::REPARSE_POINT_CHANGE, 0, 0x400, 0x400),
+        make(tag::APPEXECLINK, 0, 0, 0x400, 0x400),
+    ];
+    let mut group = c.benchmark_group("reparse");
+    group.throughput(Throughput::Elements(
+        u64::try_from(changes.len()).unwrap_or(1),
+    ));
+    group.bench_function("classify_8", |b| {
+        b.iter(|| {
+            let mut churn = 0u32;
+            for change in &changes {
+                churn += u32::from(classify(black_box(change)).is_some());
+            }
+            churn
+        });
+    });
+    group.finish();
+}
+
+criterion_group!(benches, perf, metrics, notify_parse, filter, reparse, store);
 criterion_main!(benches);

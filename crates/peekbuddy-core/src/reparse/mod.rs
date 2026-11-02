@@ -23,6 +23,7 @@
 use crate::event::map::usn_reason as reason;
 
 mod cache;
+pub mod follow;
 pub use cache::ChurnCache;
 
 /// Reparse tags.

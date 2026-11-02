@@ -262,6 +262,7 @@ fn arb_settings() -> impl Strategy<Value = Settings> {
                     presets: w.2.into_iter().map(String::from).collect(),
                     buffer_kib: w.3,
                     follow_link_target: w.4,
+                    derived_from: None,
                     exclude_globs: w.5.iter().map(|g| format!("*.{g}")).collect(),
                 })
                 .collect();

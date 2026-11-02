@@ -132,6 +132,16 @@ fn build(dir: &Dir, days: u64, count: u64) -> Vec<Item> {
 /// A store of one event per `(name, kind)` of `plan` (indexes into `NAMES` and
 /// `KINDS`), spread over `days` days, and its model.
 fn build_items(dir: &Dir, days: u64, plan: &[(usize, usize)]) -> Vec<Item> {
+    build_flagged(dir, days, plan, |_| Flags::NONE)
+}
+
+/// As [`build_items`], the event at position `index` carrying `flags(index)`.
+fn build_flagged(
+    dir: &Dir,
+    days: u64,
+    plan: &[(usize, usize)],
+    flags: impl Fn(usize) -> Flags,
+) -> Vec<Item> {
     let count = u64::try_from(plan.len()).unwrap().max(1);
     let config = SegmentsConfig {
         rotation: Rotation {
@@ -163,7 +173,9 @@ fn build_items(dir: &Dir, days: u64, plan: &[(usize, usize)]) -> Vec<Item> {
         let rel = NAMES[name % NAMES.len()];
         let kind = KINDS[kind % KINDS.len()];
         let mut batch = Batch::with_capacity(2, 1024);
-        batch.push(event(ts, kind), &units(rel)).unwrap();
+        let mut flagged = event(ts, kind);
+        flagged.flags = flags(usize::try_from(index).unwrap());
+        batch.push(flagged, &units(rel)).unwrap();
         writer.write(&[batch], &[]).unwrap();
         model.push(Item {
             ts,
@@ -258,6 +270,63 @@ fn paging_covers_every_row_once_in_both_directions() {
             assert_eq!(ids, expected, "size {size} {direction:?}");
         }
     }
+}
+
+#[test]
+fn cloud_churn_is_hidden_in_the_default_view_and_counted() {
+    let dir = Dir::new("hide");
+    // 24 events over two days; every third one is cloud churn.
+    let plan: Vec<(usize, usize)> = (0..24).map(|i| (i % NAMES.len(), i % 4)).collect();
+    build_flagged(&dir, 2, &plan, |index| {
+        if index % 3 == 0 {
+            Flags::CLOUD_CHURN
+        } else {
+            Flags::NONE
+        }
+    });
+    let reader = Reader::new(dir.path());
+    let churn = |row: &peekbuddy_core::query::Row| row.flags & Flags::CLOUD_CHURN.bits() != 0;
+    let rows_of = |filter: &Filter| -> Vec<peekbuddy_core::query::Row> {
+        all_pages(&reader, filter, 7, Direction::Older)
+            .into_iter()
+            .flat_map(|page| page.rows)
+            .collect()
+    };
+    let everything = rows_of(&Filter::default());
+    assert_eq!(everything.iter().filter(|row| churn(row)).count(), 8);
+    // The default view shows no churn row and every other row.
+    let view = rows_of(&Filter::default_view());
+    assert!(view.iter().all(|row| !churn(row)));
+    assert_eq!(view.len(), everything.len() - 8);
+    // The hidden counter is what the view lacks; an export-style read of the
+    // whole log is not affected.
+    let cancel = CancelFlag::default();
+    assert_eq!(
+        reader.hidden(&Filter::default_view(), &cancel).unwrap(),
+        Some(8)
+    );
+    assert_eq!(reader.hidden(&Filter::default(), &cancel).unwrap(), Some(0));
+    // The count follows the rest of the filter.
+    let by_kind = Filter {
+        kinds: Some(KindSet::of(&[Kind::Created])),
+        ..Filter::default_view()
+    };
+    let created_hidden = u64::try_from(
+        everything
+            .iter()
+            .filter(|row| churn(row) && row.kind == Kind::Created)
+            .count(),
+    )
+    .unwrap();
+    assert!(created_hidden > 0 && created_hidden < 8);
+    assert_eq!(
+        reader.hidden(&by_kind, &cancel).unwrap(),
+        Some(created_hidden)
+    );
+    // A cancelled count says so.
+    let stop = CancelFlag::default();
+    stop.cancel();
+    assert_eq!(reader.hidden(&Filter::default_view(), &stop).unwrap(), None);
 }
 
 #[test]

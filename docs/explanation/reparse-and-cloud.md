@@ -74,4 +74,53 @@ the attribute-only opener of `peekbuddy_win::fs`.
   directories created behind it are not logged through the root;
 - the reconcile walk lists a junction as an entry and does not enter it, on the
   baseline and on the walk after a restart;
-- a junction to its own root neither loops nor produces a path through it.
+- a junction to its own root neither loops nor produces a path through it;
+- each kind of link is one object with its kind: a junction, a directory
+  symlink and an app-execution alias (a file with the `APPEXECLINK` tag,
+  built by `create_app_exec_link`) each have one creation row, and a row
+  carries `reparse_tag`, so `reparse::link_kind` names it. Nothing behind a
+  link is logged through it;
+- two junctions to one directory, and a junction back to the root, with
+  `follow_link_target` on, add that directory once and the loop never.
+
+## Following link targets (opt-in)
+
+By default a link is a leaf. A watch with `follow_link_target = true` also
+watches where its directory links point. At start the engine searches the
+tree for symlinks and junctions (`links.rs`), resolves each, and adds the
+target as a watch of its own (`derived_from` names the watch whose link it
+is; the id is `<id>.link<n>`). Such a watch shows up in the tray, can be
+paused, and is never written to `settings.toml`.
+
+`LinkTargets` in `peekbuddy_core::reparse::follow` decides, by file identity
+(volume serial number and file id, so two links, a short name and a long name
+all give one identity):
+
+- a target that is watched already is a duplicate and added once;
+- a target inside a watched root, or one that contains a watched root (a link
+  to a parent, a link back into the tree), would log twice or loop and is
+  skipped;
+- a link that cannot be resolved (the compatibility junctions of a user
+  profile deny access by design) is skipped and counted.
+
+The engine log gets one line, `links: followed N, duplicate N, overlapping N,
+unreadable N`. At most 256 targets are added. The search runs once at start:
+a link created later is followed at the next start.
+
+## The default view hides churn and counts it
+
+`Filter::default_view()` hides rows with `Flags::CLOUD_CHURN` (`flags & 1 = 0`
+in the page query) and `Reader::hidden` counts what a filter hides, for the
+"N hidden" line. The rows stay in the log; the page query without a `hide`
+flag, the export and a raw read return them.
+
+## The classifier is checked three ways
+
+- `fs_lab_fixtures.rs` replays every recorded RDCW and USN row of the lab
+  (report 0006, 329 rows) through `classify`: none is churn, as the lab had
+  no cloud provider, and every tag it saw is a junction or a symlink;
+- `reparse_alloc.rs` counts heap allocations of `classify` and `link_kind`
+  over a mix of eight changes, repeated: zero (budget
+  `alloc.reparse_per_change`);
+- the criterion bench `reparse/classify_8` has a budget row of its own
+  (`bench.reparse.classify_8`).
