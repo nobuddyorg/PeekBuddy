@@ -597,3 +597,50 @@ fn rand_tag() -> u64 {
     static NEXT: AtomicU64 = AtomicU64::new(0);
     NEXT.fetch_add(1, Ordering::Relaxed)
 }
+
+#[test]
+fn a_spill_of_small_records_is_replayed_in_a_few_commits() {
+    let dirs = Dirs::new("replay-groups");
+    let blocked = Arc::new(AtomicBool::new(true));
+    let commits = Arc::new(AtomicU64::new(0));
+    let mut config = config(&dirs);
+    config.hooks = Hooks {
+        on_health: None,
+        before_commit: Some({
+            let blocked = Arc::clone(&blocked);
+            Arc::new(move || {
+                while blocked.load(Ordering::Acquire) {
+                    std::thread::sleep(Duration::from_millis(2));
+                }
+            })
+        }),
+        on_commit: Some({
+            let commits = Arc::clone(&commits);
+            Arc::new(move |_| {
+                commits.fetch_add(1, Ordering::Relaxed);
+            })
+        }),
+        before_attempt: None,
+    };
+    let pipeline = Pipeline::start(open_writer(&dirs.db()), config).unwrap();
+    let producer = pipeline.producer();
+    // Four hundred records of five events: the held writer takes up to a
+    // commit's 1000 events (200 records), the ring four more, the rest spills.
+    for index in 0..400_u64 {
+        push_events(&producer, index * 5 + 1, 5);
+    }
+    // The spiller thread writes them while the writer is held.
+    wait_until("the records to be spilled", || {
+        pipeline.stats().spilled_batches >= 100
+    });
+    blocked.store(false, Ordering::Release);
+    let flushed = pipeline.flush(Duration::from_secs(30)).unwrap();
+    assert_eq!(flushed.rows, 2_000);
+    // The spilled records (at least a hundred) are replayed 1000 events to a
+    // commit, not one commit per record.
+    let spilled = pipeline.stats().spilled_batches;
+    let taken = commits.load(Ordering::Relaxed);
+    assert!(taken < 30, "{taken} commits for {spilled} spilled records");
+    drop(pipeline.close());
+    assert_eq!(stored_ts(&dirs.db()), (1..=2_000).collect::<Vec<_>>());
+}

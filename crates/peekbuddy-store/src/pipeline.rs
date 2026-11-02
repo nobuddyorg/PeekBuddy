@@ -527,33 +527,50 @@ enum Step {
     Skip,
 }
 
-/// Replays the next spill record, or finishes the file when it is empty.
+/// Replays the next spill records, up to `max_events` events in one commit
+/// (the live path groups the same way; a commit per record made a backlog
+/// of small records take minutes), or finishes the file when it is empty.
 fn replay_step(
     shared: &Shared,
     replay: &mut Batch,
     pending: &mut Pending,
     clock: Instant,
-    closed: bool,
+    (closed, max_events): (bool, usize),
 ) -> Step {
     let mut spill = lock(&shared.spill);
     if closed && spill.has_pending() {
         // Quitting: the rest stays in the file for the next start.
         return Step::Skip;
     }
-    let counted = spill.position() >= shared.old_end;
     let generation = spill.generation();
-    if let Ok(Some(end)) = spill.next(replay) {
-        drop(spill);
+    let counted = spill.position() >= shared.old_end;
+    let mut batches: Vec<Batch> = Vec::new();
+    let mut events = 0;
+    let mut spill_end = 0;
+    // Records of a previous run are not counted in `pushed`, those of this run
+    // are: one commit never holds both.
+    while events < max_events
+        && (batches.is_empty() || (spill.position() >= shared.old_end) == counted)
+    {
+        let Ok(Some(end)) = spill.next(replay) else {
+            break;
+        };
         let mut batch = Batch::standard();
         std::mem::swap(&mut batch, replay);
+        events += batch.len();
         pending.add(now_ns(clock), batch.len());
+        batches.push(batch);
+        spill_end = end;
+    }
+    if !batches.is_empty() {
+        drop(spill);
         let cursors = std::mem::take(&mut lock(&shared.state).cursors);
         return Step::Work(Work::Group {
-            batches: vec![batch],
+            batches,
             cursors,
             from_spill: true,
             counted,
-            spill_end: Some((generation, end)),
+            spill_end: Some((generation, spill_end)),
         });
     }
     // Everything replayed (or the rest was a torn tail): the file is done.
@@ -618,7 +635,7 @@ fn next_work(
         if state.spilling && state.overflow.is_empty() && !state.spiller_busy {
             let closed = state.closed;
             drop(state);
-            match replay_step(shared, replay, pending, clock, closed) {
+            match replay_step(shared, replay, pending, clock, (closed, policy.max_events)) {
                 Step::Work(work) => return work,
                 Step::Again => {
                     state = lock(&shared.state);
