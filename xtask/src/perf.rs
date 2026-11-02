@@ -25,7 +25,7 @@ const AB_WARN: f64 = 0.15;
 /// Fail when head is this much slower than base.
 const AB_FAIL: f64 = 0.50;
 
-const USAGE: &str = "usage: cargo xtask perf [--scenario startup|idle|memory|ingest|handles|all] \
+const USAGE: &str = "usage: cargo xtask perf [--scenario startup|idle|memory|ingest|handles|pr|all] \
 [--exe path] [--runs n] [--warmup n] [--idle-secs n] [--profile name]... [--ab <base-exe>] \
 [--expect-fail <row id>] [--out file]";
 
@@ -42,16 +42,18 @@ enum Scenario {
     Ingest,
     /// Pause and resume cycles over the pipe (#269).
     Handles,
+    /// What every pull request runs: startup and idle, in minutes (#27).
+    Pr,
     All,
 }
 
 impl Scenario {
     fn includes_startup(self) -> bool {
-        matches!(self, Self::Startup | Self::All)
+        matches!(self, Self::Startup | Self::Pr | Self::All)
     }
 
     fn includes_idle(self) -> bool {
-        matches!(self, Self::Idle | Self::Memory | Self::All)
+        matches!(self, Self::Idle | Self::Memory | Self::Pr | Self::All)
     }
 
     fn includes_ingest(self) -> bool {
@@ -107,6 +109,7 @@ fn parse_args(args: &[String]) -> Result<Options, String> {
                     "memory" => Scenario::Memory,
                     "ingest" => Scenario::Ingest,
                     "handles" => Scenario::Handles,
+                    "pr" => Scenario::Pr,
                     "all" => Scenario::All,
                     other => return Err(format!("unknown scenario {other}\n{USAGE}")),
                 };
