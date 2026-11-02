@@ -126,4 +126,32 @@ exclude_re = [
   # The security descriptor is freed after the pipe was created; a leak cannot
   # be observed by a test.
   "crates/peekbuddy-win/src/pipe.rs:.*<impl Drop for Dacl>::drop",
+  # `Debug` output is not behaviour: nothing but a log line reads it.
+  "replace <impl .*Debug.*>::fmt -> .* with Ok.Default::default..",
+  # A mutant that makes an I/O loop, the completion port, the window procedure
+  # or the lifecycle worker wait forever fails the suite by hanging; cargo-mutants
+  # reports a hang as a timeout, not as caught, and exits non-zero for it.
+  "crates/peekbuddy-win/src/io/iocp.rs:.*(Iocp::(associate|post|dequeue)|Completion::is_success|Batch::iter)",
+  "crates/peekbuddy-win/src/io/slot.rs:.*IoSlot::(overlapped_addr|finish|data|len)",
+  "crates/peekbuddy-win/src/io/volume.rs:.*final_path",
+  "crates/peekbuddy-win/src/io/error.rs:.*WinError::code",
+  "crates/peekbuddy-win/src/window.rs:.*(WindowHandle::(hwnd|post_close|send_timeout)|HiddenWindow::set_one_shot_timer)",
+  # The console glue changes where output goes in a process that was started
+  # from a terminal; a test binary has no parent console to attach to.
+  "crates/peekbuddy-win/src/console.rs:",
+  # Only an ETW session reads the events; the etw smoke job (#22) listens.
+  "crates/peekbuddy-win/src/perf/etw.rs:.*replace (milestone|counters) with",
+  # Both answers are valid on some machine: `short_names_generated` is the
+  # volume setting of the runner (a constant equals it), and the case-mode
+  # error is only reported by a volume without case-sensitivity support (FAT).
+  "crates/peekbuddy-win/src/fs/win.rs:.*(replace short_names_generated -> .* with Ok|replace match guard means_no_case_sensitivity)",
+  # `KEY_READ` and `KEY_WRITE` share `READ_CONTROL`, which an open does not
+  # need; a key handle that is not closed is not observable.
+  "crates/peekbuddy-win/src/autostart.rs:.*(replace . with . in Key::create|<impl Drop for Key>::drop)",
+  # The journal control call completes at once on these handles, so the
+  # pending branch (`GetOverlappedResult`) cannot be reached by a test; and
+  # the read thread of a journal stops through a flag and a cancelled call:
+  # the mutants only change how soon it notices, or hang.
+  "crates/peekbuddy-win/src/usn.rs:.*replace (==|!=) with (!=|==) in Journal::control",
+  "crates/peekbuddy-win/src/usn/sync.rs:.*(delete ! in (SyncReader::stop|Worker::run)|replace && with .. in Worker::run|replace Worker::stopping -> bool with false)",
 ]
