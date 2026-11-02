@@ -17,6 +17,7 @@
 //! | time | `stats` bounds the id range per hour, then `ts` refines |
 //! | subtree | a recursive CTE over `node`, then `event_node` |
 //! | name | the trigram index for three characters or more, else `LIKE` |
+//! | hide | `flags & mask = 0`; [`Reader::hidden`] counts the other side |
 //!
 //! A glob or regex runs in Rust over the reconstructed path, in chunks of
 //! [`CHUNK`] rows, checking the cancel flag between chunks and stopping after
@@ -100,6 +101,37 @@ impl Reader {
             }
         }
         Ok(walk.into_page())
+    }
+
+    /// How many rows the filter hides (`filter.hide`) that pass everything
+    /// else in it: the "N hidden" of the view. One `COUNT` per segment; the
+    /// cancel flag is checked between segments, and a cancelled count is
+    /// `None`.
+    ///
+    /// # Errors
+    ///
+    /// SQLite's error, or the catalog's.
+    pub fn hidden(
+        &self,
+        filter: &Filter,
+        cancel: &CancelFlag,
+    ) -> Result<Option<u64>, CatalogError> {
+        let catalog = Catalog::open(&self.dir.join("catalog.db"))?;
+        let mut total = 0_u64;
+        for segment in catalog.list()? {
+            if cancel.is_cancelled() {
+                return Ok(None);
+            }
+            let path = self.dir.join(&segment.file);
+            let Ok(conn) = Connection::open_with_flags(&path, OpenFlags::SQLITE_OPEN_READ_ONLY)
+            else {
+                continue;
+            };
+            if let Some(query) = SegmentQuery::hidden(&conn, filter)? {
+                total = total.saturating_add(query.count(&conn)?);
+            }
+        }
+        Ok(Some(total))
     }
 }
 
@@ -239,7 +271,7 @@ impl<'a> Walk<'a> {
             is_dir: row.is_dir,
             size: row.size.unwrap_or(0),
             attrs: row.attrs.unwrap_or(0),
-            reparse_tag: 0,
+            reparse_tag: row.reparse_tag,
             file_id: row.file_id,
             parent_file_id: 0,
             usn: 0,
@@ -269,6 +301,7 @@ struct Found {
     is_dir: bool,
     size: Option<u64>,
     attrs: Option<u32>,
+    reparse_tag: u32,
     file_id: u128,
 }
 
@@ -283,6 +316,17 @@ impl SegmentQuery {
     /// `None` when the filter cannot match anything in this segment (its root
     /// or directory is not in the dictionary).
     fn new(conn: &Connection, filter: &Filter) -> rusqlite::Result<Option<Self>> {
+        Self::build(conn, filter, false)
+    }
+
+    /// The count of the rows the filter hides in this segment (those with any
+    /// of `filter.hide` that pass everything else). `None` when nothing is
+    /// hidden by the filter or the segment cannot match.
+    fn hidden(conn: &Connection, filter: &Filter) -> rusqlite::Result<Option<Self>> {
+        Self::build(conn, filter, true)
+    }
+
+    fn build(conn: &Connection, filter: &Filter, hidden: bool) -> rusqlite::Result<Option<Self>> {
         let mut clauses: Vec<String> = Vec::new();
         // ?1 cursor, ?2 limit; filter values from ?3 on.
         let mut params: Vec<Value> = Vec::new();
@@ -349,17 +393,41 @@ impl SegmentQuery {
                 ));
             }
         }
-        let mut sql = format!(
-            "{prefix}SELECT e.id, e.ts, e.kind, e.source, e.raw_mask, e.node_id, e.is_dir, \
-             e.size, e.attrs, e.file_id, e.file_id_hi, e.old_node_id, e.root_id, e.flags \
-             FROM event e WHERE e.id {{cmp}} ?1"
-        );
+        let mask = filter.hide.bits();
+        if mask != 0 {
+            let test = if hidden { "!= 0" } else { "= 0" };
+            clauses.push(format!("e.flags & {mask} {test}"));
+        } else if hidden {
+            return Ok(None);
+        }
+        let select = if hidden {
+            "SELECT COUNT(*)"
+        } else {
+            "SELECT e.id, e.ts, e.kind, e.source, e.raw_mask, e.node_id, e.is_dir, \
+             e.size, e.attrs, e.file_id, e.file_id_hi, e.old_node_id, e.root_id, e.flags, \
+             e.reparse_tag"
+        };
+        let mut sql = format!("{prefix}{select} FROM event e WHERE e.id {{cmp}} ?1");
         for clause in clauses {
             sql.push_str(" AND ");
             sql.push_str(&clause);
         }
-        sql.push_str(" ORDER BY e.id {order} LIMIT ?2");
+        if !hidden {
+            sql.push_str(" ORDER BY e.id {order}");
+        }
+        sql.push_str(" LIMIT ?2");
         Ok(Some(Self { sql, params }))
+    }
+
+    /// The number a counting query returns.
+    fn count(&self, conn: &Connection) -> rusqlite::Result<u64> {
+        let mut statement = conn.prepare_cached(&self.sql(Direction::Newer))?;
+        let head = [Value::Integer(i64::MIN), Value::Integer(i64::MAX)];
+        let found: i64 = statement.query_row(
+            params_from_iter(head.iter().chain(self.params.iter())),
+            |row| row.get(0),
+        )?;
+        Ok(u64::try_from(found).unwrap_or(0))
     }
 
     fn plan(&self, conn: &Connection, direction: Direction) -> rusqlite::Result<Vec<String>> {
@@ -428,6 +496,10 @@ impl SegmentQuery {
                     old_node_id: row.get(11)?,
                     root_id: row.get(12)?,
                     flags: u16::try_from(row.get::<_, i64>(13)?).unwrap_or(0),
+                    reparse_tag: row
+                        .get::<_, Option<i64>>(14)?
+                        .and_then(|tag| u32::try_from(tag).ok())
+                        .unwrap_or(0),
                 })
             },
         )?;
@@ -594,6 +666,7 @@ impl<'a> Paths<'a> {
             is_dir: found.is_dir,
             size: found.size,
             attrs: found.attrs,
+            reparse_tag: found.reparse_tag,
             file_id: found.file_id,
             name,
             path,

@@ -27,6 +27,8 @@ pub mod instrument;
 #[cfg(windows)]
 pub mod ipc_server;
 #[cfg(windows)]
+pub mod links;
+#[cfg(windows)]
 pub mod pause_ctl;
 #[cfg(windows)]
 pub mod reconciler;
@@ -230,7 +232,16 @@ mod run {
 
         let (data, abnormal_termination) = open_data(options)?;
         init_instrumentation(&data, milestones);
-        let loaded_settings = crate::settings::load_or_create(&data);
+        let mut loaded_settings = crate::settings::load_or_create(&data);
+        if loaded_settings
+            .settings
+            .watches
+            .iter()
+            .any(|watch| watch.follow_link_target)
+        {
+            let report = crate::links::follow_link_targets(&mut loaded_settings.settings);
+            crate::instrument::log(&crate::links::describe(report));
+        }
         mark(milestones, Milestone::SettingsLoaded);
 
         // The writer feeds both on every commit.

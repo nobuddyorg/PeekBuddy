@@ -77,6 +77,7 @@ Gate values in `budgets.toml`:
 | `binary.size` | <= 5 MB | deterministic | report-only | provisional | release profile (#28) | file size of the release artifact (#28) | M14 |
 | `binary.size.cap` | <= 8 MB | deterministic | pr-strict | provisional | release profile (#28) | file size of the release artifact (#28) | M14 |
 | `alloc.capture_per_event` | <= 0 count | deterministic | pr-strict | calibrated | parse + filter + classify of a recorded buffer (#23) | counting global allocator (#23) | F10 |
+| `alloc.reparse_per_change` | <= 0 count | deterministic | pr-strict | calibrated | eight changes of a sync client and a user, repeated (#23) | counting global allocator (#23) | F10, #265 |
 | `alloc.writer_per_1000` | <= 2 count | deterministic | pr-strict | provisional | writer batch of 1,000 events (#52) | counting global allocator (#23) | F10; measured by #52: 2 allocations and 544 bytes per warm batch |
 | `alloc.viewer_per_frame` | to be set | deterministic | pr-strict | provisional | 10M-row log, scripted scroll | counting global allocator (#23) | F10; limit set after the first measurement (#23, #66) |
 | `store.bytes_per_event` | <= 90 bytes | deterministic | pr-strict | provisional | churn profile sustained-20k (#25) | segment file size / row count (#35) | F5; set by #35 (76 B measured: interned paths, both indexes, 4 KiB pages; inline paths cost 115 B) |
@@ -90,6 +91,7 @@ Gate values in `budgets.toml`:
 | `bench.notify_parse.extended.64kib` | to be set | timing | pr-ab | provisional | criterion bench notify_parse/extended/64KiB | cargo xtask bench-ab (same-runner A/B, warn +15 %, fail +50 %) | #26, #44 |
 | `bench.notify_parse.full.64kib` | to be set | timing | pr-ab | provisional | criterion bench notify_parse/full/64KiB | cargo xtask bench-ab (same-runner A/B, warn +15 %, fail +50 %) | #26, #44 |
 | `bench.filter.eval_6_names` | to be set | timing | pr-ab | provisional | criterion bench filter/eval_6_names | cargo xtask bench-ab (same-runner A/B, warn +15 %, fail +50 %) | #26, #40 |
+| `bench.reparse.classify_8` | to be set | timing | pr-ab | provisional | criterion bench reparse/classify_8 | cargo xtask bench-ab (same-runner A/B, warn +15 %, fail +50 %) | #26, #49, #265 |
 | `bench.store.intern_hit_1000` | to be set | timing | pr-ab | provisional | criterion bench store/intern_hit_1000 | cargo xtask bench-ab (same-runner A/B, warn +15 %, fail +50 %) | #26, #53 |
 | `bench.store.intern_miss_1000` | to be set | timing | pr-ab | provisional | criterion bench store/intern_miss_1000 | cargo xtask bench-ab (same-runner A/B, warn +15 %, fail +50 %) | #26, #53 |
 | `bench.store.batch_insert_1000` | to be set | timing | pr-ab | provisional | criterion bench store/batch_insert_1000 | cargo xtask bench-ab (same-runner A/B, warn +15 %, fail +50 %) | #26, #52 |

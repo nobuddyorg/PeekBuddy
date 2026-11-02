@@ -168,6 +168,7 @@ fn row_from(get: &dyn Fn(&str) -> Option<String>, line: usize) -> Result<Row, Re
         attrs: optional("attrs")?
             .map(|v| u32::try_from(v).map_err(|_| err(line, "attrs too big")))
             .transpose()?,
+        reparse_tag: 0,
         file_id: hex("file_id", "")?,
         name,
         path,

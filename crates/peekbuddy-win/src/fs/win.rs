@@ -19,8 +19,9 @@ use windows_sys::Win32::Storage::FileSystem::{
 use windows_sys::Win32::System::IO::DeviceIoControl;
 
 use super::{
-    FileIdKind, NO_FOLLOW_NO_RECALL, SHARE_ALL, case_mode_from_flags, file_id_kind, has_short_name,
-    junction_names, means_no_case_sensitivity, mount_point_buffer, toggled_archive, verbatim,
+    FileIdKind, NO_FOLLOW_NO_RECALL, SHARE_ALL, app_exec_link_buffer, case_mode_from_flags,
+    file_id_kind, has_short_name, junction_names, means_no_case_sensitivity, mount_point_buffer,
+    toggled_archive, verbatim,
 };
 
 /// `FILE_ID_TYPE` values of `FILE_ID_DESCRIPTOR` (kept local: the enum lives
@@ -73,14 +74,41 @@ pub fn create_junction(junction: &Path, target: &Path) -> std::io::Result<()> {
     let size = u32::try_from(buffer.len()).map_err(|_| invalid("reparse buffer too large"))?;
     let name = wide(junction)?;
     std::fs::create_dir(junction)?;
-    let result = set_mount_point(&name, &buffer, size);
+    let result = set_reparse_point(&name, &buffer, size);
     if result.is_err() {
         let _ = std::fs::remove_dir(junction);
     }
     result
 }
 
-fn set_mount_point(name: &[u16], buffer: &[u8], size: u32) -> std::io::Result<()> {
+/// Creates the file `link` as an app-execution alias (`APPEXECLINK`), the
+/// kind of link the Store puts into `WindowsApps`. Nothing resolves it: the
+/// three strings are stored as given. On failure the file is removed again.
+///
+/// # Errors
+///
+/// Returns the OS error when the file cannot be created or the reparse point
+/// cannot be set.
+pub fn create_app_exec_link(
+    link: &Path,
+    package: &str,
+    app: &str,
+    target: &str,
+) -> std::io::Result<()> {
+    let wide_of = |text: &str| text.encode_utf16().collect::<Vec<u16>>();
+    let buffer = app_exec_link_buffer(&wide_of(package), &wide_of(app), &wide_of(target))
+        .ok_or_else(|| invalid("app exec link too long"))?;
+    let size = u32::try_from(buffer.len()).map_err(|_| invalid("reparse buffer too large"))?;
+    let name = wide(link)?;
+    std::fs::File::create(link)?;
+    let result = set_reparse_point(&name, &buffer, size);
+    if result.is_err() {
+        let _ = std::fs::remove_file(link);
+    }
+    result
+}
+
+fn set_reparse_point(name: &[u16], buffer: &[u8], size: u32) -> std::io::Result<()> {
     // SAFETY: `name` is NUL-terminated and outlives the call; no security
     // attributes or template; INVALID_HANDLE_VALUE is handled below.
     let raw = unsafe {
@@ -240,6 +268,16 @@ pub fn open_directory(dir: &Path) -> std::io::Result<OwnedHandle> {
 /// Returns the OS error when the file cannot be opened or the volume does not
 /// report 128-bit ids.
 pub fn file_id(path: &Path) -> std::io::Result<u128> {
+    file_identity(path).map(|(_, id)| id)
+}
+
+/// The volume serial number and the 128-bit file id of `path`: the pair that
+/// names one file on one machine, whichever path reaches it.
+///
+/// # Errors
+///
+/// As [`file_id`].
+pub fn file_identity(path: &Path) -> std::io::Result<(u64, u128)> {
     let handle = open_attributes(path)?;
     let mut info = FILE_ID_INFO {
         VolumeSerialNumber: 0,
@@ -256,7 +294,10 @@ pub fn file_id(path: &Path) -> std::io::Result<u128> {
             u32::try_from(size_of::<FILE_ID_INFO>()).unwrap_or(u32::MAX),
         )
     })?;
-    Ok(u128::from_le_bytes(info.FileId.Identifier))
+    Ok((
+        info.VolumeSerialNumber,
+        u128::from_le_bytes(info.FileId.Identifier),
+    ))
 }
 
 /// Best-effort long-name resolution (#39): opens `file_id` on the volume of

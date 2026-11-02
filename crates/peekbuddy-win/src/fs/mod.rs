@@ -15,6 +15,9 @@ pub use win::*;
 /// `Win32_System_SystemServices` feature).
 pub const IO_REPARSE_TAG_MOUNT_POINT: u32 = 0xA000_0003;
 
+/// `IO_REPARSE_TAG_APPEXECLINK`.
+pub const IO_REPARSE_TAG_APPEXECLINK: u32 = 0x8000_001B;
+
 /// `MAXIMUM_REPARSE_DATA_BUFFER_SIZE`.
 const MAX_REPARSE_BYTES: usize = 16 * 1024;
 
@@ -48,6 +51,29 @@ pub fn mount_point_buffer(substitute: &[u16], print: &[u16]) -> Option<Vec<u8>> 
     for unit in substitute.iter().chain(&[0]).chain(print).chain(&[0]) {
         out.extend_from_slice(&unit.to_le_bytes());
     }
+    Some(out)
+}
+
+/// The `REPARSE_DATA_BUFFER` of an app-execution alias: version 3, then the
+/// package family name, the app user model id and the target path, each
+/// NUL-terminated. `None` when the buffer would exceed
+/// `MAXIMUM_REPARSE_DATA_BUFFER_SIZE`.
+#[must_use]
+pub fn app_exec_link_buffer(package: &[u16], app: &[u16], target: &[u16]) -> Option<Vec<u8>> {
+    let mut data: Vec<u8> = 3u32.to_le_bytes().to_vec();
+    for text in [package, app, target] {
+        for unit in text.iter().chain(&[0]) {
+            data.extend_from_slice(&unit.to_le_bytes());
+        }
+    }
+    if 8 + data.len() > MAX_REPARSE_BYTES {
+        return None;
+    }
+    let mut out = Vec::with_capacity(8 + data.len());
+    out.extend_from_slice(&IO_REPARSE_TAG_APPEXECLINK.to_le_bytes());
+    out.extend_from_slice(&u16::try_from(data.len()).ok()?.to_le_bytes());
+    out.extend_from_slice(&0u16.to_le_bytes());
+    out.extend_from_slice(&data);
     Some(out)
 }
 
@@ -168,9 +194,10 @@ mod tests {
     use peekbuddy_core::name::CaseMode;
 
     use super::{
-        ATTRIBUTE_ARCHIVE, ATTRIBUTE_NORMAL, FileIdKind, IO_REPARSE_TAG_MOUNT_POINT,
-        case_mode_from_flags, file_id_kind, has_short_name, junction_names,
-        means_no_case_sensitivity, mount_point_buffer, toggled_archive, verbatim,
+        ATTRIBUTE_ARCHIVE, ATTRIBUTE_NORMAL, FileIdKind, IO_REPARSE_TAG_APPEXECLINK,
+        IO_REPARSE_TAG_MOUNT_POINT, app_exec_link_buffer, case_mode_from_flags, file_id_kind,
+        has_short_name, junction_names, means_no_case_sensitivity, mount_point_buffer,
+        toggled_archive, verbatim,
     };
 
     fn w(text: &str) -> Vec<u16> {
@@ -218,6 +245,44 @@ mod tests {
         too_long.push(u16::from(b'a'));
         assert!(mount_point_buffer(&too_long, &fits).is_none());
         assert!(mount_point_buffer(&vec![0; 40_000], &[]).is_none());
+    }
+
+    #[test]
+    fn app_exec_link_layout() {
+        let buffer = app_exec_link_buffer(&w("ab"), &w("c"), &w("def")).unwrap();
+        // Header (8) + version (4) + "ab" NUL (6) + "c" NUL (4) + "def" NUL (8).
+        assert_eq!(buffer.len(), 30);
+        assert_eq!(
+            u32::from_le_bytes(buffer[..4].try_into().unwrap()),
+            IO_REPARSE_TAG_APPEXECLINK
+        );
+        assert_eq!(u16_at(&buffer, 4), 22, "ReparseDataLength");
+        assert_eq!(u16_at(&buffer, 6), 0, "Reserved");
+        assert_eq!(u32::from_le_bytes(buffer[8..12].try_into().unwrap()), 3);
+        let units: Vec<u16> = buffer[12..]
+            .as_chunks::<2>()
+            .0
+            .iter()
+            .map(|pair| u16::from_le_bytes(*pair))
+            .collect();
+        let mut expected = w("ab");
+        expected.push(0);
+        expected.extend(w("c"));
+        expected.push(0);
+        expected.extend(w("def"));
+        expected.push(0);
+        assert_eq!(units, expected);
+    }
+
+    #[test]
+    fn app_exec_link_size_limit() {
+        // 16 KiB total: 12 bytes of header and version, 6 of NULs, the rest text.
+        let fits = vec![u16::from(b'a'); (16 * 1024 - 18) / 2];
+        assert!(app_exec_link_buffer(&fits, &[], &[]).is_some());
+        let mut too_long = fits.clone();
+        too_long.push(u16::from(b'a'));
+        assert!(app_exec_link_buffer(&too_long, &[], &[]).is_none());
+        assert!(app_exec_link_buffer(&[], &[], &vec![0; 40_000]).is_none());
     }
 
     #[test]

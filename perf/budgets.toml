@@ -401,6 +401,20 @@ how = "counting global allocator (#23)"
 arch = ["x86_64", "aarch64"]
 
 [[budget]]
+id = "alloc.reparse_per_change"
+metric = "heap allocations per cloud-churn classification"
+unit = "count"
+bound = "max"
+limit = 0
+class = "deterministic"
+gate = "pr-strict"
+status = "calibrated"
+source = "F10, #265"
+workload = "eight changes of a sync client and a user, repeated (#23)"
+how = "counting global allocator (#23)"
+arch = ["x86_64", "aarch64"]
+
+[[budget]]
 id = "alloc.writer_per_1000"
 metric = "heap allocations per 1,000-event writer batch"
 unit = "count"
@@ -575,6 +589,19 @@ gate = "pr-ab"
 status = "provisional"
 source = "#26, #40"
 workload = "criterion bench filter/eval_6_names"
+how = "cargo xtask bench-ab (same-runner A/B, warn +15 %, fail +50 %)"
+arch = ["x86_64"]
+
+[[budget]]
+id = "bench.reparse.classify_8"
+metric = "eight cloud-churn verdicts over a mix of placeholder, link and plain changes"
+unit = "ns"
+bound = "max"
+class = "timing"
+gate = "pr-ab"
+status = "provisional"
+source = "#26, #49, #265"
+workload = "criterion bench reparse/classify_8"
 how = "cargo xtask bench-ab (same-runner A/B, warn +15 %, fail +50 %)"
 arch = ["x86_64"]
 

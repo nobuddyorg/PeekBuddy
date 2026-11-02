@@ -163,6 +163,10 @@ pub struct Watch {
     pub buffer_kib: Option<u32>,
     /// Also watch where a link in the tree points (F18, opt-in).
     pub follow_link_target: bool,
+    /// For a watch the engine added for a link target: the id of the watch
+    /// whose link it is. Never read from or written to the file.
+    #[serde(skip)]
+    pub derived_from: Option<String>,
 }
 
 impl Default for Watch {
@@ -176,6 +180,7 @@ impl Default for Watch {
             presets: Vec::new(),
             buffer_kib: None,
             follow_link_target: false,
+            derived_from: None,
         }
     }
 }
@@ -204,6 +209,15 @@ pub(crate) const WATCH_KEYS: &[&str] = &[
 /// The serializer's message; only possible for values outside the TOML
 /// integer range, which validation refuses.
 pub fn to_toml(settings: &Settings) -> Result<String, String> {
+    if settings
+        .watches
+        .iter()
+        .any(|watch| watch.derived_from.is_some())
+    {
+        let mut own = settings.clone();
+        own.watches.retain(|watch| watch.derived_from.is_none());
+        return toml::to_string_pretty(&own).map_err(|error| error.to_string());
+    }
     toml::to_string_pretty(settings).map_err(|error| error.to_string())
 }
 
@@ -225,7 +239,7 @@ pub const DEFAULT_MAX_TOTAL_MB: u64 = 2048;
 
 #[cfg(test)]
 mod tests {
-    use super::{Settings, default_toml, to_toml};
+    use super::{Settings, Watch, default_toml, to_toml};
 
     #[test]
     fn the_default_file_is_pinned() {
@@ -239,5 +253,33 @@ mod tests {
             toml::from_str::<Settings>(&text).unwrap(),
             Settings::default()
         );
+    }
+
+    #[test]
+    fn a_derived_watch_is_never_written() {
+        let mut settings = Settings::default();
+        settings.watches.push(Watch {
+            id: "w0".into(),
+            path: "C:/tree".into(),
+            follow_link_target: true,
+            ..Watch::default()
+        });
+        settings.watches.push(Watch {
+            id: "w0.link1".into(),
+            path: "C:/elsewhere".into(),
+            derived_from: Some("w0".into()),
+            ..Watch::default()
+        });
+        let text = to_toml(&settings).unwrap();
+        assert!(!text.contains("elsewhere"), "{text}");
+        let back = toml::from_str::<Settings>(&text).unwrap();
+        assert_eq!(back.watches.len(), 1);
+        assert!(
+            back.watches
+                .iter()
+                .all(|watch| watch.derived_from.is_none())
+        );
+        // The settings in memory are untouched.
+        assert_eq!(settings.watches.len(), 2);
     }
 }

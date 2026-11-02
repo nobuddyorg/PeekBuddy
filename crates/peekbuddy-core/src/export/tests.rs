@@ -24,6 +24,7 @@ fn row(id: i64, ts: u64, kind: Kind, source: Source, path: &str) -> Row {
         is_dir: false,
         size: Some(10),
         attrs: Some(0x20),
+        reparse_tag: 0,
         file_id: 0xABCD,
         name: path.rsplit(|u| *u == 0x5C).next().unwrap().to_vec(),
         path,
@@ -289,6 +290,7 @@ fn arb_row() -> impl Strategy<Value = Row> {
                     is_dir,
                     size,
                     attrs,
+                    reparse_tag: 0,
                     file_id,
                     name: path
                         .rsplit(|u| *u == 0x5C)

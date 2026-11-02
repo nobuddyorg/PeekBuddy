@@ -481,3 +481,49 @@ fn a_copy_that_clones_sets_basic_info_and_sparse_on_the_copy() {
             .any(|r| num(r, "reason") & 0x8000 != 0 && num(r, "attributes") & 0x200 != 0)
     );
 }
+
+#[test]
+fn replaying_every_recorded_row_through_the_churn_classifier_finds_no_churn() {
+    use peekbuddy_core::reparse::{Change, LinkKind, classify, link_kind};
+
+    let (mut rows, mut tagged) = (0_usize, 0_usize);
+    for (id, _) in FIXTURES {
+        for row in load(id).rows {
+            let usn = str_of(&row, "src") == "usn";
+            let rdcw = str_of(&row, "src") == "rdcw";
+            if !usn && !rdcw {
+                continue;
+            }
+            rows += 1;
+            let tag = u32::try_from(num(&row, "reparse_tag")).expect("a 32-bit tag");
+            let change = Change {
+                tag,
+                tag_before: None,
+                reason: if usn {
+                    u32::try_from(num(&row, "reason")).expect("32-bit reason bits")
+                } else {
+                    0
+                },
+                source_info: u32::try_from(num(&row, "source_info")).unwrap_or(0),
+                attrs_before: None,
+                attrs_after: u32::try_from(num(&row, "attributes")).expect("32-bit attributes"),
+            };
+            // The lab had no cloud provider (report 0006: OneDrive not
+            // reproducible on a hosted runner), so nothing it recorded is
+            // churn, whatever the reparse tag or the reasons.
+            assert_eq!(classify(&change), None, "{id}: {row}");
+            if tag != 0 {
+                tagged += 1;
+                assert!(
+                    matches!(
+                        link_kind(tag),
+                        Some(LinkKind::MountPoint | LinkKind::Symlink)
+                    ),
+                    "{id}: unexpected tag {tag:#x}"
+                );
+            }
+        }
+    }
+    assert!(rows > 300, "only {rows} rows replayed");
+    assert!(tagged > 0, "no tagged row replayed");
+}
