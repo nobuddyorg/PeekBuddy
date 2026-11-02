@@ -597,3 +597,49 @@ fn rand_tag() -> u64 {
     static NEXT: AtomicU64 = AtomicU64::new(0);
     NEXT.fetch_add(1, Ordering::Relaxed)
 }
+
+#[test]
+fn a_spill_of_small_records_is_replayed_in_a_few_commits() {
+    let dirs = Dirs::new("replay-groups");
+    let blocked = Arc::new(AtomicBool::new(true));
+    let commits = Arc::new(AtomicU64::new(0));
+    let mut config = config(&dirs);
+    config.hooks = Hooks {
+        on_health: None,
+        before_commit: Some({
+            let blocked = Arc::clone(&blocked);
+            Arc::new(move || {
+                while blocked.load(Ordering::Acquire) {
+                    std::thread::sleep(Duration::from_millis(2));
+                }
+            })
+        }),
+        on_commit: Some({
+            let commits = Arc::clone(&commits);
+            Arc::new(move |_| {
+                commits.fetch_add(1, Ordering::Relaxed);
+            })
+        }),
+        before_attempt: None,
+    };
+    let pipeline = Pipeline::start(open_writer(&dirs.db()), config).unwrap();
+    let producer = pipeline.producer();
+    // Sixty records of five events: far more than the ring holds.
+    for index in 0..60_u64 {
+        push_events(&producer, index * 5 + 1, 5);
+    }
+    assert!(pipeline.stats().spilled_batches > 0);
+    blocked.store(false, Ordering::Release);
+    let flushed = pipeline.flush(Duration::from_secs(30)).unwrap();
+    assert_eq!(flushed.rows, 300);
+    // 300 events fit one commit of the policy (1000), so the replay of the
+    // spilled records takes a handful of commits, not one per record.
+    let spilled = pipeline.stats().spilled_batches;
+    let taken = commits.load(Ordering::Relaxed);
+    assert!(
+        taken + spilled / 2 < 60,
+        "{taken} commits for {spilled} spilled records"
+    );
+    drop(pipeline.close());
+    assert_eq!(stored_ts(&dirs.db()), (1..=300).collect::<Vec<_>>());
+}
