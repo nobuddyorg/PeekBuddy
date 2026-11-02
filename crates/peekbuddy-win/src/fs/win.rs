@@ -404,3 +404,33 @@ pub fn case_mode(dir: &Path) -> std::io::Result<CaseMode> {
     }
     Ok(case_mode_from_flags(info.Flags))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::{check, short_path};
+
+    #[test]
+    fn a_zero_result_is_the_last_os_error_and_anything_else_is_fine() {
+        check(1).unwrap();
+        check(-1).unwrap();
+        // SAFETY: no preconditions.
+        unsafe { windows_sys::Win32::Foundation::SetLastError(5) };
+        assert_eq!(check(0).unwrap_err().raw_os_error(), Some(5));
+    }
+
+    #[test]
+    fn the_short_path_of_a_file_names_that_file() {
+        let dir = std::env::temp_dir().join(format!("pb-short-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let file = dir.join("Short Path Probe.txt");
+        std::fs::write(&file, b"x").unwrap();
+        let short = String::from_utf16_lossy(&short_path(&file).unwrap()).to_lowercase();
+        // With 8.3 names off the answer is the long path itself.
+        assert!(
+            short.ends_with(".txt") && short.contains("pb-short-") || short.contains("pb-sho~"),
+            "{short}"
+        );
+        assert!(short_path(&dir.join("missing.txt")).is_err());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+}
