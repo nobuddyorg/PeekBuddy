@@ -246,3 +246,77 @@ fn a_hundred_thousand_watched_directories_stay_within_the_measured_bound() {
     assert!(bytes <= 10_350_000, "{bytes} B for 100k directories");
     assert!(bytes >= 5_000_000, "{bytes} B: the estimate lost its names");
 }
+
+#[test]
+fn the_root_and_the_membership_are_what_the_scope_was_made_with() {
+    let scope = scope_with_tree();
+    assert_eq!(scope.root(), ROOT);
+    assert!(!scope.is_empty());
+    assert_eq!(scope.len(), 3);
+}
+
+#[test]
+fn the_memory_estimate_counts_table_slots_and_names() {
+    let mut scope = Scope::new(ROOT);
+    let empty = scope.memory_usage();
+    assert_eq!(
+        empty,
+        scope.dirs.capacity() * (size_of::<u128>() + size_of::<Dir>() + 1)
+    );
+    scope.insert(101, ROOT, &units("0123456789"));
+    let names: usize = scope
+        .dirs
+        .values()
+        .map(|dir| dir.name.capacity() * size_of::<u16>())
+        .sum();
+    assert!(names >= 20);
+    assert_eq!(
+        scope.memory_usage(),
+        scope.dirs.capacity() * (size_of::<u128>() + size_of::<Dir>() + 1) + names
+    );
+}
+
+#[test]
+fn a_rename_inside_the_tree_logs_the_new_name_under_the_new_parent() {
+    let mut scope = Scope::new(ROOT);
+    apply(&mut scope, &spec(101, ROOT, "a", reason::FILE_CREATE, DIR));
+    apply(&mut scope, &spec(102, ROOT, "c", reason::FILE_CREATE, DIR));
+    apply(&mut scope, &spec(103, 101, "b", reason::FILE_CREATE, DIR));
+    // a\b moves to c\b: the new-name record has the new parent.
+    let renamed = apply(
+        &mut scope,
+        &spec(103, 102, "b", reason::RENAME_NEW_NAME, DIR),
+    );
+    assert!(renamed.accept);
+    assert_eq!(path(&renamed), "c");
+}
+
+#[test]
+fn a_directory_moved_out_reports_the_path_it_left() {
+    let mut scope = Scope::new(ROOT);
+    apply(&mut scope, &spec(101, ROOT, "a", reason::FILE_CREATE, DIR));
+    apply(&mut scope, &spec(103, 101, "b", reason::FILE_CREATE, DIR));
+    let moved = apply(
+        &mut scope,
+        &spec(103, 999, "b", reason::RENAME_NEW_NAME, DIR),
+    );
+    assert!(!moved.accept);
+    assert_eq!(path(&moved), "a");
+    assert!(!scope.contains(103));
+}
+
+#[test]
+fn a_change_to_a_directory_without_a_name_keeps_the_name_it_has() {
+    let mut scope = Scope::new(ROOT);
+    apply(&mut scope, &spec(101, ROOT, "a", reason::FILE_CREATE, DIR));
+    // A security change on `a`, read without names.
+    let changed = apply(
+        &mut scope,
+        &spec(101, ROOT, "", reason::SECURITY_CHANGE, DIR),
+    );
+    assert!(changed.accept);
+    assert_eq!(changed.action, Action::None);
+    let below = apply(&mut scope, &spec(200, 101, "f", reason::FILE_CREATE, FILE));
+    assert_eq!(path(&below), "a");
+    assert!(!below.path_partial);
+}

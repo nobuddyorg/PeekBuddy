@@ -92,4 +92,7 @@ exclude_re = [
   # `unwrap_or(i64::MAX / 2)` only runs for a time that does not fit an i64,
   # and `ts` is clamped to MAX_TS first.
   "crates/peekbuddy-core/src/export/mod.rs:.*replace / with % in civil",
+  # Equivalent mutant: the root is a member of every scope, so the set is
+  # never empty and `is_empty` is always false.
+  "crates/peekbuddy-core/src/usn/scope/mod.rs:.*replace Scope::is_empty -> bool with false",
 ]
