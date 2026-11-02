@@ -125,4 +125,21 @@ exclude_re = [
   # The security descriptor is freed after the pipe was created; a leak cannot
   # be observed by a test.
   "crates/peekbuddy-win/src/pipe.rs:.*<impl Drop for Dacl>::drop",
+  # The per-segment path cache of the reader only saves SQLite lookups, a page
+  # is the same with or without it; `reaches` tests one id too many or too few
+  # at the edge, which a segment without rows on that side answers with no rows;
+  # the segment file is opened read-only first, so `path.exists()` only
+  # differs when it vanishes between the two calls.
+  "crates/peekbuddy-store/src/read/mod.rs:.*(Reader::(take_cache|keep_cache)|replace match guard path.exists.. with true in Reader::page|replace (<|>) with (<=|>=) in reaches)",
+  # The scan window and the time budget decide how many calls a scan takes and
+  # how much each reads, never which rows it returns (the resume cursor
+  # continues where the call stopped; the tests compare the result of a zero
+  # budget with the ordinary one).
+  "crates/peekbuddy-store/src/read/mod.rs:.*Walk<.a>::(adapt|out_of_time)",
+  # The deliberate regressions of the perf harness self-check (#269): the
+  # `perf-selfcheck` job runs them and fails unless the guarding row fails.
+  "crates/peekbuddy-engine/src/inject.rs:",
+  # Retry pacing: the pause between the attempts to delete a segment file
+  # changes how long it takes to give up, not whether it does.
+  "crates/peekbuddy-store/src/retention.rs:.*replace (<|<=) with (<=|==|>) in purge",
 ]
