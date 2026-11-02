@@ -189,6 +189,19 @@ fn check_probe(probe_out: &Path) {
             "{wanted} in {names:?}"
         );
     }
+    // Ready is the last of the steps: after the watch was armed and after the
+    // store was open.
+    let first = |wanted: &str| {
+        report["milestones"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|row| row["name"] == wanted)
+            .map(|row| row["firstUs"].as_u64().unwrap())
+            .unwrap()
+    };
+    assert!(first("EngineReady") >= first("WatcherArmed"));
+    assert!(first("EngineReady") >= first("StoreOpened"));
     assert!(
         report["counters"]["rowsPersisted"].as_u64().unwrap() >= 1,
         "{report}"
