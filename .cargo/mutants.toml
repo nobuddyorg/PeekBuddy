@@ -171,4 +171,8 @@ exclude_re = [
   # Retry pacing: the pause between the attempts to delete a segment file
   # changes how long it takes to give up, not whether it does.
   "crates/peekbuddy-store/src/retention.rs:.*replace (<|<=) with (<=|==|>) in purge",
+  # A replay that never reaches the end of the file (`next` or `discard_tail`
+  # answering `Some`) makes every replaying test loop for ever: the hang is
+  # the failure, and cargo-mutants reports it as a timeout.
+  "crates/peekbuddy-store/src/spill.rs:.*(replace Spill::next -> .* with Ok.Some|replace Spill::discard_tail -> Option<u64> with Some)",
 ]
