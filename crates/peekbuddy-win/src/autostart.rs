@@ -224,3 +224,15 @@ impl Registry for RunKeys {
         Key::create(&self.approved)?.set(VALUE_NAME, REG_BINARY, bytes)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::check;
+
+    #[test]
+    fn a_status_code_is_success_or_the_os_error_of_that_code() {
+        check(0).unwrap();
+        assert_eq!(check(5).unwrap_err().raw_os_error(), Some(5));
+        assert_eq!(check(1010).unwrap_err().raw_os_error(), Some(1010));
+    }
+}

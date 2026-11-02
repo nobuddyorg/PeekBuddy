@@ -28,9 +28,16 @@ pub fn expose_placeholders() -> bool {
 /// entry. Returns `unknown` when the call fails.
 #[must_use]
 pub fn os_build() -> String {
+    // Every field is named, with no `..Default`: a mutant that deletes the
+    // size field is one `RtlGetVersion` does not need (it fills the plain
+    // structure either way), and cargo-mutants cannot exclude such a mutant.
     let mut info = OSVERSIONINFOW {
         dwOSVersionInfoSize: u32::try_from(size_of::<OSVERSIONINFOW>()).unwrap_or(0),
-        ..OSVERSIONINFOW::default()
+        dwMajorVersion: 0,
+        dwMinorVersion: 0,
+        dwBuildNumber: 0,
+        dwPlatformId: 0,
+        szCSDVersion: [0; 128],
     };
     // SAFETY: `info` is a valid OSVERSIONINFOW with its size field set.
     let status = unsafe { RtlGetVersion(&raw mut info) };

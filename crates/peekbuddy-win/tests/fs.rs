@@ -238,3 +238,22 @@ fn the_flag_literals_match_windows_sys() {
         FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT | FILE_FLAG_OPEN_NO_RECALL
     );
 }
+
+#[test]
+fn an_app_exec_link_is_a_file_with_a_reparse_point() {
+    let dir = Dir::new("appexec").unwrap();
+    let link = dir.path().join("alias.exe");
+    peekbuddy_win::fs::create_app_exec_link(
+        &link,
+        "Vendor.App_1234567890abc",
+        "Vendor.App_1234567890abc!App",
+        r"C:\Program Files\WindowsApps\Vendor.App\app.exe",
+    )
+    .unwrap();
+    let attributes = std::fs::symlink_metadata(&link).unwrap().file_attributes();
+    assert_ne!(attributes & REPARSE_POINT, 0, "{attributes:#x}");
+    // A link that cannot be made leaves no file behind.
+    let missing = dir.path().join("no-such-dir").join("alias.exe");
+    assert!(peekbuddy_win::fs::create_app_exec_link(&missing, "p", "a", "t").is_err());
+    assert!(!missing.exists());
+}

@@ -208,6 +208,7 @@ mod tests {
         assert_eq!(accounting.active_processes, 0);
         assert!(accounting.total_processes >= 1);
         assert!(accounting.user_ticks + accounting.kernel_ticks > 0);
-        assert!(job.peak_process_commit().unwrap() > 0);
+        // Any process that ran committed far more than a byte.
+        assert!(job.peak_process_commit().unwrap() > 100_000);
     }
 }

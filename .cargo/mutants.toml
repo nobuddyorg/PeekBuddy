@@ -100,8 +100,12 @@ exclude_re = [
   # returns on every machine a test can run on.
   "crates/peekbuddy-win/src/osinfo.rs:.*replace expose_placeholders -> bool with true",
   # `RtlGetVersion` does not fail for a valid structure (its status is never
-  # negative here) and does not need the size field for the plain structure.
-  "crates/peekbuddy-win/src/osinfo.rs:.*(delete field dwOSVersionInfoSize|replace < with > in os_build)",
+  # negative here).
+  "crates/peekbuddy-win/src/osinfo.rs:.*replace < with > in os_build",
+  # Defender real-time is off on windows-2025, where the mutants run, so a
+  # constant `Some(false)` is the right answer on that runner; the parser and
+  # the full query are compared with `reg.exe` by `os_facts.rs`.
+  "crates/peekbuddy-win/src/osinfo.rs:.*replace defender_realtime_enabled -> Option<bool> with Some.false.",
   # `ERROR_NOT_READY` is what a drive without a medium (an empty card reader
   # or optical drive) answers; neither runner has one and a test cannot make
   # one. The branches only pick the `NotReady` verdict over `VolumeGone`.
@@ -110,9 +114,6 @@ exclude_re = [
   # volume goes away under it; the vdisk detach test of the nightly (#48)
   # drives that path through the lifecycle states, not through this function.
   "crates/peekbuddy-win/src/probe.rs:.*(replace is_mounted -> .* with Ok|replace == with != in is_mounted)",
-  # Windows treats a class registered without an instance as one of this
-  # module, so the window class works the same without `hInstance`.
-  "crates/peekbuddy-win/src/window.rs:.*delete field hInstance from struct WNDCLASSEXW",
   # The mode flags of the pipe are zero (`PIPE_TYPE_BYTE`, `PIPE_READMODE_BYTE`,
   # `PIPE_WAIT`) or disjoint bits, so `^` builds the same value as `|`; `&` drops
   # `PIPE_REJECT_REMOTE_CLIENTS`, which only a client on another machine can
@@ -125,4 +126,32 @@ exclude_re = [
   # The security descriptor is freed after the pipe was created; a leak cannot
   # be observed by a test.
   "crates/peekbuddy-win/src/pipe.rs:.*<impl Drop for Dacl>::drop",
+  # `Debug` output is not behaviour: nothing but a log line reads it.
+  "replace <impl .*Debug.*>::fmt -> .* with Ok.Default::default..",
+  # A mutant that makes an I/O loop, the completion port, the window procedure
+  # or the lifecycle worker wait forever fails the suite by hanging; cargo-mutants
+  # reports a hang as a timeout, not as caught, and exits non-zero for it.
+  "crates/peekbuddy-win/src/io/iocp.rs:.*(Iocp::(associate|post|dequeue)|Completion::is_success|Batch::iter)",
+  "crates/peekbuddy-win/src/io/slot.rs:.*IoSlot::(overlapped_addr|finish|data|len)",
+  "crates/peekbuddy-win/src/io/volume.rs:.*final_path",
+  "crates/peekbuddy-win/src/io/error.rs:.*WinError::code",
+  "crates/peekbuddy-win/src/window.rs:.*(WindowHandle::(hwnd|post_close|send_timeout)|HiddenWindow::set_one_shot_timer)",
+  # The console glue changes where output goes in a process that was started
+  # from a terminal; a test binary has no parent console to attach to.
+  "crates/peekbuddy-win/src/console.rs:",
+  # Only an ETW session reads the events; the etw smoke job (#22) listens.
+  "crates/peekbuddy-win/src/perf/etw.rs:.*replace (milestone|counters) with",
+  # Both answers are valid on some machine: `short_names_generated` is the
+  # volume setting of the runner (a constant equals it), and the case-mode
+  # error is only reported by a volume without case-sensitivity support (FAT).
+  "crates/peekbuddy-win/src/fs/win.rs:.*(replace short_names_generated -> .* with Ok|replace match guard means_no_case_sensitivity)",
+  # `KEY_READ` and `KEY_WRITE` share `READ_CONTROL`, which an open does not
+  # need; a key handle that is not closed is not observable.
+  "crates/peekbuddy-win/src/autostart.rs:.*(replace . with . in Key::create|<impl Drop for Key>::drop)",
+  # The journal control call completes at once on these handles, so the
+  # pending branch (`GetOverlappedResult`) cannot be reached by a test; and
+  # the read thread of a journal stops through a flag and a cancelled call:
+  # the mutants only change how soon it notices, or hang.
+  "crates/peekbuddy-win/src/usn.rs:.*replace (==|!=) with (!=|==) in Journal::control",
+  "crates/peekbuddy-win/src/usn/sync.rs:.*(delete ! in (SyncReader::stop|Worker::run)|replace && with .. in Worker::run|replace Worker::stopping -> bool with false)",
 ]

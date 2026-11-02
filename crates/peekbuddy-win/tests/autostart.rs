@@ -97,3 +97,15 @@ fn the_real_run_key_round_trips_on_a_disposable_runner() {
     assert_eq!(auto.registry().run_value(), Some(run_value(EXE)));
     assert_eq!(auto.set(false).unwrap(), Status::Off);
 }
+
+#[test]
+fn a_test_tree_is_removed_and_removing_it_twice_is_fine() {
+    let base = TestBase::new("tree");
+    let mut keys = base.keys();
+    keys.set_run_value(&run_value(EXE)).unwrap();
+    assert_eq!(keys.run_value(), Some(run_value(EXE)));
+    RunKeys::delete_tree(&base.0).unwrap();
+    assert_eq!(base.keys().run_value(), None);
+    // A tree that is not there is not an error.
+    RunKeys::delete_tree(&base.0).unwrap();
+}

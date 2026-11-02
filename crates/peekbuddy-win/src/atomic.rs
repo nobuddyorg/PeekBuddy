@@ -139,7 +139,24 @@ mod tests {
     use std::os::windows::fs::OpenOptionsExt as _;
     use std::time::Instant;
 
-    use super::{temp_path, write_atomic, write_atomic_with};
+    use super::{is_transient, temp_path, write_atomic, write_atomic_with};
+
+    #[test]
+    fn only_sharing_locking_and_replacement_errors_are_worth_a_retry() {
+        for code in [32, 33, 5, 1176, 1177, 1175] {
+            assert!(
+                is_transient(&std::io::Error::from_raw_os_error(code)),
+                "{code}"
+            );
+        }
+        for code in [2, 3, 87, 112, 1314] {
+            assert!(
+                !is_transient(&std::io::Error::from_raw_os_error(code)),
+                "{code}"
+            );
+        }
+        assert!(!is_transient(&std::io::Error::other("no code")));
+    }
 
     fn dir(name: &str) -> std::path::PathBuf {
         let dir = std::env::temp_dir().join(format!("pb-atomic-{name}-{}", std::process::id()));
@@ -190,7 +207,7 @@ mod tests {
             .unwrap();
         let started = Instant::now();
         let error = write_atomic(&target, b"new").unwrap_err();
-        assert!(super::is_transient(&error), "{error:?}");
+        assert!(is_transient(&error), "{error:?}");
         assert!(started.elapsed().as_millis() >= 100, "no retry happened");
         drop(held);
         assert_eq!(std::fs::read(&target).unwrap(), b"old");

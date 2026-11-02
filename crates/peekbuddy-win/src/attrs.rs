@@ -47,6 +47,9 @@ mod tests {
         assert!(!is_not_content_indexed(&dir).unwrap());
         set_not_content_indexed(&dir).unwrap();
         assert!(is_not_content_indexed(&dir).unwrap());
+        // Setting it again leaves it set.
+        set_not_content_indexed(&dir).unwrap();
+        assert!(is_not_content_indexed(&dir).unwrap());
         assert!(dir.is_dir());
         std::fs::remove_dir(&dir).unwrap();
     }
