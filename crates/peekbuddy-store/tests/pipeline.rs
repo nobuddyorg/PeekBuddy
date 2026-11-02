@@ -628,7 +628,10 @@ fn a_spill_of_small_records_is_replayed_in_a_few_commits() {
     for index in 0..60_u64 {
         push_events(&producer, index * 5 + 1, 5);
     }
-    assert!(pipeline.stats().spilled_batches > 0);
+    // The spiller thread writes them while the writer is held.
+    wait_until("the records to be spilled", || {
+        pipeline.stats().spilled_batches >= 40
+    });
     blocked.store(false, Ordering::Release);
     let flushed = pipeline.flush(Duration::from_secs(30)).unwrap();
     assert_eq!(flushed.rows, 300);
