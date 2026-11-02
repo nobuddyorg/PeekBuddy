@@ -171,4 +171,61 @@ exclude_re = [
   # Retry pacing: the pause between the attempts to delete a segment file
   # changes how long it takes to give up, not whether it does.
   "crates/peekbuddy-store/src/retention.rs:.*replace (<|<=) with (<=|==|>) in purge",
+  # A replay that never reaches the end of the file (`next` or `discard_tail`
+  # answering `Some`) makes every replaying test loop for ever: the hang is
+  # the failure, and cargo-mutants reports it as a timeout.
+  "crates/peekbuddy-store/src/spill.rs:.*(replace Spill::next -> .* with Ok.Some|replace Spill::discard_tail -> Option<u64> with Some)",
+  # The lifecycle worker and the watch plumbing of the capture host. A mutant
+  # that drops a job, a signal or a state change makes the in-process engine
+  # tests (`fs_serial_run`, `fs_serial_lifecycle`) wait for ever for the
+  # watch to come back: the hang is the failure, and cargo-mutants reports it
+  # as a timeout. The rest are equivalent: `|` of the WAIT and GUARD bit with
+  # a root index that never has them, the redundant loss signal of the
+  # watcher beside the guard watch of the parent, and the test-only
+  # `wait_quiet`. Entries carry line and column: when the file changes the
+  # entry stops matching and the survivor shows in the nightly again.
+  "crates/peekbuddy-engine/src/capture_host.rs:319:13: delete match arm WatchState::Lost in .impl LifecycleSink for WatcherSignals.::state",
+  "crates/peekbuddy-engine/src/capture_host.rs:321:21: delete match arm Some.WinError::AccessDenied . WinError::NotifyCleanup. in .impl LifecycleSink for WatcherSignals.::state",
+  "crates/peekbuddy-engine/src/capture_host.rs:488:21: delete match arm Kind::Deleted in .impl EventSink for ParentSink.::push",
+  "crates/peekbuddy-engine/src/capture_host.rs:502:13: replace .. with .. in .impl EventSink for ParentSink.::push",
+  "crates/peekbuddy-engine/src/capture_host.rs:899:33: replace .. with .. in ancestor_and_rest",
+  "crates/peekbuddy-engine/src/capture_host.rs:899:53: replace == with != in ancestor_and_rest",
+  "crates/peekbuddy-engine/src/capture_host.rs:930:38: replace . with . in watch_parent",
+  "crates/peekbuddy-engine/src/capture_host.rs:43:33: replace . with /",
+  "crates/peekbuddy-engine/src/capture_host.rs:274:9: replace Inner::post with ..",
+  "crates/peekbuddy-engine/src/capture_host.rs:282:9: replace Signaller::signal with ..",
+  "crates/peekbuddy-engine/src/capture_host.rs:317:9: replace .impl LifecycleSink for WatcherSignals.::state with ..",
+  "crates/peekbuddy-engine/src/capture_host.rs:318:13: delete match arm WatchState::Live in .impl LifecycleSink for WatcherSignals.::state",
+  "crates/peekbuddy-engine/src/capture_host.rs:344:9: replace .impl Observer for ReconcileSignals.::finished with ..",
+  "crates/peekbuddy-engine/src/capture_host.rs:418:9: replace StoreSink::send with ..",
+  "crates/peekbuddy-engine/src/capture_host.rs:428:9: replace .impl EventSink for StoreSink.::push -. bool with true",
+  "crates/peekbuddy-engine/src/capture_host.rs:428:9: replace .impl EventSink for StoreSink.::push -. bool with false",
+  "crates/peekbuddy-engine/src/capture_host.rs:502:74: replace == with != in .impl EventSink for ParentSink.::push",
+  "crates/peekbuddy-engine/src/capture_host.rs:610:17: replace Host::observer::.impl Observer for Late.::finished with ..",
+  "crates/peekbuddy-engine/src/capture_host.rs:630:9: replace Host::wait_quiet -. bool with true",
+  "crates/peekbuddy-engine/src/capture_host.rs:630:9: replace Host::wait_quiet -. bool with false",
+  "crates/peekbuddy-engine/src/capture_host.rs:640:42: replace .= with . in Host::wait_quiet",
+  "crates/peekbuddy-engine/src/capture_host.rs:649:9: replace Host::keep with ..",
+  "crates/peekbuddy-engine/src/capture_host.rs:654:9: replace Host::stop with ..",
+  "crates/peekbuddy-engine/src/capture_host.rs:681:42: replace == with != in spec_of",
+  "crates/peekbuddy-engine/src/capture_host.rs:685:5: replace index_of -. Option.usize. with None",
+  "crates/peekbuddy-engine/src/capture_host.rs:685:5: replace index_of -. Option.usize. with Some.1.",
+  "crates/peekbuddy-engine/src/capture_host.rs:685:46: replace == with != in index_of",
+  "crates/peekbuddy-engine/src/capture_host.rs:689:5: replace work with ..",
+  "crates/peekbuddy-engine/src/capture_host.rs:707:20: delete ! in work",
+  "crates/peekbuddy-engine/src/capture_host.rs:730:5: replace open with ..",
+  "crates/peekbuddy-engine/src/capture_host.rs:756:5: replace recheck with ..",
+  "crates/peekbuddy-engine/src/capture_host.rs:766:5: replace handle with ..",
+  "crates/peekbuddy-engine/src/capture_host.rs:789:41: replace .. with .. in handle",
+  "crates/peekbuddy-engine/src/capture_host.rs:792:28: replace == with != in handle",
+  "crates/peekbuddy-engine/src/capture_host.rs:825:25: delete ! in settle",
+  "crates/peekbuddy-engine/src/capture_host.rs:839:5: replace act with ..",
+  "crates/peekbuddy-engine/src/capture_host.rs:893:12: delete ! in ancestor_and_rest",
+  "crates/peekbuddy-engine/src/capture_host.rs:957:55: replace == with != in guard_root",
+  "crates/peekbuddy-engine/src/capture_host.rs:960:79: replace . with - in guard_root",
+  "crates/peekbuddy-engine/src/capture_host.rs:963:24: replace .. with .. in guard_root",
+  "crates/peekbuddy-engine/src/capture_host.rs:963:40: replace . with .= in guard_root",
+  "crates/peekbuddy-engine/src/capture_host.rs:966:40: replace . with . in guard_root",
+  "crates/peekbuddy-engine/src/capture_host.rs:987:5: replace unwatch_parent with ..",
+  "crates/peekbuddy-engine/src/capture_host.rs:987:40: replace . with . in unwatch_parent",
 ]

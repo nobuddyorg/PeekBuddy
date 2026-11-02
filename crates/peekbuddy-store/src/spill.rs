@@ -689,7 +689,95 @@ mod tests {
         let spill = Spill::open(&dir, 9, 0).unwrap();
         assert_eq!(spill.generation(), 5);
         assert!(!spill.has_pending());
+        assert_eq!((spill.torn_bytes(), spill.end()), (0, 8));
         assert!(dir.join(super::FILE_NAME).exists());
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    /// A spill file with `records` records of `batch(n, 2)`; returns its path
+    /// and the length of each record.
+    fn written(dir: &std::path::Path, records: u64) -> (std::path::PathBuf, usize) {
+        let mut spill = Spill::open(dir, 0, 0).unwrap();
+        for index in 0..records {
+            spill.append(&batch(index * 2 + 1, 2)).unwrap();
+        }
+        drop(spill);
+        (dir.join(super::FILE_NAME), record_len(&batch(1, 2)))
+    }
+
+    #[test]
+    fn a_file_of_whole_records_is_taken_whole() {
+        let dir = dir("whole");
+        let (path, record) = written(&dir, 3);
+        let size = std::fs::metadata(&path).unwrap().len();
+        let mut again = Spill::open(&dir, 0, 0).unwrap();
+        assert_eq!((again.torn_bytes(), again.end()), (0, size));
+        assert_eq!(size, (8 + 3 * record) as u64);
+        assert_eq!(collect(&mut again).len(), 6);
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn a_tail_of_one_header_without_a_record_is_cut() {
+        let dir = dir("zero-header");
+        let (path, record) = written(&dir, 2);
+        let mut bytes = std::fs::read(&path).unwrap();
+        // A header of its own size: zero length, zero checksum.
+        bytes.extend_from_slice(&[0; 8]);
+        std::fs::write(&path, &bytes).unwrap();
+        let again = Spill::open(&dir, 0, 0).unwrap();
+        assert_eq!(again.torn_bytes(), 8);
+        assert_eq!(again.end(), (8 + 2 * record) as u64);
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn a_record_is_cut_for_a_bad_checksum_alone_or_a_bad_payload_alone() {
+        use std::io::Write as _;
+
+        // The checksum field is wrong, the payload is whole.
+        let dir_crc = dir("crc-only");
+        let (path, record) = written(&dir_crc, 2);
+        let mut bytes = std::fs::read(&path).unwrap();
+        bytes[8 + record + 4] ^= 0xFF;
+        std::fs::write(&path, &bytes).unwrap();
+        let again = Spill::open(&dir_crc, 0, 0).unwrap();
+        assert_eq!(again.torn_bytes(), record as u64);
+        std::fs::remove_dir_all(&dir_crc).unwrap();
+
+        // The checksum is right for a payload that is not a batch.
+        let dir_payload = dir("payload-only");
+        let (path, record) = written(&dir_payload, 1);
+        let junk = [0xFF_u8; 24];
+        let mut file = std::fs::OpenOptions::new()
+            .append(true)
+            .open(&path)
+            .unwrap();
+        file.write_all(&u32::try_from(junk.len()).unwrap().to_le_bytes())
+            .unwrap();
+        file.write_all(&crc32(&junk).to_le_bytes()).unwrap();
+        file.write_all(&junk).unwrap();
+        drop(file);
+        let again = Spill::open(&dir_payload, 0, 0).unwrap();
+        assert_eq!(again.torn_bytes(), 8 + junk.len() as u64);
+        assert_eq!(again.end(), (8 + record) as u64);
+        std::fs::remove_dir_all(&dir_payload).unwrap();
+    }
+
+    #[test]
+    fn a_torn_record_met_while_replaying_ends_the_replay_there() {
+        let dir = dir("torn-while-replaying");
+        let (path, record) = written(&dir, 3);
+        let mut spill = Spill::open(&dir, 0, 0).unwrap();
+        // The file is damaged after it was opened.
+        let mut bytes = std::fs::read(&path).unwrap();
+        bytes[8 + record + 12] ^= 0xFF;
+        std::fs::write(&path, &bytes).unwrap();
+        let mut into = Batch::with_capacity(64, 4096);
+        assert!(spill.next(&mut into).unwrap().is_some());
+        assert_eq!(spill.next(&mut into).unwrap(), None);
+        assert!(!spill.has_pending());
+        assert_eq!(spill.pending_bytes(), 0);
         std::fs::remove_dir_all(&dir).unwrap();
     }
 
