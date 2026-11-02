@@ -1,5 +1,12 @@
 //! The kind taxonomy.
 
+/// `raw_mask` of [`Kind::StoreDegraded`] and [`Kind::StoreRecovered`]: a
+/// reader holds a snapshot that keeps the WAL from being reset.
+pub const STORE_WAL_BLOCKED: u32 = 1;
+/// `raw_mask` of the store kinds: the writer cannot commit (a full disk, a
+/// read-only file) and retries.
+pub const STORE_WRITE_FAILING: u32 = 2;
+
 /// Why a gap in the event stream exists (F2: every gap is a visible row).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
@@ -159,6 +166,12 @@ pub enum Kind {
     /// The previous run of the engine ended abnormally (a crash marker was
     /// found at start). The row's name is the crash log.
     EngineAbnormalExit,
+    /// The store cannot keep up or cannot write: `raw_mask` says why
+    /// ([`STORE_WAL_BLOCKED`], [`STORE_WRITE_FAILING`]). Capture goes on and
+    /// nothing is dropped while the spill file takes the overflow.
+    StoreDegraded,
+    /// The store is well again; `raw_mask` is the cause that ended.
+    StoreRecovered,
     /// Not classifiable; the raw value is kept.
     Other,
     /// The engine started.
@@ -204,6 +217,8 @@ impl Kind {
             Self::BaselineEstablished => (23, 0),
             Self::AccessDenied => (24, 0),
             Self::EngineAbnormalExit => (25, 0),
+            Self::StoreDegraded => (26, 0),
+            Self::StoreRecovered => (27, 0),
         }
     }
 
@@ -247,6 +262,8 @@ impl Kind {
             23 => Self::BaselineEstablished,
             24 => Self::AccessDenied,
             25 => Self::EngineAbnormalExit,
+            26 => Self::StoreDegraded,
+            27 => Self::StoreRecovered,
             _ => return None,
         };
         // Kinds without a payload must carry 0 so every value has one encoding.
@@ -331,6 +348,8 @@ impl Kind {
             Self::BaselineEstablished => "baseline_established",
             Self::AccessDenied => "access_denied",
             Self::EngineAbnormalExit => "engine_abnormal_exit",
+            Self::StoreDegraded => "store_degraded",
+            Self::StoreRecovered => "store_recovered",
             Self::Other => "other",
             Self::EngineStarted => "engine_started",
             Self::EngineStopped => "engine_stopped",
@@ -403,6 +422,8 @@ pub(crate) mod tests {
             Kind::BaselineEstablished,
             Kind::AccessDenied,
             Kind::EngineAbnormalExit,
+            Kind::StoreDegraded,
+            Kind::StoreRecovered,
         ];
         v.extend(GapReason::ALL.map(Kind::Overflow));
         v.extend(WatchState::ALL.map(Kind::WatchStateChanged));

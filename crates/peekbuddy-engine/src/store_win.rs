@@ -7,13 +7,16 @@
 
 use std::fmt::Write as _;
 use std::path::PathBuf;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, OnceLock};
 use std::time::Duration;
 
-use peekbuddy_core::event::RootIdx;
+use peekbuddy_core::event::{
+    Event, Flags, Kind, NameKind, NameRef, RootIdx, STORE_WAL_BLOCKED, STORE_WRITE_FAILING, Source,
+    VolIdx,
+};
 use peekbuddy_core::perf::{CounterSnapshot, Counters};
 use peekbuddy_core::settings::Settings;
-use peekbuddy_store::pipeline::{CommitInfo, Config, Hooks, Pipeline, Producer};
+use peekbuddy_store::pipeline::{CommitInfo, Config, Health, Hooks, Pipeline, Producer};
 use peekbuddy_store::retention::{Caps, NoViewer};
 use peekbuddy_store::segment::{DEFAULT_SIZE_CAP, DayKey, Rotation};
 use peekbuddy_store::writer::{RootInfo, SegmentsConfig, VolInfo, Writer};
@@ -143,15 +146,29 @@ impl Store {
         }
         let (observer_counters, observer_commits) = (Arc::clone(counters), Arc::clone(commits));
         let mut config = Config::new(data.root.join("spill"));
+        let health_rows: Arc<OnceLock<Producer>> = Arc::new(OnceLock::new());
+        let for_health = Arc::clone(&health_rows);
         config.hooks = Hooks {
             before_commit: None,
             on_commit: Some(Arc::new(move |info: &CommitInfo| {
                 on_commit(&observer_counters, &observer_commits, info);
             })),
             before_attempt: None,
+            on_health: Some(Arc::new(move |health| {
+                if let Some(producer) = for_health.get() {
+                    let mut batch = producer.new_batch();
+                    if batch
+                        .push(health_event(health, crate::pause_ctl::now_ticks()), &[])
+                        .is_ok()
+                    {
+                        let _ = producer.push(batch);
+                    }
+                }
+            })),
         };
         let pipeline = Pipeline::start(writer, config)?;
         let producer = pipeline.producer();
+        let _ = health_rows.set(producer.clone());
         Ok(Self {
             pipeline: Some(pipeline),
             writer: None,
@@ -211,6 +228,40 @@ impl Store {
     }
 }
 
+/// The row that tells the log the store became unwell or well again. The
+/// writer thread pushes it like any other row, so while the writer cannot
+/// commit it waits in the ring or the spill file and is written with the rest.
+#[must_use]
+pub fn health_event(health: Health, (ts, qpc): (u64, u64)) -> Event {
+    let (kind, cause) = match health {
+        Health::WalBlocked => (Kind::StoreDegraded, STORE_WAL_BLOCKED),
+        Health::WalReleased => (Kind::StoreRecovered, STORE_WAL_BLOCKED),
+        Health::Failing => (Kind::StoreDegraded, STORE_WRITE_FAILING),
+        Health::Recovered => (Kind::StoreRecovered, STORE_WRITE_FAILING),
+    };
+    Event {
+        ts,
+        qpc,
+        src_ts: 0,
+        source: Source::System,
+        kind,
+        raw_mask: cause,
+        source_info: 0,
+        is_dir: false,
+        size: 0,
+        attrs: 0,
+        reparse_tag: 0,
+        file_id: 0,
+        parent_file_id: 0,
+        usn: 0,
+        vol: VolIdx(0),
+        root: RootIdx::NONE,
+        name: NameRef::EMPTY,
+        name_kind: NameKind::Unknown,
+        flags: Flags::NONE,
+    }
+}
+
 fn on_commit(counters: &Counters, commits: &Mutex<CommitLog>, info: &CommitInfo) {
     use std::sync::atomic::Ordering;
 
@@ -229,4 +280,28 @@ fn on_commit(counters: &Counters, commits: &Mutex<CommitLog>, info: &CommitInfo)
     }
     let snapshot: CounterSnapshot = counters.snapshot();
     etw::counters(&snapshot);
+}
+
+#[cfg(test)]
+mod tests {
+    use peekbuddy_core::event::{Kind, STORE_WAL_BLOCKED, STORE_WRITE_FAILING, Source};
+    use peekbuddy_store::pipeline::Health;
+
+    use super::health_event;
+
+    #[test]
+    fn each_health_change_is_a_system_row_with_its_cause() {
+        let table = [
+            (Health::WalBlocked, Kind::StoreDegraded, STORE_WAL_BLOCKED),
+            (Health::WalReleased, Kind::StoreRecovered, STORE_WAL_BLOCKED),
+            (Health::Failing, Kind::StoreDegraded, STORE_WRITE_FAILING),
+            (Health::Recovered, Kind::StoreRecovered, STORE_WRITE_FAILING),
+        ];
+        for (health, kind, cause) in table {
+            let event = health_event(health, (7, 9));
+            assert_eq!((event.kind, event.raw_mask), (kind, cause), "{health:?}");
+            assert_eq!((event.ts, event.qpc), (7, 9));
+            assert_eq!(event.source, Source::System);
+        }
+    }
 }

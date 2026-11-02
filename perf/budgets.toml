@@ -275,6 +275,19 @@ how = "tracing span on the capture thread (#21)"
 arch = ["x86_64", "aarch64"]
 
 [[budget]]
+id = "durability.restart_to_ready"
+metric = "time from starting the engine after a kill to its window (replay of the spill file and the start-up walk run behind it)"
+unit = "ms"
+bound = "max"
+class = "timing"
+gate = "nightly-trend"
+status = "provisional"
+source = "#216, #266"
+workload = "kill soak: 30 kills in each of three seeds"
+how = "fs_serial_kill report (PEEKBUDDY_KILL_REPORT), series `kill soak (<runner>)` on gh-pages"
+arch = ["x86_64", "aarch64"]
+
+[[budget]]
 id = "shutdown.endsession_flush"
 metric = "WM_ENDSESSION to everything durable and checkpointed, 10k events pending"
 unit = "ms"

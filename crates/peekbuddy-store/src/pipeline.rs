@@ -53,9 +53,30 @@ pub type WriterHook = Arc<dyn Fn(&Writer) + Send + Sync>;
 /// A callback told about each successful commit.
 pub type CommitObserver = Arc<dyn Fn(&CommitInfo) + Send + Sync>;
 
+/// A change in how well the store is doing, told once per change.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Health {
+    /// A reader holds a snapshot that keeps the WAL from being reset
+    /// ([`Stats::wal_blocked`]). Ingest continues.
+    WalBlocked,
+    /// The reader let go.
+    WalReleased,
+    /// The writer cannot commit (a full disk, a read-only file) and keeps
+    /// retrying ([`Stats::failing`]). Pushes overflow to the spill file.
+    Failing,
+    /// A commit worked again.
+    Recovered,
+}
+
+/// A callback told about each change of [`Health`], from the writer thread.
+/// It must not block.
+pub type HealthObserver = Arc<dyn Fn(Health) + Send + Sync>;
+
 /// Callbacks the pipeline calls from its threads.
 #[derive(Clone, Default)]
 pub struct Hooks {
+    /// Called when the store becomes unwell or well again.
+    pub on_health: Option<HealthObserver>,
     /// Called before each commit attempt (tests stall the writer here).
     pub before_commit: Option<BeforeCommit>,
     /// Called after each successful commit.
@@ -126,6 +147,10 @@ pub struct Stats {
     pub spilled_batches: u64,
     /// Batches dropped because they could not be written anywhere.
     pub lost_batches: u64,
+    /// Bytes cut from the spill file of a previous run at start because its
+    /// last record was not whole (a crash in the middle of an append). They
+    /// were never replayed.
+    pub torn_tail_bytes: u64,
     /// Highest ring depth.
     pub ring_high_water: usize,
     /// Commits that failed, attempts included.
@@ -174,6 +199,7 @@ struct Shared {
     failures: AtomicU64,
     failing: AtomicBool,
     wal_blocked: AtomicBool,
+    torn_tail_bytes: u64,
 }
 
 fn lock<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
@@ -317,6 +343,7 @@ impl Pipeline {
         let (generation, consumed) = writer.spill_position();
         let spill = Spill::open(&config.spill_dir, generation, consumed)?;
         let old_end = spill.end();
+        let torn_tail_bytes = spill.torn_bytes();
         let shared = Arc::new(Shared {
             state: Mutex::new(State {
                 spilling: spill.has_pending(),
@@ -335,6 +362,7 @@ impl Pipeline {
             failures: AtomicU64::new(0),
             failing: AtomicBool::new(false),
             wal_blocked: AtomicBool::new(false),
+            torn_tail_bytes,
         });
         let (for_writer, for_spiller) = (Arc::clone(&shared), Arc::clone(&shared));
         let spiller = std::thread::Builder::new()
@@ -378,6 +406,7 @@ impl Pipeline {
             commit_failures: self.shared.failures.load(Ordering::Relaxed),
             failing: self.shared.failing.load(Ordering::Relaxed),
             wal_blocked: self.shared.wal_blocked.load(Ordering::Relaxed),
+            torn_tail_bytes: self.shared.torn_tail_bytes,
         }
     }
 
@@ -658,12 +687,27 @@ fn write_loop(
                     if let Ok((log, done)) = writer.checkpoint_passive() {
                         let blocked = done < log
                             && writer.wal_bytes() >= wal_checkpoint_bytes.saturating_mul(2);
-                        shared.wal_blocked.store(blocked, Ordering::Relaxed);
+                        if shared.wal_blocked.swap(blocked, Ordering::Relaxed) != blocked {
+                            tell(
+                                hooks,
+                                if blocked {
+                                    Health::WalBlocked
+                                } else {
+                                    Health::WalReleased
+                                },
+                            );
+                        }
                     }
                     dirty_since = None;
                 }
             }
         }
+    }
+}
+
+fn tell(hooks: &Hooks, health: Health) {
+    if let Some(observer) = &hooks.on_health {
+        observer(health);
     }
 }
 
@@ -737,7 +781,9 @@ fn commit_group(
                 // retry. Pushes fill the ring and then overflow to the spill
                 // file, in order; nothing is dropped. On shutdown the group
                 // goes to the spill file too, to be replayed at the next start.
-                shared.failing.store(true, Ordering::Relaxed);
+                if !shared.failing.swap(true, Ordering::Relaxed) {
+                    tell(hooks, Health::Failing);
+                }
                 if lock(&shared.state).closed {
                     give_to_spill(shared, group, from_spill);
                     shared.failing.store(false, Ordering::Relaxed);
@@ -747,7 +793,9 @@ fn commit_group(
             }
         }
     }
-    shared.failing.store(false, Ordering::Relaxed);
+    if shared.failing.swap(false, Ordering::Relaxed) {
+        tell(hooks, Health::Recovered);
+    }
     let count = group.len() as u64;
     let mut state = lock(&shared.state);
     match outcome {

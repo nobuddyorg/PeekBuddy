@@ -144,7 +144,7 @@ jobs:
       matrix:
         runner: [windows-2025, windows-11-vs2026-arm]
     permissions:
-      contents: read
+      contents: write # github-action-benchmark pushes the restart times to gh-pages
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -162,12 +162,50 @@ jobs:
         shell: pwsh
         env:
           PEEKBUDDY_KILLS: "30"
+          PEEKBUDDY_KILL_REPORT: ${{ runner.temp }}\kill-restarts.txt
         run: |
           foreach ($seed in 11, 23, 47) {
             $env:PEEKBUDDY_KILL_SEED = $seed
             cargo nextest run --locked --profile ci -p peekbuddy -E 'binary(fs_serial_kill)'
             if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           }
+      # Restart to ready after a kill (durability.restart_to_ready, #266): the
+      # time from the spawn to the engine's window, over every restart of the
+      # three seeds, as a trend next to the benches.
+      - name: Restart times
+        id: restarts
+        shell: pwsh
+        run: |
+          $times = Get-Content (Join-Path $env:RUNNER_TEMP 'kill-restarts.txt') | ForEach-Object { [double]$_ } | Sort-Object
+          if ($times.Count -eq 0) { throw 'the soak reported no restart times' }
+          $median = $times[[int][math]::Floor(($times.Count - 1) / 2)]
+          $max = $times[-1]
+          New-Item -ItemType Directory -Force target/soak | Out-Null
+          $rows = @(
+            @{ name = 'durability.restart_to_ready.p50'; unit = 'ms'; value = $median },
+            @{ name = 'durability.restart_to_ready.max'; unit = 'ms'; value = $max }
+          )
+          ConvertTo-Json -InputObject $rows | Set-Content target/soak/output.json
+          "Restart to ready after a kill, $($times.Count) restarts: median $median ms, max $max ms" | Tee-Object -Append $env:GITHUB_STEP_SUMMARY
+      - name: Publish restart times to gh-pages
+        if: github.event_name == 'schedule'
+        uses: benchmark-action/github-action-benchmark@4322e5726e6334590d251fc4f92bec0efafc45dc # v1.22.2
+        with:
+          name: kill soak (${{ matrix.runner }})
+          tool: customSmallerIsBetter
+          output-file-path: target/soak/output.json
+          gh-pages-branch: gh-pages
+          benchmark-data-dir-path: dev/bench
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          auto-push: true
+          comment-on-alert: false
+          fail-on-alert: false
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: kill-soak-restarts-${{ matrix.runner }}
+          path: target/soak/output.json
+          if-no-files-found: ignore
 
   vhd:
     name: vhd detach and attach (#48)
@@ -196,6 +234,12 @@ jobs:
         env:
           PEEKBUDDY_VHD_TESTS: "1"
           PEEKBUDDY_VHD_NOTES: ${{ runner.temp }}\vhd-notes.txt
+      # A real full volume (#266): the store on a small vdisk filled to the
+      # last byte, then freed.
+      - name: Full volume (#266)
+        run: cargo nextest run --locked --profile ci -p peekbuddy-store -E 'binary(vhd_full)'
+        env:
+          PEEKBUDDY_VHD_TESTS: "1"
       - name: Say what the USN vdisk tier skipped
         if: always()
         shell: pwsh

@@ -339,6 +339,8 @@ fn enum_discriminants_snapshot() {
         Kind::BaselineEstablished,
         Kind::AccessDenied,
         Kind::EngineAbnormalExit,
+        Kind::StoreDegraded,
+        Kind::StoreRecovered,
     ];
     for kind in kinds {
         let (tag, arg) = kind.to_wire();

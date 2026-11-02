@@ -154,6 +154,7 @@ fn a_stalled_writer_spills_and_the_replay_keeps_the_order() {
     let blocked = Arc::new(AtomicBool::new(true));
     let mut config = config(&dirs);
     config.hooks = Hooks {
+        on_health: None,
         before_commit: Some({
             let (gate, blocked) = (Arc::clone(&gate), Arc::clone(&blocked));
             Arc::new(move || {
@@ -202,6 +203,7 @@ fn a_spill_left_by_a_previous_run_is_replayed_first() {
     let blocked = Arc::new(AtomicBool::new(true));
     let mut config1 = config(&dirs);
     config1.hooks = Hooks {
+        on_health: None,
         before_commit: Some({
             let blocked = Arc::clone(&blocked);
             Arc::new(move || {
@@ -253,6 +255,7 @@ fn a_batch_that_cannot_be_spilled_is_counted_lost_not_silent() {
     let blocked = Arc::new(AtomicBool::new(true));
     let mut config = config(&dirs);
     config.hooks = Hooks {
+        on_health: None,
         before_commit: Some({
             let blocked = Arc::clone(&blocked);
             Arc::new(move || {
@@ -327,6 +330,7 @@ fn the_commit_observer_sees_every_commit_and_the_group_commit_batches_them() {
         ..Policy::default()
     };
     config.hooks = Hooks {
+        on_health: None,
         before_commit: None,
         on_commit: Some({
             let (commits, rows) = (Arc::clone(&commits), Arc::clone(&rows));
@@ -392,6 +396,7 @@ fn start_with_gate(dirs: &Dirs, stalled: &Arc<AtomicBool>) -> Pipeline {
         ..Policy::default()
     };
     config.hooks = Hooks {
+        on_health: None,
         before_commit: Some({
             let stalled = Arc::clone(stalled);
             Arc::new(move || {
@@ -412,6 +417,7 @@ fn blocked_pipeline(dirs: &Dirs, writer: Writer) -> (Pipeline, Arc<AtomicBool>, 
     let entered = Arc::new(AtomicBool::new(false));
     let mut config = config(dirs);
     config.hooks = Hooks {
+        on_health: None,
         before_commit: Some({
             let (blocked, entered) = (Arc::clone(&blocked), Arc::clone(&entered));
             Arc::new(move || {
