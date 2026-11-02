@@ -206,3 +206,54 @@ fn a_segment_from_a_newer_schema_is_refused_by_describe() {
     assert_eq!(describe(&path).unwrap().rows, 0);
     std::fs::remove_dir_all(&dir).unwrap();
 }
+
+fn catalog_with_user_version(tag: &str, version: i64) -> (PathBuf, PathBuf) {
+    let dir = std::env::temp_dir().join(format!("pb-catalog-{tag}-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    let path = dir.join("catalog.db");
+    drop(Catalog::open(&path).unwrap());
+    let conn = Connection::open(&path).unwrap();
+    conn.execute_batch(&format!("PRAGMA user_version = {version};"))
+        .unwrap();
+    (dir, path)
+}
+
+#[test]
+fn a_reader_opens_a_current_catalog_read_only() {
+    let (dir, path) = catalog_with_user_version("read-current", CATALOG_VERSION);
+    let catalog = Catalog::open_for_reading(&path).unwrap();
+    // The connection cannot write: that is what keeps it out of the way.
+    assert!(
+        catalog
+            .put(&row("events-2026-10-26.db", 1, 5, true))
+            .is_err()
+    );
+    assert_eq!(catalog.list().unwrap(), []);
+    drop(catalog);
+    std::fs::remove_dir_all(&dir).unwrap();
+}
+
+#[test]
+fn a_reader_refuses_a_newer_catalog_and_upgrades_an_older_one() {
+    let (dir, path) = catalog_with_user_version("read-newer", CATALOG_VERSION + 1);
+    assert!(matches!(
+        Catalog::open_for_reading(&path),
+        Err(CatalogError::TooNew(version)) if version == CATALOG_VERSION + 1
+    ));
+    std::fs::remove_dir_all(&dir).unwrap();
+
+    let (dir, path) = catalog_with_user_version("read-older", CATALOG_VERSION - 1);
+    // The writer's open brings it forward, and that connection can write.
+    let catalog = Catalog::open_for_reading(&path).unwrap();
+    catalog
+        .put(&row("events-2026-10-26.db", 1, 5, true))
+        .unwrap();
+    let version: i64 = catalog
+        .conn
+        .query_row("PRAGMA user_version", [], |row| row.get(0))
+        .unwrap();
+    assert_eq!(version, CATALOG_VERSION);
+    drop(catalog);
+    std::fs::remove_dir_all(&dir).unwrap();
+}

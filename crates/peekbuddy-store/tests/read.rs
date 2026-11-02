@@ -772,6 +772,10 @@ fn a_broad_filter_on_old_rows_is_scanned_in_windows_and_resumes() {
             first.rows.len()
         );
         assert!(first.more, "{label}");
+        assert!(
+            first.scanned > 0,
+            "{label}: the window counts what it scanned"
+        );
         assert_eq!(
             first.rows,
             [],
@@ -1071,4 +1075,28 @@ fn next_tag() -> u64 {
     use std::sync::atomic::{AtomicU64, Ordering};
     static NEXT: AtomicU64 = AtomicU64::new(0);
     NEXT.fetch_add(1, Ordering::Relaxed)
+}
+
+#[test]
+fn a_page_that_holds_exactly_what_is_left_has_nothing_more() {
+    let dir = Dir::new("exact");
+    build(&dir, 1, 10);
+    let reader = Reader::new(dir.path());
+    let page = |limit: usize| {
+        reader
+            .page(
+                &PageRequest {
+                    limit,
+                    ..PageRequest::newest(1, Filter::default())
+                },
+                &CancelFlag::new(),
+            )
+            .unwrap()
+    };
+    let all = page(10);
+    assert_eq!((all.rows.len(), all.more), (10, false));
+    let some = page(9);
+    assert_eq!((some.rows.len(), some.more), (9, true));
+    let more = page(11);
+    assert_eq!((more.rows.len(), more.more), (10, false));
 }
