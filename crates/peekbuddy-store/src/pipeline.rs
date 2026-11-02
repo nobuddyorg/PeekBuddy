@@ -187,6 +187,8 @@ struct Shared {
     spiller_wake: Condvar,
     /// Signalled when `done` advances.
     progress: Condvar,
+    /// Signalled when the overflow list or the ring got room.
+    room: Condvar,
     spill: Mutex<Spill>,
     capacity: usize,
     /// Size of the spill file found at start: records below it were pushed by
@@ -230,9 +232,25 @@ impl Producer {
             .unwrap_or_else(Batch::standard)
     }
 
-    /// Hands a filled batch to the writer. Never waits for the disk.
+    /// Hands a filled batch to the writer. Does not wait for the disk, except
+    /// when the ring and as many more batches again are waiting for the spill
+    /// file: then the memory of the overflow list would grow with every
+    /// batch, so capture waits here until the spiller has made room. The
+    /// notification buffer of the watch fills meanwhile and the overflow it
+    /// causes is a gap like any other, which the reconcile closes.
     pub fn push(&self, batch: Batch) -> Push {
         let mut state = lock(&self.shared.state);
+        while !state.closed
+            && (state.spilling || state.queue.len() >= self.shared.capacity)
+            && state.overflow.len() >= self.shared.capacity
+        {
+            state = self
+                .shared
+                .room
+                .wait_timeout(state, Duration::from_millis(50))
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .0;
+        }
         if state.closed {
             return Push::Closed(batch);
         }
@@ -352,6 +370,7 @@ impl Pipeline {
             writer_wake: Condvar::new(),
             spiller_wake: Condvar::new(),
             progress: Condvar::new(),
+            room: Condvar::new(),
             spill: Mutex::new(spill),
             capacity: config.ring_batches.max(1),
             old_end,
@@ -428,6 +447,7 @@ impl Pipeline {
     #[must_use]
     pub fn close(mut self) -> Option<Writer> {
         lock(&self.shared.state).closed = true;
+        self.shared.room.notify_all();
         self.shared.writer_wake.notify_all();
         self.shared.spiller_wake.notify_all();
         let writer = self.writer.take().and_then(|thread| thread.join().ok());
@@ -453,6 +473,7 @@ fn spill_loop(shared: &Shared) {
         };
         state.spiller_busy = true;
         drop(state);
+        shared.room.notify_all();
 
         let written = lock(&shared.spill).append(&batch);
         match written {
