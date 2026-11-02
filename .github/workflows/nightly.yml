@@ -68,7 +68,7 @@ jobs:
       - name: Nightly toolchain
         if: steps.targets.outputs.targets != ''
         run: rustup toolchain install nightly --profile minimal
-      - uses: taiki-e/install-action@1e29709c0ec63babbe8f266397a465f29a825f91 # v2.87.31
+      - uses: taiki-e/install-action@5488ac5a951645ce95062214902ac4b6bc1a1037 # v2.87.32
         if: steps.targets.outputs.targets != ''
         with:
           tool: cargo-fuzz@0.13.2
@@ -108,7 +108,7 @@ jobs:
           persist-credentials: false
       - name: Rust toolchain
         run: rustup toolchain install && rustup show
-      - uses: taiki-e/install-action@1e29709c0ec63babbe8f266397a465f29a825f91 # v2.87.31
+      - uses: taiki-e/install-action@5488ac5a951645ce95062214902ac4b6bc1a1037 # v2.87.32
         with:
           tool: cargo-nextest@0.9.149
       - run: cargo nextest run --workspace --profile ci --locked --no-tests=pass
@@ -130,7 +130,7 @@ jobs:
           persist-credentials: false
       - name: Rust toolchain
         run: rustup toolchain install && rustup show
-      - uses: taiki-e/install-action@1e29709c0ec63babbe8f266397a465f29a825f91 # v2.87.31
+      - uses: taiki-e/install-action@5488ac5a951645ce95062214902ac4b6bc1a1037 # v2.87.32
         with:
           tool: cargo-nextest@0.9.149
       - run: cargo nextest run --workspace --profile ci --locked --no-tests=pass -E 'binary(/^fs_serial/)' --stress-duration 30m
@@ -151,7 +151,7 @@ jobs:
           persist-credentials: false
       - name: Rust toolchain
         run: rustup toolchain install && rustup show
-      - uses: taiki-e/install-action@1e29709c0ec63babbe8f266397a465f29a825f91 # v2.87.31
+      - uses: taiki-e/install-action@5488ac5a951645ce95062214902ac4b6bc1a1037 # v2.87.32
         with:
           tool: cargo-nextest@0.9.149
       # The engine is killed at 30 seeded random points, three times with
@@ -219,7 +219,7 @@ jobs:
           persist-credentials: false
       - name: Rust toolchain
         run: rustup toolchain install && rustup show
-      - uses: taiki-e/install-action@1e29709c0ec63babbe8f266397a465f29a825f91 # v2.87.31
+      - uses: taiki-e/install-action@5488ac5a951645ce95062214902ac4b6bc1a1037 # v2.87.32
         with:
           tool: cargo-nextest@0.9.149
       # The hosted runner is elevated and has diskpart; the test skips itself
@@ -264,7 +264,7 @@ jobs:
       - name: Beta toolchain
         run: rustup toolchain install beta --profile minimal --component clippy
       - run: cargo +beta clippy --workspace --all-targets --all-features --locked
-      - uses: taiki-e/install-action@1e29709c0ec63babbe8f266397a465f29a825f91 # v2.87.31
+      - uses: taiki-e/install-action@5488ac5a951645ce95062214902ac4b6bc1a1037 # v2.87.32
         with:
           tool: cargo-nextest@0.9.149
       - run: cargo +beta nextest run --workspace --profile ci --locked --no-tests=pass
@@ -283,7 +283,7 @@ jobs:
           persist-credentials: false
       - name: Rust toolchain
         run: rustup toolchain install && rustup show
-      - uses: taiki-e/install-action@1e29709c0ec63babbe8f266397a465f29a825f91 # v2.87.31
+      - uses: taiki-e/install-action@5488ac5a951645ce95062214902ac4b6bc1a1037 # v2.87.32
         with:
           tool: cargo-nextest@0.9.149
       - run: cargo update
@@ -308,7 +308,7 @@ jobs:
           persist-credentials: false
       - name: Rust toolchain
         run: rustup toolchain install && rustup show
-      - uses: taiki-e/install-action@1e29709c0ec63babbe8f266397a465f29a825f91 # v2.87.31
+      - uses: taiki-e/install-action@5488ac5a951645ce95062214902ac4b6bc1a1037 # v2.87.32
         with:
           tool: cargo-nextest@0.9.149,cargo-mutants@27.1.0
       - name: Mutants shard
@@ -353,7 +353,7 @@ jobs:
           persist-credentials: false
       - name: Rust toolchain
         run: rustup toolchain install && rustup show
-      - uses: taiki-e/install-action@1e29709c0ec63babbe8f266397a465f29a825f91 # v2.87.31
+      - uses: taiki-e/install-action@5488ac5a951645ce95062214902ac4b6bc1a1037 # v2.87.32
         with:
           tool: cargo-nextest@0.9.149,cargo-mutants@27.1.0
       - run: cargo mutants --no-shuffle -p peekbuddy-core --test-tool nextest
@@ -492,7 +492,7 @@ jobs:
           persist-credentials: false
       - name: Rust toolchain
         run: rustup toolchain install && rustup show
-      - uses: taiki-e/install-action@1e29709c0ec63babbe8f266397a465f29a825f91 # v2.87.31
+      - uses: taiki-e/install-action@5488ac5a951645ce95062214902ac4b6bc1a1037 # v2.87.32
         with:
           tool: cargo-nextest@0.9.149
       - name: Zero-loss tier
