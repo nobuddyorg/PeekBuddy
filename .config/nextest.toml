@@ -20,6 +20,12 @@ test-group = "fs-serial"
 filter = "binary(fs_serial_zero_loss) | binary(fs_serial_kill)"
 slow-timeout = { period = "60s", terminate-after = 5 }
 
+# The nightly zero-loss tier (#277) runs a million events, five forced
+# overflows and a kill in a burst; each is one test, up to 30 minutes.
+[[profile.default.overrides]]
+filter = "binary(fs_serial_zero_loss) & (test(a_million_events) | test(a_forced_overflow_burst) | test(a_kill_in_the_middle_of_a_burst) | test(a_watched_root_deleted))"
+slow-timeout = { period = "300s", terminate-after = 6 }
+
 # The 10-million-event deriver test (nightly only, #41) needs about three
 # minutes in a debug build.
 [[profile.default.overrides]]

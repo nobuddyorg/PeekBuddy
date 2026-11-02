@@ -266,3 +266,35 @@ fn a_renamed_file_logs_both_names() {
     wait_for(&started.rows, "new.txt", Kind::RenamedTo);
     assert!(started.runner.stop().is_none());
 }
+
+/// The child of the next test: runs under a restricted token (no privileges,
+/// `Administrators` deny-only), so the unprivileged journal read has nothing
+/// to fall back on.
+#[test]
+#[ignore = "run as the child of `an_unelevated_process_reads_the_journal_too`"]
+fn child_reads_the_journal_without_elevation() {
+    assert!(
+        !peekbuddy_win::token::is_admin().unwrap(),
+        "the child is an administrator"
+    );
+    files_created_under_the_root_arrive_with_names_relative_to_it();
+    a_renamed_file_logs_both_names();
+}
+
+/// The hosted runners are elevated; a user's process is not. The runner is
+/// exercised the way a user's engine would be (#277).
+#[test]
+fn an_unelevated_process_reads_the_journal_too() {
+    let exe = std::env::current_exe().unwrap();
+    let code = peekbuddy_win::token::run_restricted(
+        &exe,
+        &[
+            "--ignored",
+            "--exact",
+            "child_reads_the_journal_without_elevation",
+        ],
+        Duration::from_secs(180),
+    )
+    .unwrap();
+    assert_eq!(code, 0, "the unelevated child failed");
+}
