@@ -100,6 +100,30 @@ impl Catalog {
         Self::from_connection(Connection::open(path)?)
     }
 
+    /// The catalog for a reader: opened read-only and left as it is (no
+    /// pragmas, no schema statement, no `user_version` write), which is what
+    /// makes a page of the viewer cost milliseconds less and keeps it out of
+    /// the writer's way. A catalog that does not exist yet is created, empty,
+    /// as [`Catalog::open`] does.
+    ///
+    /// # Errors
+    ///
+    /// SQLite's error, or [`CatalogError::TooNew`].
+    pub fn open_for_reading(path: &Path) -> Result<Self, CatalogError> {
+        let Ok(conn) = Connection::open_with_flags(path, OpenFlags::SQLITE_OPEN_READ_ONLY) else {
+            return Self::open(path);
+        };
+        let version: i64 = conn.query_row("PRAGMA user_version", [], |row| row.get(0))?;
+        if version > CATALOG_VERSION {
+            return Err(CatalogError::TooNew(version));
+        }
+        if version < CATALOG_VERSION {
+            // Written by an older build: the writer's open brings it forward.
+            return Self::open(path);
+        }
+        Ok(Self { conn })
+    }
+
     /// A catalog in memory, for tests.
     ///
     /// # Errors

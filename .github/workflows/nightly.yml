@@ -426,6 +426,7 @@ jobs:
             target/bench-trend/report.md
           if-no-files-found: ignore
 
+<<<<<<< HEAD
   zero-loss:
     # The zero-loss tier at nightly scale (#277, #17): a million events from
     # eight writers, forced overflows, a kill in a burst and a deleted root.
@@ -439,12 +440,24 @@ jobs:
         runner: [windows-2025, windows-11-vs2026-arm]
     permissions:
       contents: read
+=======
+  query-bench:
+    # The query layer at the scale of the budgets (#267): a keyset page, a
+    # trigram lookup and a subtree filter at 10M rows, a regex post-filter and
+    # the first filtered rows at 1M rows. The store is built by the bench itself.
+    name: query bench (windows x64)
+    runs-on: windows-2025
+    timeout-minutes: 90
+    permissions:
+      contents: write # github-action-benchmark pushes the data to gh-pages
+>>>>>>> origin/main
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
       - name: Rust toolchain
         run: rustup toolchain install && rustup show
+<<<<<<< HEAD
       - uses: taiki-e/install-action@1e29709c0ec63babbe8f266397a465f29a825f91 # v2.87.31
         with:
           tool: cargo-nextest@0.9.149
@@ -461,12 +474,48 @@ jobs:
         with:
           name: zero-loss-${{ matrix.runner }}
           path: target/zero-loss/zero-loss-results.json
+=======
+      - name: 1M rows
+        run: cargo bench --locked -p benches --bench query -- --sample-size 10
+        env:
+          PEEKBUDDY_QUERY_ROWS: "1000000"
+      - name: 10M rows
+        run: cargo bench --locked -p benches --bench query -- --sample-size 20
+        env:
+          PEEKBUDDY_QUERY_ROWS: "10000000"
+      - name: Medians and budget warnings
+        shell: pwsh
+        run: ./scripts/ci/query-bench-report.ps1
+      - name: Publish to gh-pages
+        if: github.event_name == 'schedule'
+        uses: benchmark-action/github-action-benchmark@4322e5726e6334590d251fc4f92bec0efafc45dc # v1.22.2
+        with:
+          name: query benches (windows-2025)
+          tool: customSmallerIsBetter
+          output-file-path: target/query-bench/output.json
+          gh-pages-branch: gh-pages
+          benchmark-data-dir-path: dev/bench
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          auto-push: true
+          alert-threshold: "125%"
+          comment-on-alert: false
+          fail-on-alert: true
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: query-bench
+          path: target/query-bench/output.json
+>>>>>>> origin/main
           if-no-files-found: ignore
 
   report:
     name: report
     if: always() && github.event_name == 'schedule'
+<<<<<<< HEAD
     needs: [miri, fuzz, proptest-long, stress, soak, vhd, beta, fresh-deps, mutants, mutants-core-linux, bench-trend, zero-loss]
+=======
+    needs: [miri, fuzz, proptest-long, stress, soak, vhd, beta, fresh-deps, mutants, mutants-core-linux, bench-trend, query-bench]
+>>>>>>> origin/main
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
