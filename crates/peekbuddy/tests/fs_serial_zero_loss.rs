@@ -20,11 +20,14 @@ use peekbuddy_win::suspend::suspend_process;
 mod engine;
 #[path = "support/judge.rs"]
 mod judge;
+#[path = "support/spill.rs"]
+mod spill;
 #[path = "support/tree.rs"]
 mod tree;
 
 use engine::{quit, spawn, wait_for_window, wait_until_settled};
 use judge::{Run, judge};
+use spill::drain_spill;
 use tree::tree_diff;
 
 /// Starts the engine on a tree, runs the churn, lets the log settle and stops
@@ -73,6 +76,7 @@ fn churn_under_the_engine(
     drop(frozen);
     wait_until_settled(&data, Duration::from_secs(5));
     quit(window, &mut engine.0);
+    drain_spill(&data);
     (Run { data, root }, outcome)
 }
 
@@ -273,6 +277,7 @@ fn a_kill_in_the_middle_of_a_burst_is_closed_by_the_restart() {
     assert_eq!(outcome.failures(), 0, "the churn itself failed");
     wait_until_settled(&data, Duration::from_secs(8));
     quit(window, &mut engine.0);
+    drain_spill(&data);
     verdict_with("kill-in-a-burst", &Run { data, root }, &outcome, true);
 }
 

@@ -46,12 +46,17 @@ pub fn logged_tree(run: &Run) -> std::collections::BTreeSet<String> {
             }
             Kind::RenamedTo | Kind::ReconciledRenamed => {
                 let old = if row.kind == Kind::RenamedTo {
-                    let parent = |entry: &str| entry.rsplit_once('\\').map(|(head, _)| head.to_owned());
+                    let parent =
+                        |entry: &str| entry.rsplit_once('\\').map(|(head, _)| head.to_owned());
                     let own = pending_old
                         .iter()
                         .position(|candidate| parent(candidate) == parent(&path));
-                    own.or(if pending_old.is_empty() { None } else { Some(0) })
-                        .map(|at| pending_old.remove(at))
+                    own.or(if pending_old.is_empty() {
+                        None
+                    } else {
+                        Some(0)
+                    })
+                    .map(|at| pending_old.remove(at))
                 } else {
                     relative(&row.old_path, &root).map(|units| lower(&units))
                 };
