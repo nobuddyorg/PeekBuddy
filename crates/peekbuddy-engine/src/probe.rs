@@ -404,5 +404,7 @@ mod tests {
     #[test]
     fn strings_are_escaped() {
         assert_eq!(escape("a\"b\\c\n"), "a\\\"b\\\\c\\u000a");
+        // The last control character is escaped, the space is not.
+        assert_eq!(escape("\u{1f} "), "\\u001f ");
     }
 }

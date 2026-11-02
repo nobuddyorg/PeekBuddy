@@ -55,3 +55,52 @@ fn kind_set_tags_are_ascending() {
     assert!(KindSet::ALL.is_all());
     assert!(!set.is_all());
 }
+
+fn row(id: i64) -> Row {
+    Row {
+        id,
+        ts: 0,
+        kind: Kind::Created,
+        source: Source::Rdcw,
+        raw_mask: 0,
+        is_dir: false,
+        size: None,
+        attrs: None,
+        reparse_tag: 0,
+        file_id: 0,
+        name: Vec::new(),
+        path: Vec::new(),
+        old_path: Vec::new(),
+        root: Vec::new(),
+        flags: 0,
+    }
+}
+
+#[test]
+fn a_page_names_its_newest_and_oldest_rows() {
+    let empty = Page::default();
+    assert_eq!((empty.newest_id(), empty.oldest_id()), (None, None));
+    let one = Page {
+        rows: vec![row(7)],
+        ..Page::default()
+    };
+    assert_eq!((one.newest_id(), one.oldest_id()), (Some(7), Some(7)));
+    let three = Page {
+        rows: vec![row(30), row(20), row(10)],
+        ..Page::default()
+    };
+    assert_eq!((three.newest_id(), three.oldest_id()), (Some(30), Some(10)));
+}
+
+#[test]
+fn the_default_view_hides_cloud_churn_and_nothing_else() {
+    let view = Filter::default_view();
+    assert_eq!(view.hide, Flags::CLOUD_CHURN);
+    assert_ne!(view.hide, Flags::NONE);
+    assert!(!view.is_empty());
+    let unhidden = Filter {
+        hide: Flags::NONE,
+        ..view
+    };
+    assert!(unhidden.is_empty());
+}
