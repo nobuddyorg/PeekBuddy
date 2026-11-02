@@ -141,3 +141,24 @@ mod tests {
         assert!(!is_under(docs, Path::new("")));
     }
 }
+
+#[cfg(test)]
+mod fallback_tests {
+    use super::Fallback;
+
+    #[test]
+    fn each_fallback_says_why_the_marker_was_ignored() {
+        let protected = Fallback::ProtectedFolder.describe();
+        let writable = Fallback::NotWritable.describe();
+        assert!(
+            protected.starts_with("portable marker ignored: "),
+            "{protected}"
+        );
+        assert!(protected.contains("Program Files"), "{protected}");
+        assert!(
+            writable.starts_with("portable marker ignored: "),
+            "{writable}"
+        );
+        assert!(writable.contains("not writable"), "{writable}");
+    }
+}
