@@ -207,6 +207,15 @@ impl Shared {
 }
 
 /// The backend: a thread and its roots. Dropping it stops and joins.
+///
+/// # Contract
+///
+/// Owns the capture thread, its completion port and, through the thread, every
+/// directory handle, buffer and pending call. Dropping the watcher stops and
+/// joins the thread; if the stop message cannot be queued the thread is left
+/// running, because it owns pending I/O that must not be freed under the
+/// kernel. The methods may be called from any thread; the sinks run on the
+/// capture thread only.
 #[derive(Debug)]
 pub struct Watcher {
     shared: Arc<Shared>,

@@ -49,6 +49,14 @@ pub struct SlotPtrs {
 }
 
 /// An OVERLAPPED and its buffer.
+///
+/// # Contract
+///
+/// Owns the `OVERLAPPED` and the DWORD-aligned buffer of one overlapped call,
+/// both at heap addresses that do not move while a call is pending.
+/// Dropping a slot with I/O pending leaks both on purpose: the kernel may still
+/// write into them. The slot is used by one thread at a time (`&mut self`); the
+/// capture thread of a root owns it.
 pub struct IoSlot {
     overlapped: Box<OVERLAPPED>,
     buffer: Box<[u32]>,

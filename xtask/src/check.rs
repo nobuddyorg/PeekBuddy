@@ -98,6 +98,11 @@ pub fn plan(host: Host) -> Vec<Step> {
         "cargo",
         &["xtask", "check-unsafe"],
     ));
+    steps.push(Step::new(
+        "check-contracts",
+        "cargo",
+        &["xtask", "check-contracts"],
+    ));
     steps.push(Step::new("check-deps", "cargo", &["xtask", "check-deps"]));
     steps.push(Step::new(
         "check-release",

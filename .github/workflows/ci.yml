@@ -105,6 +105,7 @@ jobs:
         run: cargo doc --workspace --no-deps --document-private-items --locked
       - run: cargo machete
       - run: cargo xtask check-unsafe
+      - run: cargo xtask check-contracts
       - run: cargo xtask check-deps
       - name: Benches compile (#26)
         run: cargo bench --no-run --workspace --locked

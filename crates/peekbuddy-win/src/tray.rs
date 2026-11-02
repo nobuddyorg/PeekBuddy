@@ -41,6 +41,13 @@ fn copy_units(text: &str, into: &mut [u16]) {
 }
 
 /// An icon created from pixels; destroyed on drop.
+///
+/// # Contract
+///
+/// Owns the `HICON` and destroys it on drop. An icon is a process-wide handle,
+/// not tied to a thread, so it may be moved and dropped on any thread; it must
+/// not be dropped while a notification-area entry or a window class still
+/// uses it. It is not `Sync`.
 #[derive(Debug)]
 pub struct Icon(HICON);
 
@@ -258,6 +265,12 @@ pub enum Entry {
 }
 
 /// A built popup menu; destroyed on drop (which also destroys submenus).
+///
+/// # Contract
+///
+/// Owns the `HMENU` and, with it, its submenus; dropping destroys them. A menu
+/// is shown and dropped on the thread of the window it belongs to: the value is
+/// neither `Send` nor `Sync`.
 #[derive(Debug)]
 pub struct Menu(HMENU);
 

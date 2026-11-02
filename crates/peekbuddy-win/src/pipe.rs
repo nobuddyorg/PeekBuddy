@@ -302,6 +302,14 @@ pub type Handler = dyn Fn(&Message, &mut Reply) + Send + Sync;
 
 /// The pipe server: a few instances, each served by its own thread, one
 /// client at a time.
+///
+/// # Contract
+///
+/// Owns the stop event and one thread per pipe instance. Dropping the server
+/// signals the stop event and joins every thread, so no handler runs after
+/// the drop returns. Handlers run concurrently on the server threads and must
+/// be `Send + Sync`; the server itself may be dropped from any thread, but not
+/// from inside a handler (it would join itself).
 pub struct PipeServer {
     stop: Arc<OwnedHandle>,
     threads: Vec<std::thread::JoinHandle<()>>,

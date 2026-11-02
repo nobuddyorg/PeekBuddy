@@ -7,6 +7,7 @@ mod bench_trend;
 mod budgets;
 mod check;
 mod churn;
+mod contracts;
 mod deps;
 mod dist;
 mod metadata;
@@ -28,6 +29,7 @@ commands:
   check          the local loop: fmt, prek, Linux tests, Windows clippy
   churn          run a churn profile and write its ledger (Windows) [--profile p] [--seed n] ...
   check-unsafe   every crate forbids unsafe code except the allow-list
+  check-contracts  public peekbuddy-win types that own a resource have a `# Contract` section
   check-deps     engine crates have no GPU or UI crates; nothing uses PDH
   check-release  no Tracy in the release feature set [--features f] [--exe path]
   dist-extras    third-party licences and CycloneDX SBOM for the release
@@ -47,6 +49,7 @@ fn main() -> ExitCode {
         Some("check") => check::run(),
         Some("churn") => churn::run(&rest),
         Some("check-unsafe") => unsafe_code::run(),
+        Some("check-contracts") => contracts::run(),
         Some("check-deps") => deps::run(),
         Some("check-release") => tracy::check_release(&rest),
         Some("dist-extras") => dist::run(),

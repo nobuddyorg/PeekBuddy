@@ -30,6 +30,12 @@ static REGISTERED: AtomicBool = AtomicBool::new(false);
 /// Keeps the provider registered; unregisters on drop, which covers every
 /// exit path that unwinds or returns from `main` (the engine also drops it
 /// explicitly on `WM_ENDSESSION`, #59).
+///
+/// # Contract
+///
+/// Owns the process-wide ETW provider registration. Only the guard that did the
+/// registering unregisters it, on drop; a guard created while another is alive
+/// owns nothing. It may be created, moved and dropped on any thread.
 #[derive(Debug)]
 pub struct Registration {
     owner: bool,

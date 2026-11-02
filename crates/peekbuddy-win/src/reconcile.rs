@@ -156,9 +156,17 @@ impl DirSource for DirLister {
 
 /// The calling thread in background mode (low I/O and memory priority) until
 /// dropped.
+///
+/// # Contract
+///
+/// Affects the thread that created it and ends when it is dropped, on that
+/// same thread: the guard is neither `Send` nor `Sync`. If the OS refused,
+/// it owns nothing and dropping does nothing.
 #[derive(Debug)]
 pub struct BackgroundMode {
     active: bool,
+    /// The mode belongs to the thread: a raw pointer keeps the guard `!Send`.
+    _thread: std::marker::PhantomData<*const ()>,
 }
 
 impl BackgroundMode {
@@ -170,7 +178,10 @@ impl BackgroundMode {
         let thread = unsafe { GetCurrentThread() };
         // SAFETY: the pseudo-handle is valid for the call.
         let ok = unsafe { SetThreadPriority(thread, THREAD_MODE_BACKGROUND_BEGIN) };
-        Self { active: ok != 0 }
+        Self {
+            active: ok != 0,
+            _thread: std::marker::PhantomData,
+        }
     }
 
     /// Whether the thread is in background mode.
