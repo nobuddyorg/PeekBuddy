@@ -360,3 +360,67 @@ fn a_foreign_completion_or_an_idle_slot_is_refused_by_finish() {
         Err(error) if error.kind() == io::ErrorKind::InvalidInput
     ));
 }
+
+#[test]
+fn a_journal_remembers_the_volume_it_was_opened_on() {
+    let dir = Dir(std::env::temp_dir().join(format!("pb-usn-guid-{}", std::process::id())));
+    std::fs::create_dir_all(&dir.0).unwrap();
+    let guid = guid_path_of(&dir);
+    let journal = Journal::open(&guid, DEFAULT_BUFFER).unwrap();
+    assert_eq!(journal.guid_path(), guid.as_slice());
+}
+
+/// Waits until the handle count is `expected` again (threads and handles go
+/// a moment after a join returns).
+fn handles_settle_at(expected: u32) -> u32 {
+    use crate::metrics::{current_process, handle_count};
+
+    let deadline = Instant::now() + Duration::from_secs(5);
+    loop {
+        let now = handle_count(current_process()).unwrap();
+        if now == expected || Instant::now() >= deadline {
+            return now;
+        }
+        std::thread::sleep(Duration::from_millis(20));
+    }
+}
+
+#[test]
+fn stopping_or_dropping_the_synchronous_reader_gives_its_handles_back() {
+    use crate::metrics::{current_process, handle_count};
+
+    let dir = Dir(std::env::temp_dir().join(format!("pb-usn-handles-{}", std::process::id())));
+    std::fs::create_dir_all(&dir.0).unwrap();
+    let Some((_, data)) = journal_of(&dir).unwrap() else {
+        return;
+    };
+    let guid = guid_path_of(&dir);
+    let iocp = std::sync::Arc::new(Iocp::new(1).unwrap());
+    let spawn = || {
+        SyncReader::spawn(
+            &guid,
+            DEFAULT_BUFFER,
+            data.journal_id,
+            data.next_usn,
+            std::sync::Arc::clone(&iocp),
+            1,
+        )
+        .unwrap()
+    };
+    // The first one warms up whatever is opened lazily.
+    drop(spawn());
+    std::thread::sleep(Duration::from_millis(300));
+    let baseline = handle_count(current_process()).unwrap();
+
+    let mut stopped = spawn();
+    std::thread::sleep(Duration::from_millis(100));
+    assert!(handle_count(current_process()).unwrap() > baseline);
+    stopped.stop();
+    assert_eq!(handles_settle_at(baseline), baseline, "after stop");
+
+    let dropped = spawn();
+    std::thread::sleep(Duration::from_millis(100));
+    assert!(handle_count(current_process()).unwrap() > baseline);
+    drop(dropped);
+    assert_eq!(handles_settle_at(baseline), baseline, "after drop");
+}
