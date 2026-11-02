@@ -216,3 +216,17 @@ fn a_source_without_reasons_is_not_churn_unless_the_attributes_flip() {
     // No reason, but the sync-state bits flipped.
     assert!(classify(&change(CLOUD, 0, 0, PLAIN, PLAIN | attr::PINNED)).is_some());
 }
+
+#[test]
+fn a_replicated_change_without_a_state_reason_is_not_churn() {
+    // The sync client wrote it, but nothing says what: not a data write and
+    // not a state-only reason, and the attributes did not flip.
+    let c = change(
+        CLOUD,
+        reason::EA_CHANGE,
+        SOURCE_CLIENT_REPLICATION_MANAGEMENT,
+        PLAIN,
+        PLAIN,
+    );
+    assert_eq!(classify(&c), None);
+}

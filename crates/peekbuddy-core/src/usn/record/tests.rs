@@ -245,3 +245,16 @@ fn decode_errors_say_what_is_wrong() {
         "name outside the record at offset 24"
     );
 }
+
+#[test]
+fn a_record_that_is_exactly_the_fixed_size_decodes() {
+    for (major, fixed) in [(2_u16, V2_FIXED), (3, V3_FIXED)] {
+        let mut bytes = record(&spec(major, 0x42, ""));
+        bytes[..4].copy_from_slice(&u32::try_from(fixed).unwrap().to_le_bytes());
+        let buf = buffer(1, &[bytes]);
+        let (recs, error) = decode(&buf);
+        assert_eq!(error, None, "version {major}");
+        assert_eq!(recs.len(), 1, "version {major}");
+        assert_eq!(recs[0].frn, 0x42, "version {major}");
+    }
+}

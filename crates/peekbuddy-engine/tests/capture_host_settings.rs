@@ -164,3 +164,40 @@ fn canonical_forms_are_given_for_existing_directories_only() {
     let text = String::from_utf16_lossy(&forms[0]).to_lowercase();
     assert!(text.ends_with(&format!("pb-host-canonical-{}", std::process::id())));
 }
+
+#[test]
+fn presets_are_found_by_name_and_keep_their_scope() {
+    let settings = Settings {
+        filters: Filters {
+            presets: vec![String::from("thumbs-desktop")],
+            ..Filters::default()
+        },
+        watches: vec![
+            Watch {
+                presets: vec![String::from("temp-lock-swap")],
+                ..watch(r"C:\one")
+            },
+            watch(r"C:\two"),
+        ],
+        ..Settings::default()
+    };
+    let set = filters_from_settings(&settings).unwrap();
+    // Two rules of the global preset and three of the watch's; a preset that
+    // is not named adds nothing.
+    let all = peekbuddy_core::filter::presets::all().unwrap();
+    let rules_of = |name: &str| {
+        all.iter()
+            .find(|preset| preset.name == name)
+            .map_or(0, |preset| {
+                preset.rules(peekbuddy_core::filter::Scope::Global).len()
+            })
+    };
+    assert_eq!(
+        set.rule_count(),
+        rules_of("thumbs-desktop") + rules_of("temp-lock-swap")
+    );
+    assert!(dropped(&set, 0, "Thumbs.db"));
+    assert!(dropped(&set, 1, "Thumbs.db"));
+    assert!(dropped(&set, 0, "a.tmp"));
+    assert!(!dropped(&set, 1, "a.tmp"));
+}
