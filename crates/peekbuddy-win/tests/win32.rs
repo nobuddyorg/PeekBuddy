@@ -87,3 +87,50 @@ fn child_reports_its_token() {
     };
     std::process::exit(code);
 }
+
+#[test]
+fn a_low_integrity_child_reports_its_exit_code() {
+    use peekbuddy_win::process::run_low_integrity;
+
+    assert_eq!(run_low_integrity("cmd.exe /d /c exit 3").unwrap(), 3);
+    assert_eq!(run_low_integrity("cmd.exe /d /c exit 0").unwrap(), 0);
+    assert!(run_low_integrity("this-program-does-not-exist.exe").is_err());
+}
+
+#[test]
+fn the_modules_of_a_process_are_listed_by_base_name() {
+    use peekbuddy_win::process::module_names;
+
+    let names = module_names(std::process::id()).unwrap();
+    let exe = std::env::current_exe().unwrap();
+    let exe_name = exe.file_name().unwrap().to_string_lossy().to_lowercase();
+    // The exe itself comes first, then the system libraries every process has.
+    assert_eq!(names.first(), Some(&exe_name), "{names:?}");
+    for system in ["ntdll.dll", "kernel32.dll", "kernelbase.dll"] {
+        assert!(
+            names.iter().any(|name| name == system),
+            "{system} in {names:?}"
+        );
+    }
+    assert!(names.len() >= 4 && names.len() <= 1024, "{}", names.len());
+    assert!(
+        names
+            .iter()
+            .all(|name| !name.is_empty() && name == &name.to_lowercase() && !name.contains('\\')),
+        "{names:?}"
+    );
+    // A process that does not exist cannot be opened.
+    assert!(module_names(u32::MAX - 1).is_err());
+}
+
+#[test]
+fn another_user_with_a_wrong_password_is_an_error() {
+    use peekbuddy_win::process::run_as_user;
+
+    let result = run_as_user(
+        "PeekBuddyNoSuchUser",
+        "not a password",
+        "cmd.exe /d /c exit 0",
+    );
+    assert!(result.is_err(), "{result:?}");
+}
