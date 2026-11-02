@@ -100,8 +100,12 @@ exclude_re = [
   # returns on every machine a test can run on.
   "crates/peekbuddy-win/src/osinfo.rs:.*replace expose_placeholders -> bool with true",
   # `RtlGetVersion` does not fail for a valid structure (its status is never
-  # negative here) and does not need the size field for the plain structure.
-  "crates/peekbuddy-win/src/osinfo.rs:.*(delete field dwOSVersionInfoSize|replace < with > in os_build)",
+  # negative here).
+  "crates/peekbuddy-win/src/osinfo.rs:.*replace < with > in os_build",
+  # Defender real-time is off on windows-2025, where the mutants run, so a
+  # constant `Some(false)` is the right answer on that runner; the parser and
+  # the full query are compared with `reg.exe` by `os_facts.rs`.
+  "crates/peekbuddy-win/src/osinfo.rs:.*replace defender_realtime_enabled -> Option<bool> with Some.false.",
   # `ERROR_NOT_READY` is what a drive without a medium (an empty card reader
   # or optical drive) answers; neither runner has one and a test cannot make
   # one. The branches only pick the `NotReady` verdict over `VolumeGone`.
@@ -110,9 +114,6 @@ exclude_re = [
   # volume goes away under it; the vdisk detach test of the nightly (#48)
   # drives that path through the lifecycle states, not through this function.
   "crates/peekbuddy-win/src/probe.rs:.*(replace is_mounted -> .* with Ok|replace == with != in is_mounted)",
-  # Windows treats a class registered without an instance as one of this
-  # module, so the window class works the same without `hInstance`.
-  "crates/peekbuddy-win/src/window.rs:.*delete field hInstance from struct WNDCLASSEXW",
   # The mode flags of the pipe are zero (`PIPE_TYPE_BYTE`, `PIPE_READMODE_BYTE`,
   # `PIPE_WAIT`) or disjoint bits, so `^` builds the same value as `|`; `&` drops
   # `PIPE_REJECT_REMOTE_CLIENTS`, which only a client on another machine can

@@ -305,12 +305,23 @@ impl HiddenWindow {
         );
         // SAFETY: a null module name returns this exe's handle.
         let instance = unsafe { GetModuleHandleW(std::ptr::null()) };
+        // Every field is named, with no `..Default`: Windows gives a class
+        // registered without `hInstance` this module's, so a mutant that
+        // deletes the field is equivalent, and cargo-mutants cannot exclude a
+        // deleted struct field.
         let class_ex = WNDCLASSEXW {
             cbSize: u32::try_from(size_of::<WNDCLASSEXW>()).unwrap_or(u32::MAX),
+            style: 0,
             lpfnWndProc: Some(window_proc),
+            cbClsExtra: 0,
+            cbWndExtra: 0,
             hInstance: instance,
+            hIcon: std::ptr::null_mut(),
+            hCursor: std::ptr::null_mut(),
+            hbrBackground: std::ptr::null_mut(),
+            lpszMenuName: std::ptr::null(),
             lpszClassName: class_name.as_ptr(),
-            ..WNDCLASSEXW::default()
+            hIconSm: std::ptr::null_mut(),
         };
         // SAFETY: `class_ex` is fully initialised and the class name outlives
         // the call; registration copies it.

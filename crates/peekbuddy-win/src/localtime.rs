@@ -48,6 +48,31 @@ mod tests {
     }
 
     #[test]
+    fn a_time_the_system_cannot_convert_is_the_first_day_of_the_epoch() {
+        assert_eq!(local_day(u64::MAX), (1601, 1, 1));
+    }
+
+    #[test]
+    fn the_day_changes_on_a_whole_minute_so_both_halves_of_the_ticks_count() {
+        // Local midnight is a whole number of minutes from UTC midnight, so the
+        // first tick of a local day is a multiple of 600 million ticks; a
+        // function that drops or garbles the low 32 bits finds another tick.
+        let start = NOON_UTC;
+        let first = local_day(start);
+        let (mut low, mut high) = (start, start + 2 * 24 * 36_000_000_000);
+        assert_ne!(local_day(high), first);
+        while high - low > 1 {
+            let middle = low + (high - low) / 2;
+            if local_day(middle) == first {
+                low = middle;
+            } else {
+                high = middle;
+            }
+        }
+        assert_eq!(high % 600_000_000, 0, "{high}");
+    }
+
+    #[test]
     fn a_day_later_is_the_next_day() {
         let a = local_day(NOON_UTC);
         let b = local_day(NOON_UTC + 24 * 36_000_000_000);

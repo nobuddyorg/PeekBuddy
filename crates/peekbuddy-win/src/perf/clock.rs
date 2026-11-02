@@ -45,10 +45,12 @@ mod tests {
     #[test]
     fn is_positive_and_monotonic() {
         let first = since_process_create_us();
-        std::thread::sleep(std::time::Duration::from_millis(5));
+        std::thread::sleep(std::time::Duration::from_millis(20));
         let second = since_process_create_us();
         assert!(first > 0);
-        assert!(second >= first + 4_000, "{first} -> {second}");
+        assert!(second >= first + 19_000, "{first} -> {second}");
+        // Microseconds, not tenths of them: 20 ms is not seconds.
+        assert!(second - first < 1_000_000, "{first} -> {second}");
         // A test process is not hours old.
         assert!(second < 3_600_000_000);
     }

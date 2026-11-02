@@ -125,3 +125,19 @@ pub fn final_path(dir: &DirHandle) -> io::Result<Vec<u16>> {
     buffer.truncate(len);
     Ok(buffer)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::nul_terminated;
+
+    #[test]
+    fn a_name_gets_one_terminator_and_may_not_hold_another() {
+        let units: Vec<u16> = "ab".encode_utf16().collect();
+        assert_eq!(nul_terminated(&units).unwrap(), [97, 98, 0]);
+        assert_eq!(nul_terminated(&[]).unwrap(), [0]);
+        assert_eq!(
+            nul_terminated(&[97, 0, 98]).unwrap_err().kind(),
+            std::io::ErrorKind::InvalidInput
+        );
+    }
+}

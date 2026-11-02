@@ -126,15 +126,19 @@ mod tests {
 
     #[test]
     fn writes_never_fail_with_or_without_a_listener() {
-        let _registration = register();
+        assert!(!super::is_registered());
+        let registration = register();
+        assert!(super::is_registered());
         // CI has no session listening; writes must be silent no-ops then.
-        let _ = super::milestones_enabled();
+        assert!(!super::milestones_enabled());
         super::milestone(
             peekbuddy_core::perf::Milestone::ProcessStart,
             peekbuddy_core::perf::Role::Engine,
             1,
         );
         super::counters(&peekbuddy_core::perf::CounterSnapshot::default());
+        drop(registration);
+        assert!(!super::is_registered());
     }
 
     #[test]
