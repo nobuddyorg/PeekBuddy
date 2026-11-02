@@ -12,8 +12,10 @@ pub const TRACY_GUI: &str = "0.14.1";
 /// The crate whose presence means Tracy code is linked.
 const TRACY_SYS: &str = "tracy-client-sys";
 
-/// Byte strings that only a Tracy-enabled binary contains.
-pub const MARKERS: &[&[u8]] = &[b"___tracy", b"Tracy"];
+/// Byte strings that only a Tracy-enabled binary contains, and the name of
+/// the environment variable of the perf harness's deliberate regressions
+/// (#269), which only a build with the `inject` feature contains.
+pub const MARKERS: &[&[u8]] = &[b"___tracy", b"Tracy", b"PEEKBUDDY_INJECT"];
 
 /// `cargo xtask check-release [--features <list>] [--exe <path>]`.
 ///

@@ -124,6 +124,7 @@ mod tests {
             limit,
             class: "deterministic".to_owned(),
             gate: gate.to_owned(),
+            scenario: "size".to_owned(),
             status: "provisional".to_owned(),
             source: String::new(),
             workload: String::new(),

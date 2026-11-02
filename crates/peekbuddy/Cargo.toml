@@ -16,6 +16,8 @@ ignored = ["tracy-client-sys"]
 [features]
 # Forwards the engine's crash trigger for the integration tests (#59).
 test-panic = ["peekbuddy-engine/test-panic"]
+# Forwards the engine's deliberate regressions for the perf harness (#269).
+inject = ["peekbuddy-engine/inject"]
 # Tracy profiling (#22). Never enabled in release builds; CI checks that
 # the release feature set has no Tracy code.
 profile-tracy = [

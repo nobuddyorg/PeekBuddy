@@ -133,10 +133,14 @@ pub fn handle(ctx: &Shared, message: &Message, reply: &mut Reply) {
             reply.send(&apply_settings(ctx, toml));
         }
         Message::Command(Command::PauseAll) => {
+            #[cfg(feature = "inject")]
+            crate::inject::leak_handle();
             ctx.pause.pause_all();
             reply.send(&command_result(true, "paused"));
         }
         Message::Command(Command::ResumeAll) => {
+            #[cfg(feature = "inject")]
+            crate::inject::leak_handle();
             ctx.pause.resume_all();
             reply.send(&command_result(true, "resumed"));
         }

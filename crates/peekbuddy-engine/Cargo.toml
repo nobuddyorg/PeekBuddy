@@ -13,6 +13,9 @@ publish.workspace = true
 usn = ["peekbuddy-win/usn"]
 # Compiles the --test-panic crash trigger (#59). Never enabled in releases.
 test-panic = []
+# Compiles the deliberate regressions of the perf harness self-check (#269).
+# Never enabled in releases.
+inject = []
 
 [dependencies]
 peekbuddy-core = { workspace = true }

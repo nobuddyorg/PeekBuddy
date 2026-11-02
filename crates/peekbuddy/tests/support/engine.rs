@@ -26,9 +26,16 @@ impl Drop for Kill {
     }
 }
 
+/// The exe to run: `PEEKBUDDY_PERF_EXE` when the perf harness measures another
+/// build (a base exe for the A/B, a build with a deliberate regression), else
+/// the one of this workspace.
+pub fn exe() -> std::path::PathBuf {
+    std::env::var_os("PEEKBUDDY_PERF_EXE").map_or_else(|| std::path::PathBuf::from(EXE), Into::into)
+}
+
 pub fn spawn(data: &Path) -> Kill {
     Kill(
-        Command::new(EXE)
+        Command::new(exe())
             .args(["--headless", "--data-dir"])
             .arg(data)
             .stdin(Stdio::null())
