@@ -282,19 +282,16 @@ fn child_reads_the_journal_without_elevation() {
 }
 
 /// The hosted runners are elevated; a user's process is not. The runner is
-/// exercised the way a user's engine would be (#277).
+/// exercised the way a user's engine would be (#277): the test binary runs
+/// itself under a token without the `Administrators` group and at medium
+/// integrity (`process::run_restricted`).
 #[test]
 fn an_unelevated_process_reads_the_journal_too() {
     let exe = std::env::current_exe().unwrap();
-    let code = peekbuddy_win::token::run_restricted(
-        &exe,
-        &[
-            "--ignored",
-            "--exact",
-            "child_reads_the_journal_without_elevation",
-        ],
-        Duration::from_secs(180),
-    )
-    .unwrap();
+    let command = format!(
+        "\"{}\" --ignored --exact child_reads_the_journal_without_elevation",
+        exe.display()
+    );
+    let code = peekbuddy_win::process::run_restricted(&command).unwrap();
     assert_eq!(code, 0, "the unelevated child failed");
 }
