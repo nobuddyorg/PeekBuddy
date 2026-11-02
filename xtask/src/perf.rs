@@ -524,8 +524,8 @@ mod launch {
         } else {
             let shown = format!(
                 "{}{}",
-                String::from_utf8_lossy(&output.stdout),
-                String::from_utf8_lossy(&output.stderr)
+                String::from_utf8_lossy(&output.stderr),
+                String::from_utf8_lossy(&output.stdout)
             );
             let tail: String = shown
                 .chars()
