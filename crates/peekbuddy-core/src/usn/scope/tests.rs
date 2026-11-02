@@ -320,3 +320,35 @@ fn a_change_to_a_directory_without_a_name_keeps_the_name_it_has() {
     assert_eq!(path(&below), "a");
     assert!(!below.path_partial);
 }
+
+#[test]
+fn a_cycle_of_parents_ends_in_none_within_the_depth_bound() {
+    use std::sync::mpsc;
+    use std::time::Duration;
+
+    let mut scope = Scope::new(ROOT);
+    // Two directories that are each other's parent, not reachable from the
+    // root: the walk up must stop at the depth bound, not run forever.
+    scope.dirs.insert(
+        101,
+        Dir {
+            parent: 102,
+            name: units("a"),
+        },
+    );
+    scope.dirs.insert(
+        102,
+        Dir {
+            parent: 101,
+            name: units("b"),
+        },
+    );
+    let (tx, rx) = mpsc::channel();
+    std::thread::spawn(move || {
+        let mut path = Vec::new();
+        let _ = tx.send(scope.path_into(101, &mut path));
+    });
+    // A hang is a failure here, not a stuck test run.
+    let answer = rx.recv_timeout(Duration::from_secs(10));
+    assert_eq!(answer, Ok(None));
+}
