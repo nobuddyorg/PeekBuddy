@@ -159,8 +159,20 @@ fn report(name: &str, ops: usize, verdict: &judge::Verdict, tree_differences: us
 
 /// Asserts the things every nightly run owes and reports the numbers.
 fn nightly_verdict(name: &str, run: &Run, outcome: &peekbuddy_churn::exec::Outcome) {
+    verdict_with(name, run, outcome, false);
+}
+
+/// `kill`: a run that lost the engine. The snapshot of the reconcile is kept
+/// by the walks only (docs/explanation/reconcile.md), so a path the live
+/// stream logged and the gap then deleted is not reported as deleted: the log
+/// may hold such paths, but must hold every path that is on the disk.
+fn verdict_with(name: &str, run: &Run, outcome: &peekbuddy_churn::exec::Outcome, kill: bool) {
     let verdict = judge(run, outcome);
-    let diff = tree_diff(run, 20);
+    let mut diff = tree_diff(run, if kill { usize::MAX } else { 20 });
+    if kill {
+        diff.retain(|line| line.starts_with("+ "));
+        diff.truncate(20);
+    }
     report(name, outcome.records.len(), &verdict, diff.len());
     assert_eq!(verdict.report.malformed, Vec::<u64>::new(), "{name}");
     assert_eq!(
@@ -261,7 +273,7 @@ fn a_kill_in_the_middle_of_a_burst_is_closed_by_the_restart() {
     assert_eq!(outcome.failures(), 0, "the churn itself failed");
     wait_until_settled(&data, Duration::from_secs(8));
     quit(window, &mut engine.0);
-    nightly_verdict("kill-in-a-burst", &Run { data, root }, &outcome);
+    verdict_with("kill-in-a-burst", &Run { data, root }, &outcome, true);
 }
 
 /// The watched root is deleted and made again: the watch is lost, then

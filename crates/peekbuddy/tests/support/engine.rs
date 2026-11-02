@@ -57,7 +57,8 @@ pub fn wait_for_window(data: &Path, child: &mut Child) -> WindowHandle {
 
 pub fn quit(window: WindowHandle, child: &mut Child) {
     window.post_close().unwrap();
-    let deadline = Instant::now() + Duration::from_secs(30);
+    // Closing flushes the rows of a burst to a disk a hosted runner shares.
+    let deadline = Instant::now() + Duration::from_secs(120);
     loop {
         if let Some(status) = child.try_wait().unwrap() {
             assert!(status.success(), "{status:?}");
