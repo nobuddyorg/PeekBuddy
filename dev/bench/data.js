@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1793612490144,
+  "lastUpdate": 1793612771093,
   "repoUrl": "https://github.com/nobuddyorg/PeekBuddy",
   "entries": {
     "benches (windows-2025)": [
@@ -254,6 +254,40 @@ window.BENCHMARK_DATA = {
           {
             "name": "durability.restart_to_ready.max",
             "value": 255,
+            "unit": "ms"
+          }
+        ]
+      }
+    ],
+    "kill soak (windows-2025)": [
+      {
+        "commit": {
+          "author": {
+            "name": "Matthias Eggert",
+            "username": "besessener",
+            "email": "8039350+besessener@users.noreply.github.com"
+          },
+          "committer": {
+            "name": "GitHub",
+            "username": "web-flow",
+            "email": "noreply@github.com"
+          },
+          "id": "d10cfdc4c1f9c66139f6ca0f2d8650f0045ee4b3",
+          "message": "test: record real traces, corpus and contracts (#287)\n\nCloses #270",
+          "timestamp": "2026-11-02T09:37:50Z",
+          "url": "https://github.com/nobuddyorg/PeekBuddy/commit/d10cfdc4c1f9c66139f6ca0f2d8650f0045ee4b3"
+        },
+        "date": 1793612768552,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "durability.restart_to_ready.p50",
+            "value": 51,
+            "unit": "ms"
+          },
+          {
+            "name": "durability.restart_to_ready.max",
+            "value": 353,
             "unit": "ms"
           }
         ]
