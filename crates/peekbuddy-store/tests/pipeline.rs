@@ -624,25 +624,23 @@ fn a_spill_of_small_records_is_replayed_in_a_few_commits() {
     };
     let pipeline = Pipeline::start(open_writer(&dirs.db()), config).unwrap();
     let producer = pipeline.producer();
-    // Sixty records of five events: far more than the ring holds.
-    for index in 0..60_u64 {
+    // Four hundred records of five events: the held writer takes up to a
+    // commit's 1000 events (200 records), the ring four more, the rest spills.
+    for index in 0..400_u64 {
         push_events(&producer, index * 5 + 1, 5);
     }
     // The spiller thread writes them while the writer is held.
     wait_until("the records to be spilled", || {
-        pipeline.stats().spilled_batches >= 40
+        pipeline.stats().spilled_batches >= 100
     });
     blocked.store(false, Ordering::Release);
     let flushed = pipeline.flush(Duration::from_secs(30)).unwrap();
-    assert_eq!(flushed.rows, 300);
-    // 300 events fit one commit of the policy (1000), so the replay of the
-    // spilled records takes a handful of commits, not one per record.
+    assert_eq!(flushed.rows, 2_000);
+    // The spilled records (at least a hundred) are replayed 1000 events to a
+    // commit, not one commit per record.
     let spilled = pipeline.stats().spilled_batches;
     let taken = commits.load(Ordering::Relaxed);
-    assert!(
-        taken + spilled / 2 < 60,
-        "{taken} commits for {spilled} spilled records"
-    );
+    assert!(taken < 30, "{taken} commits for {spilled} spilled records");
     drop(pipeline.close());
-    assert_eq!(stored_ts(&dirs.db()), (1..=300).collect::<Vec<_>>());
+    assert_eq!(stored_ts(&dirs.db()), (1..=2_000).collect::<Vec<_>>());
 }
