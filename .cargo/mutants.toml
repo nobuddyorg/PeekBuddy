@@ -102,4 +102,12 @@ exclude_re = [
   # `RtlGetVersion` does not fail for a valid structure (its status is never
   # negative here) and does not need the size field for the plain structure.
   "crates/peekbuddy-win/src/osinfo.rs:.*(delete field dwOSVersionInfoSize|replace < with > in os_build)",
+  # `ERROR_NOT_READY` is what a drive without a medium (an empty card reader
+  # or optical drive) answers; neither runner has one and a test cannot make
+  # one. The branches only pick the `NotReady` verdict over `VolumeGone`.
+  "crates/peekbuddy-win/src/probe.rs:.*(delete match arm ERROR_NOT_READY in probe_root|replace match guard code\\(&inner\\) == ERROR_NOT_READY with (true|false) in probe_root|replace == with != in probe_root)",
+  # `FSCTL_IS_VOLUME_MOUNTED` fails on a handle that is open only when the
+  # volume goes away under it; the vdisk detach test of the nightly (#48)
+  # drives that path through the lifecycle states, not through this function.
+  "crates/peekbuddy-win/src/probe.rs:.*(replace is_mounted -> .* with Ok|replace == with != in is_mounted)",
 ]
