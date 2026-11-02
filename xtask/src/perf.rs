@@ -25,8 +25,12 @@ const AB_WARN: f64 = 0.15;
 /// Fail when head is this much slower than base.
 const AB_FAIL: f64 = 0.50;
 
-const USAGE: &str = "usage: cargo xtask perf [--scenario startup|idle|memory|all] [--exe path] \
-[--runs n] [--warmup n] [--idle-secs n] [--ab <base-exe>] [--out file]";
+const USAGE: &str = "usage: cargo xtask perf [--scenario startup|idle|memory|ingest|handles|pr|all] \
+[--exe path] [--runs n] [--warmup n] [--idle-secs n] [--profile name]... [--ab <base-exe>] \
+[--expect-fail <row id>] [--out file]";
+
+/// The churn profiles of the ingest scenario, in the order they run.
+const INGEST_PROFILES: [&str; 3] = ["burst-100k", "sustained-20k", "latency-10k"];
 
 /// What to measure.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -34,16 +38,30 @@ enum Scenario {
     Startup,
     Idle,
     Memory,
+    /// The real exe under the churn profiles (#25, #269).
+    Ingest,
+    /// Pause and resume cycles over the pipe (#269).
+    Handles,
+    /// What every pull request runs: startup and idle, in minutes (#27).
+    Pr,
     All,
 }
 
 impl Scenario {
     fn includes_startup(self) -> bool {
-        matches!(self, Self::Startup | Self::All)
+        matches!(self, Self::Startup | Self::Pr | Self::All)
     }
 
     fn includes_idle(self) -> bool {
-        matches!(self, Self::Idle | Self::Memory | Self::All)
+        matches!(self, Self::Idle | Self::Memory | Self::Pr | Self::All)
+    }
+
+    fn includes_ingest(self) -> bool {
+        matches!(self, Self::Ingest | Self::All)
+    }
+
+    fn includes_handles(self) -> bool {
+        matches!(self, Self::Handles | Self::All)
     }
 }
 
@@ -56,6 +74,11 @@ struct Options {
     warmup: usize,
     idle_secs: u64,
     ab_base: Option<PathBuf>,
+    /// Ingest profiles; the three named ones when empty.
+    profiles: Vec<String>,
+    /// The row that must fail: the self-check of the harness (#269) runs a
+    /// build with a deliberate regression and passes only when this row fails.
+    expect_fail: Option<String>,
     out: PathBuf,
 }
 
@@ -67,6 +90,8 @@ fn parse_args(args: &[String]) -> Result<Options, String> {
         warmup: 3,
         idle_secs: 60,
         ab_base: None,
+        profiles: Vec::new(),
+        expect_fail: None,
         out: PathBuf::from("target/perf/perf-results.json"),
     };
     let mut args = args.iter();
@@ -82,6 +107,9 @@ fn parse_args(args: &[String]) -> Result<Options, String> {
                     "startup" => Scenario::Startup,
                     "idle" => Scenario::Idle,
                     "memory" => Scenario::Memory,
+                    "ingest" => Scenario::Ingest,
+                    "handles" => Scenario::Handles,
+                    "pr" => Scenario::Pr,
                     "all" => Scenario::All,
                     other => return Err(format!("unknown scenario {other}\n{USAGE}")),
                 };
@@ -91,6 +119,8 @@ fn parse_args(args: &[String]) -> Result<Options, String> {
             "--warmup" => options.warmup = number(&value("--warmup")?)?,
             "--idle-secs" => options.idle_secs = number(&value("--idle-secs")?)?,
             "--ab" => options.ab_base = Some(PathBuf::from(value("--ab")?)),
+            "--profile" => options.profiles.push(value("--profile")?),
+            "--expect-fail" => options.expect_fail = Some(value("--expect-fail")?),
             "--out" => options.out = PathBuf::from(value("--out")?),
             other => return Err(format!("unknown option {other}\n{USAGE}")),
         }
@@ -386,6 +416,10 @@ mod launch {
     pub fn idle(_exe: &std::path::Path, _seconds: u64) -> Result<(Value, External), String> {
         Err(String::from("cargo xtask perf runs on Windows only"))
     }
+
+    pub fn driver(_exe: &std::path::Path, _test: &str, _profile: &str) -> Result<Value, String> {
+        Err(String::from("cargo xtask perf runs on Windows only"))
+    }
 }
 
 #[cfg(windows)]
@@ -454,6 +488,63 @@ mod launch {
         let document = result?;
         let external = seen.ok_or_else(|| String::from("the engine was never observed"))?;
         Ok((document, external))
+    }
+
+    /// Runs one scenario of the driver test (`crates/peekbuddy/tests/perf_driver.rs`)
+    /// against `exe` and returns the JSON it wrote. The driver runs in release
+    /// mode, like the exe; it starts the engine itself, in its own job.
+    pub fn driver(exe: &Path, test: &str, profile: &str) -> Result<Value, String> {
+        let dir = scratch(test)?;
+        let out = dir.join("driver.json");
+        let absolute =
+            std::fs::canonicalize(exe).map_err(|error| format!("{}: {error}", exe.display()))?;
+        let output = Command::new("cargo")
+            .args([
+                "test",
+                "--release",
+                "--locked",
+                "-p",
+                "peekbuddy",
+                "--test",
+                "perf_driver",
+                "--",
+                "--ignored",
+                "--exact",
+                test,
+            ])
+            .env("PEEKBUDDY_PERF_EXE", &absolute)
+            .env("PEEKBUDDY_PERF_OUT", &out)
+            .env("PEEKBUDDY_PERF_PROFILE", profile)
+            .stdin(Stdio::null())
+            .output()
+            .map_err(|error| format!("cargo test: {error}"))?;
+        let result = if output.status.success() {
+            std::fs::read_to_string(&out)
+                .map_err(|error| format!("driver output {}: {error}", out.display()))
+                .and_then(|text| {
+                    serde_json::from_str(&text).map_err(|error| format!("driver output: {error}"))
+                })
+        } else {
+            let shown = format!(
+                "{}{}",
+                String::from_utf8_lossy(&output.stderr),
+                String::from_utf8_lossy(&output.stdout)
+            );
+            let tail: String = shown
+                .chars()
+                .rev()
+                .take(3000)
+                .collect::<Vec<_>>()
+                .into_iter()
+                .rev()
+                .collect();
+            Err(format!(
+                "the {test} driver failed ({}):\n{tail}",
+                output.status
+            ))
+        };
+        let _ = std::fs::remove_dir_all(&dir);
+        result
     }
 
     fn launch(
@@ -647,6 +738,141 @@ fn measure_idle(
     Ok(())
 }
 
+/// A number of a driver document.
+fn number_of(doc: &Value, key: &str) -> Result<f64, String> {
+    doc.get(key)
+        .and_then(Value::as_f64)
+        .ok_or_else(|| format!("the driver document has no number `{key}`"))
+}
+
+/// The rows one ingest document gives, and the undetected losses it counts
+/// (an unfinished gap counts as one: a gap that never reconciled covers
+/// nothing).
+fn ingest_rows(budgets: &[Budget], doc: &Value, rows: &mut Vec<Row>) -> Result<f64, String> {
+    let profile = doc
+        .get("profile")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
+    let exercised = doc
+        .get("exercised")
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
+    let note = format!(
+        "{profile}: {} ledger events in {:.1} s",
+        number_of(doc, "ledgerEvents")?,
+        number_of(doc, "churnSeconds")?
+    );
+    let rate = number_of(doc, "achievedPerSecond")?;
+    match profile {
+        "burst-100k" => {
+            if exercised {
+                rows.push(judge(budgets, "ingest.burst", rate, &note));
+            } else {
+                rows.push(not_exercised(
+                    "ingest.burst",
+                    &format!("the generator reached {rate} events/s, below the target ({note})"),
+                ));
+            }
+            rows.push(judge(
+                budgets,
+                "engine.private_bytes.burst",
+                number_of(doc, "peakPrivateMb")?,
+                &note,
+            ));
+        }
+        "sustained-20k" => {
+            if exercised {
+                rows.push(judge(budgets, "ingest.sustained", rate, &note));
+            } else {
+                rows.push(not_exercised(
+                    "ingest.sustained",
+                    &format!("the generator reached {rate} events/s, below the target ({note})"),
+                ));
+            }
+        }
+        "latency-10k" => {
+            let samples = number_of(doc, "latencySamples")?;
+            let note = format!("{note}; {samples} rows seen by a 5 ms poller of the log");
+            rows.push(judge(
+                budgets,
+                "event.latency.p50",
+                number_of(doc, "latencyP50Ms")?,
+                &note,
+            ));
+            rows.push(judge(
+                budgets,
+                "event.latency.p99",
+                number_of(doc, "latencyP99Ms")?,
+                &note,
+            ));
+        }
+        // The small profile of the harness self-check: no budget, only the
+        // loss count below.
+        "edge-mix" => {}
+        other => return Err(format!("no rows are defined for the profile {other}")),
+    }
+    Ok(number_of(doc, "undetected")? + number_of(doc, "unfinishedGaps")?)
+}
+
+fn measure_ingest(
+    options: &Options,
+    budgets: &[Budget],
+    rows: &mut Vec<Row>,
+    detail: &mut Detail,
+) -> Result<(), String> {
+    let profiles: Vec<String> = if options.profiles.is_empty() {
+        INGEST_PROFILES
+            .iter()
+            .map(|name| (*name).to_owned())
+            .collect()
+    } else {
+        options.profiles.clone()
+    };
+    let mut lost = 0.0;
+    let mut documents = Vec::new();
+    for profile in &profiles {
+        let doc = launch::driver(&options.exe, "ingest", profile)?;
+        lost += ingest_rows(budgets, &doc, rows)?;
+        documents.push(doc);
+    }
+    rows.push(judge(
+        budgets,
+        "ingest.undetected_loss",
+        lost,
+        &format!(
+            "{} profiles, every operation logged or covered by a reconciled gap",
+            profiles.len()
+        ),
+    ));
+    rows.push(not_exercised(
+        "capture.rearm_latency",
+        "the span of the capture thread is not visible from outside the engine (#21)",
+    ));
+    detail.insert(String::from("ingest"), Value::Array(documents));
+    Ok(())
+}
+
+fn measure_handles(
+    options: &Options,
+    budgets: &[Budget],
+    rows: &mut Vec<Row>,
+    detail: &mut Detail,
+) -> Result<(), String> {
+    let doc = launch::driver(&options.exe, "handles", "")?;
+    let delta = number_of(&doc, "delta")?;
+    let after = doc
+        .get("handlesAfterCycle")
+        .map_or_else(String::new, Value::to_string);
+    rows.push(judge(
+        budgets,
+        "engine.handles.stable",
+        delta,
+        &format!("pause and resume over the pipe, three cycles; handles after each: {after}"),
+    ));
+    detail.insert(String::from("handles"), doc);
+    Ok(())
+}
+
 fn measure(options: &Options) -> Result<(Vec<Row>, Value), String> {
     let budgets = budgets::load()?;
     let mut rows = Vec::new();
@@ -657,14 +883,12 @@ fn measure(options: &Options) -> Result<(Vec<Row>, Value), String> {
     if options.scenario.includes_idle() {
         measure_idle(options, &budgets, &mut rows, &mut detail)?;
     }
-    rows.push(not_exercised(
-        "engine.handles.stable",
-        "asserted in-process by fs_serial_lifecycle (three arm/ingest/stop cycles, #27); the exe-level cycles need the pipe client",
-    ));
-    rows.push(not_exercised(
-        "ingest",
-        "no capture backend or writer yet (#45, #52)",
-    ));
+    if options.scenario.includes_handles() {
+        measure_handles(options, &budgets, &mut rows, &mut detail)?;
+    }
+    if options.scenario.includes_ingest() {
+        measure_ingest(options, &budgets, &mut rows, &mut detail)?;
+    }
     Ok((rows, Value::Object(detail)))
 }
 
@@ -712,6 +936,20 @@ pub fn run(args: &[String]) -> Result<String, String> {
         .filter(|row| row.verdict == Verdict::Fail)
         .map(|row| row.id)
         .collect();
+    if let Some(wanted) = &options.expect_fail {
+        // The self-check: a build with a deliberate regression must fail
+        // exactly the row that guards against it.
+        return if failed.contains(&wanted.as_str()) {
+            Ok(format!(
+                "{table}\nperf: the row {wanted} failed, as it must for this build"
+            ))
+        } else {
+            Err(format!(
+                "{table}\nperf: the row {wanted} did not fail; the harness missed the regression (failed rows: {})",
+                failed.join(", ")
+            ))
+        };
+    }
     if failed.is_empty() {
         Ok(format!(
             "{table}\nperf: ok (results in {})",
@@ -759,10 +997,11 @@ mod tests {
             id: id.to_owned(),
             metric: String::new(),
             unit: String::from("per min"),
-            bound: String::from("max"),
+            bound: String::from(if id == "ingest.burst" { "min" } else { "max" }),
             limit: Some(limit),
             class: String::new(),
             gate: gate.to_owned(),
+            scenario: String::new(),
             status: String::from("provisional"),
             source: String::new(),
             workload: String::new(),
@@ -772,6 +1011,13 @@ mod tests {
         vec![
             row("engine.idle.wakes", "pr-strict", 2.0),
             row("engine.ready.warm", "pr-ab", 100.0),
+            row("ingest.burst", "pr-ab", 100_000.0),
+            row("ingest.sustained", "pr-ab", 20_000.0),
+            row("ingest.undetected_loss", "pr-strict", 0.0),
+            row("engine.private_bytes.burst", "nightly-trend", 40.0),
+            row("event.latency.p50", "pr-ab", 10.0),
+            row("event.latency.p99", "pr-ab", 50.0),
+            row("engine.handles.stable", "pr-strict", 0.0),
         ]
     }
 
@@ -863,9 +1109,12 @@ mod tests {
         );
     }
 
+    fn args(list: &[&str]) -> Vec<String> {
+        list.iter().map(ToString::to_string).collect()
+    }
+
     #[test]
     fn the_command_line_is_parsed_and_checked() {
-        let args = |list: &[&str]| list.iter().map(ToString::to_string).collect::<Vec<_>>();
         let options = parse_args(&args(&[
             "--scenario",
             "idle",
@@ -881,5 +1130,103 @@ mod tests {
         assert!(parse_args(&args(&["--runs", "0"])).is_err());
         assert!(parse_args(&args(&["--runs"])).is_err());
         assert!(parse_args(&args(&["--frobnicate"])).is_err());
+    }
+
+    fn ingest_doc(profile: &str, exercised: bool, undetected: u64, gaps: u64) -> serde_json::Value {
+        json!({
+            "scenario": "ingest", "profile": profile, "exercised": exercised,
+            "ledgerEvents": 1_000_000, "achievedPerSecond": 120_000, "churnSeconds": 8.5,
+            "undetected": undetected, "unfinishedGaps": gaps, "peakPrivateMb": 31.5,
+            "latencyP50Ms": 4.0, "latencyP99Ms": 60.0, "latencySamples": 300_000
+        })
+    }
+
+    #[test]
+    fn a_burst_document_gives_rate_and_memory_rows_and_counts_losses() {
+        let mut rows = Vec::new();
+        let lost = super::ingest_rows(&budgets(), &ingest_doc("burst-100k", true, 0, 0), &mut rows)
+            .unwrap();
+        assert!((lost - 0.0).abs() < f64::EPSILON);
+        let ids: Vec<&str> = rows.iter().map(|row| row.id).collect();
+        assert_eq!(ids, ["ingest.burst", "engine.private_bytes.burst"]);
+        // 120,000 events/s against a minimum of 100,000: within, and only
+        // reported (the gate is the A/B).
+        assert_eq!(rows[0].verdict, Verdict::Report);
+        assert_eq!(rows[0].value, Some(120_000.0));
+    }
+
+    #[test]
+    fn a_generator_that_was_too_slow_says_not_exercised() {
+        let mut rows = Vec::new();
+        super::ingest_rows(
+            &budgets(),
+            &ingest_doc("sustained-20k", false, 0, 0),
+            &mut rows,
+        )
+        .unwrap();
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].id, "ingest.sustained");
+        assert_eq!(rows[0].verdict, Verdict::NotExercised);
+    }
+
+    #[test]
+    fn a_latency_document_gives_both_percentiles() {
+        let mut rows = Vec::new();
+        super::ingest_rows(
+            &budgets(),
+            &ingest_doc("latency-10k", true, 0, 0),
+            &mut rows,
+        )
+        .unwrap();
+        let ids: Vec<&str> = rows.iter().map(|row| row.id).collect();
+        assert_eq!(ids, ["event.latency.p50", "event.latency.p99"]);
+    }
+
+    #[test]
+    fn losses_and_unfinished_gaps_are_both_losses() {
+        let mut rows = Vec::new();
+        let lost = super::ingest_rows(&budgets(), &ingest_doc("burst-100k", true, 3, 2), &mut rows)
+            .unwrap();
+        assert!((lost - 5.0).abs() < f64::EPSILON);
+        // Strict: the row the sum is judged by fails at the first loss.
+        let row = judge(&budgets(), "ingest.undetected_loss", lost, "n");
+        assert_eq!(row.verdict, Verdict::Fail);
+    }
+
+    #[test]
+    fn an_unknown_profile_has_no_rows() {
+        let mut rows = Vec::new();
+        assert!(
+            super::ingest_rows(&budgets(), &ingest_doc("nope", true, 0, 0), &mut rows).is_err()
+        );
+    }
+
+    #[test]
+    fn the_new_scenarios_and_flags_parse() {
+        let options = parse_args(&args(&[
+            "--scenario",
+            "ingest",
+            "--profile",
+            "burst-100k",
+            "--profile",
+            "latency-10k",
+            "--expect-fail",
+            "ingest.undetected_loss",
+        ]))
+        .unwrap();
+        assert_eq!(options.scenario, Scenario::Ingest);
+        assert_eq!(options.profiles, ["burst-100k", "latency-10k"]);
+        assert_eq!(
+            options.expect_fail.as_deref(),
+            Some("ingest.undetected_loss")
+        );
+        assert!(Scenario::All.includes_ingest() && Scenario::All.includes_handles());
+        assert!(!Scenario::Idle.includes_ingest() && !Scenario::Startup.includes_handles());
+        assert_eq!(
+            parse_args(&args(&["--scenario", "handles"]))
+                .unwrap()
+                .scenario,
+            Scenario::Handles
+        );
     }
 }

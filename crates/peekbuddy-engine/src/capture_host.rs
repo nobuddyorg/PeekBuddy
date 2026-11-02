@@ -425,6 +425,10 @@ impl StoreSink {
 
 impl EventSink for StoreSink {
     fn push(&mut self, event: &Event, name: &[u16]) -> bool {
+        #[cfg(feature = "inject")]
+        if crate::inject::drop_this_event() {
+            return true;
+        }
         if let Some(filters) = &self.filters
             && !filters
                 .eval(event, WideStr::new(name), &mut self.scratch)

@@ -26,9 +26,23 @@ impl Drop for Kill {
     }
 }
 
+/// The exe to run: `PEEKBUDDY_PERF_EXE` when the perf harness measures another
+/// build (a base exe for the A/B, a build with a deliberate regression), else
+/// the one of this workspace.
+///
+/// The harness hands over a canonical `\\?\` path; the pipe check compares it
+/// with the image name the OS reports for the server, which has no prefix.
+pub fn exe() -> std::path::PathBuf {
+    let path = std::env::var_os("PEEKBUDDY_PERF_EXE")
+        .map_or_else(|| std::path::PathBuf::from(EXE), std::path::PathBuf::from);
+    let text = path.to_string_lossy();
+    text.strip_prefix(r"\\?\")
+        .map_or_else(|| path.clone(), std::path::PathBuf::from)
+}
+
 pub fn spawn(data: &Path) -> Kill {
     Kill(
-        Command::new(EXE)
+        Command::new(exe())
             .args(["--headless", "--data-dir"])
             .arg(data)
             .stdin(Stdio::null())
@@ -56,9 +70,14 @@ pub fn wait_for_window(data: &Path, child: &mut Child) -> WindowHandle {
 }
 
 pub fn quit(window: WindowHandle, child: &mut Child) {
+    quit_within(window, child, Duration::from_secs(120));
+}
+
+/// Closing flushes the rows of a burst to a disk a hosted runner shares; the
+/// perf harness lets the engine take as long as it needs and reports it.
+pub fn quit_within(window: WindowHandle, child: &mut Child, limit: Duration) {
     window.post_close().unwrap();
-    // Closing flushes the rows of a burst to a disk a hosted runner shares.
-    let deadline = Instant::now() + Duration::from_secs(120);
+    let deadline = Instant::now() + limit;
     loop {
         if let Some(status) = child.try_wait().unwrap() {
             assert!(status.success(), "{status:?}");

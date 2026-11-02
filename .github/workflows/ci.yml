@@ -163,7 +163,7 @@ jobs:
       - name: Perf harness (#27)
         env:
           PEEKBUDDY_RUNNER_LABEL: windows-2025
-        run: cargo xtask perf --scenario all
+        run: cargo xtask perf --scenario pr
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
@@ -383,7 +383,7 @@ jobs:
       - name: Perf harness (#27)
         env:
           PEEKBUDDY_RUNNER_LABEL: windows-11-vs2026-arm
-        run: cargo xtask perf --scenario all
+        run: cargo xtask perf --scenario pr
       # The tray icon needs more than 10 s here (#196); the nextest step above
       # fails first, so this one runs always and only reports.
       - name: Tray timing (#196, report only)

@@ -22,6 +22,8 @@ pub mod capture_host;
 pub mod datadir;
 #[cfg(windows)]
 pub mod diag_collect;
+#[cfg(all(windows, feature = "inject"))]
+pub mod inject;
 #[cfg(windows)]
 pub mod instrument;
 #[cfg(windows)]
@@ -514,6 +516,8 @@ mod run {
 
     /// The log file and the `ViewerSpawn` milestone.
     fn init_instrumentation(data: &DataDir, milestones: &Arc<MilestoneTable>) {
+        #[cfg(feature = "inject")]
+        crate::inject::start_timer();
         crate::instrument::init_log(&data.logs);
         let table = Arc::clone(milestones);
         crate::instrument::on_viewer_spawn(move || mark(&table, Milestone::ViewerSpawn));

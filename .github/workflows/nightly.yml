@@ -512,10 +512,94 @@ jobs:
           path: target/zero-loss/zero-loss-results.json
           if-no-files-found: ignore
 
+  perf-selfcheck:
+    # The perf harness has to be able to fail (#269): two runs of one exe in
+    # A/B mode must not fail, and each of three builds with a deliberate
+    # regression must fail the row that guards against it.
+    name: perf harness self-check (${{ matrix.runner }})
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [windows-2025, windows-11-vs2026-arm]
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Rust toolchain
+        run: rustup toolchain install && rustup show
+      - name: Build the exe and the exe with the deliberate regressions
+        run: |
+          cargo build --release --locked -p peekbuddy
+          cargo build --release --locked -p peekbuddy --features inject --target-dir target/inject
+      - name: The whole harness
+        run: cargo xtask perf --scenario all --profile edge-mix --exe target/release/peekbuddy.exe --out target/perf/all.json
+      - name: The harness does not fail an exe against itself
+        run: cargo xtask perf --scenario startup --exe target/release/peekbuddy.exe --ab target/release/peekbuddy.exe --out target/perf/self-ab.json
+      - name: A timer that wakes every second fails the idle wake gate
+        env:
+          PEEKBUDDY_INJECT: timer
+        run: cargo xtask perf --scenario idle --exe target/inject/release/peekbuddy.exe --expect-fail engine.idle.wakes --out target/perf/inject-timer.json
+      - name: A leaked handle per cycle fails handle stability
+        env:
+          PEEKBUDDY_INJECT: handle-leak
+        run: cargo xtask perf --scenario handles --exe target/inject/release/peekbuddy.exe --expect-fail engine.handles.stable --out target/perf/inject-handle.json
+      - name: A dropped row without a gap fails undetected loss
+        env:
+          PEEKBUDDY_INJECT: drop-row
+        run: cargo xtask perf --scenario ingest --profile edge-mix --exe target/inject/release/peekbuddy.exe --expect-fail ingest.undetected_loss --out target/perf/inject-drop.json
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: perf-selfcheck-${{ matrix.runner }}
+          path: target/perf/*.json
+          if-no-files-found: warn
+
+  idle-60:
+    # The 60-minute idle run with the WPR trace (#27, #269): wakeups, CPU and
+    # memory of an engine that has nothing to do, and the ETL to look at when
+    # it does something.
+    name: idle 60 minutes (windows x64)
+    runs-on: windows-2025
+    timeout-minutes: 90
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Rust toolchain
+        run: rustup toolchain install && rustup show
+      - run: cargo build --release --locked -p peekbuddy
+      - name: Record the idle hour with the PeekBuddy.Light profile
+        shell: pwsh
+        run: |
+          wpr -profiles 'perf\peekbuddy.wprp'
+          wpr -start 'perf\peekbuddy.wprp!PeekBuddy.Light' -filemode
+          if ($LASTEXITCODE -ne 0) { throw "wpr -start failed: $LASTEXITCODE" }
+          try {
+            cargo xtask perf --scenario idle --idle-secs 3600 --out target/perf/idle-60.json
+            $perf = $LASTEXITCODE
+          } finally {
+            wpr -stop "$env:RUNNER_TEMP\idle-60.etl"
+          }
+          if ($perf -ne 0) { throw "the idle run failed: $perf" }
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: idle-60
+          path: |
+            ${{ runner.temp }}/idle-60.etl
+            target/perf/idle-60.json
+          if-no-files-found: warn
+
   report:
     name: report
     if: always() && github.event_name == 'schedule'
-    needs: [miri, fuzz, proptest-long, stress, soak, vhd, beta, fresh-deps, mutants, mutants-core-linux, bench-trend, query-bench, zero-loss]
+    needs: [miri, fuzz, proptest-long, stress, soak, vhd, beta, fresh-deps, mutants, mutants-core-linux, bench-trend, query-bench, zero-loss, perf-selfcheck, idle-60]
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
