@@ -229,7 +229,7 @@ fn a_reader_opens_a_current_catalog_read_only() {
             .put(&row("events-2026-10-26.db", 1, 5, true))
             .is_err()
     );
-    assert!(catalog.list().unwrap().is_empty());
+    assert_eq!(catalog.list().unwrap(), []);
     drop(catalog);
     std::fs::remove_dir_all(&dir).unwrap();
 }
