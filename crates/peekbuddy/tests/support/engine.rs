@@ -29,8 +29,15 @@ impl Drop for Kill {
 /// The exe to run: `PEEKBUDDY_PERF_EXE` when the perf harness measures another
 /// build (a base exe for the A/B, a build with a deliberate regression), else
 /// the one of this workspace.
+///
+/// The harness hands over a canonical `\\?\` path; the pipe check compares it
+/// with the image name the OS reports for the server, which has no prefix.
 pub fn exe() -> std::path::PathBuf {
-    std::env::var_os("PEEKBUDDY_PERF_EXE").map_or_else(|| std::path::PathBuf::from(EXE), Into::into)
+    let path = std::env::var_os("PEEKBUDDY_PERF_EXE")
+        .map_or_else(|| std::path::PathBuf::from(EXE), std::path::PathBuf::from);
+    let text = path.to_string_lossy();
+    text.strip_prefix(r"\\?\")
+        .map_or_else(|| path.clone(), std::path::PathBuf::from)
 }
 
 pub fn spawn(data: &Path) -> Kill {
