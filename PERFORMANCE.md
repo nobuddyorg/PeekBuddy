@@ -73,7 +73,7 @@ Gate values in `budgets.toml`:
 | `viewer.frame.p95` | <= 8 ms | timing | nightly-trend | provisional | 10M-row log, scripted scroll | egui frame timing in --perf-probe JSON | F9 |
 | `viewer.frame.p99` | <= 16 ms | timing | nightly-trend | provisional | 10M-row log, scripted scroll | egui frame timing in --perf-probe JSON | F9 |
 | `viewer.frame.max` | <= 33 ms | timing | nightly-trend | provisional | 10M-row log, scripted scroll | egui frame timing in --perf-probe JSON | F9 |
-| `query.filter_first_results` | <= 100 ms | timing | pr-ab | provisional | 1M-row store, glob filter | benchmark in benches (#26) | F5, recalibrated by #35 |
+| `query.filter_first_results` | <= 100 ms | timing | nightly-trend | provisional | 1M-row store, glob filter that one row in a thousand matches | criterion bench query/filtered_first_1m (nightly query bench job) | F5, recalibrated by #35, #267 |
 | `export.1m_rows` | <= 2 s | timing | nightly-trend | provisional | 1M-row store | xtask perf export (#27) | M9, recalibrated by #35 |
 | `binary.size` | <= 5 MB | deterministic | report-only | provisional | release profile (#28) | file size of the release artifact (#28) | M14 |
 | `binary.size.cap` | <= 8 MB | deterministic | pr-strict | provisional | release profile (#28) | file size of the release artifact (#28) | M14 |
@@ -93,6 +93,11 @@ Gate values in `budgets.toml`:
 | `bench.notify_parse.full.64kib` | to be set | timing | pr-ab | provisional | criterion bench notify_parse/full/64KiB | cargo xtask bench-ab (same-runner A/B, warn +15 %, fail +50 %) | #26, #44 |
 | `bench.filter.eval_6_names` | to be set | timing | pr-ab | provisional | criterion bench filter/eval_6_names | cargo xtask bench-ab (same-runner A/B, warn +15 %, fail +50 %) | #26, #40 |
 | `bench.reparse.classify_8` | to be set | timing | pr-ab | provisional | criterion bench reparse/classify_8 | cargo xtask bench-ab (same-runner A/B, warn +15 %, fail +50 %) | #26, #49, #265 |
+| `bench.query.page_keyset_10m` | <= 2000000 ns | timing | nightly-trend | provisional | 10M-row store (a million files, ten events each), no filter | criterion bench query/page_keyset_10m in the nightly query bench job (series `query benches` on gh-pages, alert at +25 %) | #267, #55 |
+| `bench.query.fts_lookup_10m` | to be set | timing | nightly-trend | provisional | 10M-row store, a word that one file in a thousand has | criterion bench query/fts_lookup_10m in the nightly query bench job (series `query benches` on gh-pages, alert at +25 %) | #267, #55 |
+| `bench.query.subtree_resolve_10m` | to be set | timing | nightly-trend | provisional | 10M-row store, one directory of ten thousand | criterion bench query/subtree_resolve_10m in the nightly query bench job (series `query benches` on gh-pages, alert at +25 %) | #267, #55 |
+| `bench.query.regex_post_filter_1m` | to be set | timing | nightly-trend | provisional | 1M-row store, a regex that ten rows match | criterion bench query/regex_post_filter_1m in the nightly query bench job (series `query benches` on gh-pages, alert at +25 %) | #267, #55 |
+| `bench.query.filtered_first_1m` | <= 100000000 ns | timing | nightly-trend | provisional | 1M-row store, glob filter that one row in a thousand matches | criterion bench query/filtered_first_1m in the nightly query bench job (series `query benches` on gh-pages, alert at +25 %) | #267, #55 |
 | `bench.store.intern_hit_1000` | to be set | timing | pr-ab | provisional | criterion bench store/intern_hit_1000 | cargo xtask bench-ab (same-runner A/B, warn +15 %, fail +50 %) | #26, #53 |
 | `bench.store.intern_miss_1000` | to be set | timing | pr-ab | provisional | criterion bench store/intern_miss_1000 | cargo xtask bench-ab (same-runner A/B, warn +15 %, fail +50 %) | #26, #53 |
 | `bench.store.batch_insert_1000` | to be set | timing | pr-ab | provisional | criterion bench store/batch_insert_1000 | cargo xtask bench-ab (same-runner A/B, warn +15 %, fail +50 %) | #26, #52 |
