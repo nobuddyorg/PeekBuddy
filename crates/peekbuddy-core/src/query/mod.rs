@@ -105,9 +105,16 @@ impl Filter {
     /// (default on; the rows stay in the log and in every export).
     #[must_use]
     pub fn default_view() -> Self {
+        // Every field is named, with no `..Default`: cargo-mutants cannot
+        // exclude a deleted struct field, and the test below checks `hide`.
         Self {
+            kinds: None,
+            root: None,
+            time: TimeRange::default(),
+            subtree: None,
+            name: None,
+            pattern: None,
             hide: Flags::CLOUD_CHURN,
-            ..Self::default()
         }
     }
 }

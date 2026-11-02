@@ -250,3 +250,27 @@ fn a_file_that_is_still_open_is_deferred_not_lost() {
     assert!(!dir.join("a.db").exists());
     std::fs::remove_dir_all(&dir).unwrap();
 }
+
+#[test]
+fn a_total_exactly_at_a_cap_is_not_over_it() {
+    let now = 100 * DAY;
+    let segments = ten_days(now);
+    let bytes: i64 = segments.iter().map(|s| s.bytes).sum();
+    let rows: i64 = segments.iter().map(|s| s.rows).sum();
+    let at_bytes = Caps {
+        max_total_bytes: Some(u64::try_from(bytes).unwrap()),
+        ..Caps::default()
+    };
+    assert_eq!(plan(&segments, &at_bytes, now), Vec::<String>::new());
+    let at_rows = Caps {
+        max_rows: Some(u64::try_from(rows).unwrap()),
+        ..Caps::default()
+    };
+    assert_eq!(plan(&segments, &at_rows, now), Vec::<String>::new());
+    // One under the cap removes the oldest.
+    let under = Caps {
+        max_rows: Some(u64::try_from(rows - 1).unwrap()),
+        ..Caps::default()
+    };
+    assert_eq!(plan(&segments, &under, now).len(), 1);
+}
