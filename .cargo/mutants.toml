@@ -110,4 +110,7 @@ exclude_re = [
   # volume goes away under it; the vdisk detach test of the nightly (#48)
   # drives that path through the lifecycle states, not through this function.
   "crates/peekbuddy-win/src/probe.rs:.*(replace is_mounted -> .* with Ok|replace == with != in is_mounted)",
+  # Windows treats a class registered without an instance as one of this
+  # module, so the window class works the same without `hInstance`.
+  "crates/peekbuddy-win/src/window.rs:.*delete field hInstance from struct WNDCLASSEXW",
 ]
