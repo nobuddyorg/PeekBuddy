@@ -473,10 +473,49 @@ jobs:
           path: target/query-bench/output.json
           if-no-files-found: ignore
 
+  zero-loss:
+    # The zero-loss tier at nightly scale (#277, #17): a million events from
+    # eight writers, forced overflows, a kill in a burst and a deleted root.
+    # Every run owes `undetected = 0` and a replayed log equal to the disk.
+    name: zero loss (${{ matrix.runner }})
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [windows-2025, windows-11-vs2026-arm]
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Rust toolchain
+        run: rustup toolchain install && rustup show
+      - uses: taiki-e/install-action@1e29709c0ec63babbe8f266397a465f29a825f91 # v2.87.31
+        with:
+          tool: cargo-nextest@0.9.149
+      - name: Zero-loss tier
+        env:
+          PEEKBUDDY_ZERO_LOSS_REPORT: ${{ runner.temp }}\zero-loss.jsonl
+        run: cargo nextest run --locked --profile ci -p peekbuddy --run-ignored only -E 'binary(fs_serial_zero_loss)'
+      - name: Results
+        if: always()
+        shell: pwsh
+        env:
+          RUNNER_NAME: ${{ matrix.runner }}
+        run: ./scripts/ci/zero-loss-report.ps1 -Runner $env:RUNNER_NAME
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: zero-loss-${{ matrix.runner }}
+          path: target/zero-loss/zero-loss-results.json
+          if-no-files-found: ignore
+
   report:
     name: report
     if: always() && github.event_name == 'schedule'
-    needs: [miri, fuzz, proptest-long, stress, soak, vhd, beta, fresh-deps, mutants, mutants-core-linux, bench-trend, query-bench]
+    needs: [miri, fuzz, proptest-long, stress, soak, vhd, beta, fresh-deps, mutants, mutants-core-linux, bench-trend, query-bench, zero-loss]
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
