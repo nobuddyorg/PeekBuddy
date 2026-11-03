@@ -533,3 +533,42 @@ fn the_folder_filter_uses_the_folder_of_the_row() {
     harness.run_steps(4);
     assert_eq!(harness.state().view.spec.subtree.as_deref(), Some("C:\\w"));
 }
+
+#[test]
+fn the_export_menu_starts_an_export_that_reports_and_can_be_dismissed() {
+    let log = FakeLog::new(1_000);
+    let mut harness = log_app(&log);
+    until(&mut harness, "the first page", |v| v.held_rows() == PAGE);
+    // Without a data directory there is nothing to export to: no menu.
+    harness.step();
+    assert!(harness.query_by_label("Export").is_none());
+
+    let dir = std::env::temp_dir().join(format!("pb-view-export-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(dir.join("segments")).unwrap();
+    harness
+        .state_mut()
+        .view
+        .set_export_dirs(dir.join("segments"), dir.join("exports"));
+    harness.step();
+    harness.get_by_label("Export").click();
+    harness.run_steps(4);
+    harness.get_by_label("CSV").click();
+    until(&mut harness, "the export", |v| {
+        v.export
+            .as_ref()
+            .is_some_and(crate::exporter::Export::finished)
+    });
+    harness.run_steps(3);
+    harness.get_by_label_contains("Exported 0 rows to");
+    harness.get_by_label("Show in Explorer").click();
+    harness.run_steps(3);
+    assert!(matches!(
+        harness.state().event,
+        Some(ViewEvent::Open { select: true, .. })
+    ));
+    harness.get_by_label("Dismiss").click();
+    harness.run_steps(3);
+    assert!(harness.state().view.export.is_none());
+    assert!(dir.join("exports").is_dir());
+}

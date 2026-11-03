@@ -87,7 +87,7 @@ fn a_custom_range_uses_utc_times() {
 #[test]
 fn problems_are_positioned_and_in_words() {
     let cases: &[(&str, usize, &str)] = &[
-        ("name:x", 0, "unknown key `name`"),
+        ("bogus:x", 0, "unknown key `bogus`"),
         ("name:\"open", 5, "never closed"),
         ("name:", 5, "value is missing"),
         ("hello", 0, "expected a key"),

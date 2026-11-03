@@ -7,6 +7,22 @@ complete; cancelling, closing the viewer or a failed write (a full disk)
 deletes the partial file, and a file that already had the final name is left
 alone.
 
+## From the viewer
+
+The **Export** menu of the viewer writes the rows of the filter you are looking
+at, as CSV or JSON Lines. The file goes to the `exports` folder inside the data
+directory (`%LOCALAPPDATA%\nobuddy\PeekBuddy\exports`), named
+`peekbuddy-<local time>.csv` or `.jsonl`; an existing file is never replaced,
+the new one gets `(2)`, `(3)`, ... That folder is part of the data directory,
+which PeekBuddy never watches, so writing the file does not make events of its
+own.
+
+While it runs, the bar shows "Exporting N of about M rows" (a count of at most
+ten updates a second) and **Cancel export**. Cancelling, closing the viewer or
+a failed write deletes the partial file. When it is done the bar offers **Show
+in Explorer**. The export runs on a thread of its own and streams: a million
+rows never sit in memory, and the window stays responsive.
+
 ## Formats
 
 - **CSV** follows RFC 4180: CRLF line ends, fields in quotes when they hold a

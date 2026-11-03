@@ -236,6 +236,11 @@ pub struct LogView {
     first_page: bool,
     /// The details pane is open.
     details: bool,
+    /// Where exports read from and go to: the segments and the exports folder.
+    export_dirs: Option<(std::path::PathBuf, std::path::PathBuf)>,
+    /// The export that runs or has just ended.
+    export: Option<crate::exporter::Export>,
+    wake: Arc<dyn Fn() + Send + Sync>,
     /// Set by a row's context menu, handled after the table.
     action: Option<RowAction>,
     /// What the filter bar shows and the user is editing.
@@ -311,7 +316,7 @@ impl LogView {
             Ok(filter) => (filter, None),
             Err(error) => (Filter::default_view(), Some(error)),
         };
-        let worker = Worker::start(source, Arc::clone(&offset), wake)?;
+        let worker = Worker::start(source, Arc::clone(&offset), Arc::clone(&wake))?;
         let view = Self {
             worker,
             filter,
@@ -329,6 +334,9 @@ impl LogView {
             status: Status::default(),
             first_page: false,
             details: true,
+            export_dirs: None,
+            export: None,
+            wake,
             action: None,
             text: spec.to_text(),
             spec,
@@ -418,6 +426,115 @@ impl LogView {
                 self.set_filter(filter);
             }
             Err(error) => self.spec_error = Some(error),
+        }
+    }
+
+    /// Enables exporting: `segments` is where the rows are read, `exports`
+    /// where the files go (inside the data directory, which is never watched).
+    pub fn set_export_dirs(&mut self, segments: std::path::PathBuf, exports: std::path::PathBuf) {
+        self.export_dirs = Some((segments, exports));
+    }
+
+    /// Cancels a running export; the partial file is removed. Called when
+    /// the window closes.
+    pub fn cancel_export(&self) {
+        if let Some(export) = &self.export {
+            export.cancel();
+        }
+    }
+
+    /// Starts an export of the current view in `format`.
+    fn start_export(&mut self, format: peekbuddy_core::export::Format) {
+        let Some((segments, exports)) = &self.export_dirs else {
+            return;
+        };
+        let now = filetime_now();
+        let stamp = crate::rows::format_time(now, (self.offset)(now));
+        let target =
+            crate::exporter::free_target(exports, &crate::exporter::file_name(&stamp, format));
+        let job = peekbuddy_store::export::Job {
+            filter: self.filter.clone(),
+            format,
+            options: crate::exporter::default_options(),
+        };
+        // A folder that cannot be made is shown as a failed export.
+        self.export = crate::exporter::Export::start(
+            segments,
+            target,
+            job,
+            Arc::clone(&self.offset),
+            Arc::clone(&self.wake),
+        )
+        .ok();
+    }
+
+    /// The export menu, or the state of the export.
+    fn export_ui(&mut self, ui: &mut egui::Ui, events: &mut Vec<ViewEvent>) {
+        use crate::exporter::State;
+        use peekbuddy_core::export::Format;
+
+        let Some(export) = &self.export else {
+            if self.export_dirs.is_some() {
+                let mut chosen = None;
+                ui.menu_button("Export", |ui| {
+                    if ui.button("CSV").clicked() {
+                        chosen = Some(Format::Csv);
+                        ui.close();
+                    }
+                    if ui.button("JSON Lines").clicked() {
+                        chosen = Some(Format::JsonLines);
+                        ui.close();
+                    }
+                });
+                if let Some(format) = chosen {
+                    self.start_export(format);
+                }
+            }
+            return;
+        };
+        let mut dismiss = false;
+        match export.state() {
+            State::Running => {
+                ui.label(format!(
+                    "Exporting {} of about {} rows",
+                    group_digits(export.written()),
+                    group_digits(export.estimated())
+                ));
+                if ui.button("Cancel export").clicked() {
+                    export.cancel();
+                }
+                // Progress at most ten times a second.
+                ui.ctx()
+                    .request_repaint_after(std::time::Duration::from_millis(100));
+            }
+            State::Done { rows, path } => {
+                ui.label(format!(
+                    "Exported {} rows to {}",
+                    group_digits(rows),
+                    path.display()
+                ));
+                if ui.button("Show in Explorer").clicked() {
+                    events.push(ViewEvent::Open {
+                        path: path.to_string_lossy().into_owned(),
+                        select: true,
+                    });
+                }
+                dismiss = ui.button("Dismiss").clicked();
+            }
+            State::Cancelled => {
+                ui.label("Export cancelled; nothing was kept.");
+                dismiss = ui.button("Dismiss").clicked();
+            }
+            State::Failed(error) => {
+                ui.colored_label(
+                    ui.visuals().error_fg_color,
+                    format!("Export failed: {error}"),
+                );
+                dismiss = ui.button("Dismiss").clicked();
+            }
+        }
+        if dismiss {
+            self.export = None;
         }
     }
 
@@ -791,6 +908,7 @@ impl LogView {
         }
         ui.horizontal_wrapped(|ui| {
             events.extend(self.columns_menu(ui));
+            self.export_ui(ui, events);
             let status = self.status_text().to_owned();
             ui.label(status);
             if let Some(hidden) = self.hidden.filter(|hidden| *hidden > 0) {
