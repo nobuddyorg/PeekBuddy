@@ -117,8 +117,8 @@ pub fn plan(host: Host) -> Vec<Step> {
     // C code for the target (Tracy, #22; criterion's `alloca` dependency in
     // `benches`, #26; the bundled SQLite in `peekbuddy-store`, #53) needs an
     // MSVC toolchain, so plain `cargo clippy --target` checks the default
-    // features without `benches`, the store and the two crates that link it
-    // (the engine and the exe), and a host run covers all features,
+    // features without `benches`, the store and the three crates that link it
+    // (the viewer, the engine and the exe), and a host run covers all features,
     // `benches` and the store (which has no `cfg(windows)` code). The engine
     // and the exe are compiled by CI lint on Windows and, with
     // `PEEKBUDDY_XWIN=1`, by `cargo xwin clippy` for both targets.
@@ -148,13 +148,15 @@ pub fn plan(host: Host) -> Vec<Step> {
         if host.xwin {
             args.push("--all-features");
         } else {
-            // The engine and the exe link the store, so they need a C
-            // compiler for the target too.
+            // The viewer, the engine and the exe link the store, so they
+            // need a C compiler for the target too.
             args.extend([
                 "--exclude",
                 "benches",
                 "--exclude",
                 "peekbuddy-store",
+                "--exclude",
+                "peekbuddy-viewer",
                 "--exclude",
                 "peekbuddy-engine",
                 "--exclude",
@@ -280,7 +282,12 @@ mod tests {
                     .windows(2)
                     .any(|pair| pair == ["--exclude", "benches"])
             );
-            for excluded in ["peekbuddy-store", "peekbuddy-engine", "peekbuddy"] {
+            for excluded in [
+                "peekbuddy-store",
+                "peekbuddy-viewer",
+                "peekbuddy-engine",
+                "peekbuddy",
+            ] {
                 assert!(
                     step.args
                         .windows(2)

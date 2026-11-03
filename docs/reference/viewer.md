@@ -48,6 +48,45 @@ connected the thread asks the pipe whether the engine is still there twice a
 second (`PeekNamedPipe`, which never blocks and costs the engine nothing);
 the pipe handle is synchronous, so the thread never sits in a read.
 
+## The grid
+
+The grid is a virtualized table (`egui_table`, fixed row height, so scroll
+maths is O(1)) over the whole log, newest row first. Reading never happens on
+the UI thread: [`worker`](../../crates/peekbuddy-viewer/src/worker.rs) owns the
+database connections, and a page that has not arrived is drawn as an ellipsis.
+
+- **Pages are keyset pages.** The grid holds one *island* of rows (at most
+  12,800, 64 pages) and the virtual index of its first row. Reaching an edge
+  fetches the next page from the oldest or newest id held; a scrollbar drag or
+  the End key far from the island *seeks*: event ids are one contiguous
+  sequence (R2), so with no filter row `i` has id `newest - i`. With a filter
+  that hides rows, the index is an estimate ("about N events") and the island
+  lands near it; the rows in it are always right.
+- **Memory does not depend on the log.** The island is trimmed to the cap
+  around the view, however far the user scrolls. A test scrolls a 10M-row log
+  and checks the rows held and the id of the row at every index.
+- **Live tail.** The engine does not push committed rows to the viewer yet, so
+  the worker follows the log itself: every 250 ms while rows keep arriving,
+  backing off to 1 s when nothing happens, one small keyset query each. It
+  wakes the UI only when rows arrive, so an idle viewer paints no frame. A
+  batch that skips ids (a dropped frame, once the engine pushes) is refused and
+  asked for again from the newest id seen.
+- **Follow mode.** At the newest row new rows appear at the top. Scrolling away
+  stops following; new rows are then only counted ("5 new events"), so the view
+  never moves under the pointer. Clicking the pill, or scrolling back to the
+  top, follows again.
+- **Rows.** Names are display-escaped (F17): a right-to-left override or a lone
+  surrogate shows as `\u{202E}` or `\u{D800}`, and the row carries a `!`
+  badge. The kind is a symbol plus a word, gap rows are tinted and say "Gap:",
+  and times are local with UTC in the tooltip. Reconcile rows carry their
+  detection time, so the time column can step back.
+- **Keys.** Arrows, Page Up/Down, Home and End move the selection; Shift
+  extends it; the view follows the cursor. The column chooser (Columns menu)
+  is saved in `[view] columns`.
+
+Not in this version: the compact view (derived groups, #41; the grid shows one
+row per stored record), ascending order, and saved column widths.
+
 ## Theme and title bar
 
 `[general] theme` (`system` by default) maps to egui's theme preference and

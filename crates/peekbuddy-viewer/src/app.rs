@@ -11,6 +11,7 @@ use std::time::{Duration, Instant};
 use eframe::egui;
 use peekbuddy_core::ipc::Command;
 use peekbuddy_core::perf::{Milestone, Role as PerfRole};
+use peekbuddy_core::query::Filter;
 use peekbuddy_core::settings::{self, Context, Loaded, Settings};
 use peekbuddy_win::chrome;
 use peekbuddy_win::perf::{record, since_process_create_us};
@@ -22,6 +23,8 @@ use crate::gpu::{self, Adapter};
 use crate::link::{Link, LinkEvent, Timing};
 use crate::link_win::PipeConnector;
 use crate::shell::{Shell, ShellAction};
+use crate::source::StoreSource;
+use crate::view::{LogView, ViewEvent};
 use crate::{Options, Probe, theme};
 
 /// How long the close handler waits for the engine to take the settings.
@@ -147,6 +150,7 @@ struct ViewerApp {
     options: Options,
     shell: Shell,
     link: Link,
+    view: LogView,
     settings: Settings,
     /// Set by the thread that waits for a second launch.
     show_requested: Arc<AtomicBool>,
@@ -232,19 +236,18 @@ impl ViewerApp {
         self.link.reconnect();
     }
 
-    /// Remembers the window in `settings.toml`: through the engine when it
-    /// runs (it owns the file), else directly.
-    fn save_window(&mut self) {
-        let Some(rect) = self.normal else { return };
-        let maximized = self.hwnd.is_some_and(chrome::is_maximized);
+    /// Changes `settings.toml` with `change` and saves it: through the engine
+    /// when it runs (it owns the file), else directly. `what` names the change
+    /// in the log when it fails.
+    fn update_settings(&mut self, what: &str, change: impl FnOnce(&mut Settings)) {
         let Some(mut current) = load_settings(&self.options.data_dir) else {
             return;
         };
-        let remembered = geometry::remember(current.viewer.clone(), rect, maximized);
-        if remembered == current.viewer {
+        let before = current.clone();
+        change(&mut current);
+        if current == before {
             return;
         }
-        current.viewer = remembered;
         let Ok(text) = settings::to_toml(&current) else {
             return;
         };
@@ -260,9 +263,18 @@ impl ViewerApp {
         if let Err(error) = peekbuddy_win::atomic::write_atomic(&path, text.as_bytes()) {
             append_log(
                 &self.options.data_dir,
-                &format!("could not remember the window: {error}"),
+                &format!("could not remember {what}: {error}"),
             );
         }
+    }
+
+    /// Remembers the window.
+    fn save_window(&mut self) {
+        let Some(rect) = self.normal else { return };
+        let maximized = self.hwnd.is_some_and(chrome::is_maximized);
+        self.update_settings("the window", |settings| {
+            settings.viewer = geometry::remember(settings.viewer.clone(), rect, maximized);
+        });
     }
 
     /// Records who asked for this frame (the probe's idle window).
@@ -320,6 +332,7 @@ impl eframe::App for ViewerApp {
         while let Some(event) = self.link.poll() {
             self.handle(event);
         }
+        self.view.logic();
         if self.show_requested.swap(false, Ordering::AcqRel) {
             ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(false));
             ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
@@ -331,17 +344,21 @@ impl eframe::App for ViewerApp {
         if self.idle_window.load(Ordering::Relaxed) {
             self.note_causes(ui.ctx());
         }
+        let mut view_event = None;
         let action = self.shell.show(ui, |ui| {
-            ui.centered_and_justified(|ui| {
-                ui.label("The log appears here.");
-            });
+            view_event = self.view.show(ui);
         });
+        if let Some(ViewEvent::ColumnsChanged(names)) = view_event {
+            self.update_settings("the columns", |settings| settings.view.columns = names);
+        }
         match action {
             Some(ShellAction::StartEngine) => self.start_engine(),
             Some(ShellAction::Reconnect) => self.link.reconnect(),
             None => {}
         }
-        if !self.first_frame_done {
+        // F7: ready is the first presented frame that already shows the
+        // first page of rows (or knows there are none), not the first frame.
+        if !self.first_frame_done && self.view.first_page_ready() {
             self.first_frame_done = true;
             let since = since_process_create_us();
             record(
@@ -477,10 +494,17 @@ pub fn run(options: Options) -> std::io::Result<()> {
                     Arc::clone(&report),
                 );
             }
-            let waker = {
+            let waker: Arc<dyn Fn() + Send + Sync> = {
                 let ctx = cc.egui_ctx.clone();
                 Arc::new(move || ctx.request_repaint())
             };
+            let view = LogView::new(
+                Arc::new(StoreSource::new(&options.segments)),
+                Arc::new(peekbuddy_win::localtime::utc_offset_seconds),
+                Arc::clone(&waker),
+                Filter::default_view(),
+                &settings.view.columns,
+            )?;
             let link = Link::start(
                 PipeConnector {
                     name: options.pipe_name.clone(),
@@ -494,6 +518,7 @@ pub fn run(options: Options) -> std::io::Result<()> {
                 options,
                 shell: Shell::default(),
                 link,
+                view,
                 settings,
                 show_requested,
                 frames,

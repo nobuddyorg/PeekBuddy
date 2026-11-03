@@ -6,7 +6,7 @@
 //! | Module | Needs | Builds and tests on |
 //! | --- | --- | --- |
 //! | [`link`] | nothing (a trait for the pipe) | every host |
-//! | [`geometry`] | nothing | every host |
+//! | [`geometry`], [`timeline`] | nothing | every host |
 //! | [`shell`], [`theme`] | `egui` (no window) | every host, under `egui_kittest` |
 //! | `app`, `gpu`, `link_win` | `eframe`, Win32 | Windows |
 //!
@@ -20,10 +20,17 @@ use std::sync::Arc;
 
 use peekbuddy_core::perf::MilestoneTable;
 
+pub mod follow;
 pub mod geometry;
 pub mod link;
+pub mod rows;
+pub mod selection;
 pub mod shell;
+pub mod source;
 pub mod theme;
+pub mod timeline;
+pub mod view;
+pub mod worker;
 
 #[cfg(windows)]
 mod app;

@@ -56,7 +56,9 @@ stream cannot be resynchronised.
 
 Types 12 and up are reserved: the live tail (committed rows, at most 30
 batches/s and 2000 rows per batch, #52 and #65) and the segment retirement
-handshake (#54).
+handshake (#54). Until the engine pushes the tail, the viewer follows the log
+by itself with keyset polls of the segments (see [the viewer](viewer.md)), and
+its tail code takes batches from either source.
 
 A viewer starts with `Hello`. The engine answers `Hello` when the versions
 match and `VersionMismatch` otherwise (an old engine still running after an
