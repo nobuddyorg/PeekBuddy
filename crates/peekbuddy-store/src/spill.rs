@@ -261,6 +261,16 @@ impl Spill {
     ///
     /// The I/O error (a full disk): the caller then reports a gap.
     pub fn append(&mut self, batch: &Batch) -> std::io::Result<()> {
+        self.append_group(std::slice::from_ref(batch))
+    }
+
+    /// Appends `batches` as one record each with a single sync: the sync is
+    /// the cost of a spill, and the replay waits for the lock meanwhile.
+    ///
+    /// # Errors
+    ///
+    /// The I/O error (a full disk): none of the group is then in the file.
+    pub fn append_group(&mut self, batches: &[Batch]) -> std::io::Result<()> {
         if self.append.is_none() {
             let mut file = OpenOptions::new()
                 .create(true)
@@ -276,16 +286,19 @@ impl Spill {
             }
             self.append = Some(file);
         }
-        self.payload.clear();
-        encode_batch(batch, &mut self.scratch, &mut self.payload).map_err(std::io::Error::other)?;
-        let mut record = Vec::with_capacity(8 + self.payload.len());
-        record.extend_from_slice(
-            &u32::try_from(self.payload.len())
-                .unwrap_or(u32::MAX)
-                .to_le_bytes(),
-        );
-        record.extend_from_slice(&crc32(&self.payload).to_le_bytes());
-        record.extend_from_slice(&self.payload);
+        let mut record: Vec<u8> = Vec::new();
+        for batch in batches {
+            self.payload.clear();
+            encode_batch(batch, &mut self.scratch, &mut self.payload)
+                .map_err(std::io::Error::other)?;
+            record.extend_from_slice(
+                &u32::try_from(self.payload.len())
+                    .unwrap_or(u32::MAX)
+                    .to_le_bytes(),
+            );
+            record.extend_from_slice(&crc32(&self.payload).to_le_bytes());
+            record.extend_from_slice(&self.payload);
+        }
         if let Some(file) = &mut self.append {
             let written = file.write_all(&record).and_then(|()| file.sync_data());
             if let Err(error) = written {

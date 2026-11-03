@@ -644,3 +644,52 @@ fn a_spill_of_small_records_is_replayed_in_a_few_commits() {
     drop(pipeline.close());
     assert_eq!(stored_ts(&dirs.db()), (1..=2_000).collect::<Vec<_>>());
 }
+
+#[test]
+fn a_spill_is_replayed_while_the_burst_goes_on() {
+    let dirs = Dirs::new("replay-during-burst");
+    let blocked = Arc::new(AtomicBool::new(true));
+    let commits = Arc::new(AtomicU64::new(0));
+    let mut config = config(&dirs);
+    config.hooks = Hooks {
+        on_health: None,
+        before_commit: Some({
+            let blocked = Arc::clone(&blocked);
+            Arc::new(move || {
+                while blocked.load(Ordering::Acquire) {
+                    std::thread::sleep(Duration::from_millis(2));
+                }
+            })
+        }),
+        on_commit: Some({
+            let commits = Arc::clone(&commits);
+            Arc::new(move |_| {
+                commits.fetch_add(1, Ordering::Relaxed);
+            })
+        }),
+        before_attempt: None,
+    };
+    let pipeline = Pipeline::start(open_writer(&dirs.db()), config).unwrap();
+    let producer = pipeline.producer();
+    let mut pushed = 0_u64;
+    while pipeline.stats().spilled_batches < 100 {
+        push_events(&producer, pushed * 5 + 1, 5);
+        pushed += 1;
+    }
+    blocked.store(false, Ordering::Release);
+    // The producer never pauses: the spiller always has something in flight.
+    // The writer must commit the older records anyway.
+    let started = std::time::Instant::now();
+    while commits.load(Ordering::Relaxed) < 5 {
+        assert!(
+            started.elapsed() < Duration::from_secs(60),
+            "the writer waited for the burst to end"
+        );
+        push_events(&producer, pushed * 5 + 1, 5);
+        pushed += 1;
+    }
+    let flushed = pipeline.flush(Duration::from_secs(60)).unwrap();
+    assert_eq!(flushed.rows, pushed * 5);
+    drop(pipeline.close());
+    assert_eq!(stored_ts(&dirs.db()), (1..=pushed * 5).collect::<Vec<_>>());
+}
