@@ -100,6 +100,9 @@ fn delay_load_gpu_libraries() -> std::io::Result<()> {
         return Ok(());
     }
     directive("cargo:rustc-link-lib=delayimp")?;
+    // The bin's own unit-test build has no viewer code and so nothing to
+    // delay-load: LNK4199 ("no imports found") is expected there.
+    directive("cargo:rustc-link-arg-bins=/IGNORE:4199")?;
     for dll in DELAY_LOADED {
         directive(&format!("cargo:rustc-link-arg-bins=/DELAYLOAD:{dll}"))?;
     }
