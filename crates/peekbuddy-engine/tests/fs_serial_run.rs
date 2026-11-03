@@ -44,7 +44,7 @@ impl Drop for Dir {
 
 fn wait_for(what: &str, mut done: impl FnMut() -> bool) {
     // A hosted arm runner is slow to start an engine and to rearm a watch.
-    let until = Instant::now() + Duration::from_secs(120);
+    let until = Instant::now() + Duration::from_secs(90);
     while !done() {
         assert!(Instant::now() < until, "timed out waiting for {what}");
         std::thread::sleep(Duration::from_millis(50));
@@ -297,7 +297,7 @@ impl Running {
     /// Waits for `done`; a timeout says what the log held, so a failure on
     /// a runner shows what the engine did.
     fn wait(&self, what: &str, mut done: impl FnMut() -> bool) {
-        let until = Instant::now() + Duration::from_secs(120);
+        let until = Instant::now() + Duration::from_secs(90);
         while !done() {
             assert!(
                 Instant::now() < until,
