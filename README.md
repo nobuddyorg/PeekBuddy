@@ -71,14 +71,23 @@ vulnerability, see [SECURITY.md](SECURITY.md) and the
 v1 ships unsigned ([ADR 0012](docs/adr/0012-code-signing.md)). Smart App
 Control blocks unsigned executables where it is on, and SmartScreen warns on
 first start. Every release ships `SHA256SUMS` and GitHub attestations so you
-can verify the download (details follow with #87).
+can verify the download:
+
+- [Verify a download](docs/how-to/verify-download.md): the checksum and
+  `gh attestation verify`, in two commands.
+- [SmartScreen and Smart App Control](docs/explanation/smartscreen-and-smart-app-control.md):
+  what Windows shows, how to continue, and what each choice costs. Where Smart
+  App Control is on, the exe is blocked outright; turning it off is your
+  decision for the whole PC.
+
+Never turn off Microsoft Defender to run PeekBuddy.
 
 ## Documentation
 
 Docs live in [`docs/`](docs/index.md), organised by [Diátaxis](https://diataxis.fr):
 
 - **Tutorials**: follow with v1
-- **How-to**: follow with v1
+- **How-to**: [Verify a download](docs/how-to/verify-download.md) · [Export](docs/how-to/export.md) · [Release](docs/how-to/release.md)
 - **Reference**: [Supported Windows versions](SUPPORT.md)
 - **Explanation**: [Architecture](docs/architecture.md) · [Decisions](docs/adr/README.md) · [Threat model](docs/explanation/threat-model.md)
 

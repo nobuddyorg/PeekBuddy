@@ -6,3 +6,5 @@
 - [Profile PeekBuddy](profile.md): pick the tool for a CPU, wakeup, heap or frame question.
 - [Churn generator](churn.md): workload profiles, ledger format and comparator.
 - [Export the log](export.md): CSV and JSON Lines, with the column reference.
+- [Verify a download](verify-download.md): the checksum and the attestation of a release.
+- [Release](release.md): the release checklist and the unsigned-build steps.
