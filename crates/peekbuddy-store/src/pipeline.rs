@@ -468,36 +468,48 @@ fn spill_loop(shared: &Shared) {
                 .wait(state)
                 .unwrap_or_else(std::sync::PoisonError::into_inner);
         }
-        let Some(mut batch) = state.overflow.pop_front() else {
+        // Several records per sync: under a burst the sync is what limits
+        // the spill, and the writer replays meanwhile.
+        let take = state.overflow.len().min(SPILL_GROUP);
+        let mut group: Vec<Batch> = state.overflow.drain(..take).collect();
+        if group.is_empty() {
             return;
-        };
+        }
         state.spiller_busy = true;
         drop(state);
         shared.room.notify_all();
 
-        let written = lock(&shared.spill).append(&batch);
+        let written = lock(&shared.spill).append_group(&group);
+        let count = group.len() as u64;
         match written {
             Ok(()) => {
-                shared.spilled.fetch_add(1, Ordering::Relaxed);
+                shared.spilled.fetch_add(count, Ordering::Relaxed);
             }
             Err(_) => {
-                shared.lost.fetch_add(1, Ordering::Relaxed);
+                shared.lost.fetch_add(count, Ordering::Relaxed);
             }
         }
-        batch.clear();
+        for batch in &mut group {
+            batch.clear();
+        }
         let mut state = lock(&shared.state);
         state.spiller_busy = false;
         if written.is_err() {
             // A lost batch counts as done, so a flush cannot hang on it.
-            state.done += 1;
+            state.done += count;
             shared.progress.notify_all();
         }
-        if state.free.len() < shared.capacity {
-            state.free.push(batch);
+        for batch in group {
+            if state.free.len() < shared.capacity {
+                state.free.push(batch);
+            }
         }
         shared.writer_wake.notify_one();
     }
 }
+
+/// The most overflow batches the spiller writes with one sync.
+const SPILL_GROUP: usize = 64;
 
 enum Work {
     /// Batches and cursors to commit; `from_spill` marks a replayed record and
@@ -573,13 +585,20 @@ fn replay_step(
             spill_end: Some((generation, spill_end)),
         });
     }
-    // Everything replayed (or the rest was a torn tail): the file is done.
-    let _ = spill.finish();
-    drop(spill);
+    // Everything written so far is replayed (or the rest was a torn tail).
+    // The file is done only when the spiller has nothing more for it; the
+    // lock on the file is held, so it cannot start a record meanwhile.
     let mut state = lock(&shared.state);
-    if state.queue.is_empty() && state.overflow.is_empty() && !state.spiller_busy {
+    if !state.overflow.is_empty() || state.spiller_busy {
+        drop(state);
+        return Step::Skip;
+    }
+    let _ = spill.finish();
+    if state.queue.is_empty() {
         state.spilling = false;
     }
+    drop(state);
+    drop(spill);
     Step::Again
 }
 
@@ -630,9 +649,10 @@ fn next_work(
                 spill_end: None,
             };
         }
-        // Nothing queued. Older data in the spill file comes next, but only
-        // once nothing newer is still on its way to the file.
-        if state.spilling && state.overflow.is_empty() && !state.spiller_busy {
+        // Nothing queued. Older data in the spill file comes next, while the
+        // spiller may still be adding newer records behind it: the file is
+        // finished only when the spiller has nothing in flight.
+        if state.spilling {
             let closed = state.closed;
             drop(state);
             match replay_step(shared, replay, pending, clock, (closed, policy.max_events)) {

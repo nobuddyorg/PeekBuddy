@@ -7,7 +7,9 @@
 //! the capture cursors are written in the same transaction as the rows they
 //! cover, so a cursor can never be ahead of the committed rows.
 
+use std::cell::Cell;
 use std::collections::HashMap;
+use std::ffi::c_int;
 use std::fmt;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
@@ -162,6 +164,25 @@ pub struct SegmentsConfig {
 /// SQLite's default and largest page count.
 const MAX_PAGES: u32 = 4_294_967_294;
 
+/// SQLite's page size, which the store never changes: a frame of the log is
+/// this many bytes.
+const PAGE_BYTES: u64 = 4096;
+
+thread_local! {
+    /// The frames in the log after the last commit of a writer on this
+    /// thread, as SQLite reported them to the log hook.
+    static LOG_FRAMES: Cell<u32> = const { Cell::new(0) };
+}
+
+#[expect(
+    clippy::unnecessary_wraps,
+    reason = "the signature of SQLite's log hook"
+)]
+fn note_log_frames(_: &rusqlite::hooks::Wal, frames: c_int) -> rusqlite::Result<()> {
+    LOG_FRAMES.set(u32::try_from(frames).unwrap_or(0));
+    Ok(())
+}
+
 fn pragmas(conn: &Connection) -> rusqlite::Result<()> {
     // journal_mode answers with a row, so it goes through a query.
     let _mode: String = conn.query_row("PRAGMA journal_mode = WAL", [], |row| row.get(0))?;
@@ -174,7 +195,10 @@ fn pragmas(conn: &Connection) -> rusqlite::Result<()> {
          PRAGMA wal_autocheckpoint = 0;\n\
          PRAGMA journal_size_limit = {JOURNAL_LIMIT};\n\
          PRAGMA cache_size = -{CACHE_KIB};"
-    ))
+    ))?;
+    // After the pragmas: `wal_autocheckpoint` replaces the hook.
+    conn.wal_hook(Some(note_log_frames));
+    Ok(())
 }
 
 impl Writer {
@@ -519,6 +543,14 @@ impl Writer {
             wal.push("-wal");
             std::fs::metadata(wal).map_or(0, |meta| meta.len())
         })
+    }
+
+    /// The size of the log's live part after the last commit on this thread.
+    /// Unlike [`Writer::wal_bytes`] it falls when the log restarts: the file
+    /// keeps its size (`journal_size_limit`) after a checkpoint.
+    #[must_use]
+    pub fn wal_log_bytes(&self) -> u64 {
+        u64::from(LOG_FRAMES.get()) * PAGE_BYTES
     }
 
     /// A `PASSIVE` checkpoint: never blocks readers or the next commit.
