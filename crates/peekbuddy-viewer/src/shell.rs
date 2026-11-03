@@ -138,7 +138,7 @@ impl Shell {
         let mut action = None;
         egui::Panel::top("top-bar").show(ui, |ui| {
             ui.horizontal(|ui| {
-                ui.heading("PeekBuddy");
+                crate::brand::wordmark(ui, 22.0);
             });
         });
         egui::Panel::bottom("status-line").show(ui, |ui| {
