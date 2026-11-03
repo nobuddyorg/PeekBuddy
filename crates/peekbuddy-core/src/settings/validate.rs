@@ -126,7 +126,7 @@ fn is_drive_path(path: &str) -> bool {
 
 /// Whether `path` is `root` or below it, ignoring case. Both must be
 /// normalised.
-fn is_inside(path: &str, root: &str) -> bool {
+pub(super) fn is_inside(path: &str, root: &str) -> bool {
     let path = path.to_lowercase();
     let root = root.trim_end_matches(SEP).to_lowercase();
     path == root
@@ -135,8 +135,15 @@ fn is_inside(path: &str, root: &str) -> bool {
             .is_some_and(|rest| rest.starts_with(SEP))
 }
 
-fn is_unc(normalised: &str) -> bool {
+pub(super) fn is_unc(normalised: &str) -> bool {
     normalised.starts_with(VERBATIM_UNC)
+}
+
+/// Whether a normalised path is a drive root such as `\\?\C:\`.
+pub(super) fn is_whole_drive(normalised: &str) -> bool {
+    normalised
+        .strip_prefix(VERBATIM)
+        .is_some_and(|rest| rest.strip_suffix(SEP).is_some_and(is_drive))
 }
 
 fn valid_id(id: &str) -> bool {

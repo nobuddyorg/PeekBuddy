@@ -6,6 +6,7 @@
 //! version with a "did you mean" hint, a newer file is loaded leniently and
 //! never written, and a bad file never panics.
 
+pub mod edit;
 mod load;
 mod migrate;
 mod validate;
