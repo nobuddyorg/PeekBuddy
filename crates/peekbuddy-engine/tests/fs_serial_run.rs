@@ -321,8 +321,12 @@ impl Running {
 }
 
 fn wait_for_armed(engine: &Running, file: &str) {
+    // A file written before the watch is armed is never a Created row, so
+    // every try makes it new again.
     engine.wait("the watch to be armed", || {
-        std::fs::write(engine.tree.join(file), b"x").is_ok() && engine.has_row(Kind::Created, file)
+        let path = engine.tree.join(file);
+        let _ = std::fs::remove_file(&path);
+        std::fs::write(&path, b"x").is_ok() && engine.has_row(Kind::Created, file)
     });
 }
 
