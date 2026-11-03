@@ -8,6 +8,10 @@ license.workspace = true
 repository.workspace = true
 publish.workspace = true
 
+[package.metadata.cargo-machete]
+# Named only to choose the backends of the wgpu that eframe uses.
+ignored = ["wgpu"]
+
 [dependencies]
 egui = { workspace = true }
 peekbuddy-core = { workspace = true }
@@ -25,10 +29,6 @@ eframe = { version = "=0.37.0", default-features = false, features = [
 peekbuddy-win = { workspace = true }
 raw-window-handle = { workspace = true }
 wgpu = { workspace = true }
-
-[package.metadata.cargo-machete]
-# Named only to choose the backends of the wgpu that eframe uses.
-ignored = ["wgpu"]
 
 [dev-dependencies]
 egui_kittest = { workspace = true }
