@@ -559,7 +559,7 @@ impl SegmentQuery {
             nodes.push("e.node_id IN (SELECT id FROM sub)".to_owned());
             windowed = true;
         }
-        if let Some(name) = filter.name.as_deref().filter(|name|  /* ~ changed by cargo-mutants ~ */name.is_empty()) {
+        if let Some(name) = filter.name.as_deref().filter(|name| !name.is_empty()) {
             if is_indexable(name) {
                 let at = bind(Value::Text(fts_phrase(name)));
                 nodes.push(format!(
