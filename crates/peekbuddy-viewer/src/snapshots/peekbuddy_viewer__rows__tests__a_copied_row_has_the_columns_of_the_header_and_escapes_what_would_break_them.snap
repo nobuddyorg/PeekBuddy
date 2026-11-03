@@ -1,0 +1,8 @@
+---
+source: crates/peekbuddy-viewer/src/rows.rs
+expression: text
+---
+id	time_utc	time_local	kind	source	path	old_path	is_dir	size	attrs	raw_mask	root
+7	2026-10-26T12:00:00.0000000Z	2026-10-26 12:00:00.000	Created	RDCW	C:\x\a.txt		false	1536	0x00000020	0x00000003	
+7	2026-10-26T12:00:00.0000000Z	2026-10-26 12:00:00.000	Modified	RDCW	C:\x\a\tb\nc.txt		false	1536		0x00000003	
+7	2026-10-26T12:00:00.0000000Z	2026-10-26 12:00:00.000	Deleted	RDCW	C:\x\lone\u{D800}		false	1536		0x00000003

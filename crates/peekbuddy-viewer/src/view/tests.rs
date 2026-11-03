@@ -35,7 +35,7 @@ fn app(source: Arc<dyn PageSource>, spec: FilterSpec, columns: &[&str]) -> Harne
         .build_ui_state(
             |ui, app: &mut App| {
                 app.view.logic();
-                if let Some(event) = app.view.show(ui) {
+                for event in app.view.show(ui) {
                     app.event = Some(event);
                 }
             },
@@ -464,4 +464,72 @@ fn stopping_a_scan_forgets_the_requests_that_were_cancelled() {
     view.stop_scan();
     assert!(!view.timeline.busy());
     assert_eq!(view.timeline.plan(&(150..190)).len(), 1, "it asks again");
+}
+
+#[test]
+fn the_details_pane_follows_the_selected_row_and_can_be_closed() {
+    let log = FakeLog::new(1_000);
+    let mut harness = log_app(&log);
+    until(&mut harness, "the first page", |v| v.held_rows() == PAGE);
+    harness.step();
+    harness.get_by_label_contains("Select a row");
+    harness.get_by_label("f998.txt").click();
+    harness.run_steps(4);
+    harness.get_by_label("Raw value");
+    harness.get_by_label("0x00000003  FILE_ACTION_MODIFIED");
+    harness.get_by_label("Time (FILETIME)");
+    harness.get_by_label("Details").click();
+    harness.run_steps(4);
+    assert_eq!(
+        harness.state().event,
+        Some(ViewEvent::DetailsToggled(false))
+    );
+    assert!(harness.query_by_label("Raw value").is_none());
+    assert!(!harness.state().view.details_open());
+}
+
+#[test]
+fn the_context_menu_narrows_the_view_and_asks_for_explorer() {
+    let log = FakeLog::new(1_000);
+    let mut harness = log_app(&log);
+    until(&mut harness, "the first page", |v| v.held_rows() == PAGE);
+    harness.step();
+    harness.get_by_label("f998.txt").click_secondary();
+    harness.run_steps(4);
+    harness.get_by_label("Copy path");
+    harness.get_by_label("Copy row");
+    harness.get_by_label("Open containing folder");
+    harness.get_by_label("Filter to this file").click();
+    harness.run_steps(4);
+    assert_eq!(harness.state().view.spec.name, "f998.txt");
+    until(&mut harness, "the new view", |v| !v.is_applying());
+
+    // Explorer is the app's job: the view only says what to show.
+    let mut harness = log_app(&log);
+    until(&mut harness, "the first page", |v| v.held_rows() == PAGE);
+    harness.step();
+    harness.get_by_label("f998.txt").click_secondary();
+    harness.run_steps(4);
+    harness.get_by_label("Show in Explorer").click();
+    harness.run_steps(4);
+    assert_eq!(
+        harness.state().event,
+        Some(ViewEvent::Open {
+            path: String::from("C:\\w\\f998.txt"),
+            select: true
+        })
+    );
+}
+
+#[test]
+fn the_folder_filter_uses_the_folder_of_the_row() {
+    let log = FakeLog::new(500);
+    let mut harness = log_app(&log);
+    until(&mut harness, "the first page", |v| v.held_rows() == PAGE);
+    harness.step();
+    harness.get_by_label("f498.txt").click_secondary();
+    harness.run_steps(4);
+    harness.get_by_label("Filter to this folder").click();
+    harness.run_steps(4);
+    assert_eq!(harness.state().view.spec.subtree.as_deref(), Some("C:\\w"));
 }

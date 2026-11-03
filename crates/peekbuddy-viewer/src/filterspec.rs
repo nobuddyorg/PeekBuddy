@@ -94,6 +94,14 @@ impl Chip {
         Self::ALL.into_iter().find(|chip| chip.name() == name)
     }
 
+    /// The chip that holds `kind`, for "filter to this kind".
+    #[must_use]
+    pub fn of(kind: Kind) -> Option<Self> {
+        Self::ALL
+            .into_iter()
+            .find(|chip| KindSet::of(&chip.kinds()).contains(kind))
+    }
+
     /// The kinds the chip stands for.
     #[must_use]
     pub fn kinds(self) -> Vec<Kind> {

@@ -84,6 +84,32 @@ database connections, and a page that has not arrived is drawn as an ellipsis.
   extends it; the view follows the cursor. The column chooser (Columns menu)
   is saved in `[view] columns`.
 
+## Row actions and the details pane
+
+Right-click a row (or select it and press the menu key) for its actions:
+
+- **Copy path**, **Copy row** (or **Copy N rows**): the rows as tab-separated
+  text with a header; `Ctrl+C` does the same. Tabs, line ends and control
+  characters in a name are written as `\t`, `\n`, `\u{..}`, so every row has
+  exactly the columns of the header; backslashes are left alone, so a copied
+  path still pastes as a path.
+- **Show in Explorer** (the item selected) and **Open containing folder**. A
+  deleted item opens the nearest folder that still exists. Paths with the
+  `\\?\` prefix are converted for the shell. Only Explorer is started: **no
+  action opens, reads or runs the file**, so a cloud placeholder is never
+  hydrated and a hostile file never runs. There is deliberately no "Open".
+- **Filter to this folder / file / kind**: sets the filter bar.
+
+The details pane on the right (the **Details** button toggles it, and the
+choice is kept in `[viewer] details_hidden`) shows everything stored about the
+selected row: the times in local, UTC and raw FILETIME form, the size,
+attributes decoded to `FILE_ATTRIBUTE_*` names (including `RECALL_ON_OPEN`,
+`PINNED` and `UNPINNED`), the reparse tag, the file id, and the raw value the
+OS reported in words (`FILE_ACTION_*` for RDCW, `USN_REASON_*` for USN). A bit
+or a value no table knows is shown as hex and never dropped. A name that had to
+be escaped carries a warning, and its exact UTF-16 code units are one click
+away.
+
 Not in this version: the compact view (derived groups, #41; the grid shows one
 row per stored record), ascending order, and saved column widths.
 

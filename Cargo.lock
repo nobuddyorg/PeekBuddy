@@ -2556,6 +2556,7 @@ dependencies = [
  "egui",
  "egui_kittest",
  "egui_table",
+ "insta",
  "peekbuddy-core",
  "peekbuddy-store",
  "peekbuddy-win",
