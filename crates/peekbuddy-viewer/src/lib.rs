@@ -20,6 +20,7 @@ use std::sync::Arc;
 
 use peekbuddy_core::perf::MilestoneTable;
 
+pub mod filterspec;
 pub mod follow;
 pub mod geometry;
 pub mod link;
