@@ -42,6 +42,9 @@ const GUARD_BIT: u16 = 0x4000;
 /// The notification buffer of a parent watch.
 const PARENT_BUFFER: usize = 64 * 1024;
 const SEPARATOR: u16 = b'\\' as u16;
+/// Tries to watch an ancestor of a lost root, and the pause between them.
+const PARENT_ATTEMPTS: u32 = 40;
+const PARENT_RETRY: Duration = Duration::from_millis(25);
 
 /// A probe of a root, by its `\\?\` path.
 pub type ProbeFn = Box<dyn Fn(&[u16]) -> Probe + Send + Sync>;
@@ -104,6 +107,8 @@ enum Job {
     Open(RootIdx),
     /// Something happened above a lost root: is it back?
     Recheck(RootIdx),
+    /// The watch above a lost root was itself lost: look for a new ancestor.
+    Rewatch(RootIdx),
     Stop,
 }
 
@@ -703,6 +708,7 @@ fn work(inner: &Arc<Inner>) {
             Job::Stop => return,
             Job::Open(root) => open(inner, root),
             Job::Recheck(root) => recheck(inner, root),
+            Job::Rewatch(root) => rewatch(inner, root),
             Job::Signal(root, signal) => {
                 if !inner.stopping.load(Ordering::Acquire) {
                     handle(inner, root, signal);
@@ -759,6 +765,18 @@ fn recheck(inner: &Arc<Inner>, root: RootIdx) {
     let probe = (lock(&inner.services).probe)(&spec.long);
     if matches!(probe, Probe::Ok) {
         inner.post(Job::Signal(root, Signal::RootRecreated));
+    }
+}
+
+/// The directory watched for a lost root went away too (the tree is removed
+/// from the leaf up, so the nearest ancestor can be one that is next): watch
+/// the nearest one that exists now.
+fn rewatch(inner: &Arc<Inner>, root: RootIdx) {
+    if !lock(&inner.waiting).contains_key(&(WAIT_BIT | root.0)) {
+        return;
+    }
+    if let Some(spec) = spec_of(inner, root) {
+        watch_parent(inner, spec);
     }
 }
 
@@ -918,36 +936,49 @@ fn ensure_parents<'a>(inner: &Arc<Inner>, parents: &'a mut Option<Watcher>) -> O
                 inner: Arc::clone(inner),
             },
         };
-        *parents = Watcher::start(sink, ParentLife).ok();
+        let life = ParentLife {
+            target: Signaller {
+                inner: Arc::clone(inner),
+            },
+        };
+        *parents = Watcher::start(sink, life).ok();
     }
     parents.as_ref()
 }
 
 fn watch_parent(inner: &Arc<Inner>, spec: &WatchSpec) {
-    let Some((ancestor, rest)) = ancestor_and_rest(inner, spec) else {
-        return;
-    };
     let wait_root = RootIdx(WAIT_BIT | spec.root.0);
-    lock(&inner.waiting).insert(wait_root.0, (spec.root, rest));
-    let mut parents = lock(&inner.parents);
-    let Some(watcher) = ensure_parents(inner, &mut parents) else {
-        return;
-    };
-    let _ = watcher.remove_root(wait_root);
-    let added = watcher.add_root(RdcwRoot {
-        root: wait_root,
-        vol: spec.vol,
-        path: ancestor,
-        recursive: true,
-        last_access: false,
-        buffer_bytes: PARENT_BUFFER,
-        exclude: Vec::new(),
-        reject: Vec::new(),
-    });
-    drop(parents);
-    if added.is_ok() {
-        // The root may have come back between the loss and this watch.
-        inner.post(Job::Recheck(spec.root));
+    // A tree removed from the leaf up leaves ancestors that exist but cannot
+    // be opened any more (delete pending): look again, a level further up.
+    for attempt in 0..PARENT_ATTEMPTS {
+        let Some((ancestor, rest)) = ancestor_and_rest(inner, spec) else {
+            return;
+        };
+        lock(&inner.waiting).insert(wait_root.0, (spec.root, rest));
+        let mut parents = lock(&inner.parents);
+        let Some(watcher) = ensure_parents(inner, &mut parents) else {
+            return;
+        };
+        let _ = watcher.remove_root(wait_root);
+        let added = watcher.add_root(RdcwRoot {
+            root: wait_root,
+            vol: spec.vol,
+            path: ancestor,
+            recursive: true,
+            last_access: false,
+            buffer_bytes: PARENT_BUFFER,
+            exclude: Vec::new(),
+            reject: Vec::new(),
+        });
+        drop(parents);
+        if added.is_ok() {
+            // The root may have come back between the loss and this watch.
+            inner.post(Job::Recheck(spec.root));
+            return;
+        }
+        if attempt + 1 < PARENT_ATTEMPTS {
+            std::thread::sleep(PARENT_RETRY);
+        }
     }
 }
 
@@ -991,12 +1022,20 @@ fn unwatch_parent(inner: &Inner, spec: &WatchSpec) {
     }
 }
 
-/// The parent watch has no lifecycle of its own: losing it only means the
-/// root is not noticed coming back until the next start.
-struct ParentLife;
+/// The parent watch has no lifecycle machine: losing it means the directory
+/// it watched is gone, so the root's waiting watch moves to what is left.
+struct ParentLife {
+    target: Signaller,
+}
 
 impl LifecycleSink for ParentLife {
-    fn state(&mut self, _: RootIdx, _: WatchState, _: Detail) {}
+    fn state(&mut self, root: RootIdx, state: WatchState, _: Detail) {
+        if state == WatchState::Lost && root.0 & WAIT_BIT != 0 {
+            self.target
+                .inner
+                .post(Job::Rewatch(RootIdx(root.0 & !WAIT_BIT)));
+        }
+    }
     fn reconcile(&mut self, _: RootIdx, _: GapReason) {}
 }
 

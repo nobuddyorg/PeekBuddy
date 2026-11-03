@@ -134,14 +134,18 @@ pub fn newest_id(data: &Path) -> i64 {
 /// Waits until the log has not grown for `quiet` and every reconcile that
 /// started has finished.
 pub fn wait_until_settled(data: &Path, quiet: Duration) {
-    let deadline = Instant::now() + Duration::from_secs(180);
+    let limit = Duration::from_secs(180);
+    let mut deadline = Instant::now() + limit;
     let mut last = -1;
     let mut since = Instant::now();
     loop {
         let now = newest_id(data);
         if now != last {
+            // A log that still grows is a spill being drained: the limit is
+            // for a log that stands still without being closed.
             last = now;
             since = Instant::now();
+            deadline = since + limit;
         } else if since.elapsed() >= quiet && reconciles_balanced(data) {
             return;
         }

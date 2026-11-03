@@ -200,9 +200,13 @@ fn verdict_with(name: &str, run: &Run, outcome: &peekbuddy_churn::exec::Outcome,
 #[ignore = "nightly zero-loss tier (#277)"]
 fn a_million_events_from_eight_writers_lose_nothing_undetected() {
     let dir = TestDir::new("zero-loss-million").unwrap();
-    let (run, outcome) = churn_under_the_engine(&dir, "burst-100k", 31, 8, None, false);
+    // The hosted arm runner needs more than 75 minutes for the full burst:
+    // its job asks for the half-size profile.
+    let profile =
+        std::env::var("PEEKBUDDY_ZERO_LOSS_PROFILE").unwrap_or_else(|_| "burst-100k".to_owned());
+    let (run, outcome) = churn_under_the_engine(&dir, &profile, 31, 8, None, false);
     assert_eq!(outcome.failures(), 0, "the churn itself failed");
-    nightly_verdict("million-events-eight-writers", &run, &outcome);
+    nightly_verdict(&format!("burst-eight-writers-{profile}"), &run, &outcome);
 }
 
 /// The same kind of burst against a small buffer and a frozen engine: forced
