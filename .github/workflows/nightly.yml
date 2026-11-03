@@ -498,6 +498,8 @@ jobs:
       - name: Zero-loss tier
         env:
           PEEKBUDDY_ZERO_LOSS_REPORT: ${{ runner.temp }}\zero-loss.jsonl
+          # The arm runner needs more than 75 minutes for the full burst.
+          PEEKBUDDY_ZERO_LOSS_PROFILE: ${{ contains(matrix.runner, 'arm') && 'burst-50k' || 'burst-100k' }}
         run: cargo nextest run --locked --profile ci -p peekbuddy --run-ignored only -E 'binary(fs_serial_zero_loss)'
       - name: Results
         if: always()
