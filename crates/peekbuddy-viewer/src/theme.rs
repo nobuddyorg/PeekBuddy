@@ -3,7 +3,7 @@
 //! The viewer follows the system theme (`ThemePreference::System`) unless
 //! `settings.toml` says otherwise (`[general] theme`, edited in #70). egui
 //! resolves "system" itself and switches live when Windows does; the title
-//! bar follows through [`crate::app`].
+//! bar follows through the app module.
 
 use peekbuddy_core::settings::Theme;
 
