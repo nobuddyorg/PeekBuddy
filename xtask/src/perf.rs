@@ -24,6 +24,10 @@ const SCHEMA_VERSION: u32 = 1;
 const AB_WARN: f64 = 0.15;
 /// Fail when head is this much slower than base.
 const AB_FAIL: f64 = 0.50;
+/// The CPU time of a process is counted in clock ticks of 15.6 ms, so two
+/// runs of one exe differ by whole ticks: 31 ms against 47 ms is +50 % of
+/// nothing. A difference below two ticks is not a change.
+const CPU_RESOLUTION_MS: f64 = 31.25;
 
 const USAGE: &str = "usage: cargo xtask perf [--scenario startup|idle|memory|ingest|handles|pr|all] \
 [--exe path] [--runs n] [--warmup n] [--idle-secs n] [--profile name]... [--ab <base-exe>] \
@@ -347,6 +351,16 @@ fn ab_verdict(base: f64, head: f64) -> Verdict {
         Verdict::Warn
     } else {
         Verdict::Pass
+    }
+}
+
+/// [`ab_verdict`] for a measure that comes in steps of `resolution`: a
+/// difference smaller than the resolution passes whatever its ratio.
+fn ab_verdict_stepped(base: f64, head: f64, resolution: f64) -> Verdict {
+    if (head - base).abs() < resolution {
+        Verdict::Pass
+    } else {
+        ab_verdict(base, head)
     }
 }
 
@@ -674,7 +688,7 @@ fn measure_startup(
             let _ = write!(ready_row.note, "; A/B base {:.2} ms", b.median);
         }
         if let (Some(b), Some(h)) = (base_cpu, cpu) {
-            cpu_row.verdict = ab_verdict(b.median, h.median);
+            cpu_row.verdict = ab_verdict_stepped(b.median, h.median, CPU_RESOLUTION_MS);
             let _ = write!(cpu_row.note, "; A/B base {:.2} ms", b.median);
         }
     }
@@ -977,8 +991,8 @@ mod tests {
     use serde_json::json;
 
     use super::{
-        AB_FAIL, Observed, Scenario, Verdict, ab_verdict, idle_from, judge, markdown,
-        not_exercised, parse_args, startup_from, stats,
+        AB_FAIL, Observed, Scenario, Verdict, ab_verdict, ab_verdict_stepped, idle_from, judge,
+        markdown, not_exercised, parse_args, startup_from, stats,
     };
     use crate::budgets::Budget;
 
@@ -1107,6 +1121,10 @@ mod tests {
         assert_eq!(ab_verdict(100.0, 100.0 * (1.0 + AB_FAIL)), Verdict::Fail);
         assert_eq!(ab_verdict(100.0, 60.0), Verdict::Pass);
         assert_eq!(ab_verdict(0.0, 5.0), Verdict::Report);
+        // Whole clock ticks: 2 against 3 ticks is no change, 2 against 20 is.
+        assert_eq!(ab_verdict_stepped(31.25, 46.88, 31.25), Verdict::Pass);
+        assert_eq!(ab_verdict_stepped(46.88, 31.25, 31.25), Verdict::Pass);
+        assert_eq!(ab_verdict_stepped(31.25, 312.5, 31.25), Verdict::Fail);
     }
 
     #[test]
