@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1793699856831,
+  "lastUpdate": 1793705366626,
   "repoUrl": "https://github.com/nobuddyorg/PeekBuddy",
   "entries": {
     "benches (windows-2025)": [
@@ -220,6 +220,83 @@ window.BENCHMARK_DATA = {
           {
             "name": "store/intern_miss_1000",
             "value": 4457973.541666667,
+            "unit": "ns"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "name": "Matthias Eggert",
+            "username": "besessener",
+            "email": "8039350+besessener@users.noreply.github.com"
+          },
+          "committer": {
+            "name": "GitHub",
+            "username": "web-flow",
+            "email": "noreply@github.com"
+          },
+          "id": "4e36337144cb7c4bd3cec1cfab240129a21fdf4d",
+          "message": "fix(engine): watch a lost root's remaining path (#312)\n\nPart of #277",
+          "timestamp": "2026-11-03T09:23:44Z",
+          "url": "https://github.com/nobuddyorg/PeekBuddy/commit/4e36337144cb7c4bd3cec1cfab240129a21fdf4d"
+        },
+        "date": 1793705364210,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "filter/eval_6_names",
+            "value": 1873.3405846213182,
+            "unit": "ns"
+          },
+          {
+            "name": "metrics/process_list_300",
+            "value": 719.0210679563037,
+            "unit": "ns"
+          },
+          {
+            "name": "notify_parse/extended/64kib",
+            "value": 3479.2637608800433,
+            "unit": "ns"
+          },
+          {
+            "name": "notify_parse/full/64kib",
+            "value": 3575.9754178140765,
+            "unit": "ns"
+          },
+          {
+            "name": "notify_parse/plain/64kib",
+            "value": 5978.475634281143,
+            "unit": "ns"
+          },
+          {
+            "name": "perf/counters_event",
+            "value": 0.31581916687465916,
+            "unit": "ns"
+          },
+          {
+            "name": "perf/milestone_record",
+            "value": 4.991214007217202,
+            "unit": "ns"
+          },
+          {
+            "name": "reparse/classify_8",
+            "value": 20.818739698024963,
+            "unit": "ns"
+          },
+          {
+            "name": "store/batch_insert_1000",
+            "value": 3815522.7604166665,
+            "unit": "ns"
+          },
+          {
+            "name": "store/intern_hit_1000",
+            "value": 64364.11520431542,
+            "unit": "ns"
+          },
+          {
+            "name": "store/intern_miss_1000",
+            "value": 4491316.555059524,
             "unit": "ns"
           }
         ]
