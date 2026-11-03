@@ -87,12 +87,13 @@ fn build_facts() -> std::io::Result<()> {
     directive("cargo:rerun-if-changed=../../.git/HEAD")
 }
 
-/// GPU libraries the viewer's renderer imports statically. The engine role
+/// GPU libraries the DX12-only renderer imports statically (a library that is
+/// not imported makes the linker warn, LNK4199, and warnings are denied). The engine role
 /// shares the exe and must not map them (F1, ADR 0001, spike 0003): with
 /// `/DELAYLOAD` a library is loaded at the first call into it, which only the
 /// viewer makes. `d3d12.dll` and the shader compiler are loaded by wgpu at
 /// run time anyway. Needs `delayimp.lib` for the loader helper.
-const DELAY_LOADED: &[&str] = &["dxgi.dll", "dxcore.dll"];
+const DELAY_LOADED: &[&str] = &["dxgi.dll"];
 
 fn delay_load_gpu_libraries() -> std::io::Result<()> {
     if std::env::var("CARGO_CFG_TARGET_ENV").as_deref() != Ok("msvc") {
