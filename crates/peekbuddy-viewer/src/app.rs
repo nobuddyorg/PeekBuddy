@@ -404,6 +404,8 @@ impl eframe::App for ViewerApp {
     }
 
     fn on_exit(&mut self) {
+        // A running export is cancelled and its partial file removed.
+        self.view.cancel_export();
         self.save_window();
         self.write_report();
     }
@@ -554,6 +556,7 @@ pub fn run(options: Options) -> std::io::Result<()> {
                 &settings.view.columns,
             )?;
             view.set_details(!settings.viewer.details_hidden);
+            view.set_export_dirs(options.segments.clone(), options.data_dir.join("exports"));
             let link = Link::start(
                 PipeConnector {
                     name: options.pipe_name.clone(),

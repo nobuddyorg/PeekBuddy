@@ -23,6 +23,7 @@ use peekbuddy_core::perf::MilestoneTable;
 pub mod brand;
 pub mod debounce;
 pub mod details;
+pub mod exporter;
 pub mod filterspec;
 pub mod follow;
 pub mod geometry;
