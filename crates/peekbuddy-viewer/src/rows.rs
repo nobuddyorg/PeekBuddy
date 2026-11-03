@@ -330,7 +330,7 @@ mod tests {
             name: Vec::new(),
             path: path.to_vec(),
             old_path: Vec::new(),
-            root: Vec::new(),
+            root: units("C:\\x"),
             flags: 0,
         }
     }
