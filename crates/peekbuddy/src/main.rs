@@ -204,7 +204,10 @@ fn main() -> ExitCode {
     }
 }
 
-#[cfg(test)]
+// Off Windows the viewer role returns at once. On Windows it opens a window,
+// which winit only allows on the main thread: `tests/viewer.rs` runs the real
+// exe instead.
+#[cfg(all(test, not(windows)))]
 mod tests {
     use peekbuddy_core::perf::MilestoneTable;
 

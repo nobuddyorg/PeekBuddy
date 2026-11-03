@@ -274,6 +274,16 @@ impl ViewerApp {
                 *report.causes.entry(key).or_insert(0) += 1;
             }
         }
+        // egui repaints at once when it has input events: say which.
+        ctx.input(|input| {
+            for event in &input.events {
+                let text = format!("{event:?}");
+                let name = text.split(['(', ' ', '{']).next().unwrap_or_default();
+                if report.causes.len() < 32 {
+                    *report.causes.entry(format!("event {name}")).or_insert(0) += 1;
+                }
+            }
+        });
     }
 
     fn write_report(&self) {

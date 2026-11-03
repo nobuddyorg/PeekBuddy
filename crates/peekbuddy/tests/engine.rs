@@ -94,7 +94,30 @@ fn a_second_engine_exits_zero_within_a_second_and_leaves_the_first_running() {
         WindowHandle::find(&Names::new(Some(dir.path())).window_class),
         Some(window)
     );
+    // A second launch shows the viewer (through the pipe): the engine started
+    // one for this directory, which has to be closed before the test ends.
+    close_viewer(dir.path());
     quit(window, &mut first.0);
+}
+
+/// Waits for the viewer an engine of `data` started, and closes it.
+fn close_viewer(data: &Path) {
+    let title = peekbuddy_viewer::isolated_title(peekbuddy_win::pipe::stable_hash(
+        &data.to_string_lossy().to_lowercase(),
+    ));
+    let deadline = Instant::now() + Duration::from_secs(120);
+    let shown = loop {
+        if let Some(shown) = WindowHandle::find_title(&title) {
+            break shown;
+        }
+        assert!(Instant::now() < deadline, "no viewer window after 120 s");
+        std::thread::sleep(Duration::from_millis(100));
+    };
+    shown.post_close().unwrap();
+    while WindowHandle::find_title(&title).is_some() {
+        assert!(Instant::now() < deadline, "the viewer window did not close");
+        std::thread::sleep(Duration::from_millis(100));
+    }
 }
 
 #[test]
