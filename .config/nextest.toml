@@ -16,12 +16,12 @@ filter = "binary(/^fs_serial/)"
 test-group = "fs-serial"
 
 # The nightly zero-loss tier (#277) runs a million events, five forced
-# overflows and a kill in a burst; each is one test, up to 30 minutes.
+# overflows and a kill in a burst; each is one test, up to 75 minutes (the million takes about 30 on a hosted runner).
 # nextest applies the first matching override per setting, so this one
 # stands before the whole-binary one.
 [[profile.default.overrides]]
 filter = "binary(fs_serial_zero_loss) & (test(a_million_events) | test(a_forced_overflow_burst) | test(a_kill_in_the_middle_of_a_burst) | test(a_watched_root_deleted))"
-slow-timeout = { period = "300s", terminate-after = 6 }
+slow-timeout = { period = "300s", terminate-after = 15 }
 
 # The zero-loss and kill suites run the whole engine under churn.
 [[profile.default.overrides]]
