@@ -17,6 +17,7 @@ use std::fmt::Write as _;
 use std::io;
 use std::ops::Range;
 use std::sync::Arc;
+use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
 use egui_table::{
     AutoSizeMode, CellInfo, Column, HeaderCellInfo, HeaderRow, PrefetchInfo, Table, TableDelegate,
@@ -24,6 +25,8 @@ use egui_table::{
 use peekbuddy_core::event::Flags;
 use peekbuddy_core::query::{CancelFlag, Filter};
 
+use crate::debounce::{DELAY, Debounce};
+use crate::filterspec::{Chip, Field, FilterSpec, PatternKind, Span, SpecError};
 use crate::follow::Follow;
 use crate::rows::{GridRow, OffsetFn, RowClass};
 use crate::selection::{Selection, Step};
@@ -162,6 +165,18 @@ pub enum ViewEvent {
     ColumnsChanged(Vec<String>),
 }
 
+/// The current time as FILETIME ticks (100 ns since 1601, UTC).
+#[must_use]
+pub fn filetime_now() -> u64 {
+    const UNIX_TO_FILETIME: u64 = 11_644_473_600;
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_or(0, |since| {
+            (since.as_secs() + UNIX_TO_FILETIME) * 10_000_000
+                + u64::from(since.subsec_nanos() / 100)
+        })
+}
+
 /// A number with thin grouping: `1 234 567`.
 #[must_use]
 pub fn group_digits(value: u64) -> String {
@@ -177,6 +192,10 @@ pub fn group_digits(value: u64) -> String {
 }
 
 /// The grid and everything it needs.
+#[expect(
+    clippy::struct_excessive_bools,
+    reason = "independent facts of the view: watching, reloading, first page, advanced row open, focus request"
+)]
 pub struct LogView {
     worker: Worker,
     filter: Filter,
@@ -194,6 +213,25 @@ pub struct LogView {
     scroll_to: Option<(u64, egui::Align)>,
     status: Status,
     first_page: bool,
+    /// What the filter bar shows and the user is editing.
+    spec: FilterSpec,
+    /// Why the spec cannot be applied; the previous results stay.
+    spec_error: Option<SpecError>,
+    debounce: Debounce,
+    offset: Arc<OffsetFn>,
+    /// The watch roots to choose from.
+    roots: Vec<String>,
+    /// A new filter waits for its extent: the old island is shown but not
+    /// extended (its cursors belong to the old filter).
+    reloading: bool,
+    /// How many rows the view hides, when counted.
+    hidden: Option<u64>,
+    /// The advanced row of the bar is open.
+    more: bool,
+    /// The text form being edited, and what is wrong with it.
+    text: String,
+    text_error: Option<String>,
+    focus_search: bool,
 }
 
 /// The status line, rebuilt only when what it says changes.
@@ -239,10 +277,16 @@ impl LogView {
         source: Arc<dyn PageSource>,
         offset: Arc<OffsetFn>,
         wake: Arc<dyn Fn() + Send + Sync>,
-        filter: Filter,
+        spec: FilterSpec,
+        roots: Vec<String>,
         columns: &[String],
     ) -> io::Result<Self> {
-        let worker = Worker::start(source, offset, wake)?;
+        let now = filetime_now();
+        let (filter, spec_error) = match spec.to_filter(now, offset(now)) {
+            Ok(filter) => (filter, None),
+            Err(error) => (Filter::default_view(), Some(error)),
+        };
+        let worker = Worker::start(source, Arc::clone(&offset), wake)?;
         let view = Self {
             worker,
             filter,
@@ -259,6 +303,17 @@ impl LogView {
             scroll_to: None,
             status: Status::default(),
             first_page: false,
+            text: spec.to_text(),
+            spec,
+            spec_error,
+            debounce: Debounce::new(DELAY),
+            offset,
+            roots,
+            reloading: false,
+            hidden: None,
+            more: false,
+            text_error: None,
+            focus_search: false,
         };
         view.worker.send(Job::Extent { generation: 1 });
         Ok(view)
@@ -298,22 +353,65 @@ impl LogView {
             .filter_map(|index| self.timeline.row_at(index))
     }
 
-    /// Starts over with another filter: the old reads are cancelled, the
-    /// island is dropped and the first page of the new view is fetched.
-    pub fn set_filter(&mut self, filter: Filter) {
+    /// Starts over with another filter: the old reads are cancelled and the
+    /// first page of the new view is fetched. Until its extent arrives the old
+    /// rows stay on screen, so typing does not flicker.
+    fn set_filter(&mut self, filter: Filter) {
         self.cancel.cancel();
         self.cancel = CancelFlag::new();
         self.generation += 1;
         self.filter = filter;
         self.watching = false;
         self.scanned = 0;
+        self.hidden = None;
         self.selection.clear();
         self.follow = Follow::default();
-        self.phase = Phase::Loading;
+        self.reloading = true;
         self.worker.send(Job::StopTail);
         self.worker.send(Job::Extent {
             generation: self.generation,
         });
+    }
+
+    /// The spec being edited changed: the filter text follows, and the filter
+    /// is applied after the pause.
+    fn spec_changed(&mut self) {
+        self.text = self.spec.to_text();
+        self.text_error = None;
+        self.debounce.touch(Instant::now());
+    }
+
+    /// Applies the spec: compiles it, and on success reads the new view. An
+    /// invalid spec keeps the previous results and says why.
+    fn apply_spec(&mut self) {
+        let now = filetime_now();
+        match self.spec.to_filter(now, (self.offset)(now)) {
+            Ok(filter) => {
+                self.spec_error = None;
+                self.set_filter(filter);
+            }
+            Err(error) => self.spec_error = Some(error),
+        }
+    }
+
+    /// The text form of the filter, for `[viewer] filter`.
+    #[must_use]
+    pub fn filter_text(&self) -> String {
+        self.spec.to_text()
+    }
+
+    /// Whether a new filter waits for the pause or for its first answer.
+    #[must_use]
+    pub fn is_applying(&self) -> bool {
+        self.debounce.pending() || self.reloading
+    }
+
+    /// Stops the scan that is running; what was found stays.
+    pub fn stop_scan(&mut self) {
+        self.cancel.cancel();
+        self.cancel = CancelFlag::new();
+        self.timeline.abandon_pending();
+        self.scanned = 0;
     }
 
     /// Drains what the worker found. Called once per frame, before drawing.
@@ -321,10 +419,13 @@ impl LogView {
         while let Some(reply) = self.worker.poll() {
             self.take(reply);
         }
+        if self.debounce.due(Instant::now()) {
+            self.apply_spec();
+        }
         // A view with no row yet asks for its first page without waiting for
         // the table to be laid out (a streaming view has zero rows to lay out).
         let complete = self.timeline.at_newest() && self.timeline.at_oldest();
-        if self.phase == Phase::Ready && self.timeline.is_empty() && !complete {
+        if self.phase == Phase::Ready && !self.reloading && self.timeline.is_empty() && !complete {
             for fetch in self.timeline.plan(&self.visible) {
                 self.send_page(fetch);
             }
@@ -357,7 +458,10 @@ impl LogView {
             Reply::Hidden {
                 generation,
                 count: Some(count),
-            } if generation == self.generation => self.timeline.note_hidden(count),
+            } if generation == self.generation => {
+                self.hidden = Some(count);
+                self.timeline.note_hidden(count);
+            }
             Reply::Progress {
                 generation,
                 scanned,
@@ -395,6 +499,7 @@ impl LogView {
         let seekable = is_seekable(&self.filter);
         self.timeline = Timeline::new(extent, seekable, self.filter.is_empty());
         self.phase = Phase::Ready;
+        self.reloading = false;
         if extent.is_none() {
             // Nothing recorded yet: the empty view is the first page, and
             // the tail brings the first rows.
@@ -453,6 +558,20 @@ impl LogView {
     /// Handles the keys of the grid: arrows, pages, Home and End, with Shift
     /// to extend the selection.
     fn keys(&mut self, ctx: &egui::Context) {
+        // Ctrl+F focuses the search box and Esc clears it, wherever the focus is.
+        let (find, escape) = ctx.input(|input| {
+            (
+                input.modifiers.command && input.key_pressed(egui::Key::F),
+                input.key_pressed(egui::Key::Escape),
+            )
+        });
+        if find {
+            self.focus_search = true;
+        }
+        if escape && !self.spec.name.is_empty() {
+            self.spec.name.clear();
+            self.spec_changed();
+        }
         if ctx.egui_wants_keyboard_input() {
             return;
         }
@@ -490,39 +609,16 @@ impl LogView {
         }
     }
 
-    /// Draws the grid. Returns what the app has to do.
+    /// Draws the filter bar, the grid and the pill. Returns what the app has
+    /// to do.
     pub fn show(&mut self, ui: &mut egui::Ui) -> Option<ViewEvent> {
         let ctx = ui.ctx().clone();
         self.keys(&ctx);
-        let mut event = None;
-
-        ui.horizontal(|ui| {
-            ui.menu_button("Columns", |ui| {
-                let mut changed = false;
-                for col in Col::ALL {
-                    let mut on = self.columns.contains(&col);
-                    if ui.checkbox(&mut on, col.title()).changed() {
-                        changed = true;
-                        if on {
-                            self.columns.push(col);
-                        } else if self.columns.len() > 1 {
-                            self.columns.retain(|c| *c != col);
-                        }
-                    }
-                }
-                if changed {
-                    // The chooser lists them in a fixed order.
-                    self.columns.sort_by_key(|col| {
-                        Col::ALL.iter().position(|c| c == col).unwrap_or(usize::MAX)
-                    });
-                    event = Some(ViewEvent::ColumnsChanged(
-                        self.columns.iter().map(|c| c.name().to_owned()).collect(),
-                    ));
-                }
-            });
-            let status = self.status_text().to_owned();
-            ui.label(status);
-        });
+        let event = self.bar(ui);
+        if let Some(left) = self.debounce.remaining(Instant::now()) {
+            // The pause after the last key: one repaint, no timer thread.
+            ctx.request_repaint_after(left);
+        }
 
         match &self.phase {
             Phase::Failed(error) => {
@@ -539,15 +635,234 @@ impl LogView {
             }
             Phase::Ready => {}
         }
-        if self.timeline.is_empty() && self.timeline.at_newest() && self.timeline.at_oldest() {
+        if self.timeline.is_empty()
+            && self.timeline.at_newest()
+            && self.timeline.at_oldest()
+            && !self.reloading
+        {
+            let text = self.empty_text();
             ui.centered_and_justified(|ui| {
-                ui.label("No events recorded yet. Changes appear here as they happen.");
+                ui.label(text);
             });
             return event;
         }
 
         self.table(ui);
         self.pill(&ctx);
+        event
+    }
+
+    /// What the grid says when there is nothing to show.
+    fn empty_text(&self) -> String {
+        match self.spec.narrowest() {
+            Some(narrowest) if self.timeline.total() == 0 && !self.spec.is_default() => {
+                format!("No matching events. {narrowest} narrows the view the most.")
+            }
+            _ => String::from("No events recorded yet. Changes appear here as they happen."),
+        }
+    }
+
+    /// The filter bar: search, kind chips, time span, the advanced row, the
+    /// hidden counter, the scan progress and the column chooser.
+    fn bar(&mut self, ui: &mut egui::Ui) -> Option<ViewEvent> {
+        let mut event = None;
+        let mut changed = false;
+        ui.horizontal_wrapped(|ui| {
+            let label = ui.label("Search");
+            let search = ui.add(
+                egui::TextEdit::singleline(&mut self.spec.name)
+                    .id(egui::Id::unique("search"))
+                    .hint_text("name contains...")
+                    .desired_width(200.0),
+            );
+            let search = search.labelled_by(label.id);
+            if self.focus_search {
+                self.focus_search = false;
+                search.request_focus();
+            }
+            changed |= search.changed();
+            for chip in Chip::ALL {
+                let on = self.spec.kinds.contains(&chip);
+                if ui.selectable_label(on, chip.label()).clicked() {
+                    if on {
+                        self.spec.kinds.remove(&chip);
+                    } else {
+                        self.spec.kinds.insert(chip);
+                    }
+                    changed = true;
+                }
+            }
+            changed |= span_menu(ui, &mut self.spec.span);
+            if ui.selectable_label(self.more, "More").clicked() {
+                self.more = !self.more;
+            }
+        });
+        if self.more {
+            changed |= self.advanced(ui);
+        }
+        ui.horizontal_wrapped(|ui| {
+            event = self.columns_menu(ui);
+            let status = self.status_text().to_owned();
+            ui.label(status);
+            if let Some(hidden) = self.hidden.filter(|hidden| *hidden > 0) {
+                let verb = if self.spec.show_hidden {
+                    "Hide"
+                } else {
+                    "Show"
+                };
+                ui.label(format!("{} hidden by the view.", group_digits(hidden)));
+                if ui.button(verb).clicked() {
+                    self.spec.show_hidden = !self.spec.show_hidden;
+                    changed = true;
+                }
+            }
+            if self.timeline.busy() && self.scanned > 0 {
+                let of = self.timeline.extent().map_or(String::new(), |extent| {
+                    format!(" of {}", group_digits(extent.span()))
+                });
+                ui.label(format!("Scanned {}{of}", group_digits(self.scanned)));
+                if ui.button("Stop").clicked() {
+                    self.stop_scan();
+                }
+            }
+        });
+        if changed {
+            self.spec_changed();
+        }
+        event
+    }
+
+    /// The advanced row: glob or regex, watch, folder and the text form.
+    /// Returns whether the spec changed.
+    fn advanced(&mut self, ui: &mut egui::Ui) -> bool {
+        let mut changed = false;
+        ui.horizontal_wrapped(|ui| {
+            let (mut kind, mut text) = self
+                .spec
+                .pattern
+                .clone()
+                .unwrap_or((PatternKind::Glob, String::new()));
+            let before = (kind, text.clone());
+            egui::ComboBox::from_label("Match")
+                .selected_text(match kind {
+                    PatternKind::Glob => "Glob",
+                    PatternKind::Regex => "Regex",
+                })
+                .show_ui(ui, |ui| {
+                    ui.selectable_value(&mut kind, PatternKind::Glob, "Glob");
+                    ui.selectable_value(&mut kind, PatternKind::Regex, "Regex");
+                });
+            let field = ui.add(
+                egui::TextEdit::singleline(&mut text)
+                    .id(egui::Id::unique("pattern"))
+                    .hint_text("*.tmp or \\.tmp$")
+                    .desired_width(220.0),
+            );
+            if (kind, text.clone()) != before || field.changed() {
+                self.spec.pattern = (!text.is_empty()).then_some((kind, text));
+                changed = true;
+            }
+            if let Some(error) = self
+                .spec_error
+                .as_ref()
+                .filter(|error| error.field == Field::Pattern)
+            {
+                ui.colored_label(ui.visuals().error_fg_color, format!("x {error}"));
+            }
+            if !self.roots.is_empty() {
+                let current = self.spec.root.clone();
+                egui::ComboBox::from_label("Watch")
+                    .selected_text(current.as_deref().unwrap_or("All watches"))
+                    .show_ui(ui, |ui| {
+                        if ui
+                            .selectable_label(current.is_none(), "All watches")
+                            .clicked()
+                        {
+                            self.spec.root = None;
+                            changed = true;
+                        }
+                        for root in &self.roots {
+                            let chosen = current.as_deref() == Some(root.as_str());
+                            if ui.selectable_label(chosen, root).clicked() {
+                                self.spec.root = Some(root.clone());
+                                changed = true;
+                            }
+                        }
+                    });
+            }
+            if let Some(folder) = self.spec.subtree.clone() {
+                ui.label(format!("In {folder}"));
+                if ui.button("Clear folder").clicked() {
+                    self.spec.subtree = None;
+                    changed = true;
+                }
+            }
+            if let Some(error) = self
+                .spec_error
+                .as_ref()
+                .filter(|error| error.field != Field::Pattern)
+            {
+                ui.colored_label(ui.visuals().error_fg_color, format!("x {error}"));
+            }
+        });
+        ui.horizontal_wrapped(|ui| {
+            let label = ui.label("Filter text");
+            let field = ui.add(
+                egui::TextEdit::singleline(&mut self.text)
+                    .id(egui::Id::unique("filter-text"))
+                    .desired_width(480.0),
+            );
+            let field = field.labelled_by(label.id);
+            if field.lost_focus() && ui.input(|input| input.key_pressed(egui::Key::Enter)) {
+                match FilterSpec::parse(&self.text) {
+                    Ok(spec) => {
+                        self.spec = spec;
+                        self.text_error = None;
+                        changed = true;
+                    }
+                    Err(error) => self.text_error = Some(error.to_string()),
+                }
+            }
+            if ui.button("Copy filter").clicked() {
+                ui.ctx().copy_text(self.spec.to_text());
+            }
+            if ui.button("Clear filter").clicked() {
+                self.spec = FilterSpec::default();
+                changed = true;
+            }
+            if let Some(error) = &self.text_error {
+                ui.colored_label(ui.visuals().error_fg_color, format!("x {error}"));
+            }
+        });
+        changed
+    }
+
+    /// The column chooser; returns the new column names when they changed.
+    fn columns_menu(&mut self, ui: &mut egui::Ui) -> Option<ViewEvent> {
+        let mut event = None;
+        ui.menu_button("Columns", |ui| {
+            let mut changed = false;
+            for col in Col::ALL {
+                let mut on = self.columns.contains(&col);
+                if ui.checkbox(&mut on, col.title()).changed() {
+                    changed = true;
+                    if on {
+                        self.columns.push(col);
+                    } else if self.columns.len() > 1 {
+                        self.columns.retain(|c| *c != col);
+                    }
+                }
+            }
+            if changed {
+                // The chooser lists them in a fixed order.
+                self.columns.sort_by_key(|col| {
+                    Col::ALL.iter().position(|c| c == col).unwrap_or(usize::MAX)
+                });
+                event = Some(ViewEvent::ColumnsChanged(
+                    self.columns.iter().map(|c| c.name().to_owned()).collect(),
+                ));
+            }
+        });
         event
     }
 
@@ -581,6 +896,7 @@ impl LogView {
             follow: &mut self.follow,
             columns: &self.columns,
             visible: &mut self.visible,
+            frozen: self.reloading,
         };
         table.show(ui, &mut grid);
     }
@@ -621,6 +937,28 @@ impl LogView {
     }
 }
 
+/// The time span chooser. Returns whether it changed. (A custom range is set
+/// with `from:` and `to:` in the filter text.)
+fn span_menu(ui: &mut egui::Ui, span: &mut Span) -> bool {
+    let before = *span;
+    let name = match span {
+        Span::Any => "Any time",
+        Span::Last5Minutes => "Last 5 minutes",
+        Span::LastHour => "Last hour",
+        Span::Today => "Today",
+        Span::Between { .. } => "Custom range",
+    };
+    egui::ComboBox::from_label("When")
+        .selected_text(name)
+        .show_ui(ui, |ui| {
+            ui.selectable_value(span, Span::Any, "Any time");
+            ui.selectable_value(span, Span::Last5Minutes, "Last 5 minutes");
+            ui.selectable_value(span, Span::LastHour, "Last hour");
+            ui.selectable_value(span, Span::Today, "Today");
+        });
+    *span != before
+}
+
 /// The table's delegate: borrows what a frame needs from the view.
 struct Grid<'a> {
     timeline: &'a mut Timeline<GridRow>,
@@ -632,6 +970,8 @@ struct Grid<'a> {
     follow: &'a mut Follow,
     columns: &'a [Col],
     visible: &'a mut Range<u64>,
+    /// A new filter waits for its extent: show, but do not extend.
+    frozen: bool,
 }
 
 fn row_tint(ui: &egui::Ui, class: RowClass) -> Option<egui::Color32> {
@@ -647,6 +987,9 @@ fn row_tint(ui: &egui::Ui, class: RowClass) -> Option<egui::Color32> {
 impl TableDelegate for Grid<'_> {
     fn prepare(&mut self, info: &PrefetchInfo) {
         *self.visible = info.visible_rows.clone();
+        if self.frozen {
+            return;
+        }
         self.timeline.keep_near(&info.visible_rows);
         for fetch in self.timeline.plan(&info.visible_rows) {
             self.worker.send(Job::Page {

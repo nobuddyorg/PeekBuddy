@@ -238,6 +238,26 @@ impl<R: Identified> Timeline<R> {
         self.at_oldest
     }
 
+    /// Whether a fetch is out: a scan may be running.
+    #[must_use]
+    pub const fn busy(&self) -> bool {
+        self.pending_older.is_some() || self.pending_newer.is_some() || self.pending_seek.is_some()
+    }
+
+    /// The newest and oldest id of the log, when it is known.
+    #[must_use]
+    pub const fn extent(&self) -> Option<Extent> {
+        self.extent
+    }
+
+    /// Forgets the fetches that are out, because their jobs were cancelled and
+    /// will never answer; the view asks again when it needs more.
+    pub fn abandon_pending(&mut self) {
+        self.pending_older = None;
+        self.pending_newer = None;
+        self.pending_seek = None;
+    }
+
     /// Rows that arrived while the user was away from the newest rows.
     #[must_use]
     pub const fn unseen(&self) -> u64 {

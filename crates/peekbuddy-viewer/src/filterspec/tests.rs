@@ -87,7 +87,7 @@ fn a_custom_range_uses_utc_times() {
 #[test]
 fn problems_are_positioned_and_in_words() {
     let cases: &[(&str, usize, &str)] = &[
-        ("nam:x", 0, "unknown key `nam`"),
+        ("name:x", 0, "unknown key `name`"),
         ("name:\"open", 5, "never closed"),
         ("name:", 5, "value is missing"),
         ("hello", 0, "expected a key"),
@@ -143,7 +143,7 @@ fn chips_become_kind_sets_by_class() {
     // Every chip stands for something.
     for chip in Chip::ALL {
         assert!(!chip.kinds().is_empty(), "{chip:?}");
-        assert!(!chip.label().is_empty());
+        assert_ne!(chip.label().len(), 0);
     }
 }
 
@@ -213,7 +213,7 @@ fn an_invalid_regex_or_glob_is_refused_at_the_pattern_and_never_panics() {
         };
         let error = spec.to_filter(NOON, 0).unwrap_err();
         assert_eq!(error.field, Field::Pattern, "{text}");
-        assert!(!error.message.is_empty());
+        assert_ne!(error.message.len(), 0);
     }
     // A good one compiles and filters.
     let good = FilterSpec {

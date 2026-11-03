@@ -11,13 +11,13 @@ use std::time::{Duration, Instant};
 use eframe::egui;
 use peekbuddy_core::ipc::Command;
 use peekbuddy_core::perf::{Milestone, Role as PerfRole};
-use peekbuddy_core::query::Filter;
 use peekbuddy_core::settings::{self, Context, Loaded, Settings};
 use peekbuddy_win::chrome;
 use peekbuddy_win::perf::{record, since_process_create_us};
 use peekbuddy_win::signal::Signal;
 use raw_window_handle::{HasWindowHandle as _, RawWindowHandle};
 
+use crate::filterspec::FilterSpec;
 use crate::geometry::{self, PxRect};
 use crate::gpu::{self, Adapter};
 use crate::link::{Link, LinkEvent, Timing};
@@ -270,10 +270,14 @@ impl ViewerApp {
 
     /// Remembers the window.
     fn save_window(&mut self) {
-        let Some(rect) = self.normal else { return };
+        let rect = self.normal;
         let maximized = self.hwnd.is_some_and(chrome::is_maximized);
+        let filter = self.view.filter_text();
         self.update_settings("the window", |settings| {
-            settings.viewer = geometry::remember(settings.viewer.clone(), rect, maximized);
+            if let Some(rect) = rect {
+                settings.viewer = geometry::remember(settings.viewer.clone(), rect, maximized);
+            }
+            settings.viewer.filter = filter;
         });
     }
 
@@ -498,11 +502,19 @@ pub fn run(options: Options) -> std::io::Result<()> {
                 let ctx = cc.egui_ctx.clone();
                 Arc::new(move || ctx.request_repaint())
             };
+            // The filter of the last run; text that no longer parses is dropped.
+            let spec = FilterSpec::parse(&settings.viewer.filter).unwrap_or_default();
+            let roots = settings
+                .watches
+                .iter()
+                .map(|watch| watch.path.clone())
+                .collect();
             let view = LogView::new(
                 Arc::new(StoreSource::new(&options.segments)),
                 Arc::new(peekbuddy_win::localtime::utc_offset_seconds),
                 Arc::clone(&waker),
-                Filter::default_view(),
+                spec,
+                roots,
                 &settings.view.columns,
             )?;
             let link = Link::start(

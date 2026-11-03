@@ -425,7 +425,7 @@ impl<'a> Parser<'a> {
         Self { text, at: 0 }
     }
 
-    fn fail<T>(&self, at: usize, message: impl Into<String>) -> Result<T, ParseError> {
+    fn fail<T>(at: usize, message: impl Into<String>) -> Result<T, ParseError> {
         Err(ParseError {
             at,
             message: message.into(),
@@ -449,7 +449,7 @@ impl<'a> Parser<'a> {
             .unwrap_or(rest.len());
         let key = rest.get(..end).unwrap_or_default();
         if key.is_empty() || !rest.get(end..).is_some_and(|tail| tail.starts_with(':')) {
-            return self.fail(self.at, "expected a key and a colon, like name:\"x\"");
+            return Self::fail(self.at, "expected a key and a colon, like name:\"x\"");
         }
         self.at += end + 1;
         Ok(key)
@@ -471,19 +471,21 @@ impl<'a> Parser<'a> {
                     '\\' => match chars.next() {
                         Some((_, escaped @ ('"' | '\\'))) => out.push(escaped),
                         _ => {
-                            return self
-                                .fail(start + 1 + offset, "\\ must be followed by \" or \\");
+                            return Self::fail(
+                                start + 1 + offset,
+                                "\\ must be followed by \" or \\",
+                            );
                         }
                     },
                     other => out.push(other),
                 }
             }
-            return self.fail(start, "this quote is never closed");
+            return Self::fail(start, "this quote is never closed");
         }
         let end = rest.find(char::is_whitespace).unwrap_or(rest.len());
         let word = rest.get(..end).unwrap_or_default();
         if word.is_empty() {
-            return self.fail(start, "a value is missing");
+            return Self::fail(start, "a value is missing");
         }
         self.at += end;
         Ok(word.to_owned())
@@ -503,7 +505,7 @@ impl<'a> Parser<'a> {
             let value_at = self.at;
             let value = self.value()?;
             if seen.contains(&key) {
-                return self.fail(key_at, format!("{key}: is given twice"));
+                return Self::fail(key_at, format!("{key}: is given twice"));
             }
             seen.push(key);
             match key {
@@ -515,7 +517,7 @@ impl<'a> Parser<'a> {
                                 spec.kinds.insert(chip);
                             }
                             None => {
-                                return self.fail(
+                                return Self::fail(
                                     value_at,
                                     format!(
                                         "unknown kind `{word}` (created, modified, deleted, \
@@ -533,12 +535,12 @@ impl<'a> Parser<'a> {
                         "5m" => Span::Last5Minutes,
                         "1h" => Span::LastHour,
                         "today" => Span::Today,
-                        _ => return self.fail(value_at, "since: takes 5m, 1h or today"),
+                        _ => return Self::fail(value_at, "since: takes 5m, 1h or today"),
                     };
                 }
                 "from" | "to" => {
                     let Some(ticks) = parse_iso_utc(&value) else {
-                        return self.fail(
+                        return Self::fail(
                             value_at,
                             format!("{key}: takes a UTC time like 2026-10-26T12:00:00.0000000Z"),
                         );
@@ -551,7 +553,7 @@ impl<'a> Parser<'a> {
                 }
                 "glob" | "re" => {
                     if spec.pattern.is_some() {
-                        return self.fail(key_at, "give a glob or a regex, not both");
+                        return Self::fail(key_at, "give a glob or a regex, not both");
                     }
                     if !value.is_empty() {
                         let kind = if key == "glob" {
@@ -564,16 +566,16 @@ impl<'a> Parser<'a> {
                 }
                 "hidden" => {
                     if value != "show" {
-                        return self.fail(value_at, "hidden: takes show");
+                        return Self::fail(value_at, "hidden: takes show");
                     }
                     spec.show_hidden = true;
                 }
-                other => return self.fail(key_at, format!("unknown key `{other}`")),
+                other => return Self::fail(key_at, format!("unknown key `{other}`")),
             }
         }
         if from.is_some() || to.is_some() {
             if spec.span != Span::Any {
-                return self.fail(0, "since: and from:/to: exclude each other");
+                return Self::fail(0, "since: and from:/to: exclude each other");
             }
             spec.span = Span::Between { from, to };
         }

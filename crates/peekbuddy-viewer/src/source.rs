@@ -139,6 +139,7 @@ pub(crate) mod fake {
         /// The threads that asked.
         threads: Vec<ThreadId>,
         calls: usize,
+        extents: usize,
         hidden: u64,
     }
 
@@ -151,6 +152,7 @@ pub(crate) mod fake {
                     step: None,
                     threads: Vec::new(),
                     calls: 0,
+                    extents: 0,
                     hidden: 0,
                 }),
             })
@@ -178,6 +180,10 @@ pub(crate) mod fake {
 
         pub fn calls(&self) -> usize {
             self.with(|s| s.calls)
+        }
+
+        pub fn extents(&self) -> usize {
+            self.with(|s| s.extents)
         }
 
         pub fn row(id: i64) -> Row {
@@ -255,6 +261,7 @@ pub(crate) mod fake {
 
         fn extent(&self) -> Result<Option<Extent>, String> {
             self.with(|s| {
+                s.extents += 1;
                 Ok((s.last >= s.first).then_some(Extent {
                     newest: s.last,
                     oldest: s.first,
