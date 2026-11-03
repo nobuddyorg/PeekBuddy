@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1793699468949,
+  "lastUpdate": 1793699583107,
   "repoUrl": "https://github.com/nobuddyorg/PeekBuddy",
   "entries": {
     "benches (windows-2025)": [
@@ -321,6 +321,55 @@ window.BENCHMARK_DATA = {
             "name": "durability.restart_to_ready.max",
             "value": 555,
             "unit": "ms"
+          }
+        ]
+      }
+    ],
+    "query benches (windows-2025)": [
+      {
+        "commit": {
+          "author": {
+            "name": "Matthias Eggert",
+            "username": "besessener",
+            "email": "8039350+besessener@users.noreply.github.com"
+          },
+          "committer": {
+            "name": "GitHub",
+            "username": "web-flow",
+            "email": "noreply@github.com"
+          },
+          "id": "4e36337144cb7c4bd3cec1cfab240129a21fdf4d",
+          "message": "fix(engine): watch a lost root's remaining path (#312)\n\nPart of #277",
+          "timestamp": "2026-11-03T09:23:44Z",
+          "url": "https://github.com/nobuddyorg/PeekBuddy/commit/4e36337144cb7c4bd3cec1cfab240129a21fdf4d"
+        },
+        "date": 1793699580891,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "query.filtered_first_1m",
+            "value": 7140763.162393162,
+            "unit": "ns"
+          },
+          {
+            "name": "query.fts_lookup_10m",
+            "value": 33005336.458333336,
+            "unit": "ns"
+          },
+          {
+            "name": "query.page_keyset_10m",
+            "value": 2383613.325358852,
+            "unit": "ns"
+          },
+          {
+            "name": "query.regex_post_filter_1m",
+            "value": 3712569300,
+            "unit": "ns"
+          },
+          {
+            "name": "query.subtree_resolve_10m",
+            "value": 10191823.888888888,
+            "unit": "ns"
           }
         ]
       }
