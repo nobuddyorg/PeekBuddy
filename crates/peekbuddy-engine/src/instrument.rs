@@ -91,7 +91,15 @@ pub fn spawn_viewer(exe: &Path, args: &[std::ffi::OsString]) {
     if let Some(hook) = VIEWER_HOOK.get() {
         hook();
     }
-    let _ = Command::new(exe).args(args).spawn();
+    // A window needs no standard handles; handing the engine's down would
+    // also keep a pipe of whoever started the engine open for as long as the
+    // viewer lives.
+    let _ = Command::new(exe)
+        .args(args)
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .spawn();
 }
 
 /// The longest the log file grows before it is rotated.

@@ -92,6 +92,16 @@ tracing-subscriber = { version = "0.3.23", default-features = false, features = 
 tracing-tracy = { version = "=0.12.0", default-features = false }
 tracy-client = { version = "=0.19.0", default-features = false }
 tracy-client-sys = { version = "=0.30.1", default-features = false }
+# The viewer renders through DX12 only (ADR 0005). eframe's `wgpu` feature
+# switches on every backend of wgpu, including Vulkan (`ash`) and GLES (which
+# pulls in opengl32.dll and glu32.dll); this direct dependency picks the one
+# that is used. The version follows eframe 0.37.0.
+wgpu = { version = "=30.0.1", default-features = false, features = [
+  "dx12",
+  "parking_lot",
+  "std",
+  "wgsl",
+] }
 # Exact pin: every bump is a reviewed PR (ADR 0010, F20).
 windows-sys = "=0.61.2"
 winresource = "0.1.34"

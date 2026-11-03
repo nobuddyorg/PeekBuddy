@@ -45,8 +45,11 @@ Three checks keep the layout honest:
   `missing_errors_doc`).
 - `cargo xtask check-deps`: `peekbuddy-core` and `peekbuddy-engine` never
   depend on `eframe`, `egui`, `winit`, `wgpu` or `glow` (ADR 0001), and no
-  crate uses PDH: no `Win32_System_Performance` feature, no `Pdh*` call, no
-  `pdh.dll` (#24). Process metrics come from `peekbuddy_win::metrics`.
+  crate uses PDH: no `Win32_System_Performance` feature of `windows-sys`, no
+  `Pdh*` call, no `pdh.dll` (#24). Process metrics come from
+  `peekbuddy_win::metrics`. The viewer's `windows` bindings (wgpu, AccessKit)
+  are exempt from the feature rule; `cargo xtask check-release --exe` scans
+  the exe for a `pdh.dll` import instead.
 
 ## Running tests
 

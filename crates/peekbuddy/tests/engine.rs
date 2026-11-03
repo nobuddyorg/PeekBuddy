@@ -98,15 +98,6 @@ fn a_second_engine_exits_zero_within_a_second_and_leaves_the_first_running() {
 }
 
 #[test]
-fn the_viewer_mutex_refuses_a_second_viewer() {
-    // The viewer is a stub that returns at once, so a second `--viewer` is
-    // checked at the primitive level: the exe exits 0 either way. The
-    // end-to-end check arrives with the real viewer window (#65).
-    let status = Command::new(EXE).arg("--viewer").status().unwrap();
-    assert!(status.success());
-}
-
-#[test]
 fn a_refused_command_line_exits_with_two() {
     let status = Command::new(EXE).arg("--no-such-flag").status().unwrap();
     assert_eq!(status.code(), Some(2));
@@ -146,10 +137,14 @@ fn the_headless_engine_loads_no_gpu_or_ui_stack() {
         modules.iter().any(|name| name == "peekbuddy.exe"),
         "{modules:?}"
     );
+    // The viewer's renderer lives in the same exe; its libraries are
+    // delay-loaded (build.rs), so the engine never maps them.
     for banned in [
         "opengl32.dll",
+        "glu32.dll",
         "d3d12.dll",
         "dxgi.dll",
+        "dxcore.dll",
         "d3dcompiler_47.dll",
     ] {
         assert!(

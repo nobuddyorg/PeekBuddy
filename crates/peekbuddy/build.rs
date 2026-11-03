@@ -87,6 +87,24 @@ fn build_facts() -> std::io::Result<()> {
     directive("cargo:rerun-if-changed=../../.git/HEAD")
 }
 
+/// GPU libraries the viewer's renderer imports statically. The engine role
+/// shares the exe and must not map them (F1, ADR 0001, spike 0003): with
+/// `/DELAYLOAD` a library is loaded at the first call into it, which only the
+/// viewer makes. `d3d12.dll` and the shader compiler are loaded by wgpu at
+/// run time anyway. Needs `delayimp.lib` for the loader helper.
+const DELAY_LOADED: &[&str] = &["dxgi.dll", "dxcore.dll"];
+
+fn delay_load_gpu_libraries() -> std::io::Result<()> {
+    if std::env::var("CARGO_CFG_TARGET_ENV").as_deref() != Ok("msvc") {
+        return Ok(());
+    }
+    directive("cargo:rustc-link-lib=delayimp")?;
+    for dll in DELAY_LOADED {
+        directive(&format!("cargo:rustc-link-arg-bins=/DELAYLOAD:{dll}"))?;
+    }
+    Ok(())
+}
+
 fn main() -> Result<(), Box<dyn Error>> {
     directive("cargo:rerun-if-changed=build.rs")?;
     build_facts()?;
@@ -105,6 +123,8 @@ fn main() -> Result<(), Box<dyn Error>> {
             .active_code_page(ActiveCodePage::Utf8)
             .requested_execution_level(ExecutionLevel::AsInvoker),
     )?;
+
+    delay_load_gpu_libraries()?;
 
     if cfg!(windows) && rc_available() {
         let mut resource = winresource::WindowsResource::new();

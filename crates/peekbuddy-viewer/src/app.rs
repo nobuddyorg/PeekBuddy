@@ -2,6 +2,7 @@
 //! come from eframe, the frame and the state it shows from [`crate::shell`]
 //! and [`crate::link`], which build and test on every host.
 
+use std::collections::BTreeMap;
 use std::path::Path;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, PoisonError};
@@ -38,6 +39,10 @@ struct ProbeReport {
     idle_seconds: u64,
     idle_frames: Option<u64>,
     adapter: Option<Adapter>,
+    /// Who asked for the frames painted in the idle window, with counts
+    /// (`file:line reason`): when a frame is painted that should not be, this
+    /// says which call to look at.
+    causes: BTreeMap<String, u32>,
 }
 
 fn json_string(text: &str) -> String {
@@ -62,6 +67,14 @@ fn json_string(text: &str) -> String {
 impl ProbeReport {
     fn to_json(&self, frames: u64) -> String {
         let number = |value: Option<u64>| value.map_or(String::from("null"), |v| v.to_string());
+        let causes = format!(
+            "{{{}}}",
+            self.causes
+                .iter()
+                .map(|(cause, count)| format!("{}:{count}", json_string(cause)))
+                .collect::<Vec<_>>()
+                .join(",")
+        );
         let (name, backend, device) = self.adapter.as_ref().map_or(
             (
                 String::from("null"),
@@ -79,7 +92,7 @@ impl ProbeReport {
         format!(
             "{{\"role\":\"viewer\",\"frames\":{frames},\"first_frame_us\":{},\
              \"idle_seconds\":{},\"idle_frames\":{},\"adapter\":{name},\
-             \"backend\":{backend},\"device_type\":{device}}}\n",
+             \"backend\":{backend},\"device_type\":{device},\"causes\":{causes}}}\n",
             number(self.first_frame_us),
             self.idle_seconds,
             self.idle_frames
@@ -138,6 +151,8 @@ struct ViewerApp {
     /// Set by the thread that waits for a second launch.
     show_requested: Arc<AtomicBool>,
     frames: Arc<AtomicU64>,
+    /// True while the probe counts idle frames.
+    idle_window: Arc<AtomicBool>,
     hwnd: Option<isize>,
     placed: bool,
     /// The last rectangle the window had while neither maximized nor
@@ -250,6 +265,17 @@ impl ViewerApp {
         }
     }
 
+    /// Records who asked for this frame (the probe's idle window).
+    fn note_causes(&self, ctx: &egui::Context) {
+        let mut report = self.report.lock().unwrap_or_else(PoisonError::into_inner);
+        for cause in ctx.repaint_causes() {
+            if report.causes.len() < 32 {
+                let key = format!("{}:{} {}", cause.file, cause.line, cause.reason);
+                *report.causes.entry(key).or_insert(0) += 1;
+            }
+        }
+    }
+
     fn write_report(&self) {
         let Some(probe) = &self.options.probe else {
             return;
@@ -292,6 +318,9 @@ impl eframe::App for ViewerApp {
 
     fn ui(&mut self, ui: &mut egui::Ui, frame: &mut eframe::Frame) {
         self.frames.fetch_add(1, Ordering::Relaxed);
+        if self.idle_window.load(Ordering::Relaxed) {
+            self.note_causes(ui.ctx());
+        }
         let action = self.shell.show(ui, |ui| {
             ui.centered_and_justified(|ui| {
                 ui.label("The log appears here.");
@@ -343,7 +372,7 @@ impl eframe::App for ViewerApp {
 fn spawn_probe(
     ctx: egui::Context,
     probe: &Probe,
-    frames: Arc<AtomicU64>,
+    (frames, idle_window): (Arc<AtomicU64>, Arc<AtomicBool>),
     report: Arc<Mutex<ProbeReport>>,
 ) {
     let seconds = probe.seconds;
@@ -360,7 +389,9 @@ fn spawn_probe(
         // page of whatever there is; the idle window starts after them.
         std::thread::sleep(Duration::from_millis(1500));
         let before = frames.load(Ordering::Relaxed);
+        idle_window.store(true, Ordering::Relaxed);
         std::thread::sleep(Duration::from_secs(seconds));
+        idle_window.store(false, Ordering::Relaxed);
         let after = frames.load(Ordering::Relaxed);
         {
             let mut report = report.lock().unwrap_or_else(PoisonError::into_inner);
@@ -417,6 +448,7 @@ pub fn run(options: Options) -> std::io::Result<()> {
             cc.egui_ctx
                 .set_theme(theme::preference(settings.general.theme));
             let frames = Arc::new(AtomicU64::new(0));
+            let idle_window = Arc::new(AtomicBool::new(false));
             let report = Arc::new(Mutex::new(ProbeReport {
                 idle_seconds: 0,
                 ..ProbeReport::default()
@@ -431,7 +463,7 @@ pub fn run(options: Options) -> std::io::Result<()> {
                 spawn_probe(
                     cc.egui_ctx.clone(),
                     probe,
-                    Arc::clone(&frames),
+                    (Arc::clone(&frames), Arc::clone(&idle_window)),
                     Arc::clone(&report),
                 );
             }
@@ -455,6 +487,7 @@ pub fn run(options: Options) -> std::io::Result<()> {
                 settings,
                 show_requested,
                 frames,
+                idle_window,
                 hwnd: None,
                 placed: false,
                 normal: None,
@@ -477,6 +510,8 @@ pub fn run(options: Options) -> std::io::Result<()> {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::BTreeMap;
+
     use super::{ProbeReport, json_string};
     use crate::gpu::Adapter;
 
@@ -491,6 +526,7 @@ mod tests {
                 backend: String::from("Dx12"),
                 device_type: String::from("Cpu"),
             }),
+            causes: BTreeMap::from([(String::from("a.rs:1 \"x\""), 2)]),
         };
         let json = report.to_json(7);
         assert!(json.ends_with("}\n"));
@@ -499,6 +535,10 @@ mod tests {
         assert!(json.contains("\"idle_frames\":0"), "{json}");
         assert!(json.contains("\"backend\":\"Dx12\""), "{json}");
         assert!(json.contains("\\\"Basic\\\""), "{json}");
+        assert!(
+            json.contains("\"causes\":{\"a.rs:1 \\\"x\\\"\":2}"),
+            "{json}"
+        );
         assert_eq!(json.lines().count(), 1);
     }
 
@@ -507,6 +547,7 @@ mod tests {
         let json = ProbeReport::default().to_json(0);
         assert!(json.contains("\"idle_frames\":null"), "{json}");
         assert!(json.contains("\"adapter\":null"), "{json}");
+        assert!(json.contains("\"causes\":{}"), "{json}");
         assert_eq!(json_string("a\tb\\"), "\"a\\u0009b\\\\\"");
     }
 }

@@ -13,15 +13,22 @@ egui = { workspace = true }
 peekbuddy-core = { workspace = true }
 
 [target.'cfg(windows)'.dependencies]
-# The window and the renderer. wgpu with DX12 only (ADR 0005); the glow
-# build on x64 follows in #252.
+# The window and the renderer. wgpu with DX12 only (ADR 0005): eframe's
+# `wgpu` feature would switch on every backend, so the crate is asked for
+# `wgpu_no_default_features` and the DX12 backend comes from the `wgpu` line
+# below. The glow build on x64 follows in #252.
 eframe = { version = "=0.37.0", default-features = false, features = [
   "accesskit",
   "default_fonts",
-  "wgpu",
+  "wgpu_no_default_features",
 ] }
 peekbuddy-win = { workspace = true }
 raw-window-handle = { workspace = true }
+wgpu = { workspace = true }
+
+[package.metadata.cargo-machete]
+# Named only to choose the backends of the wgpu that eframe uses.
+ignored = ["wgpu"]
 
 [dev-dependencies]
 egui_kittest = { workspace = true }
