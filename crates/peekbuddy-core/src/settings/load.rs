@@ -6,7 +6,7 @@ use super::migrate::{Step, migrate_with};
 use super::validate::{Context, Issue, validate};
 use super::{
     CURRENT_VERSION, FILTER_KEYS, GENERAL_KEYS, STORE_KEYS, Settings, TOP_KEYS, VIEW_KEYS,
-    WATCH_KEYS,
+    VIEWER_KEYS, WATCH_KEYS,
 };
 
 /// One thing wrong with the file, with a position when it can be found.
@@ -188,6 +188,7 @@ fn unknown_issues(table: &toml::Table) -> Vec<Issue> {
         ("general", GENERAL_KEYS),
         ("store", STORE_KEYS),
         ("view", VIEW_KEYS),
+        ("viewer", VIEWER_KEYS),
         ("filters", FILTER_KEYS),
     ] {
         if let Some(toml::Value::Table(section)) = table.get(name) {

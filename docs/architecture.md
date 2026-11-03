@@ -61,7 +61,9 @@ flowchart LR
   read-only connections and receives the live tail over the pipe. Closing it
   gives all its memory back.
 - Each role holds its own single-instance mutex `Local\PeekBuddy.{GUID}`. A
-  second `--viewer` launch forwards "show viewer" to the running one.
+  second `--viewer` launch raises a named event that the open viewer waits
+  on, and that window comes to the front; there is never a second viewer. The
+  viewer role is described in [the viewer reference](reference/viewer.md).
 
 ## Data flow
 
@@ -99,7 +101,7 @@ flowchart LR
 | `peekbuddy-win` | OS-independent parsers only | allowed | `windows-sys =0.61.2` wrappers, FILE_NOTIFY/USN record views, Win32 traits with fakes |
 | `peekbuddy-store` | yes | forbidden | SQLite segments, schema, writer, queries, export |
 | `peekbuddy-engine` | logic yes, Win32 parts no | forbidden | capture threads, writer thread, reconcile scanner, tray, pipe server |
-| `peekbuddy-viewer` | no | forbidden | eframe window, grid, filters, pipe client |
+| `peekbuddy-viewer` | the view code yes (egui, kittest); the window and renderer (eframe) are Windows-only | forbidden | window, grid, filters, engine link |
 | `peekbuddy` | no | forbidden | the single bin: engine by default, `--viewer` for the viewer |
 | `xtask` | yes | forbidden | churn generator, perf harness, repo checks, release helpers |
 | `benches` | yes | forbidden | micro-benchmarks |

@@ -16,6 +16,7 @@ use crate::tray_model::{
 struct RealActions {
     window: WindowHandle,
     exe: PathBuf,
+    viewer_args: Vec<std::ffi::OsString>,
     data_root: PathBuf,
     pause: Arc<PauseCtl>,
 }
@@ -33,7 +34,7 @@ impl Actions for RealActions {
     fn open_viewer(&mut self) {
         // The viewer's own mutex keeps a second one from opening; focusing
         // the running one goes through the pipe (#61).
-        crate::instrument::spawn_viewer(&self.exe);
+        crate::instrument::spawn_viewer(&self.exe, &self.viewer_args);
     }
 
     fn open_data_folder(&mut self) {
@@ -120,6 +121,7 @@ impl TrayController {
     pub fn new(
         window: WindowHandle,
         exe: PathBuf,
+        viewer_args: Vec<std::ffi::OsString>,
         data_root: PathBuf,
         pause: Arc<PauseCtl>,
         state: TrayState,
@@ -129,6 +131,7 @@ impl TrayController {
             actions: RealActions {
                 window,
                 exe,
+                viewer_args,
                 data_root,
                 pause,
             },

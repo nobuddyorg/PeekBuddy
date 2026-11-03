@@ -35,6 +35,9 @@ pub struct Settings {
     pub store: Store,
     /// Viewer defaults.
     pub view: View,
+    /// What the viewer remembers between runs (#65).
+    #[serde(skip_serializing_if = "Viewer::is_default")]
+    pub viewer: Viewer,
     /// Global filters (#40).
     pub filters: Filters,
     /// The watched roots.
@@ -49,6 +52,7 @@ impl Default for Settings {
             general: General::default(),
             store: Store::default(),
             view: View::default(),
+            viewer: Viewer::default(),
             filters: Filters::default(),
             watches: Vec::new(),
         }
@@ -127,8 +131,63 @@ impl Default for View {
     }
 }
 
-/// Columns the viewer knows.
-pub const COLUMNS: &[&str] = &["time", "kind", "path", "size", "process", "volume"];
+/// Columns the viewer knows. `process` and `volume` are reserved for later
+/// versions (#80); the viewer ignores them.
+pub const COLUMNS: &[&str] = &[
+    "time", "kind", "path", "size", "process", "volume", "old_path", "source", "raw",
+];
+
+/// Smallest and largest window side the viewer restores, in pixels.
+pub const WINDOW_SIDE: std::ops::RangeInclusive<u32> = 200..=32_768;
+
+/// Longest filter text the viewer keeps, in bytes.
+pub const MAX_FILTER_TEXT: usize = 4096;
+
+/// `[viewer]`: what the viewer remembers between runs. The viewer writes it
+/// when its window closes (through the engine, which owns the file); a
+/// missing table means the defaults. Window pixels are virtual-screen
+/// pixels; the viewer clamps them to a visible monitor on restore.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(default)]
+pub struct Viewer {
+    /// Left edge of the window.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub x: Option<i32>,
+    /// Top edge of the window.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub y: Option<i32>,
+    /// Width of the window (not maximized).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub width: Option<u32>,
+    /// Height of the window (not maximized).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub height: Option<u32>,
+    /// The window was maximized.
+    #[serde(skip_serializing_if = "is_false")]
+    pub maximized: bool,
+    /// The filter, in its canonical text form (#67).
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub filter: String,
+    /// Show one row per stored record instead of derived groups (#66).
+    #[serde(skip_serializing_if = "is_false")]
+    pub raw: bool,
+    /// The details pane is closed (#69). Open is the default.
+    #[serde(skip_serializing_if = "is_false")]
+    pub details_hidden: bool,
+}
+
+#[expect(clippy::trivially_copy_pass_by_ref, reason = "serde's signature")]
+const fn is_false(value: &bool) -> bool {
+    !*value
+}
+
+impl Viewer {
+    /// Whether nothing is remembered, so the table is not written.
+    #[must_use]
+    pub fn is_default(&self) -> bool {
+        *self == Self::default()
+    }
+}
 
 /// `[filters]`: rules for every watch.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
@@ -186,10 +245,22 @@ impl Default for Watch {
 }
 
 /// Keys of each table, for the unknown-key check and "did you mean".
-pub(crate) const TOP_KEYS: &[&str] = &["version", "general", "store", "view", "filters", "watch"];
+pub(crate) const TOP_KEYS: &[&str] = &[
+    "version", "general", "store", "view", "viewer", "filters", "watch",
+];
 pub(crate) const GENERAL_KEYS: &[&str] = &["autostart", "theme", "first_run"];
 pub(crate) const STORE_KEYS: &[&str] = &["max_age_days", "max_total_mb", "max_rows"];
 pub(crate) const VIEW_KEYS: &[&str] = &["coalesce_ms", "columns"];
+pub(crate) const VIEWER_KEYS: &[&str] = &[
+    "x",
+    "y",
+    "width",
+    "height",
+    "maximized",
+    "filter",
+    "raw",
+    "details_hidden",
+];
 pub(crate) const FILTER_KEYS: &[&str] = &["exclude_globs", "exclude_regex", "presets"];
 pub(crate) const WATCH_KEYS: &[&str] = &[
     "id",

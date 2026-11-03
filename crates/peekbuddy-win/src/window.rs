@@ -98,6 +98,16 @@ impl WindowHandle {
         (!hwnd.is_null()).then_some(Self(hwnd as isize))
     }
 
+    /// Finds a top-level window by its exact title.
+    #[must_use]
+    pub fn find_title(title: &str) -> Option<Self> {
+        let title = wide(title);
+        // SAFETY: `title` is NUL-terminated and outlives the call; a null
+        // class matches any class.
+        let hwnd = unsafe { FindWindowW(std::ptr::null(), title.as_ptr()) };
+        (!hwnd.is_null()).then_some(Self(hwnd as isize))
+    }
+
     /// A handle from a raw value (0 never names a window).
     #[must_use]
     pub const fn from_raw(raw: isize) -> Self {

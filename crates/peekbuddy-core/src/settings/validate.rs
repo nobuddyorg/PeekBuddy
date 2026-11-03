@@ -289,6 +289,7 @@ fn store_and_view_issues(settings: &Settings) -> Vec<Issue> {
             .at(settings.view.coalesce_ms.to_string()),
         );
     }
+    out.extend(viewer_issues(&settings.viewer));
     let mut seen = HashSet::new();
     if settings.view.columns.is_empty() {
         out.push(Issue::new(
@@ -308,6 +309,33 @@ fn store_and_view_issues(settings: &Settings) -> Vec<Issue> {
                 Issue::new(key, format!("column `{column}` is listed twice")).at(column.clone()),
             );
         }
+    }
+    out
+}
+
+/// `[viewer]`: the window the viewer restores, and the text of its filter.
+fn viewer_issues(viewer: &super::Viewer) -> Vec<Issue> {
+    let mut out = Vec::new();
+    for (key, side) in [
+        ("viewer.width", viewer.width),
+        ("viewer.height", viewer.height),
+    ] {
+        if side.is_some_and(|side| !super::WINDOW_SIDE.contains(&side)) {
+            out.push(Issue::new(
+                key,
+                format!(
+                    "must be {} to {} pixels",
+                    super::WINDOW_SIDE.start(),
+                    super::WINDOW_SIDE.end()
+                ),
+            ));
+        }
+    }
+    if viewer.filter.len() > super::MAX_FILTER_TEXT {
+        out.push(Issue::new(
+            "viewer.filter",
+            format!("is longer than {} bytes", super::MAX_FILTER_TEXT),
+        ));
     }
     out
 }

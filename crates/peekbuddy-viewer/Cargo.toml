@@ -8,5 +8,24 @@ license.workspace = true
 repository.workspace = true
 publish.workspace = true
 
+[dependencies]
+egui = { workspace = true }
+peekbuddy-core = { workspace = true }
+
+[target.'cfg(windows)'.dependencies]
+# The window and the renderer. wgpu with DX12 only (ADR 0005); the glow
+# build on x64 follows in #252.
+eframe = { version = "=0.37.0", default-features = false, features = [
+  "accesskit",
+  "default_fonts",
+  "wgpu",
+] }
+peekbuddy-win = { workspace = true }
+raw-window-handle = { workspace = true }
+
+[dev-dependencies]
+egui_kittest = { workspace = true }
+proptest = { workspace = true }
+
 [lints]
 workspace = true

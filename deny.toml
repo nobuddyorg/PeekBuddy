@@ -21,7 +21,15 @@ confidence-threshold = 0.9
 unused-allowed-license = "allow"
 # MPL-2.0 only through a per-crate exception with a reason, for example:
 # exceptions = [{ crate = "some-crate", allow = ["MPL-2.0"] }] # why
-exceptions = []
+exceptions = [
+  # The fonts egui embeds (Ubuntu Light, Hack, Noto Emoji, emoji-icon-font)
+  # are under font licences; the crate's code is MIT or Apache-2.0. The viewer
+  # ships them in the exe (#65), so THIRD_PARTY_LICENSES lists both.
+  { crate = "epaint_default_fonts", allow = [
+    "OFL-1.1",
+    "Ubuntu-font-1.0",
+  ] },
+]
 
 [bans]
 # windows-sys / windows duplicates are tolerated until windows-rs settles (F20).

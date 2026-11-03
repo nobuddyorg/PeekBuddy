@@ -34,7 +34,13 @@ take effect on the next start: nothing watches the file.
 | `[store] max_total_mb` | integer >= 1 | 2048 in a new file | no cap when absent; the oldest segments go while the total is over |
 | `[store] max_rows` | integer >= 1 | none | no cap when absent; counted over all segments |
 | `[view] coalesce_ms` | integer 50-500 | 150 | |
-| `[view] columns` | list of `time`, `kind`, `path`, `size`, `process`, `volume` | `time`, `kind`, `path` | no repeats, at least one |
+| `[view] columns` | list of `time`, `kind`, `path`, `size`, `old_path`, `source`, `raw` (`process` and `volume` are reserved) | `time`, `kind`, `path` | no repeats, at least one |
+| `[viewer] x`, `y` | integer | none | window position in virtual-screen pixels; written by the viewer on close |
+| `[viewer] width`, `height` | integer 200-32768 | none | window size in pixels (not maximized) |
+| `[viewer] maximized` | bool | false | |
+| `[viewer] filter` | text, at most 4096 bytes | empty | the viewer's filter in canonical text form (#67) |
+| `[viewer] raw` | bool | false | one row per stored record instead of derived groups (#66) |
+| `[viewer] details_hidden` | bool | false | the details pane is closed (#69) |
 | `[filters] exclude_globs` | list of globs | empty | gitignore style, see [filters](filters.md) |
 | `[filters] exclude_regex` | list of regexes | empty | searched anywhere in the path |
 | `[filters] presets` | list of preset ids | empty | embedded presets |
@@ -45,6 +51,11 @@ take effect on the next start: nothing watches the file.
 | `[[watch]] exclude_globs`, `presets` | lists | empty | this watch only |
 | `[[watch]] buffer_kib` | integer 4-1024 (4-64 on UNC) | none | notification buffer override |
 | `[[watch]] follow_link_target` | bool | false | opt-in (F18) |
+
+The `[viewer]` table is written by the viewer when its window closes (through
+the engine, which owns the file; directly when no engine runs) and is left out
+of the file while it holds nothing. On the next start the viewer puts the
+window back where it was, shrunk and moved if the monitor it was on is gone.
 
 A watch root may not be the data directory or inside it (ADR 0008) and two
 watches may not name the same root (compared after normalisation, ignoring

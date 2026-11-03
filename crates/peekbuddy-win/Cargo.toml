@@ -25,6 +25,7 @@ windows-sys = { workspace = true, features = [
   "Wdk_System_SystemServices",
   "Wdk_System_SystemInformation",
   "Win32_Foundation",
+  "Win32_Graphics_Dwm",
   "Win32_Graphics_Gdi",
   "Win32_Security",
   "Win32_Security_Authorization",

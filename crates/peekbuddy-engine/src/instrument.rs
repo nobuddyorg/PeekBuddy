@@ -70,13 +70,28 @@ pub fn on_viewer_spawn(hook: impl Fn() + Send + Sync + 'static) {
     let _ = VIEWER_HOOK.set(Box::new(hook));
 }
 
-/// Starts the viewer process (`exe --viewer`) and records the milestone.
-/// The viewer's own mutex keeps a second window from opening.
-pub fn spawn_viewer(exe: &Path) {
+/// The arguments that start the viewer of this engine: `--viewer`, and for
+/// an engine with an explicit data directory (tests, the perf harness) that
+/// directory too, so the viewer belongs to this engine and never to the
+/// user's own.
+#[must_use]
+pub fn viewer_args(data_dir: Option<&Path>) -> Vec<std::ffi::OsString> {
+    let mut args = vec![std::ffi::OsString::from("--viewer")];
+    if let Some(dir) = data_dir {
+        args.push(std::ffi::OsString::from("--data-dir"));
+        args.push(dir.as_os_str().to_owned());
+    }
+    args
+}
+
+/// Starts the viewer process (`exe` with `args`, see [`viewer_args`]) and
+/// records the milestone. The viewer's own mutex keeps a second window from
+/// opening.
+pub fn spawn_viewer(exe: &Path, args: &[std::ffi::OsString]) {
     if let Some(hook) = VIEWER_HOOK.get() {
         hook();
     }
-    let _ = Command::new(exe).arg("--viewer").spawn();
+    let _ = Command::new(exe).args(args).spawn();
 }
 
 /// The longest the log file grows before it is rotated.

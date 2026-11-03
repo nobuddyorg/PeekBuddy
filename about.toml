@@ -6,6 +6,9 @@ accepted = [
   "BSD-3-Clause",
   "ISC",
   "MIT",
+  # Only the fonts of `epaint_default_fonts`, which egui embeds (deny.toml).
+  "OFL-1.1",
+  "Ubuntu-font-1.0",
   "Unicode-3.0",
   "Zlib",
 ]
