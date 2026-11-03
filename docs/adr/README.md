@@ -26,6 +26,7 @@ Status legend: **Proposed** (waiting for evidence), **Accepted**,
 | [0016](0016-pause-keeps-watches-armed.md) | Pause keeps the watches armed | Accepted | #63 |
 | [0017](0017-segment-dictionary.md) | Replicate the dictionary in every segment | Accepted | #54 |
 | [0018](0018-usn-stays-behind-a-feature.md) | Keep the USN backend behind a feature in v1 | Accepted | #47 |
+| [0019](0019-exe-size-with-the-viewer.md) | Raise the exe size budget for the viewer | Accepted | #65, M14 |
 
 Decisions owned elsewhere: F8 memory budgets and R6 SQLite heap limit in
 `PERFORMANCE.md` (#20, #52); F12 runners in #11 and #34; F18 links and cloud
