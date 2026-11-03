@@ -292,16 +292,16 @@ jobs:
       - run: cargo nextest run --workspace --profile ci --no-tests=pass
 
   mutants:
-    name: mutants (shard ${{ matrix.shard }}/16)
+    name: mutants (shard ${{ matrix.shard }}/32)
     runs-on: windows-2025
-    # Eight shards ran into 120 minutes; sixteen with margin.
+    # Eight shards ran into 120 minutes and sixteen into 180; thirty-two.
     timeout-minutes: 180
     permissions:
       contents: read
     strategy:
       fail-fast: false
       matrix:
-        shard: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
+        shard: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -319,7 +319,7 @@ jobs:
           New-Item -ItemType Directory -Force -Path C:\t | Out-Null
           $env:TMP = 'C:\t'
           $env:TEMP = 'C:\t'
-          cargo mutants --no-shuffle --shard "$env:SHARD/16" --test-tool nextest --in-place --timeout-multiplier 2
+          cargo mutants --no-shuffle --shard "$env:SHARD/32" --test-tool nextest --in-place --timeout-multiplier 2
       - name: Summary
         if: always()
         shell: bash
@@ -329,7 +329,7 @@ jobs:
           count() { [ -f "mutants.out/$1.txt" ] && wc -l < "mutants.out/$1.txt" || echo 0; }
           skips="$( (grep -rE 'mutants::skip' --include='*.rs' crates || true) | wc -l)"
           {
-            echo "### mutants shard ${SHARD}/16"
+            echo "### mutants shard ${SHARD}/32"
             echo "| caught | missed | unviable | timeout | skip attributes |"
             echo "| --- | --- | --- | --- | --- |"
             echo "| $(count caught) | $(count missed) | $(count unviable) | $(count timeout) | ${skips} |"

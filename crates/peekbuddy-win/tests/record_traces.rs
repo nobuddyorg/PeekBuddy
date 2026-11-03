@@ -73,8 +73,10 @@ fn version(program: &str) -> String {
     Command::new(program)
         .arg("--version")
         .output()
-        .map(|out| String::from_utf8_lossy(&out.stdout).trim().to_owned())
-        .unwrap_or_default()
+        .map_or_else(
+            |_| String::new(),
+            |out| String::from_utf8_lossy(&out.stdout).trim().to_owned(),
+        )
 }
 
 fn git(dir: &Path, args: &[&str]) {
