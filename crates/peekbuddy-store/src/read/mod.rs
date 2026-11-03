@@ -559,7 +559,7 @@ impl SegmentQuery {
             nodes.push("e.node_id IN (SELECT id FROM sub)".to_owned());
             windowed = true;
         }
-        if let Some(name) = filter.name.as_deref().filter(|name| !name.is_empty()) {
+        if let Some(name) = filter.name.as_deref().filter(|name|  /* ~ changed by cargo-mutants ~ */name.is_empty()) {
             if is_indexable(name) {
                 let at = bind(Value::Text(fts_phrase(name)));
                 nodes.push(format!(
@@ -1034,5 +1034,54 @@ mod path_cache_tests {
         let (name, path) = paths.path_of(3);
         assert_eq!(String::from_utf16_lossy(&name), "c.txt");
         assert_eq!(String::from_utf16_lossy(&path), r"a\b\c.txt");
+    }
+
+    #[test]
+    fn a_packed_kind_gives_back_every_tag_and_payload() {
+        let mut kinds = vec![
+            Kind::Created,
+            Kind::Deleted,
+            Kind::ReconciledRenamed,
+            Kind::StoreRecovered,
+        ];
+        for tag in [9, 10] {
+            kinds.extend((0..=u8::MAX).filter_map(|arg| Kind::from_wire(tag, arg)));
+        }
+        for kind in kinds {
+            let (tag, arg) = kind.to_wire();
+            assert_eq!(kind_of(i64::from(tag) * 256 + i64::from(arg)), kind);
+        }
+        assert_eq!(kind_of(i64::from(u8::MAX) * 256 + 255), Kind::Other);
+    }
+
+    #[test]
+    fn a_root_is_read_once_and_kept_in_the_cache() {
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch(
+            "CREATE TABLE node (id INTEGER PRIMARY KEY, parent_id INTEGER NOT NULL,              name TEXT NOT NULL, name_w BLOB);
+             CREATE TABLE root (id INTEGER PRIMARY KEY, path TEXT NOT NULL, path_w BLOB);
+             INSERT INTO root VALUES (7, 'C:\\data', NULL);",
+        )
+        .unwrap();
+        let mut paths = Paths::new(&conn);
+        let expected: Vec<u16> = r"C:\data".encode_utf16().collect();
+        assert_eq!(paths.root(7), expected);
+        conn.execute("DELETE FROM root", []).unwrap();
+        assert_eq!(paths.root(7), expected);
+        assert_eq!(paths.root(8), Vec::<u16>::new());
+        let cache = paths.into_cache();
+        assert_eq!(cache.roots.len(), 2);
+    }
+
+    #[test]
+    fn a_path_with_a_device_prefix_finds_its_directory_node() {
+        let conn = tree(0);
+        conn.execute_batch("INSERT INTO node VALUES (1, 0, 'a', NULL), (2, 1, 'b', NULL);")
+            .unwrap();
+        let wide = |text: &str| text.encode_utf16().collect::<Vec<u16>>();
+        assert_eq!(find_node(&conn, &wide(r"\\?\a\b")).unwrap(), Some(2));
+        assert_eq!(find_node(&conn, &wide(r"a\\b")).unwrap(), Some(2));
+        assert_eq!(find_node(&conn, &wide(r"a\c")).unwrap(), None);
+        assert_eq!(find_node(&conn, &wide("")).unwrap(), None);
     }
 }
