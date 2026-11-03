@@ -6,6 +6,7 @@ use egui_kittest::kittest::Queryable as _;
 use peekbuddy_core::query::{CancelFlag, Filter, Page, PageRequest};
 
 use super::{Col, LogView, Phase, ViewEvent, columns_from, group_digits};
+use crate::filterspec::{FilterSpec, PatternKind};
 use crate::source::PageSource;
 use crate::source::fake::FakeLog;
 use crate::timeline::{Extent, MAX_ROWS, PAGE};
@@ -19,12 +20,13 @@ fn names(list: &[&str]) -> Vec<String> {
     list.iter().map(ToString::to_string).collect()
 }
 
-fn app(source: Arc<dyn PageSource>, filter: Filter, columns: &[&str]) -> Harness<'static, App> {
+fn app(source: Arc<dyn PageSource>, spec: FilterSpec, columns: &[&str]) -> Harness<'static, App> {
     let view = LogView::new(
         source,
         Arc::new(|_| 0),
         Arc::new(|| {}),
-        filter,
+        spec,
+        vec![String::from("C:\\w")],
         &names(columns),
     )
     .unwrap();
@@ -44,7 +46,7 @@ fn app(source: Arc<dyn PageSource>, filter: Filter, columns: &[&str]) -> Harness
 fn log_app(log: &Arc<FakeLog>) -> Harness<'static, App> {
     app(
         Arc::clone(log) as Arc<dyn PageSource>,
-        Filter::default(),
+        FilterSpec::default(),
         &["time", "kind", "path"],
     )
 }
@@ -71,7 +73,7 @@ fn the_first_page_appears_and_only_it_is_held() {
     harness.step();
     harness.get_by_label("f10000.txt");
     harness.get_by_label("Time");
-    harness.get_by_label("10 000 events");
+    harness.get_by_label("about 10 000 events");
     assert!(harness.state().view.first_page_ready());
     assert_eq!(harness.state().view.phase(), &Phase::Ready);
 }
@@ -202,7 +204,7 @@ fn memory_stays_bounded_across_a_log_of_ten_million_rows() {
     let log = FakeLog::new(10_000_000);
     let mut harness = log_app(&log);
     until(&mut harness, "the first page", |v| v.held_rows() == PAGE);
-    harness.get_by_label("10 000 000 events");
+    harness.get_by_label("about 10 000 000 events");
     for target in [5_000_000_u64, 9_999_999, 123_456, 0] {
         harness.state_mut().view.scroll_to = Some((target, egui::Align::TOP));
         until(&mut harness, "the island at the target", |v| {
@@ -236,7 +238,7 @@ impl PageSource for Broken {
 
 #[test]
 fn a_log_that_cannot_be_read_says_why() {
-    let mut harness = app(Arc::new(Broken), Filter::default(), &["path"]);
+    let mut harness = app(Arc::new(Broken), FilterSpec::default(), &["path"]);
     until(&mut harness, "the failure", |v| {
         matches!(v.phase(), Phase::Failed(_))
     });
@@ -253,7 +255,7 @@ fn the_column_chooser_reports_the_new_list_and_keeps_one_column() {
     let log = FakeLog::new(1_000);
     let mut harness = app(
         Arc::clone(&log) as Arc<dyn PageSource>,
-        Filter::default(),
+        FilterSpec::default(),
         &["kind", "path"],
     );
     until(&mut harness, "the first page", |v| v.held_rows() == PAGE);
@@ -284,7 +286,7 @@ fn the_default_view_filter_does_not_break_the_grid() {
     log.set_hidden(50);
     let mut harness = app(
         Arc::clone(&log) as Arc<dyn PageSource>,
-        Filter::default_view(),
+        FilterSpec::default(),
         &["path"],
     );
     until(&mut harness, "the first page", |v| v.held_rows() == PAGE);
@@ -318,4 +320,148 @@ fn numbers_are_grouped_by_thousands() {
     assert_eq!(group_digits(1_000), "1 000");
     assert_eq!(group_digits(1_234_567), "1 234 567");
     assert_eq!(group_digits(10_000_000), "10 000 000");
+}
+
+#[test]
+fn typing_quickly_asks_the_database_once() {
+    let log = FakeLog::new(5_000);
+    let mut harness = log_app(&log);
+    until(&mut harness, "the first page", |v| v.held_rows() == PAGE);
+    let before = log.extents();
+    // Ten keystrokes in 200 ms.
+    for key in 0..10 {
+        let view = &mut harness.state_mut().view;
+        view.spec.name.push('a');
+        view.spec_changed();
+        harness.step();
+        std::thread::sleep(Duration::from_millis(20));
+        let _ = key;
+    }
+    until(&mut harness, "the pause", |v| !v.is_applying());
+    until(&mut harness, "the new view", |v| v.held_rows() == PAGE);
+    assert_eq!(log.extents() - before, 1, "one query for ten keystrokes");
+    assert_eq!(
+        harness.state().view.filter.name.as_deref(),
+        Some("aaaaaaaaaa")
+    );
+}
+
+#[test]
+fn an_invalid_regex_says_where_and_keeps_the_results() {
+    let log = FakeLog::new(5_000);
+    let mut harness = log_app(&log);
+    until(&mut harness, "the first page", |v| v.held_rows() == PAGE);
+    harness.state_mut().view.more = true;
+    {
+        let view = &mut harness.state_mut().view;
+        view.spec.pattern = Some((PatternKind::Regex, String::from("(unclosed")));
+        view.spec_changed();
+    }
+    until(&mut harness, "the error", |v| v.spec_error.is_some());
+    harness.step();
+    harness.get_by_label_contains("x rule 0");
+    // The previous results are still there and the filter did not change.
+    assert_eq!(harness.state().view.held_rows(), PAGE);
+    assert!(harness.state().view.filter.pattern.is_none());
+    harness.get_by_label("f5000.txt");
+}
+
+#[test]
+fn the_hidden_counter_counts_and_the_button_shows_them() {
+    let log = FakeLog::new(2_000);
+    log.set_hidden(7);
+    let mut harness = log_app(&log);
+    until(&mut harness, "the count", |v| v.hidden == Some(7));
+    harness.step();
+    harness.get_by_label("7 hidden by the view.");
+    harness.get_by_label("Show").click();
+    until(&mut harness, "the pause", |v| !v.is_applying());
+    assert_eq!(
+        harness.state().view.filter.hide,
+        peekbuddy_core::event::Flags::NONE
+    );
+    assert!(harness.state().view.spec.show_hidden);
+}
+
+#[test]
+fn ctrl_f_finds_the_search_box_and_escape_clears_it() {
+    let log = FakeLog::new(1_000);
+    let mut harness = log_app(&log);
+    until(&mut harness, "the first page", |v| v.held_rows() == PAGE);
+    harness.key_press_modifiers(egui::Modifiers::COMMAND, egui::Key::F);
+    harness.run();
+    assert!(!harness.state().view.focus_search, "the request was served");
+    harness.get_by_label("Search").type_text("rep");
+    harness.run();
+    assert_eq!(harness.state().view.spec.name, "rep");
+    harness.key_press(egui::Key::Escape);
+    harness.run();
+    assert_eq!(harness.state().view.spec.name, "");
+}
+
+#[test]
+fn a_view_without_matches_names_the_filter_that_narrows_it() {
+    let log = FakeLog::new(0);
+    let mut harness = app(
+        Arc::clone(&log) as Arc<dyn PageSource>,
+        FilterSpec::parse("name:zzz since:1h").unwrap(),
+        &["path"],
+    );
+    until(&mut harness, "the empty view", LogView::first_page_ready);
+    harness.step();
+    harness.get_by_label_contains("No matching events");
+    harness.get_by_label_contains("the name \"zzz\"");
+}
+
+#[test]
+fn the_filter_text_edits_the_spec_and_a_typo_says_where() {
+    let log = FakeLog::new(1_000);
+    let mut harness = log_app(&log);
+    until(&mut harness, "the first page", |v| v.held_rows() == PAGE);
+    harness.state_mut().view.more = true;
+    harness.step();
+    {
+        let view = &mut harness.state_mut().view;
+        view.text = String::from("kind:deleted since:1h");
+    }
+    harness.get_by_label("Filter text").focus();
+    harness.run_steps(4);
+    harness.key_press(egui::Key::Enter);
+    harness.run_steps(4);
+    assert!(
+        harness
+            .state()
+            .view
+            .spec
+            .kinds
+            .contains(&crate::filterspec::Chip::Deleted)
+    );
+    assert_eq!(
+        harness.state().view.spec.span,
+        crate::filterspec::Span::LastHour
+    );
+
+    {
+        let view = &mut harness.state_mut().view;
+        view.text = String::from("kind:sparkly");
+    }
+    harness.get_by_label("Filter text").focus();
+    harness.run_steps(4);
+    harness.key_press(egui::Key::Enter);
+    harness.run_steps(4);
+    harness.get_by_label_contains("unknown kind `sparkly`");
+}
+
+#[test]
+fn stopping_a_scan_forgets_the_requests_that_were_cancelled() {
+    let log = FakeLog::new(1_000);
+    let mut harness = log_app(&log);
+    until(&mut harness, "the first page", |v| v.held_rows() == PAGE);
+    let view = &mut harness.state_mut().view;
+    // A request is out that will never be answered once it is cancelled.
+    assert_eq!(view.timeline.plan(&(150..190)).len(), 1);
+    assert!(view.timeline.busy());
+    view.stop_scan();
+    assert!(!view.timeline.busy());
+    assert_eq!(view.timeline.plan(&(150..190)).len(), 1, "it asks again");
 }

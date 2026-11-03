@@ -22,7 +22,8 @@ fuzz/
 The nightly `fuzz` job runs every file in `fuzz/fuzz_targets/` for 20 minutes.
 The targets are `notify_parse` (the FILE_NOTIFY parser, #44), `usn_decode`
 (#47), `export_read` (#56), `filter_compile` (the glob parser and
-`FilterSet::compile`, #40) and `settings_load`. Each has a few seed inputs in
+`FilterSet::compile`, #40), `settings_load` and `filterspec_parse` (the
+viewer's filter text, #67). Each has a few seed inputs in
 `fuzz/corpus/<target>/`. The crate has its own workspace and is excluded from
 the main one, so `cargo check` in `fuzz/` is the only PR-time check; the
 property tests next to each parser cover the same inputs on every PR.
