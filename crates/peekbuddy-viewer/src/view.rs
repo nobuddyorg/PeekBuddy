@@ -163,6 +163,27 @@ pub enum ViewEvent {
     /// The visible columns changed; these are the new names for
     /// `[view] columns`.
     ColumnsChanged(Vec<String>),
+    /// The details pane was opened or closed (`true`: open).
+    DetailsToggled(bool),
+    /// Show a path in Explorer: select the item (`select`), or open the
+    /// folder it is in. The app does it off the UI thread.
+    Open {
+        /// The path as stored.
+        path: String,
+        /// Select the item instead of opening its folder.
+        select: bool,
+    },
+}
+
+/// What a row's context menu asked for.
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum RowAction {
+    CopyPath(String),
+    CopyRows,
+    FilterFolder(String),
+    FilterFile(String),
+    FilterKind(Chip),
+    Open { path: String, select: bool },
 }
 
 /// The current time as FILETIME ticks (100 ns since 1601, UTC).
@@ -213,6 +234,10 @@ pub struct LogView {
     scroll_to: Option<(u64, egui::Align)>,
     status: Status,
     first_page: bool,
+    /// The details pane is open.
+    details: bool,
+    /// Set by a row's context menu, handled after the table.
+    action: Option<RowAction>,
     /// What the filter bar shows and the user is editing.
     spec: FilterSpec,
     /// Why the spec cannot be applied; the previous results stay.
@@ -303,6 +328,8 @@ impl LogView {
             scroll_to: None,
             status: Status::default(),
             first_page: false,
+            details: true,
+            action: None,
             text: spec.to_text(),
             spec,
             spec_error,
@@ -392,6 +419,17 @@ impl LogView {
             }
             Err(error) => self.spec_error = Some(error),
         }
+    }
+
+    /// Opens or closes the details pane (from `[viewer] details_hidden`).
+    pub const fn set_details(&mut self, open: bool) {
+        self.details = open;
+    }
+
+    /// Whether the details pane is open.
+    #[must_use]
+    pub const fn details_open(&self) -> bool {
+        self.details
     }
 
     /// The text form of the filter, for `[viewer] filter`.
@@ -575,6 +613,14 @@ impl LogView {
         if ctx.egui_wants_keyboard_input() {
             return;
         }
+        if ctx.input(|input| {
+            input
+                .events
+                .iter()
+                .any(|event| matches!(event, egui::Event::Copy))
+        }) {
+            ctx.copy_text(crate::rows::tsv(self.selected_rows()));
+        }
         let page = self
             .visible
             .end
@@ -611,10 +657,11 @@ impl LogView {
 
     /// Draws the filter bar, the grid and the pill. Returns what the app has
     /// to do.
-    pub fn show(&mut self, ui: &mut egui::Ui) -> Option<ViewEvent> {
+    pub fn show(&mut self, ui: &mut egui::Ui) -> Vec<ViewEvent> {
         let ctx = ui.ctx().clone();
         self.keys(&ctx);
-        let event = self.bar(ui);
+        let mut events = Vec::new();
+        self.bar(ui, &mut events);
         if let Some(left) = self.debounce.remaining(Instant::now()) {
             // The pause after the last key: one repaint, no timer thread.
             ctx.request_repaint_after(left);
@@ -625,13 +672,13 @@ impl LogView {
                 ui.centered_and_justified(|ui| {
                     ui.label(format!("The log could not be read: {error}"));
                 });
-                return event;
+                return events;
             }
             Phase::Loading => {
                 ui.centered_and_justified(|ui| {
                     ui.label("Reading the log...");
                 });
-                return event;
+                return events;
             }
             Phase::Ready => {}
         }
@@ -644,12 +691,51 @@ impl LogView {
             ui.centered_and_justified(|ui| {
                 ui.label(text);
             });
-            return event;
+            return events;
         }
 
+        if self.details {
+            let cursor = self.selection.cursor();
+            egui::Panel::right("details")
+                .resizable(true)
+                .default_size(340.0)
+                .min_size(220.0)
+                .show(ui, |ui| {
+                    match cursor.and_then(|at| self.timeline.row_at(at)) {
+                        Some(row) => crate::details::show(ui, row),
+                        None => {
+                            ui.label("Select a row to see everything stored about it.");
+                        }
+                    }
+                });
+        }
         self.table(ui);
         self.pill(&ctx);
-        event
+        if let Some(action) = self.action.take() {
+            self.act(&ctx, action, &mut events);
+        }
+        events
+    }
+
+    /// Carries out what a row's context menu asked for.
+    fn act(&mut self, ctx: &egui::Context, action: RowAction, events: &mut Vec<ViewEvent>) {
+        match action {
+            RowAction::CopyPath(path) => ctx.copy_text(path),
+            RowAction::CopyRows => ctx.copy_text(crate::rows::tsv(self.selected_rows())),
+            RowAction::FilterFolder(folder) => {
+                self.spec.subtree = Some(folder);
+                self.spec_changed();
+            }
+            RowAction::FilterFile(name) => {
+                self.spec.name = name;
+                self.spec_changed();
+            }
+            RowAction::FilterKind(chip) => {
+                self.spec.kinds = std::collections::BTreeSet::from([chip]);
+                self.spec_changed();
+            }
+            RowAction::Open { path, select } => events.push(ViewEvent::Open { path, select }),
+        }
     }
 
     /// What the grid says when there is nothing to show.
@@ -664,8 +750,7 @@ impl LogView {
 
     /// The filter bar: search, kind chips, time span, the advanced row, the
     /// hidden counter, the scan progress and the column chooser.
-    fn bar(&mut self, ui: &mut egui::Ui) -> Option<ViewEvent> {
-        let mut event = None;
+    fn bar(&mut self, ui: &mut egui::Ui, events: &mut Vec<ViewEvent>) {
         let mut changed = false;
         ui.horizontal_wrapped(|ui| {
             let label = ui.label("Search");
@@ -696,12 +781,16 @@ impl LogView {
             if ui.selectable_label(self.more, "More").clicked() {
                 self.more = !self.more;
             }
+            if ui.selectable_label(self.details, "Details").clicked() {
+                self.details = !self.details;
+                events.push(ViewEvent::DetailsToggled(self.details));
+            }
         });
         if self.more {
             changed |= self.advanced(ui);
         }
         ui.horizontal_wrapped(|ui| {
-            event = self.columns_menu(ui);
+            events.extend(self.columns_menu(ui));
             let status = self.status_text().to_owned();
             ui.label(status);
             if let Some(hidden) = self.hidden.filter(|hidden| *hidden > 0) {
@@ -729,7 +818,6 @@ impl LogView {
         if changed {
             self.spec_changed();
         }
-        event
     }
 
     /// The advanced row: glob or regex, watch, folder and the text form.
@@ -897,6 +985,7 @@ impl LogView {
             columns: &self.columns,
             visible: &mut self.visible,
             frozen: self.reloading,
+            action: &mut self.action,
         };
         table.show(ui, &mut grid);
     }
@@ -972,6 +1061,8 @@ struct Grid<'a> {
     visible: &'a mut Range<u64>,
     /// A new filter waits for its extent: show, but do not extend.
     frozen: bool,
+    /// Where a context menu leaves what the user asked for.
+    action: &'a mut Option<RowAction>,
 }
 
 fn row_tint(ui: &egui::Ui, class: RowClass) -> Option<egui::Color32> {
@@ -1061,11 +1152,78 @@ impl TableDelegate for Grid<'_> {
             let shift = ui.input(|input| input.modifiers.shift);
             self.selection.click(cell.row_nr, shift);
         }
+        if response.secondary_clicked() && !self.selection.contains(cell.row_nr) {
+            self.selection.click(cell.row_nr, false);
+        }
+        let many = self
+            .selection
+            .range()
+            .map_or(1, |range| range.end() - range.start() + 1);
+        response.context_menu(|ui| {
+            if let Some(action) = row_menu(ui, row, many) {
+                *self.action = Some(action);
+            }
+        });
     }
 
     fn default_row_height(&self) -> f32 {
         ROW_HEIGHT
     }
+}
+
+/// The context menu of a row. Every entry has a name; none opens, reads or
+/// runs the file: only its folder is shown.
+fn row_menu(ui: &mut egui::Ui, row: &GridRow, many: u64) -> Option<RowAction> {
+    let mut chosen = None;
+    if ui.button("Copy path").clicked() {
+        chosen = Some(RowAction::CopyPath(row.path.clone()));
+    }
+    let label = if many > 1 {
+        format!("Copy {} rows", group_digits(many))
+    } else {
+        String::from("Copy row")
+    };
+    if ui.button(label).clicked() {
+        chosen = Some(RowAction::CopyRows);
+    }
+    ui.separator();
+    if ui.button("Show in Explorer").clicked() {
+        chosen = Some(RowAction::Open {
+            path: row.path.clone(),
+            select: true,
+        });
+    }
+    if ui.button("Open containing folder").clicked() {
+        chosen = Some(RowAction::Open {
+            path: row.path.clone(),
+            select: false,
+        });
+    }
+    ui.separator();
+    let folder = if row.is_dir {
+        Some(row.path.as_str())
+    } else {
+        crate::shellpath::parent(&row.path)
+    };
+    if let Some(folder) = folder
+        && ui.button("Filter to this folder").clicked()
+    {
+        chosen = Some(RowAction::FilterFolder(folder.to_owned()));
+    }
+    if ui.button("Filter to this file").clicked() {
+        chosen = Some(RowAction::FilterFile(row.file_name().to_owned()));
+    }
+    if let Some(chip) = Chip::of(row.raw.kind)
+        && ui
+            .button(format!("Filter to {} rows", chip.label()))
+            .clicked()
+    {
+        chosen = Some(RowAction::FilterKind(chip));
+    }
+    if chosen.is_some() {
+        ui.close();
+    }
+    chosen
 }
 
 /// The path with its middle elided: the directory gives way, the file name

@@ -23,6 +23,7 @@ use crate::gpu::{self, Adapter};
 use crate::link::{Link, LinkEvent, Timing};
 use crate::link_win::PipeConnector;
 use crate::shell::{Shell, ShellAction};
+use crate::shellpath;
 use crate::source::StoreSource;
 use crate::view::{LogView, ViewEvent};
 use crate::{Options, Probe, theme};
@@ -348,12 +349,22 @@ impl eframe::App for ViewerApp {
         if self.idle_window.load(Ordering::Relaxed) {
             self.note_causes(ui.ctx());
         }
-        let mut view_event = None;
+        let mut view_events = Vec::new();
         let action = self.shell.show(ui, |ui| {
-            view_event = self.view.show(ui);
+            view_events = self.view.show(ui);
         });
-        if let Some(ViewEvent::ColumnsChanged(names)) = view_event {
-            self.update_settings("the columns", |settings| settings.view.columns = names);
+        for event in view_events {
+            match event {
+                ViewEvent::ColumnsChanged(names) => {
+                    self.update_settings("the columns", |settings| settings.view.columns = names);
+                }
+                ViewEvent::DetailsToggled(open) => {
+                    self.update_settings("the details pane", |settings| {
+                        settings.viewer.details_hidden = !open;
+                    });
+                }
+                ViewEvent::Open { path, select } => open_in_explorer(path, select),
+            }
         }
         match action {
             Some(ShellAction::StartEngine) => self.start_engine(),
@@ -396,6 +407,31 @@ impl eframe::App for ViewerApp {
         self.save_window();
         self.write_report();
     }
+}
+
+/// Shows a path in Explorer on a thread of its own (a slow share must not
+/// stall the window): the item selected, or its folder. A deleted item opens
+/// the nearest folder that still exists. Only attributes are looked at; the
+/// item is never opened.
+fn open_in_explorer(path: String, select: bool) {
+    std::thread::spawn(move || {
+        let exists = |candidate: &Path| std::fs::symlink_metadata(candidate).is_ok();
+        let item = shellpath::plain(&path);
+        let parameters = if select && exists(Path::new(&item)) {
+            format!("/select,\"{item}\"")
+        } else {
+            let folder = if select {
+                item.clone()
+            } else {
+                shellpath::parent(&item).map_or_else(|| item.clone(), str::to_owned)
+            };
+            match shellpath::nearest_existing(&folder, exists) {
+                Some(found) => format!("\"{}\"", found.display()),
+                None => return,
+            }
+        };
+        let _ = peekbuddy_win::shell::explorer(&parameters);
+    });
 }
 
 /// What the probe thread does: wait for the first frame, let the window
@@ -509,7 +545,7 @@ pub fn run(options: Options) -> std::io::Result<()> {
                 .iter()
                 .map(|watch| watch.path.clone())
                 .collect();
-            let view = LogView::new(
+            let mut view = LogView::new(
                 Arc::new(StoreSource::new(&options.segments)),
                 Arc::new(peekbuddy_win::localtime::utc_offset_seconds),
                 Arc::clone(&waker),
@@ -517,6 +553,7 @@ pub fn run(options: Options) -> std::io::Result<()> {
                 roots,
                 &settings.view.columns,
             )?;
+            view.set_details(!settings.viewer.details_hidden);
             let link = Link::start(
                 PipeConnector {
                     name: options.pipe_name.clone(),

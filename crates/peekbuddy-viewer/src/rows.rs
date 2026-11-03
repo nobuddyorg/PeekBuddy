@@ -43,6 +43,24 @@ impl RowClass {
     }
 }
 
+/// The columns of a copied row, tab separated.
+pub const TSV_HEADER: &str =
+    "id\ttime_utc\ttime_local\tkind\tsource\tpath\told_path\tis_dir\tsize\tattrs\traw_mask\troot";
+
+/// The rows as tab-separated text with a header line: what Ctrl+C copies.
+/// Tabs, line ends and control characters in a name are written out
+/// (`\t`, `\n`, ...), so every row has exactly the columns of the header.
+#[must_use]
+pub fn tsv<'a>(rows: impl IntoIterator<Item = &'a GridRow>) -> String {
+    let mut out = String::from(TSV_HEADER);
+    for row in rows {
+        out.push('\n');
+        row.write_tsv(&mut out);
+    }
+    out.push('\n');
+    out
+}
+
 /// A stored row with the text the grid draws.
 #[derive(Debug, Clone)]
 pub struct GridRow {
@@ -190,6 +208,12 @@ pub fn format_time(ts: u64, offset: i32) -> String {
     format!("{date} {clock}")
 }
 
+/// The watch root of a row, display-escaped.
+#[must_use]
+pub fn root_text(row: &Row) -> String {
+    escape_for_display(WideStr::new(&row.root))
+}
+
 fn show(units: &[u16]) -> (String, bool) {
     let name = WideStr::new(units);
     (escape_for_display(name), needs_escape(name))
@@ -224,6 +248,38 @@ impl GridRow {
             path,
             old_path,
             raw,
+        }
+    }
+
+    /// Appends this row as one tab-separated line (no line end).
+    pub fn write_tsv(&self, out: &mut String) {
+        use std::fmt::Write as _;
+
+        use peekbuddy_core::decode::tsv_cell;
+
+        let cells = [
+            self.id.to_string(),
+            self.time_utc.clone(),
+            self.time.clone(),
+            self.label.to_owned(),
+            self.source.to_owned(),
+            tsv_cell(&self.path),
+            tsv_cell(&self.old_path),
+            self.is_dir.to_string(),
+            self.raw
+                .size
+                .map_or_else(String::new, |size| size.to_string()),
+            self.raw
+                .attrs
+                .map_or_else(String::new, |attrs| format!("{attrs:#010x}")),
+            format!("{:#010x}", self.raw.raw_mask),
+            tsv_cell(&root_text(&self.raw)),
+        ];
+        for (at, cell) in cells.iter().enumerate() {
+            if at > 0 {
+                out.push('\t');
+            }
+            let _ = write!(out, "{cell}");
         }
     }
 
@@ -338,6 +394,46 @@ mod tests {
             let (glyph, label, _) = describe(kind);
             assert!(glyph.is_ascii() && glyph.len() == 1, "{kind:?}");
             assert_ne!(label.len(), 0);
+        }
+    }
+
+    #[test]
+    fn a_copied_row_has_the_columns_of_the_header_and_escapes_what_would_break_them() {
+        use super::{TSV_HEADER, tsv};
+
+        let mut plain = row(Kind::Created, &units("C:\\x\\a.txt"));
+        plain.attrs = Some(0x20);
+        let tabbed = row(Kind::Modified, &units("C:\\x\\a\tb\nc.txt"));
+        let mut broken = units("C:\\x\\lone");
+        broken.push(0xD800);
+        let lone = row(Kind::Deleted, &broken);
+        let rows: Vec<GridRow> = [plain, tabbed, lone]
+            .into_iter()
+            .map(|raw| GridRow::new(raw, &|_| 0))
+            .collect();
+        let text = tsv(&rows);
+        for line in text.lines() {
+            assert_eq!(
+                line.matches('\t').count(),
+                TSV_HEADER.matches('\t').count(),
+                "{line}"
+            );
+        }
+        assert_eq!(text.lines().count(), 4, "the header and three rows");
+        insta::assert_snapshot!(text);
+    }
+
+    proptest::proptest! {
+        #[test]
+        fn any_name_gives_a_row_with_exactly_the_columns(
+            name in proptest::collection::vec(proptest::prelude::any::<u16>(), 0..40)
+        ) {
+            use super::{TSV_HEADER, tsv};
+            let grid = GridRow::new(row(Kind::Created, &name), &|_| 0);
+            let text = tsv(std::iter::once(&grid));
+            let body = text.lines().nth(1).unwrap_or_default();
+            proptest::prop_assert_eq!(body.matches('\t').count(), TSV_HEADER.matches('\t').count());
+            proptest::prop_assert_eq!(text.lines().count(), 2);
         }
     }
 

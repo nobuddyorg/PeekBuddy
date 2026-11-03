@@ -22,6 +22,7 @@ use peekbuddy_core::perf::MilestoneTable;
 
 pub mod brand;
 pub mod debounce;
+pub mod details;
 pub mod filterspec;
 pub mod follow;
 pub mod geometry;
@@ -29,6 +30,7 @@ pub mod link;
 pub mod rows;
 pub mod selection;
 pub mod shell;
+pub mod shellpath;
 pub mod source;
 pub mod theme;
 pub mod timeline;
