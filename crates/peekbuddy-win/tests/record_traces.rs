@@ -70,13 +70,10 @@ fn version(program: &str) -> String {
         // It has no --version and prints its help for one.
         return String::from("robocopy (Windows)");
     }
-    Command::new(program)
-        .arg("--version")
-        .output()
-        .map_or_else(
-            |_| String::new(),
-            |out| String::from_utf8_lossy(&out.stdout).trim().to_owned(),
-        )
+    Command::new(program).arg("--version").output().map_or_else(
+        |_| String::new(),
+        |out| String::from_utf8_lossy(&out.stdout).trim().to_owned(),
+    )
 }
 
 fn git(dir: &Path, args: &[&str]) {
