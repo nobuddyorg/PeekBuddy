@@ -68,7 +68,11 @@ What works today: `Hello`, `ShowViewer`, `Shutdown`, `Selftest`,
 `EngineStopping`, and `Command::ApplySettings`, which validates the text with
 the settings validator, writes it atomically when it is valid and returns the
 problems (with line and column) when it is not; the result also says what
-autostart looks like after the save. `PauseAll`, `ResumeAll` and
+autostart looks like after the save. The text replaces everything except the
+watches: they change only through `AddWatch`, `RemoveWatch` and the pause
+commands, because the running capture depends on their positions. The engine
+writes the file from its own state, so a later pause never writes old values
+back. `PauseAll`, `ResumeAll` and
 `SetWatchPaused` pause and resume (#63, ADR 0016) and answer `ok: true`, or
 `ok: false` with the reason (an unknown id, a settings file that cannot be
 written).

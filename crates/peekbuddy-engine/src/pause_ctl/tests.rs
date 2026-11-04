@@ -257,3 +257,36 @@ fn a_file_from_a_newer_version_is_not_edited() {
     assert!(matches!(ctl.remove_watch("a"), Err(EditError::Failed(_))));
     assert_eq!(std::fs::read_to_string(&path).unwrap(), before);
 }
+
+#[test]
+fn applied_settings_keep_the_watches_and_a_later_pause_does_not_undo_them() {
+    use peekbuddy_core::settings::Theme;
+
+    let (ctl, _rows, path) = ctl("apply", vec![watch("a", true)], true);
+    let mut new = Settings::default();
+    new.general.theme = Theme::Dark;
+    new.store.max_age_days = Some(7);
+    // The viewer's text never changes the watches.
+    new.watches = vec![watch("elsewhere", true)];
+    ctl.apply_settings(&new).unwrap();
+    let saved = reload(&path);
+    assert_eq!(saved.general.theme, Theme::Dark);
+    assert_eq!(saved.store.max_age_days, Some(7));
+    let ids: Vec<&str> = saved.watches.iter().map(|w| w.id.as_str()).collect();
+    assert_eq!(ids, ["a"]);
+    // Pausing writes the file from the control's own state, which holds the
+    // new values too.
+    ctl.set_watch("a", true).unwrap();
+    let again = reload(&path);
+    assert_eq!(again.store.max_age_days, Some(7));
+    assert_eq!(again.general.theme, Theme::Dark);
+    assert!(!again.watches[0].enabled);
+}
+
+#[test]
+fn settings_from_a_newer_version_are_not_applied() {
+    let (ctl, _rows, path) = ctl("apply-newer", vec![watch("a", true)], false);
+    let before = std::fs::read_to_string(&path).unwrap();
+    assert!(ctl.apply_settings(&Settings::default()).is_err());
+    assert_eq!(std::fs::read_to_string(&path).unwrap(), before);
+}

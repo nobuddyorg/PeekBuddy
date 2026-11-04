@@ -126,25 +126,20 @@ fn apply_settings(ctx: &Shared, text: &str) -> Message {
         export_dir: None,
     };
     match settings::load(text, &validation) {
-        Loaded::Ok { settings, .. } => {
-            match peekbuddy_win::atomic::write_atomic(&ctx.settings_path, text.as_bytes()) {
-                Ok(()) => {
-                    let mut message =
-                        String::from("saved; the watches change with the next start (#68)");
-                    if let Some(ctl) = &ctx.autostart {
-                        message.push_str("; ");
-                        message.push_str(&ctl.apply(settings.general.autostart).map_or_else(
-                            |error| error,
-                            |status| crate::autostart_ctl::describe(&status),
-                        ));
-                    }
-                    command_result(true, message)
+        Loaded::Ok { settings, .. } => match ctx.pause.apply_settings(&settings) {
+            Ok(()) => {
+                let mut message = String::from("saved");
+                if let Some(ctl) = &ctx.autostart {
+                    message.push_str("; ");
+                    message.push_str(&ctl.apply(settings.general.autostart).map_or_else(
+                        |error| error,
+                        |status| crate::autostart_ctl::describe(&status),
+                    ));
                 }
-                Err(error) => {
-                    command_result(false, format!("could not write settings.toml: {error}"))
-                }
+                command_result(true, message)
             }
-        }
+            Err(error) => command_result(false, error),
+        },
         Loaded::TooNew { version, .. } => command_result(
             false,
             format!("version {version} is newer than this build reads"),
@@ -405,7 +400,11 @@ mod tests {
             saved.as_slice(),
             [Message::CommandResult { ok: true, .. }]
         ));
-        assert_eq!(std::fs::read_to_string(&ctx.settings_path).unwrap(), good);
+        // The file holds the new theme and keeps the watch of the engine; the
+        // viewer's text never changes the watches.
+        let after = std::fs::read_to_string(&ctx.settings_path).unwrap();
+        assert!(after.contains("theme = \"dark\""), "{after}");
+        assert!(after.contains("w1"), "{after}");
 
         let bad = "version = 1\n[general]\nautostrat = true\n";
         let refused = answer(
@@ -421,7 +420,7 @@ mod tests {
             other => panic!("{other:?}"),
         }
         // The refused text did not replace the good file.
-        assert_eq!(std::fs::read_to_string(&ctx.settings_path).unwrap(), good);
+        assert_eq!(std::fs::read_to_string(&ctx.settings_path).unwrap(), after);
         std::fs::remove_dir_all(&dir).unwrap();
     }
 

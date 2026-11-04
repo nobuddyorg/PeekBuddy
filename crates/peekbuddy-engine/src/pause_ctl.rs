@@ -302,6 +302,44 @@ impl PauseCtl {
         Ok(removed)
     }
 
+    /// Takes new settings from the viewer's settings screen or its window
+    /// position: everything except the watches, which change only through
+    /// [`PauseCtl::add_watch`], [`PauseCtl::remove_watch`] and the pause
+    /// commands (they have positions the running capture depends on). The
+    /// file is written from this control's own state, so a later pause never
+    /// writes the old values back.
+    ///
+    /// # Errors
+    ///
+    /// The reason when the file is from a newer version or cannot be written;
+    /// nothing changes then.
+    pub fn apply_settings(&self, new: &Settings) -> Result<(), String> {
+        let mut inner = self
+            .inner
+            .lock()
+            .map_err(|_| String::from("settings control is unavailable"))?;
+        if !inner.writable {
+            return Err(String::from(
+                "settings.toml is from a newer version and is not changed by this build",
+            ));
+        }
+        let mut merged = inner.live_settings();
+        merged.version = new.version;
+        merged.general = new.general.clone();
+        merged.store = new.store.clone();
+        merged.view = new.view.clone();
+        merged.viewer = new.viewer.clone();
+        merged.filters = new.filters.clone();
+        inner.write(&merged)?;
+        inner.settings.version = merged.version;
+        inner.settings.general = merged.general;
+        inner.settings.store = merged.store;
+        inner.settings.view = merged.view;
+        inner.settings.viewer = merged.viewer;
+        inner.settings.filters = merged.filters;
+        Ok(())
+    }
+
     /// Tells the control where the lifecycle states of the armed roots can
     /// be read once the capture host runs.
     pub fn bind_signals(&self, signals: &Arc<OnceLock<Signaller>>) {
