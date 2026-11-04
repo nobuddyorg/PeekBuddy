@@ -473,6 +473,21 @@ how = "counting global allocator (#23)"
 arch = ["x86_64", "aarch64"]
 
 [[budget]]
+id = "alloc.export_per_row"
+metric = "heap allocations per exported row, CSV and JSON Lines"
+unit = "count"
+bound = "max"
+limit = 20
+class = "deterministic"
+gate = "pr-strict"
+scenario = "alloc"
+status = "provisional"
+source = "F10; first measurement (#215): 17 per CSV row and 16 per JSON Lines row, the same for 1,000 and for 20,000 rows; the limit leaves room until the per-cell string conversions are removed"
+workload = "64 rows with a quoted path, written to a pre-sized buffer (#215)"
+how = "counting global allocator (#23)"
+arch = ["x86_64", "aarch64"]
+
+[[budget]]
 id = "alloc.viewer_per_frame"
 metric = "heap allocations per viewer frame while scrolling"
 unit = "count"
