@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1793790255312,
+  "lastUpdate": 1793793032232,
   "repoUrl": "https://github.com/nobuddyorg/PeekBuddy",
   "entries": {
     "benches (windows-2025)": [
@@ -297,6 +297,83 @@ window.BENCHMARK_DATA = {
           {
             "name": "store/intern_miss_1000",
             "value": 4491316.555059524,
+            "unit": "ns"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "name": "Matthias Eggert",
+            "username": "besessener",
+            "email": "8039350+besessener@users.noreply.github.com"
+          },
+          "committer": {
+            "name": "GitHub",
+            "username": "web-flow",
+            "email": "noreply@github.com"
+          },
+          "id": "4e8f1ad0cffccf28d49a35b70acbc63c732d39b6",
+          "message": "test(store): pin the log size and the pragmas (#334)\n\nCo-authored-by: Matthias Eggert <dem.matze@gmail.com>\nCo-authored-by: Claude Sonnet 5.5 <noreply@anthropic.com>",
+          "timestamp": "2026-11-04T10:59:55Z",
+          "url": "https://github.com/nobuddyorg/PeekBuddy/commit/4e8f1ad0cffccf28d49a35b70acbc63c732d39b6"
+        },
+        "date": 1793793028296,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "filter/eval_6_names",
+            "value": 1742.7199986475434,
+            "unit": "ns"
+          },
+          {
+            "name": "metrics/process_list_300",
+            "value": 1027.0438980819965,
+            "unit": "ns"
+          },
+          {
+            "name": "notify_parse/extended/64kib",
+            "value": 3281.462721019409,
+            "unit": "ns"
+          },
+          {
+            "name": "notify_parse/full/64kib",
+            "value": 3108.951263848533,
+            "unit": "ns"
+          },
+          {
+            "name": "notify_parse/plain/64kib",
+            "value": 5297.630463520141,
+            "unit": "ns"
+          },
+          {
+            "name": "perf/counters_event",
+            "value": 0.3304853755483037,
+            "unit": "ns"
+          },
+          {
+            "name": "perf/milestone_record",
+            "value": 13.823501997932109,
+            "unit": "ns"
+          },
+          {
+            "name": "reparse/classify_8",
+            "value": 24.039460267013332,
+            "unit": "ns"
+          },
+          {
+            "name": "store/batch_insert_1000",
+            "value": 3673237.261904761,
+            "unit": "ns"
+          },
+          {
+            "name": "store/intern_hit_1000",
+            "value": 49541.58491988224,
+            "unit": "ns"
+          },
+          {
+            "name": "store/intern_miss_1000",
+            "value": 3885970.8333333335,
             "unit": "ns"
           }
         ]
