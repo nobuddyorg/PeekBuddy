@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1793793032232,
+  "lastUpdate": 1793793288611,
   "repoUrl": "https://github.com/nobuddyorg/PeekBuddy",
   "entries": {
     "benches (windows-2025)": [
@@ -619,6 +619,53 @@ window.BENCHMARK_DATA = {
           {
             "name": "query.subtree_resolve_10m",
             "value": 10191823.888888888,
+            "unit": "ns"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "name": "Matthias Eggert",
+            "username": "besessener",
+            "email": "8039350+besessener@users.noreply.github.com"
+          },
+          "committer": {
+            "name": "GitHub",
+            "username": "web-flow",
+            "email": "noreply@github.com"
+          },
+          "id": "4e8f1ad0cffccf28d49a35b70acbc63c732d39b6",
+          "message": "test(store): pin the log size and the pragmas (#334)\n\nCo-authored-by: Matthias Eggert <dem.matze@gmail.com>\nCo-authored-by: Claude Sonnet 5.5 <noreply@anthropic.com>",
+          "timestamp": "2026-11-04T10:59:55Z",
+          "url": "https://github.com/nobuddyorg/PeekBuddy/commit/4e8f1ad0cffccf28d49a35b70acbc63c732d39b6"
+        },
+        "date": 1793793284192,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "query.filtered_first_1m",
+            "value": 6733415.384615384,
+            "unit": "ns"
+          },
+          {
+            "name": "query.fts_lookup_10m",
+            "value": 30689323.333333336,
+            "unit": "ns"
+          },
+          {
+            "name": "query.page_keyset_10m",
+            "value": 2303329.333333333,
+            "unit": "ns"
+          },
+          {
+            "name": "query.regex_post_filter_1m",
+            "value": 3555078950,
+            "unit": "ns"
+          },
+          {
+            "name": "query.subtree_resolve_10m",
+            "value": 9230259.523809522,
             "unit": "ns"
           }
         ]
