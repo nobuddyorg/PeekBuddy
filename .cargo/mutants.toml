@@ -51,6 +51,13 @@ exclude_re = [
   # check alone gives the same replay, and a record of exactly 64 MiB cannot
   # be tested.
   "crates/peekbuddy-store/src/spill.rs:.*replace (\\|\\| with &&|\\+ with -|> with (==|>=)) in Spill::next",
+  # Equivalent mutants in `whole_records`: a header that does not fit, a record
+  # longer than the payload limit and a record that ends past `end` all end the
+  # scan at the same offset, whichever of the overlapping checks catches it.
+  "crates/peekbuddy-store/src/spill.rs:.*replace (< with <=|> with (==|>=)|\\+ with -) in whole_records",
+  # Equivalent mutant: a directory record is at least 88 bytes, so the record
+  # budget `len / 88` can never run out and a larger one changes nothing.
+  "crates/peekbuddy-core/src/reconcile/dirinfo.rs:.*replace / with \\* in parse",
   # After a close during a failing commit the group goes to the spill file and
   # is counted done; only the panic of `-=` (underflow) can be seen, and is
   # (`closing_while_the_disk_is_full_keeps_the_data_for_the_next_start`).
