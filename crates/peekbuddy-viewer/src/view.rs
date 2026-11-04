@@ -10,9 +10,14 @@
 //! * `egui_table` lays out the rows. It draws only the visible ones, so the
 //!   cost of a frame does not depend on the size of the log.
 //!
+//! The **compact** toggle folds renames, saves and bursts behind their newest
+//! row ([`crate::compact`]); folded rows keep their place in the scrollbar
+//! but have no height.
+//!
 //! A page that has not arrived is drawn as an ellipsis row; the UI thread
 //! never waits for the database.
 
+use std::collections::BTreeSet;
 use std::fmt::Write as _;
 use std::io;
 use std::ops::Range;
@@ -25,6 +30,7 @@ use egui_table::{
 use peekbuddy_core::event::Flags;
 use peekbuddy_core::query::{CancelFlag, Filter};
 
+use crate::compact::{Fold, Folds};
 use crate::debounce::{DELAY, Debounce};
 use crate::filterspec::{Chip, Field, FilterSpec, PatternKind, Span, SpecError};
 use crate::follow::Follow;
@@ -262,12 +268,21 @@ pub struct LogView {
     text: String,
     text_error: Option<String>,
     focus_search: bool,
+    /// The compact view is on: groups are folded inside the held rows.
+    compact: bool,
+    /// The heads of the groups the user opened.
+    expanded: BTreeSet<i64>,
+    /// Bumped when `expanded` changes.
+    expanded_gen: u64,
+    folds: Folds,
+    /// What `folds` was made from: timeline revision, mode, `expanded_gen`.
+    folds_key: Option<(u64, bool, u64)>,
 }
 
 /// The status line, rebuilt only when what it says changes.
 #[derive(Default)]
 struct Status {
-    key: (u64, bool, u64, u64),
+    key: (u64, bool, u64, u64, u64),
     text: String,
 }
 
@@ -349,6 +364,11 @@ impl LogView {
             more: false,
             text_error: None,
             focus_search: false,
+            compact: false,
+            expanded: BTreeSet::new(),
+            expanded_gen: 0,
+            folds: Folds::none(),
+            folds_key: None,
         };
         view.worker.send(Job::Extent { generation: 1 });
         Ok(view)
@@ -688,20 +708,25 @@ impl LogView {
             .selection
             .range()
             .map_or(0, |r| r.end() - r.start() + 1);
+        let folded = self.folds.folded();
         let key = (
             self.timeline.total(),
-            self.timeline.is_estimate(),
+            self.timeline.is_estimate() || self.compact,
             selected,
             self.scanned,
+            folded,
         );
         if self.status.key != key || self.status.text.is_empty() {
             self.status.key = key;
             let count = group_digits(self.timeline.total());
-            let mut text = if self.timeline.is_estimate() {
+            let mut text = if key.1 {
                 format!("about {count} events")
             } else {
                 format!("{count} events")
             };
+            if folded > 0 {
+                let _ = write!(text, ", {} folded into groups", group_digits(folded));
+            }
             if selected > 0 {
                 let _ = write!(text, ", {} selected", group_digits(selected));
             }
@@ -762,9 +787,26 @@ impl LogView {
             (step, input.modifiers.shift)
         });
         let Some(step) = step else { return };
-        let Some(cursor) = self.selection.step(step, self.timeline.total(), shift) else {
+        let total = self.timeline.total();
+        let Some(mut cursor) = self.selection.step(step, total, shift) else {
             return;
         };
+        if self.compact && self.folds.is_folded(cursor) {
+            // A folded row has no height: the cursor goes on to the next one
+            // that is shown, the other way when the end is reached.
+            let (forward, back) = match step {
+                Step::Up | Step::PageUp(_) | Step::Home | Step::End => (Step::Up, Step::Down),
+                Step::Down | Step::PageDown(_) => (Step::Down, Step::Up),
+            };
+            for direction in [forward, back] {
+                while self.folds.is_folded(cursor) {
+                    match self.selection.step(direction, total, shift) {
+                        Some(next) if next != cursor => cursor = next,
+                        _ => break,
+                    }
+                }
+            }
+        }
         if cursor < self.visible.start {
             self.scroll_to = Some((cursor, egui::Align::TOP));
         } else if cursor + 1 >= self.visible.end {
@@ -848,7 +890,7 @@ impl LogView {
                 self.spec_changed();
             }
             RowAction::FilterKind(chip) => {
-                self.spec.kinds = std::collections::BTreeSet::from([chip]);
+                self.spec.kinds = BTreeSet::from([chip]);
                 self.spec_changed();
             }
             RowAction::Open { path, select } => events.push(ViewEvent::Open { path, select }),
@@ -897,6 +939,20 @@ impl LogView {
             changed |= span_menu(ui, &mut self.spec.span);
             if ui.selectable_label(self.more, "More").clicked() {
                 self.more = !self.more;
+            }
+            if ui
+                .selectable_label(self.compact, "Compact")
+                .on_hover_text(
+                    "Fold renames, saves and bursts of changes to one file behind \
+                     their newest row. Every raw event stays in the log; open a \
+                     group to see them. Groups are found among the rows loaded \
+                     now, so the counts are approximate.",
+                )
+                .clicked()
+            {
+                self.compact = !self.compact;
+                self.expanded.clear();
+                self.expanded_gen += 1;
             }
             if ui.selectable_label(self.details, "Details").clicked() {
                 self.details = !self.details;
@@ -1072,8 +1128,27 @@ impl LogView {
         event
     }
 
+    /// Makes the folds again when the held rows, the mode or the opened groups
+    /// changed since they were made.
+    fn refresh_folds(&mut self) {
+        let key = (self.timeline.revision(), self.compact, self.expanded_gen);
+        if self.folds_key == Some(key) {
+            return;
+        }
+        self.folds = if self.compact {
+            Folds::build(self.timeline.iter(), self.timeline.top(), &self.expanded)
+        } else {
+            Folds::none()
+        };
+        // Only the heads that are still there stay opened.
+        let folds = &self.folds;
+        self.expanded.retain(|id| folds.is_head(*id));
+        self.folds_key = Some(key);
+    }
+
     fn table(&mut self, ui: &mut egui::Ui) {
         ui.style_mut().interaction.selectable_labels = false;
+        self.refresh_folds();
         let columns: Vec<Column> = self
             .columns
             .iter()
@@ -1092,6 +1167,7 @@ impl LogView {
         if let Some((row, align)) = self.scroll_to.take() {
             table = table.scroll_to_row(row, Some(align));
         }
+        let mut toggle = None;
         let mut grid = Grid {
             timeline: &mut self.timeline,
             worker: &self.worker,
@@ -1104,8 +1180,26 @@ impl LogView {
             visible: &mut self.visible,
             frozen: self.reloading,
             action: &mut self.action,
+            folds: &self.folds,
+            toggle: &mut toggle,
         };
         table.show(ui, &mut grid);
+        if let Some(head) = toggle
+            && !self.expanded.remove(&head)
+        {
+            self.expanded.insert(head);
+        }
+        if toggle.is_some() {
+            self.expanded_gen += 1;
+            ui.ctx().request_repaint();
+        } else if self
+            .folds_key
+            .is_some_and(|key| key.0 != self.timeline.revision())
+        {
+            // The grid moved the island while drawing: draw again with folds
+            // made for the rows it holds now.
+            ui.ctx().request_repaint();
+        }
     }
 
     /// The "N new events" pill, over the top of the grid.
@@ -1181,6 +1275,10 @@ struct Grid<'a> {
     frozen: bool,
     /// Where a context menu leaves what the user asked for.
     action: &'a mut Option<RowAction>,
+    /// The groups folded in the held rows (none in the raw view).
+    folds: &'a Folds,
+    /// The head whose group the user opened or closed.
+    toggle: &'a mut Option<i64>,
 }
 
 fn row_tint(ui: &egui::Ui, class: RowClass) -> Option<egui::Color32> {
@@ -1225,6 +1323,14 @@ impl TableDelegate for Grid<'_> {
             return;
         };
         let rect = ui.max_rect();
+        if self
+            .timeline
+            .row_at(cell.row_nr)
+            .is_some_and(|row| self.folds.of(row.id) == Fold::Folded)
+        {
+            // Folded away: no height, nothing to draw.
+            return;
+        }
         if self.selection.contains(cell.row_nr) {
             ui.painter()
                 .rect_filled(rect, 0.0, ui.visuals().selection.bg_fill);
@@ -1240,14 +1346,46 @@ impl TableDelegate for Grid<'_> {
         {
             ui.painter().rect_filled(rect, 0.0, tint);
         }
+        // Before the content, so a button in the cell is on top of it.
+        let response = ui.interact(
+            rect,
+            ui.scope_id().with(("row", cell.row_nr)),
+            egui::Sense::click(),
+        );
         match col {
             Col::Time => {
                 ui.add(egui::Label::new(&row.time).truncate())
                     .on_hover_text(&row.time_utc);
             }
-            Col::Kind => {
-                ui.add(egui::Label::new(&row.kind).truncate());
-            }
+            Col::Kind => match self.folds.of(row.id) {
+                Fold::Plain | Fold::Folded => {
+                    ui.add(egui::Label::new(&row.kind).truncate());
+                }
+                Fold::Inside => {
+                    ui.horizontal(|ui| {
+                        ui.add_space(14.0);
+                        ui.add(egui::Label::new(&row.kind).truncate());
+                    });
+                }
+                Fold::Head {
+                    kind,
+                    members,
+                    expanded,
+                } => {
+                    ui.horizontal(|ui| {
+                        let arrow = if expanded { "v" } else { ">" };
+                        let badge = ui
+                            .add(egui::Button::new(format!("{arrow} {members}")).frame(false))
+                            .on_hover_ui(|ui| {
+                                ui.label(Fold::badge(members, kind));
+                            });
+                        if badge.clicked() {
+                            *self.toggle = Some(row.id);
+                        }
+                        ui.add(egui::Label::new(&row.kind).truncate());
+                    });
+                }
+            },
             Col::Path => path_cell(ui, row),
             Col::OldPath => {
                 ui.add(egui::Label::new(&row.old_path).truncate());
@@ -1261,11 +1399,6 @@ impl TableDelegate for Grid<'_> {
                 ui.add(egui::Label::new(row.source).truncate());
             }
         }
-        let response = ui.interact(
-            rect,
-            ui.scope_id().with(("row", cell.row_nr)),
-            egui::Sense::click(),
-        );
         if response.clicked() {
             let shift = ui.input(|input| input.modifiers.shift);
             self.selection.click(cell.row_nr, shift);
@@ -1286,6 +1419,16 @@ impl TableDelegate for Grid<'_> {
 
     fn default_row_height(&self) -> f32 {
         ROW_HEIGHT
+    }
+
+    #[expect(
+        clippy::cast_precision_loss,
+        reason = "a scroll offset; the default of egui_table rounds the same way"
+    )]
+    fn row_top_offset(&self, _ctx: &egui::Context, _table_id: egui::Id, row_nr: u64) -> f32 {
+        // Folded rows have no height. Past the held rows the count stops, so
+        // the offset stays a multiple of the row height.
+        self.folds.shown_before(row_nr) as f32 * ROW_HEIGHT
     }
 }
 

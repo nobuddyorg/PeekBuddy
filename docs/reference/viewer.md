@@ -80,6 +80,17 @@ database connections, and a page that has not arrived is drawn as an ellipsis.
   badge. The kind is a symbol plus a word, gap rows are tinted and say "Gap:",
   and times are local with UTC in the tooltip. Reconcile rows carry their
   detection time, so the time column can step back.
+- **Compact view.** The Compact toggle folds renames, atomic saves and bursts
+  of changes to one file behind their newest row, which shows `> 3` (the number
+  of raw events in the group). Clicking it opens the group, and the older rows
+  appear below. Nothing is hidden for good: every raw event is still a row (the
+  copy command copies the rows of a selection, folded or not), and with every
+  group open the grid shows exactly the raw rows. The groups come from the
+  derived-view rules of `peekbuddy-core` and are found among the rows the grid
+  holds, at most 12,800, so a group at the edge of that window can be folded
+  only as far as the window sees it. The scrollbar keeps counting raw rows, so
+  the total says "about". Folded rows have no height; the arrow keys skip
+  them. The toggle is not saved between runs.
 - **Keys.** Arrows, Page Up/Down, Home and End move the selection; Shift
   extends it; the view follows the cursor. The column chooser (Columns menu)
   is saved in `[view] columns`.
