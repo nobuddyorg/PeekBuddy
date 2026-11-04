@@ -13,3 +13,4 @@
 - [The USN journal backend](usn.md)
 - [What happens when a watch is lost](watch-lifecycle.md)
 - [How the store writes](store.md)
+- [SmartScreen and Smart App Control](smartscreen-and-smart-app-control.md)
