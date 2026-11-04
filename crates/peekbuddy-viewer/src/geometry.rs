@@ -235,6 +235,12 @@ mod tests {
         let placement = restore(&viewer(5000, 5000, 800, 600), &[left, right]).unwrap();
         assert!(placement.rect.left >= right.left, "{placement:?}");
         assert!(placement.rect.right <= right.right, "{placement:?}");
+        // The same for a monitor above the origin that ends exactly at y = 0.
+        let above = PxRect::at(0, -1080, 1920, 1080);
+        let below = PxRect::at(0, 0, 1920, 1080);
+        let placement = restore(&viewer(5000, 5000, 800, 600), &[above, below]).unwrap();
+        assert!(placement.rect.top >= below.top, "{placement:?}");
+        assert!(placement.rect.bottom <= below.bottom, "{placement:?}");
     }
 
     #[test]
