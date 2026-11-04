@@ -8,7 +8,8 @@
     reason = "test helpers outside #[test] fns may unwrap"
 )]
 
-use std::time::Duration;
+use std::io::Write as _;
+use std::time::{Duration, Instant};
 
 use peekbuddy_churn::exec::windows::{WinClock, WinTarget};
 use peekbuddy_churn::exec::{Config, run};
@@ -29,6 +30,25 @@ use engine::{quit, spawn, wait_for_window, wait_until_settled};
 use judge::{Run, judge};
 use spill::drain_spill;
 use tree::tree_diff;
+
+/// Appends `label` and the seconds since `since` to the file named by
+/// `PEEKBUDDY_ZERO_LOSS_PHASES` (the nightly uploads it), so a run that is
+/// killed by its time limit still shows which phase took the time.
+fn phase(since: Instant, label: &str) {
+    let Some(path) = std::env::var_os("PEEKBUDDY_ZERO_LOSS_PHASES") else {
+        return;
+    };
+    if let Some(dir) = std::path::Path::new(&path).parent() {
+        let _ = std::fs::create_dir_all(dir);
+    }
+    if let Ok(mut file) = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(path)
+    {
+        let _ = writeln!(file, "{:>8.1}s {label}", since.elapsed().as_secs_f64());
+    }
+}
 
 /// Starts the engine on a tree, runs the churn, lets the log settle and stops
 /// the engine; returns what the comparator needs.
@@ -58,6 +78,7 @@ fn churn_under_the_engine(
     )
     .unwrap();
 
+    let began = Instant::now();
     let mut engine = spawn(&data);
     let window = wait_for_window(&data, &mut engine.0);
     // Let the watch arm and the baseline reconcile finish before the churn.
@@ -72,11 +93,16 @@ fn churn_under_the_engine(
     // A frozen engine reads nothing while the churn runs, so the 64 KiB buffer
     // overflows however fast the machine is.
     let frozen = freeze.then(|| suspend_process(engine.0.id()).unwrap());
+    phase(began, &format!("{profile_name}: churn starts"));
     let outcome = run(&config, |_| (WinTarget::new(&root), WinClock::new()));
+    phase(began, &format!("{profile_name}: churn done"));
     drop(frozen);
     wait_until_settled(&data, Duration::from_secs(5));
+    phase(began, &format!("{profile_name}: log settled"));
     quit(window, &mut engine.0);
+    phase(began, &format!("{profile_name}: engine quit"));
     drain_spill(&data);
+    phase(began, &format!("{profile_name}: spill drained"));
     (Run { data, root }, outcome)
 }
 

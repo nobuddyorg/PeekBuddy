@@ -498,6 +498,7 @@ jobs:
       - name: Zero-loss tier
         env:
           PEEKBUDDY_ZERO_LOSS_REPORT: ${{ runner.temp }}\zero-loss.jsonl
+          PEEKBUDDY_ZERO_LOSS_PHASES: ${{ github.workspace }}/target/zero-loss/phases.txt
           # The arm runner needs more than 75 minutes for the full burst.
           PEEKBUDDY_ZERO_LOSS_PROFILE: ${{ contains(matrix.runner, 'arm') && 'burst-50k' || 'burst-100k' }}
         run: cargo nextest run --locked --profile ci -p peekbuddy --run-ignored only -E 'binary(fs_serial_zero_loss)'
@@ -511,7 +512,9 @@ jobs:
         if: always()
         with:
           name: zero-loss-${{ matrix.runner }}
-          path: target/zero-loss/zero-loss-results.json
+          path: |
+            target/zero-loss/zero-loss-results.json
+            target/zero-loss/phases.txt
           if-no-files-found: ignore
 
   perf-selfcheck:
