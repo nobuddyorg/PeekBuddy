@@ -350,3 +350,52 @@ fn a_path_in_the_resolved_spelling_is_checked_against_the_resolved_folders() {
     );
     assert_eq!(inside_own_folders("not a path", &resolved), None);
 }
+
+#[test]
+fn ids_are_pinned_because_the_same_folder_must_get_the_same_id_for_ever() {
+    let settings = Settings::default();
+    // The folder name in the id alphabet, then 32 bits of FNV-1a of the
+    // lower-cased path: changing either changes every id ever handed out.
+    assert_eq!(
+        new_id(&settings, r"\\?\C:\Work\Reports"),
+        "reports-cbc205f3"
+    );
+    assert_eq!(
+        new_id(&settings, r"\\?\C:\WORK\reports"),
+        "reports-cbc205f3"
+    );
+    assert_eq!(new_id(&settings, r"\\?\UNC\nas\team\docs"), "docs-8f17c1c8");
+    assert_eq!(new_id(&settings, r"\\?\C:\"), "c-913f8f29");
+}
+
+#[test]
+fn two_folders_with_the_same_name_get_different_ids() {
+    let settings = Settings::default();
+    let a = new_id(&settings, r"\\?\C:\Work\Reports");
+    let b = new_id(&settings, r"\\?\D:\Other\Reports");
+    assert_eq!(b, "reports-6a4d8bb1");
+    assert_ne!(a, b);
+}
+
+#[test]
+fn a_clash_walks_through_the_counters_up_to_the_cap() {
+    // Every watch the file may hold sits on the first ids of one folder; the
+    // next add still finds a free counter.
+    let mut settings = Settings::default();
+    let base = new_id(&settings, r"\\?\C:\Same");
+    settings.watches.push(Watch {
+        id: base.clone(),
+        path: String::from(r"\\?\D:\x0"),
+        ..Watch::default()
+    });
+    for n in 2..MAX_WATCHES {
+        settings.watches.push(Watch {
+            id: format!("{base}-{n}"),
+            path: format!(r"\\?\D:\x{n}"),
+            ..Watch::default()
+        });
+    }
+    let next = new_id(&settings, r"\\?\C:\Same");
+    assert_eq!(next, format!("{base}-{MAX_WATCHES}"));
+    assert!(next.len() <= 64, "{next}");
+}

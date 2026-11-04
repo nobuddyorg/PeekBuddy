@@ -107,6 +107,10 @@ impl std::error::Error for Refusal {}
 /// a short counter.
 pub const MAX_WATCHES: usize = 256;
 
+/// The highest counter tried for an id that clashes: every existing watch
+/// can take at most one, so one more than the cap is always free.
+const ID_COUNTER_LIMIT: usize = MAX_WATCHES + 2;
+
 /// What a successful add did.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Added {
@@ -271,7 +275,7 @@ pub fn new_id(settings: &Settings, normalised: &str) -> String {
     if !taken(&base) {
         return base;
     }
-    (2..=MAX_WATCHES + 2)
+    (2..=ID_COUNTER_LIMIT)
         .map(|n| format!("{base}-{n}"))
         .find(|id| !taken(id))
         .unwrap_or(base)
