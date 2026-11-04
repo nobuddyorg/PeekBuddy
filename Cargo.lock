@@ -2573,6 +2573,7 @@ dependencies = [
  "peekbuddy-core",
  "proptest",
  "tracelogging",
+ "windows",
  "windows-sys 0.61.2",
 ]
 
