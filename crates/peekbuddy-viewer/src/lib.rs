@@ -6,7 +6,7 @@
 //! | Module | Needs | Builds and tests on |
 //! | --- | --- | --- |
 //! | [`link`] | nothing (a trait for the pipe) | every host |
-//! | [`geometry`], [`timeline`] | nothing | every host |
+//! | [`geometry`], [`timeline`], [`compact`] | nothing | every host |
 //! | [`shell`], [`theme`] | `egui` (no window) | every host, under `egui_kittest` |
 //! | `app`, `gpu`, `link_win` | `eframe`, Win32 | Windows |
 //!
@@ -21,6 +21,7 @@ use std::sync::Arc;
 use peekbuddy_core::perf::MilestoneTable;
 
 pub mod brand;
+pub mod compact;
 pub mod debounce;
 pub mod details;
 pub mod exporter;

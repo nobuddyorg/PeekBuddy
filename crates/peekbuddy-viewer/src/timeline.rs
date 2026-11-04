@@ -158,6 +158,9 @@ pub struct Timeline<R> {
     pending_older: Option<i64>,
     pending_newer: Option<i64>,
     pending_seek: Option<u64>,
+    /// Counts every change to the held rows or their place, so a view
+    /// derived from them (the compact folds) knows when to be made again.
+    revision: u64,
 }
 
 impl<R: Identified> Timeline<R> {
@@ -184,7 +187,15 @@ impl<R: Identified> Timeline<R> {
             pending_older: None,
             pending_newer: None,
             pending_seek: None,
+            revision: 0,
         }
+    }
+
+    /// Changes whenever the held rows or the virtual index of the first one
+    /// change.
+    #[must_use]
+    pub const fn revision(&self) -> u64 {
+        self.revision
     }
 
     /// Rows held.
@@ -280,6 +291,7 @@ impl<R: Identified> Timeline<R> {
     /// Marks the log as having no row yet: the view is complete and empty,
     /// and the live tail brings the first rows.
     pub fn empty_log(&mut self) {
+        self.revision += 1;
         self.rows.clear();
         self.top = 0;
         self.total = 0;
@@ -295,7 +307,7 @@ impl<R: Identified> Timeline<R> {
     }
 
     /// The held rows, newest first.
-    pub fn iter(&self) -> impl Iterator<Item = &R> {
+    pub fn iter(&self) -> impl DoubleEndedIterator<Item = &R> + Clone {
         self.rows.iter()
     }
 
@@ -443,6 +455,7 @@ impl<R: Identified> Timeline<R> {
             changed = true;
         }
         self.recompute_total();
+        self.revision += 1;
         changed
     }
 
@@ -486,6 +499,7 @@ impl<R: Identified> Timeline<R> {
         }
         self.trim_far_from(0);
         self.recompute_total();
+        self.revision += 1;
         true
     }
 
@@ -534,6 +548,7 @@ impl<R: Identified> Timeline<R> {
             }
         }
         if self.at_newest {
+            self.revision += 1;
             for row in fresh {
                 self.rows.push_front(row);
             }
@@ -562,6 +577,7 @@ impl<R: Identified> Timeline<R> {
                 rows.push_back(row);
             }
         }
+        self.revision += 1;
         if rows.is_empty() {
             // Nothing there: the view is shorter than the index thought.
             self.rows.clear();
@@ -599,6 +615,7 @@ impl<R: Identified> Timeline<R> {
     /// (a virtual index), until at most [`MAX_ROWS`] are held.
     pub fn trim_far_from(&mut self, center: u64) {
         while self.rows.len() > MAX_ROWS {
+            self.revision += 1;
             let held = u64::try_from(self.rows.len()).unwrap_or(u64::MAX);
             let end = self.top + held;
             // Distance of the view's center to each end of the island.

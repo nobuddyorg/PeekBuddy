@@ -608,3 +608,70 @@ fn every_control_of_the_log_screen_has_a_name() {
     harness.step();
     crate::a11y::assert_every_control_is_named(&harness);
 }
+
+/// A log where every four rows are changes to one file, folded in compact mode.
+fn compact_app() -> Harness<'static, App> {
+    let log = FakeLog::new(10_000);
+    log.bursts(4);
+    let mut harness = log_app(&log);
+    until(&mut harness, "the first page", |v| v.held_rows() == PAGE);
+    harness.get_by_label("Compact").click();
+    settle(&mut harness);
+    harness
+}
+
+#[test]
+fn the_compact_toggle_folds_bursts_and_the_raw_view_shows_every_row() {
+    let mut harness = compact_app();
+    let view = &harness.state().view;
+    assert!(view.compact);
+    // 200 rows in bursts of four: nearly three of every four are folded.
+    assert!(view.folds.folded() >= 140, "{}", view.folds.folded());
+    assert!(view.status.text.contains("folded into groups"));
+    // The scrollbar still counts raw rows, and says it is an estimate.
+    assert_eq!(view.timeline.total(), 10_000);
+    assert!(view.status.text.starts_with("about 10 000 events"));
+
+    harness.get_by_label("Compact").click();
+    settle(&mut harness);
+    let view = &harness.state().view;
+    assert!(!view.compact);
+    assert_eq!(view.folds.folded(), 0);
+    assert!(!view.status.text.contains("folded"));
+}
+
+#[test]
+fn opening_a_group_shows_its_members_and_closing_folds_them_again() {
+    let mut harness = compact_app();
+    let folded = harness.state().view.folds.folded();
+    let badges = harness.query_all_by_label("> 4").count();
+    assert!(badges > 0);
+    harness.query_all_by_label("> 4").next().unwrap().click();
+    settle(&mut harness);
+    let view = &harness.state().view;
+    assert_eq!(view.folds.folded(), folded - 3);
+    assert_eq!(view.expanded.len(), 1);
+
+    harness.query_all_by_label("v 4").next().unwrap().click();
+    settle(&mut harness);
+    let view = &harness.state().view;
+    assert_eq!(view.folds.folded(), folded);
+    assert!(view.expanded.is_empty());
+}
+
+#[test]
+fn the_arrow_keys_skip_the_rows_that_are_folded_away() {
+    let mut harness = compact_app();
+    // Row 0 is id 10000 alone; ids 9999..=9996 are a burst: the head is row 1
+    // and rows 2 to 4 are folded, so the next row that is shown is row 5, then 9.
+    for expected in [0, 1, 5, 9] {
+        harness.key_press(egui::Key::ArrowDown);
+        harness.step();
+        assert_eq!(harness.state().view.selection.cursor(), Some(expected));
+    }
+    harness.key_press(egui::Key::ArrowUp);
+    harness.step();
+    harness.key_press(egui::Key::ArrowUp);
+    harness.step();
+    assert_eq!(harness.state().view.selection.cursor(), Some(1));
+}

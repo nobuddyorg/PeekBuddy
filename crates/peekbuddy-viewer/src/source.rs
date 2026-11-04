@@ -145,6 +145,8 @@ pub mod fake {
         calls: usize,
         extents: usize,
         hidden: u64,
+        /// Rows per file: `1` gives every row its own path.
+        burst: i64,
     }
 
     impl FakeLog {
@@ -160,6 +162,7 @@ pub mod fake {
                     calls: 0,
                     extents: 0,
                     hidden: 0,
+                    burst: 1,
                 }),
             })
         }
@@ -176,6 +179,12 @@ pub mod fake {
         /// Answers at most `rows` rows per call, with a resume cursor.
         pub fn step(&self, rows: usize) {
             self.with(|s| s.step = Some(rows));
+        }
+
+        /// Makes `rows` consecutive ids share one path, so that a few
+        /// milliseconds of changes to one file fold into a group.
+        pub fn bursts(&self, rows: i64) {
+            self.with(|s| s.burst = rows.max(1));
         }
 
         /// What the log says the filter hides.
@@ -201,6 +210,10 @@ pub mod fake {
         /// The row with the id `id`.
         #[must_use]
         pub fn row(id: i64) -> Row {
+            Self::row_in(id, 1)
+        }
+
+        fn row_in(id: i64, burst: i64) -> Row {
             Row {
                 id,
                 ts: 134_374_896_000_000_000 + u64::try_from(id).unwrap_or(0) * 10_000,
@@ -213,7 +226,9 @@ pub mod fake {
                 reparse_tag: 0,
                 file_id: 0,
                 name: Vec::new(),
-                path: format!(r"C:\w\f{id}.txt").encode_utf16().collect(),
+                path: format!(r"C:\w\f{}.txt", id / burst)
+                    .encode_utf16()
+                    .collect(),
                 old_path: Vec::new(),
                 root: Vec::new(),
                 flags: 0,
@@ -241,7 +256,7 @@ pub mod fake {
                     Direction::Older => {
                         let mut id = request.cursor.map_or(s.last, |c| (c - 1).min(s.last));
                         while id >= s.first && rows.len() < limit {
-                            rows.push(Self::row(id));
+                            rows.push(Self::row_in(id, s.burst));
                             id -= 1;
                         }
                         more = id >= s.first;
@@ -252,7 +267,7 @@ pub mod fake {
                     Direction::Newer => {
                         let mut id = request.cursor.map_or(s.first, |c| c + 1).max(s.first);
                         while id <= s.last && rows.len() < limit {
-                            rows.push(Self::row(id));
+                            rows.push(Self::row_in(id, s.burst));
                             id += 1;
                         }
                         more = id <= s.last;
