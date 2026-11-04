@@ -17,6 +17,16 @@ const TRACY_SYS: &str = "tracy-client-sys";
 /// (#269), which only a build with the `inject` feature contains.
 pub const MARKERS: &[&[u8]] = &[b"___tracy", b"Tracy", b"PEEKBUDDY_INJECT"];
 
+/// Whether the binary names `pdh.dll` (any case) in its import table. PDH is
+/// banned (#24); the `windows` bindings of the GPU stack are switched on for
+/// it, so this guards the exe itself.
+pub fn imports_pdh(bytes: &[u8]) -> bool {
+    const NAME: &[u8] = b"pdh.dll";
+    bytes
+        .windows(NAME.len())
+        .any(|window| window.eq_ignore_ascii_case(NAME))
+}
+
 /// `cargo xtask check-release [--features <list>] [--exe <path>]`.
 ///
 /// Fails when the feature set (default: the release set, no extra features)
@@ -56,6 +66,9 @@ pub fn check_release(args: &[String]) -> Result<String, String> {
                 .into_iter()
                 .map(|marker| format!("{exe} contains {marker:?}")),
         );
+        if imports_pdh(&bytes) {
+            problems.push(format!("{exe} imports pdh.dll (PDH is banned, #24)"));
+        }
     }
     if problems.is_empty() {
         Ok(match exe {
@@ -148,6 +161,14 @@ fn option<'a>(args: &'a [String], name: &str) -> Result<Option<&'a str>, String>
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn a_pdh_import_is_found_in_any_case() {
+        assert!(super::imports_pdh(b"...\0PDH.dll\0..."));
+        assert!(super::imports_pdh(b"pdh.dll"));
+        assert!(!super::imports_pdh(b"kernel32.dll, pdh.dl"));
+        assert!(!super::imports_pdh(b""));
+    }
+
     use super::{markers_in, option};
 
     fn args(list: &[&str]) -> Vec<String> {

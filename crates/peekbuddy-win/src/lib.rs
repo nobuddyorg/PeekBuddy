@@ -19,6 +19,8 @@ pub mod attrs;
 #[cfg(windows)]
 pub mod autostart;
 #[cfg(windows)]
+pub mod chrome;
+#[cfg(windows)]
 pub mod console;
 #[cfg(windows)]
 pub mod job;
@@ -44,6 +46,8 @@ pub mod resources;
 pub mod session;
 #[cfg(windows)]
 mod sid;
+#[cfg(windows)]
+pub mod signal;
 #[cfg(windows)]
 pub mod single_instance;
 #[cfg(windows)]

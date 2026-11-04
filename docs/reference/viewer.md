@@ -1,0 +1,95 @@
+# Viewer
+
+`peekbuddy.exe --viewer` is the on-demand window. It is a separate process so
+the always-running engine never loads a GPU stack ([ADR 0001](../adr/0001-two-process-single-exe.md));
+closing it gives all its memory back. The engine starts it from the tray; you
+can also run it by hand.
+
+## What starts and what ends it
+
+- One viewer per session. The mutex `Local\PeekBuddy.{GUID}` decides; a second
+  launch raises the named event `Local\PeekBuddy.Viewer.Show.{GUID}`, asks
+  Windows to let the first window take the foreground, and exits 0. The first
+  viewer waits on that event in a thread that sleeps in the kernel.
+- The window closing ends the process with exit code 0 (within 2 s).
+- Killing the viewer (`TerminateProcess`) leaves the engine capturing: the two
+  share nothing but the pipe and the data directory. A test covers it.
+- A renderer or window that cannot start is reported in a message box, written
+  to `logs\viewer.log`, and the exit code is not 0. A silent exit never
+  happens.
+
+## Renderer
+
+wgpu on DX12, on x64 and arm64 ([ADR 0005](../adr/0005-viewer-renderer.md)).
+The wgpu instance is built explicitly, so `WGPU_BACKEND`, `WGPU_POWER_PREF` and
+friends have no effect. The adapter name, backend and device type go to
+`logs\viewer.log` at the first frame; `Cpu` means WARP (software), which is
+logged as a warning.
+
+Missing glyphs draw as a box. egui 0.37 can also be told to panic on them,
+which its test harness does on purpose; the viewer never does, because file
+names contain any character. Shapes the viewer draws itself (status marks) are
+painted, not typed, because the bundled fonts have no check or cross.
+
+## Engine link
+
+The viewer connects to the engine's pipe on its own thread ([IPC](ipc.md)):
+
+| State | Meaning | What the user sees |
+| --- | --- | --- |
+| Connecting | the first attempt runs | nothing |
+| Connected | hello answered with the same protocol version | "Engine running" |
+| Gone | no engine, or it stopped or died | a banner with **Start engine**; retried every second |
+| Mismatch | the engine speaks another protocol version | a banner asking to quit PeekBuddy from the tray and start it again, with **Check again** |
+
+Browsing the log works in every state: the viewer reads the segments itself.
+A state is reported once per change, so an idle viewer paints nothing. While
+connected the thread asks the pipe whether the engine is still there twice a
+second (`PeekNamedPipe`, which never blocks and costs the engine nothing);
+the pipe handle is synchronous, so the thread never sits in a read.
+
+## Theme and title bar
+
+`[general] theme` (`system` by default) maps to egui's theme preference and
+follows Windows live. The title bar follows the resolved theme through
+`DwmSetWindowAttribute(DWMWA_USE_IMMERSIVE_DARK_MODE = 20)`; Windows builds
+that do not know the attribute answer `E_INVALIDARG`, which is not an error.
+Mica is not used: it needs a transparent swap chain, and the measured gain is
+nothing.
+
+## Window geometry
+
+The viewer remembers its window in `[viewer]` of `settings.toml`
+([settings](settings.md)) and not through eframe's `persistence`, which writes
+outside the data directory ([ADR 0008](../adr/0008-data-dir-and-self-exclusion.md)).
+Positions are virtual-screen pixels, and the window is placed with
+`SetWindowPos` rather than a logical size, because a logical size would be
+converted with the wrong monitor's scale on a mixed-DPI desk. On start the
+saved rectangle is kept if enough of it is on a monitor, shrunk and moved into
+that monitor's work area if needed, and otherwise centred on the primary one.
+
+## Measuring: `--viewer-probe`
+
+`peekbuddy.exe --viewer --viewer-probe <seconds> [--perf-probe-out <file>]
+[--data-dir <dir>]` opens the window, waits for it to settle, leaves it alone
+for the given seconds, and closes it. It writes one JSON line:
+
+```json
+{"role":"viewer","frames":12,"first_frame_us":183000,"idle_seconds":10,"idle_frames":0,"adapter":"...","backend":"Dx12","device_type":"Cpu"}
+```
+
+`idle_frames` is the number of frames painted while nothing happened; it is 0.
+`first_frame_us` is microseconds since process creation (F7). With
+`--data-dir` the viewer belongs to the isolated engine of that directory.
+
+## Known limitations
+
+- A pointer move repaints the whole window ([egui#8695](https://github.com/emilk/egui/issues/8695)).
+  The hover gate is not implemented: it needs a real GPU to show whether the
+  repaint costs anything there. On WARP and over Remote Desktop it costs CPU.
+- Hosted CI runners render through WARP, so frame times there are not
+  representative (F12). The memory figures of the wgpu build are in
+  [report 0003](../spikes/0003-viewer-renderer.md).
+- File names with characters the bundled fonts lack draw as boxes. System font
+  fallback is off, because eframe enumerates system fonts on a background
+  thread that can block the first lookup of a missing glyph.

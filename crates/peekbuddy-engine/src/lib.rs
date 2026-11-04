@@ -305,7 +305,7 @@ mod run {
                 &shutdown,
                 &data,
                 (&loaded_settings, &pause),
-                abnormal_termination.is_some(),
+                (abnormal_termination.is_some(), options),
                 milestones,
             )?;
             // A failed tray is retried later; the attempt is what counts.
@@ -692,6 +692,7 @@ mod run {
         let shared = crate::ipc_server::Shared {
             window: hidden.handle(),
             exe: std::env::current_exe()?,
+            viewer_args: crate::instrument::viewer_args(options.data_dir.as_deref()),
             settings_path: data.settings.clone(),
             data_dir: data.root.to_string_lossy().into_owned(),
             pause: Arc::clone(pause),
@@ -728,7 +729,7 @@ Another PeekBuddy engine of this user owns it, or another program created it fir
             &crate::settings::LoadedSettings,
             &Arc<crate::pause_ctl::PauseCtl>,
         ),
-        crashed: bool,
+        (crashed, options): (bool, &Options),
         milestones: &MilestoneTable,
     ) -> std::io::Result<()> {
         let health = if loaded.state.is_problem() || crashed {
@@ -748,6 +749,7 @@ Another PeekBuddy engine of this user owns it, or another program created it fir
         let mut controller = TrayController::new(
             hidden.handle(),
             std::env::current_exe()?,
+            crate::instrument::viewer_args(options.data_dir.as_deref()),
             data.root.clone(),
             Arc::clone(pause),
             TrayState {

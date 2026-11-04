@@ -6,6 +6,8 @@
 #![cfg_attr(all(windows, not(test)), windows_subsystem = "windows")]
 #![forbid(unsafe_code)]
 
+#[cfg(not(windows))]
+use std::path::PathBuf;
 use std::process::ExitCode;
 
 use std::sync::Arc;
@@ -23,6 +25,10 @@ use cli::{Invocation, Role};
 /// Mutex of the viewer role; the engine's is in `peekbuddy_engine`.
 #[cfg(windows)]
 const VIEWER_MUTEX: &str = r"Local\PeekBuddy.{5e7d2b90-3a14-4c68-8f0b-d1a9c6e4f723}";
+
+/// The event a second viewer launch raises to bring the first one forward.
+#[cfg(windows)]
+const VIEWER_EVENT: &str = r"Local\PeekBuddy.Viewer.Show.{5e7d2b90-3a14-4c68-8f0b-d1a9c6e4f723}";
 
 /// Records `ProcessStart` for `role` (F7: measured from process creation).
 #[cfg(windows)]
@@ -45,21 +51,72 @@ fn process_start(role: &Role, table: &MilestoneTable) {
 #[cfg(not(windows))]
 fn process_start(_role: &Role, _table: &MilestoneTable) {}
 
-/// Runs the viewer unless another viewer already runs in this session.
+/// Runs the viewer unless another viewer already runs in this session; that
+/// one is asked to come to the front instead.
+///
+/// With `--data-dir` (tests, the perf harness) the viewer belongs to the
+/// isolated engine of that directory: its pipe, mutex and event carry the
+/// same hash, so it never meets a real viewer.
 #[cfg(windows)]
-fn run_viewer() -> std::io::Result<()> {
+fn run_viewer(invocation: &Invocation, table: &Arc<MilestoneTable>) -> std::io::Result<()> {
+    use peekbuddy_engine::{datadir, ipc_server};
     use peekbuddy_win::single_instance::SingleInstance;
 
-    if let Some(_instance) = SingleInstance::acquire(VIEWER_MUTEX)? {
-        peekbuddy_viewer::run();
-    }
-    Ok(())
+    let exe = std::env::current_exe()?;
+    let (root, pipe_name, engine_args, suffix, title) = match invocation.engine.data_dir.as_deref()
+    {
+        Some(dir) => {
+            let hash = peekbuddy_win::pipe::stable_hash(&dir.to_string_lossy().to_lowercase());
+            (
+                dir.to_path_buf(),
+                ipc_server::pipe_name(Some(dir))?,
+                vec!["--headless".into(), "--data-dir".into(), dir.into()],
+                format!(".{hash:016x}"),
+                peekbuddy_viewer::isolated_title(hash),
+            )
+        }
+        None => (
+            datadir::locate(&exe)?.0,
+            ipc_server::pipe_name(None)?,
+            Vec::new(),
+            String::new(),
+            String::from("PeekBuddy"),
+        ),
+    };
+    let show_event = format!("{VIEWER_EVENT}{suffix}");
+    let Some(_instance) = SingleInstance::acquire(&format!("{VIEWER_MUTEX}{suffix}"))? else {
+        // A viewer is open: let it take the foreground, then leave. Failing
+        // to reach it is not worth an error; the user clicked twice.
+        peekbuddy_win::chrome::allow_any_foreground();
+        let _ = peekbuddy_win::signal::Signal::open(&show_event).and_then(|event| event.raise());
+        return Ok(());
+    };
+    peekbuddy_viewer::run(peekbuddy_viewer::Options {
+        segments: root.join("segments"),
+        data_dir: root,
+        pipe_name,
+        exe,
+        engine_args,
+        show_event,
+        title,
+        table: Arc::clone(table),
+        probe: invocation.viewer_probe.clone(),
+    })
 }
 
 #[cfg(not(windows))]
-fn run_viewer() -> std::io::Result<()> {
-    peekbuddy_viewer::run();
-    Ok(())
+fn run_viewer(invocation: &Invocation, table: &Arc<MilestoneTable>) -> std::io::Result<()> {
+    peekbuddy_viewer::run(peekbuddy_viewer::Options {
+        data_dir: PathBuf::new(),
+        segments: PathBuf::new(),
+        pipe_name: String::new(),
+        exe: PathBuf::new(),
+        engine_args: Vec::new(),
+        show_event: String::new(),
+        title: String::new(),
+        table: Arc::clone(table),
+        probe: invocation.viewer_probe.clone(),
+    })
 }
 
 /// What the build script recorded: version, git SHA, compiler, key
@@ -127,7 +184,7 @@ fn run(
     let _zone = tracy::start(&invocation.role);
     match invocation.role {
         Role::Engine => peekbuddy_engine::run(&invocation.engine, table, provider).map(drop),
-        Role::Viewer => run_viewer(),
+        Role::Viewer => run_viewer(invocation, table),
         Role::Diagnostics => run_diagnostics(invocation.full),
         Role::Ping => run_ping(&invocation.engine),
     }
@@ -147,7 +204,10 @@ fn main() -> ExitCode {
     }
 }
 
-#[cfg(test)]
+// Off Windows the viewer role returns at once. On Windows it opens a window,
+// which winit only allows on the main thread: `tests/viewer.rs` runs the real
+// exe instead.
+#[cfg(all(test, not(windows)))]
 mod tests {
     use peekbuddy_core::perf::MilestoneTable;
 
@@ -159,6 +219,7 @@ mod tests {
             role: Role::Viewer,
             engine: peekbuddy_engine::Options::default(),
             full: false,
+            viewer_probe: None,
         };
         run(
             &invocation,

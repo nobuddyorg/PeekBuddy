@@ -35,7 +35,7 @@ use windows_sys::Win32::System::IO::{CancelIoEx, GetOverlappedResult, OVERLAPPED
 use windows_sys::Win32::System::Pipes::{
     ConnectNamedPipe, CreateNamedPipeW, DisconnectNamedPipe, GetNamedPipeClientProcessId,
     GetNamedPipeServerProcessId, PIPE_READMODE_BYTE, PIPE_REJECT_REMOTE_CLIENTS, PIPE_TYPE_BYTE,
-    PIPE_WAIT, WaitNamedPipeW,
+    PIPE_WAIT, PeekNamedPipe, WaitNamedPipeW,
 };
 use windows_sys::Win32::System::Threading::{
     CreateEventW, GetCurrentProcess, INFINITE, OpenProcess, OpenProcessToken,
@@ -622,6 +622,36 @@ impl PipeClient {
         self.file.write_all(&bytes)
     }
 
+    /// How many bytes the server has sent that nobody has read yet. Never
+    /// blocks and reads nothing, so it is safe while no read is pending: a
+    /// synchronous pipe handle cannot read and write at once, which is why
+    /// the viewer's link thread asks this instead of waiting in
+    /// [`PipeClient::receive`].
+    ///
+    /// # Errors
+    ///
+    /// `ERROR_BROKEN_PIPE` and the like once the server is gone: the engine
+    /// stopped or died.
+    pub fn available(&self) -> std::io::Result<u32> {
+        let mut available = 0u32;
+        // SAFETY: the handle is live and only the available count is
+        // requested; the other out pointers may be null for a count.
+        let ok = unsafe {
+            PeekNamedPipe(
+                self.file.as_raw_handle(),
+                std::ptr::null_mut(),
+                0,
+                std::ptr::null_mut(),
+                &raw mut available,
+                std::ptr::null_mut(),
+            )
+        };
+        if ok == 0 {
+            return Err(last_error());
+        }
+        Ok(available)
+    }
+
     /// Reads the next message; `None` when the server closed the pipe.
     ///
     /// # Errors
@@ -684,6 +714,37 @@ mod tests {
             }
             _ => {}
         })
+    }
+
+    #[test]
+    fn a_client_sees_that_the_server_is_gone_without_reading() {
+        let name = name("available");
+        let mut server = PipeServer::start(&name, &echo()).unwrap();
+        let mut client = PipeClient::connect(&name, None, Duration::from_secs(2)).unwrap();
+        assert_eq!(client.available().unwrap(), 0);
+        client
+            .send(&Message::Selftest { payload: vec![9] })
+            .unwrap();
+        let deadline = std::time::Instant::now() + Duration::from_secs(5);
+        while client.available().unwrap() == 0 && std::time::Instant::now() < deadline {
+            std::thread::sleep(Duration::from_millis(5));
+        }
+        assert!(client.available().unwrap() > 0, "the echo is waiting");
+        assert!(matches!(
+            client.receive().unwrap(),
+            Some(Message::Selftest { .. })
+        ));
+        server.stop();
+        // Whatever the server still had to say (EngineStopping), then the
+        // pipe is broken.
+        while client.available().is_ok() && std::time::Instant::now() < deadline {
+            if client.available().unwrap() > 0 {
+                let _ = client.receive();
+            } else {
+                std::thread::sleep(Duration::from_millis(5));
+            }
+        }
+        assert!(client.available().is_err());
     }
 
     #[test]

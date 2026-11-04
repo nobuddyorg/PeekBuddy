@@ -57,8 +57,8 @@ pub fn run() -> Result<String, String> {
     }
 }
 
-/// The windows-sys / windows feature that exposes the PDH API. Spelled in
-/// two parts so this file does not match its own source scan.
+/// The `windows-sys` feature that exposes the PDH API. Spelled in two parts
+/// so this file does not match its own source scan.
 const PDH_FEATURE: &str = concat!("Win32_System_", "Performance");
 
 /// Directories with product code: PDH is banned there (#24). Its
@@ -67,12 +67,19 @@ const PDH_FEATURE: &str = concat!("Win32_System_", "Performance");
 const PRODUCT_DIRS: &[&str] = &["crates", "benches"];
 
 /// Problems in `cargo tree -e features --prefix none --format {p}` output.
+///
+/// Only `windows-sys`, the binding crate of this workspace, is checked. The
+/// `windows` crate (bindings of the wgpu and AccessKit stack in the viewer,
+/// #65) has the feature switched on by `wgpu-hal`, which never calls PDH;
+/// that the shipped exe does not import `pdh.dll` is checked on the exe itself
+/// (`cargo xtask check-release --exe`).
 pub fn pdh_features(tree: &str) -> Vec<String> {
     let needle = format!("feature \"{PDH_FEATURE}\"");
     let mut problems: Vec<String> = tree
         .lines()
         .filter(|line| line.contains(&needle))
         .filter_map(|line| line.split_whitespace().next())
+        .filter(|krate| *krate == "windows-sys")
         .map(|krate| format!("{krate} enables {PDH_FEATURE} (PDH is banned, #24)"))
         .collect();
     problems.sort();
@@ -241,6 +248,14 @@ mod tests {
             pdh_features("windows-sys feature \"Win32_System_Threading\"\n"),
             Vec::<String>::new()
         );
+    }
+
+    #[test]
+    fn the_windows_crate_of_the_gpu_stack_may_switch_the_bindings_on() {
+        // wgpu-hal enables the feature in `windows`; nothing calls it, and the
+        // exe is scanned for the import.
+        let tree = format!("windows v0.62.2 feature \"{PDH_FEATURE}\"\n");
+        assert_eq!(pdh_features(&tree), Vec::<String>::new());
     }
 
     #[test]

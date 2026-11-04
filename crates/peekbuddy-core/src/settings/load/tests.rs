@@ -2,7 +2,8 @@ use proptest::prelude::*;
 
 use super::super::migrate::Step;
 use super::super::{
-    COLUMNS, CURRENT_VERSION, Filters, Settings, Store, Theme, View, Watch, default_toml, to_toml,
+    COLUMNS, CURRENT_VERSION, Filters, Settings, Store, Theme, View, Viewer, Watch, default_toml,
+    to_toml,
 };
 use super::{Context, Loaded, Problem, closest, distance, load, load_with};
 
@@ -230,8 +231,15 @@ fn arb_settings() -> impl Strategy<Value = Settings> {
             proptest::sample::subsequence(presets.to_vec(), 0..=4),
         ),
         proptest::collection::vec(watch, 0..4),
+        (
+            proptest::option::of(-3000i32..3000),
+            proptest::option::of(200u32..4000),
+            any::<bool>(),
+            "[a-z:,\\-]{0,20}",
+            any::<bool>(),
+        ),
     )
-        .prop_map(|(general, store, view, filters, watches)| {
+        .prop_map(|(general, store, view, filters, watches, viewer)| {
             let mut settings = Settings::default();
             settings.general.autostart = general.0;
             settings.general.first_run = general.1;
@@ -245,6 +253,16 @@ fn arb_settings() -> impl Strategy<Value = Settings> {
             settings.view = View {
                 coalesce_ms: view.0,
                 columns: view.1.into_iter().map(String::from).collect(),
+            };
+            settings.viewer = Viewer {
+                x: viewer.0,
+                y: viewer.0.map(|y| y / 2),
+                width: viewer.1,
+                height: viewer.1.map(|h| h / 2 + 200),
+                maximized: viewer.2,
+                filter: viewer.3,
+                raw: viewer.4,
+                details_hidden: !viewer.4,
             };
             settings.filters = Filters {
                 exclude_globs: filters.0.iter().map(|g| format!("*.{g}")).collect(),
@@ -370,4 +388,34 @@ fn a_buffer_size_is_judged_even_when_the_path_is_not_valid() {
     assert!(fine.contains("absolute"), "{fine}");
     let big = messages(&with(2048));
     assert!(big.contains("buffer"), "{big}");
+}
+
+#[test]
+fn the_viewer_table_is_only_written_when_something_is_remembered() {
+    let text = to_toml(&Settings::default()).unwrap();
+    assert!(!text.contains("[viewer]"), "{text}");
+    let mut settings = Settings::default();
+    settings.viewer.width = Some(1280);
+    settings.viewer.height = Some(800);
+    settings.viewer.filter = String::from("kind:created");
+    let text = to_toml(&settings).unwrap();
+    assert!(text.contains("[viewer]"), "{text}");
+    assert!(!text.contains("maximized"), "defaults stay out: {text}");
+    match load(&text, &ctx()) {
+        Loaded::Ok {
+            settings: loaded, ..
+        } => assert_eq!(loaded.viewer, settings.viewer),
+        other => panic!("{other:?}"),
+    }
+}
+
+#[test]
+fn a_bad_viewer_table_gets_positioned_messages() {
+    let text = messages("version = 1\n[viewer]\nwidth = 50\nheight = 99999\nfilter = \"x\"\n");
+    assert!(text.contains("viewer.width"), "{text}");
+    assert!(text.contains("viewer.height"), "{text}");
+    let typo = messages("version = 1\n[viewer]\nwidht = 3\n");
+    assert!(typo.contains("did you mean `width`"), "{typo}");
+    let long = format!("version = 1\n[viewer]\nfilter = \"{}\"\n", "a".repeat(5000));
+    assert!(messages(&long).contains("viewer.filter"));
 }

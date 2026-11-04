@@ -7,6 +7,7 @@
 use std::path::PathBuf;
 
 use peekbuddy_engine::{Options, ProbeOptions};
+use peekbuddy_viewer::Probe as ViewerProbe;
 
 /// The role this process runs.
 #[derive(Debug, PartialEq, Eq)]
@@ -31,6 +32,8 @@ pub struct Invocation {
     pub engine: Options,
     /// `--full`: show watched paths and user folders in the diagnostics.
     pub full: bool,
+    /// `--viewer-probe`: open the viewer, leave it idle, report, close.
+    pub viewer_probe: Option<ViewerProbe>,
 }
 
 /// Why the command line was refused.
@@ -42,8 +45,8 @@ pub enum Error {
     MissingValue(&'static str),
     /// A value that is not a whole number of seconds.
     BadSeconds(String),
-    /// `--data-dir` is for tests and the perf harness: it needs `--headless`
-    /// or `--perf-probe`.
+    /// `--data-dir` is for tests and the perf harness: it needs `--headless`,
+    /// `--perf-probe`, `--ipc-ping` or `--viewer`.
     DataDirNeedsHeadless,
     /// `--perf-probe-out` without `--perf-probe`, or `--full` without
     /// `--diagnostics`.
@@ -60,7 +63,7 @@ impl std::fmt::Display for Error {
             Self::BadSeconds(value) => write!(f, "{value} is not a number of seconds"),
             Self::DataDirNeedsHeadless => write!(
                 f,
-                "--data-dir is only accepted with --headless or --perf-probe"
+                "--data-dir is only accepted with --headless, --perf-probe, --ipc-ping or --viewer"
             ),
             Self::OrphanFlag(flag) => write!(f, "{flag} needs its command"),
             Self::RoleFlagsMixed => write!(
@@ -82,6 +85,7 @@ pub fn parse(args: impl IntoIterator<Item = String>) -> Result<Invocation, Error
     let mut ping = false;
     let mut full = false;
     let mut probe_out = None;
+    let mut viewer_probe = None;
     let mut options = Options::default();
     let mut args = args.into_iter();
     while let Some(arg) = args.next() {
@@ -101,6 +105,11 @@ pub fn parse(args: impl IntoIterator<Item = String>) -> Result<Invocation, Error
                 let seconds = value.parse().map_err(|_| Error::BadSeconds(value))?;
                 options.probe = Some(ProbeOptions { seconds, out: None });
             }
+            "--viewer-probe" => {
+                let value = args.next().ok_or(Error::MissingValue("--viewer-probe"))?;
+                let seconds = value.parse().map_err(|_| Error::BadSeconds(value))?;
+                viewer_probe = Some(ViewerProbe { seconds, out: None });
+            }
             "--perf-probe-out" => {
                 let value = args.next().ok_or(Error::MissingValue("--perf-probe-out"))?;
                 probe_out = Some(PathBuf::from(value));
@@ -118,11 +127,16 @@ pub fn parse(args: impl IntoIterator<Item = String>) -> Result<Invocation, Error
         }
     }
     if let Some(out) = probe_out {
-        let probe = options
-            .probe
-            .as_mut()
-            .ok_or(Error::OrphanFlag("--perf-probe-out"))?;
-        probe.out = Some(out);
+        if let Some(probe) = options.probe.as_mut() {
+            probe.out = Some(out);
+        } else if let Some(probe) = viewer_probe.as_mut() {
+            probe.out = Some(out);
+        } else {
+            return Err(Error::OrphanFlag("--perf-probe-out"));
+        }
+    }
+    if viewer_probe.is_some() && !viewer {
+        return Err(Error::OrphanFlag("--viewer-probe"));
     }
     if options.tray && !options.headless {
         return Err(Error::OrphanFlag("--tray"));
@@ -130,7 +144,12 @@ pub fn parse(args: impl IntoIterator<Item = String>) -> Result<Invocation, Error
     if full && !diagnostics {
         return Err(Error::OrphanFlag("--full"));
     }
-    if options.data_dir.is_some() && !options.headless && options.probe.is_none() && !ping {
+    if options.data_dir.is_some()
+        && !options.headless
+        && options.probe.is_none()
+        && !ping
+        && !viewer
+    {
         return Err(Error::DataDirNeedsHeadless);
     }
     let role = match (viewer, diagnostics, ping) {
@@ -148,13 +167,18 @@ pub fn parse(args: impl IntoIterator<Item = String>) -> Result<Invocation, Error
     if role == Role::Ping && options != ping_options {
         return Err(Error::RoleFlagsMixed);
     }
-    if role != Role::Engine && role != Role::Ping && options != Options::default() {
+    // The viewer takes `--data-dir` (an isolated engine's directory) too.
+    if role == Role::Viewer && options != ping_options {
+        return Err(Error::RoleFlagsMixed);
+    }
+    if !matches!(role, Role::Engine | Role::Ping | Role::Viewer) && options != Options::default() {
         return Err(Error::RoleFlagsMixed);
     }
     Ok(Invocation {
         role,
         engine: options,
         full,
+        viewer_probe,
     })
 }
 
@@ -273,6 +297,50 @@ mod tests {
         assert_eq!(
             parse(args(&["--ipc-ping", "--viewer"])),
             Err(Error::RoleFlagsMixed)
+        );
+    }
+
+    #[test]
+    fn the_viewer_takes_a_data_dir_and_a_probe() {
+        let invocation = parse(args(&[
+            "--viewer",
+            "--data-dir",
+            r"C:\t\pb",
+            "--viewer-probe",
+            "10",
+            "--perf-probe-out",
+            r"C:\t\v.json",
+        ]))
+        .unwrap();
+        assert_eq!(invocation.role, Role::Viewer);
+        assert_eq!(invocation.engine.data_dir, Some(PathBuf::from(r"C:\t\pb")));
+        let probe = invocation.viewer_probe.unwrap();
+        assert_eq!(probe.seconds, 10);
+        assert_eq!(probe.out, Some(PathBuf::from(r"C:\t\v.json")));
+        assert_eq!(parse(args(&["--viewer"])).unwrap().viewer_probe, None);
+    }
+
+    #[test]
+    fn viewer_flags_belong_to_the_viewer_alone() {
+        assert_eq!(
+            parse(args(&["--viewer-probe", "5"])),
+            Err(Error::OrphanFlag("--viewer-probe"))
+        );
+        assert_eq!(
+            parse(args(&["--viewer", "--viewer-probe", "soon"])),
+            Err(Error::BadSeconds(String::from("soon")))
+        );
+        assert_eq!(
+            parse(args(&["--viewer", "--viewer-probe"])),
+            Err(Error::MissingValue("--viewer-probe"))
+        );
+        assert_eq!(
+            parse(args(&["--viewer", "--perf-probe", "5"])),
+            Err(Error::RoleFlagsMixed)
+        );
+        assert_eq!(
+            parse(args(&["--viewer", "--perf-probe-out", "x"])),
+            Err(Error::OrphanFlag("--perf-probe-out"))
         );
     }
 

@@ -44,8 +44,10 @@ fn hello() -> Message {
 pub struct Shared {
     /// The engine's window, to post a close to.
     pub window: WindowHandle,
-    /// This exe, spawned as `--viewer`.
+    /// This exe, spawned as the viewer.
     pub exe: PathBuf,
+    /// The arguments that start the viewer ([`crate::instrument::viewer_args`]).
+    pub viewer_args: Vec<std::ffi::OsString>,
     /// The settings file and the data directory it lives in.
     pub settings_path: PathBuf,
     /// Data directory text for validation.
@@ -119,7 +121,7 @@ pub fn handle(ctx: &Shared, message: &Message, reply: &mut Reply) {
             }
         }
         Message::ShowViewer => {
-            crate::instrument::spawn_viewer(&ctx.exe);
+            crate::instrument::spawn_viewer(&ctx.exe, &ctx.viewer_args);
         }
         Message::Shutdown => {
             let _ = ctx.window.post_close();
@@ -231,6 +233,7 @@ mod tests {
                 WindowHandle::from_raw(0)
             }),
             exe: PathBuf::from("peekbuddy.exe"),
+            viewer_args: Vec::new(),
             settings_path: dir.join("settings.toml"),
             data_dir: dir.to_string_lossy().into_owned(),
             autostart: None,

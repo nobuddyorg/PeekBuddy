@@ -75,8 +75,8 @@ Gate values in `budgets.toml`:
 | `viewer.frame.max` | <= 33 ms | timing | nightly-trend | `owner-run` | provisional | 10M-row log, scripted scroll | egui frame timing in --perf-probe JSON | F9 |
 | `query.filter_first_results` | <= 100 ms | timing | nightly-trend | `query-bench` | provisional | 1M-row store, glob filter that one row in a thousand matches | criterion bench query/filtered_first_1m (nightly query bench job) | F5, recalibrated by #35, #267 |
 | `export.1m_rows` | <= 2 s | timing | nightly-trend | `owner-run` | provisional | 1M-row store | xtask perf export (#27) | M9, recalibrated by #35 |
-| `binary.size` | <= 5 MB | deterministic | report-only | `size` | provisional | release profile (#28) | file size of the release artifact (#28) | M14 |
-| `binary.size.cap` | <= 8 MB | deterministic | pr-strict | `size` | provisional | release profile (#28) | file size of the release artifact (#28) | M14 |
+| `binary.size` | <= 12 MB | deterministic | report-only | `size` | provisional | release profile (#28) | file size of the release artifact (#28) | M14 |
+| `binary.size.cap` | <= 14 MB | deterministic | pr-strict | `size` | provisional | release profile (#28) | file size of the release artifact (#28) | M14 |
 | `alloc.capture_per_event` | <= 0 count | deterministic | pr-strict | `alloc` | calibrated | parse + filter + classify of a recorded buffer (#23) | counting global allocator (#23) | F10 |
 | `alloc.reparse_per_change` | <= 0 count | deterministic | pr-strict | `alloc` | calibrated | eight changes of a sync client and a user, repeated (#23) | counting global allocator (#23) | F10, #265 |
 | `alloc.writer_per_1000` | <= 2 count | deterministic | pr-strict | `alloc` | provisional | writer batch of 1,000 events (#52) | counting global allocator (#23) | F10; measured by #52: 2 allocations and 544 bytes per warm batch |
@@ -245,8 +245,8 @@ not rely on `catch_unwind`. The bench profile inherits release, so A/B
 numbers come from the shipped code generation.
 
 `cargo xtask size <exe>...` checks each exe against the `binary.*` rows:
-`binary.size.cap` (8 MB, `pr-strict`) fails the run, `binary.size` (5 MB) is
-reported. MB here is 1,000,000 bytes. CI runs it on the release exe in
+`binary.size.cap` (14 MB, `pr-strict`) fails the run, `binary.size` (12 MB) is
+reported (both raised for the viewer by ADR 0019). MB here is 1,000,000 bytes. CI runs it on the release exe in
 `test (windows x64)` (part of `ci-ok`) and in the arm64 job.
 
 ### `dist` profile, CPU baseline and PGO (#28)
@@ -403,6 +403,8 @@ Pending recalibration hooks:
 
 ## Changelog
 
+- 2026-11-03: #65 raises `binary.size` to 12 MB and `binary.size.cap` to 14 MB for
+  the viewer in the single exe (11.47 MB measured, report 0003, ADR 0019).
 - 2026-10-25: #29 profiling playbook (`docs/how-to/profile.md`); only the
   hyperfine recipe was executed, the rest is marked not yet executed.
 - 2026-10-23: initial provisional budgets from the roadmap (#1) and F6-F11.

@@ -38,6 +38,14 @@ That switch is its own issue; until then the viewer memory budget is
 calibrated on wgpu and tightened when glow lands. A second GPU and a cold-start
 run sharpen the numbers but do not change the decision (#84).
 
+Implemented in #65: the viewer builds its wgpu instance itself with
+`Backends::DX12`, empty instance flags and default backend options, so
+`WGPU_BACKEND`, `WGPU_POWER_PREF` and the other `WGPU_*` variables cannot
+change the production renderer (eframe's defaults read them). The power
+preference is `LowPower`, which picks the integrated GPU on a machine with
+two. `crates/peekbuddy/tests/viewer.rs` runs the exe with `WGPU_BACKEND=vulkan`
+and checks that the adapter is still DX12.
+
 ## Consequences
 
 - Good: arm64 works on devices without OpenGL.

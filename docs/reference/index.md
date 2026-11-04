@@ -6,3 +6,4 @@
 - [Filters](filters.md)
 - [Settings](settings.md)
 - [IPC protocol](ipc.md)
+- [Viewer](viewer.md)
