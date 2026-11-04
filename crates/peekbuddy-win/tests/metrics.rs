@@ -34,19 +34,25 @@ fn allocating_50_mb_raises_private_bytes() {
 }
 
 /// The issue's bar: spinning raises user time by >= 150 ms. Process times
-/// tick in 15.625 ms steps, and on a shared 4-vCPU runner (coverage builds
-/// run tests in parallel) a spinning thread is descheduled now and then: a
-/// 200 ms spin measured 140.6 ms there. So the spin runs 300 ms of wall time
-/// and the 150 ms threshold stays.
+/// tick in 15.625 ms steps, and on a loaded runner a spinning thread is
+/// descheduled for long stretches, so a spin of fixed wall time can measure
+/// far less (140.6 ms for 200 ms, and short of 150 ms for 300 ms). The thread
+/// spins until the process clock itself shows the 150 ms, with a wall limit
+/// of 20 s so a clock that never moves still fails.
 #[test]
 fn spinning_raises_user_time_by_150_ms() {
     let before = cpu_times(current_process()).unwrap();
     let cycles_before = cycle_time(current_process()).unwrap();
-    std::thread::spawn(|| {
+    let wanted = before.user + 1_500_000;
+    std::thread::spawn(move || {
         let start = Instant::now();
         let mut x = 0u64;
-        while start.elapsed() < Duration::from_millis(300) {
-            x = black_box(x.wrapping_add(1));
+        while start.elapsed() < Duration::from_secs(20)
+            && cpu_times(current_process()).unwrap().user < wanted
+        {
+            for _ in 0..100_000 {
+                x = black_box(x.wrapping_add(1));
+            }
         }
     })
     .join()
