@@ -82,6 +82,18 @@ fn open_menu(harness: &mut Harness<'static, App>, row: &str, item: &str) {
     harness.get_by_label(item);
 }
 
+/// Lets the worker thread answer everything that is outstanding (the hidden
+/// count, the extent) before a test clicks: an answer that arrives between
+/// the lookup of a row and the click can move the row under the pointer.
+fn settle(harness: &mut Harness<'static, App>) {
+    let end = Instant::now() + Duration::from_millis(400);
+    while Instant::now() < end {
+        harness.step();
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    harness.step();
+}
+
 #[test]
 fn the_first_page_appears_and_only_it_is_held() {
     let log = FakeLog::new(10_000);
@@ -199,7 +211,7 @@ fn a_click_selects_the_row() {
     let log = FakeLog::new(1_000);
     let mut harness = log_app(&log);
     until(&mut harness, "the first page", |v| v.held_rows() == PAGE);
-    harness.step();
+    settle(&mut harness);
     harness.get_by_label("f998.txt").click();
     harness.step();
     assert_eq!(harness.state().view.selection.range(), Some(2..=2));
@@ -276,6 +288,7 @@ fn the_column_chooser_reports_the_new_list_and_keeps_one_column() {
         &["kind", "path"],
     );
     until(&mut harness, "the first page", |v| v.held_rows() == PAGE);
+    settle(&mut harness);
     harness.get_by_label("Columns").click();
     harness.run();
     harness.get_by_label("Size").click();
@@ -488,7 +501,7 @@ fn the_details_pane_follows_the_selected_row_and_can_be_closed() {
     let log = FakeLog::new(1_000);
     let mut harness = log_app(&log);
     until(&mut harness, "the first page", |v| v.held_rows() == PAGE);
-    harness.step();
+    settle(&mut harness);
     harness.get_by_label_contains("Select a row");
     harness.get_by_label("f998.txt").click();
     harness.run_steps(4);
@@ -510,7 +523,7 @@ fn the_context_menu_narrows_the_view_and_asks_for_explorer() {
     let log = FakeLog::new(1_000);
     let mut harness = log_app(&log);
     until(&mut harness, "the first page", |v| v.held_rows() == PAGE);
-    harness.step();
+    settle(&mut harness);
     open_menu(&mut harness, "f998.txt", "Copy path");
     harness.get_by_label("Copy path");
     harness.get_by_label("Copy row");
@@ -541,7 +554,7 @@ fn the_folder_filter_uses_the_folder_of_the_row() {
     let log = FakeLog::new(500);
     let mut harness = log_app(&log);
     until(&mut harness, "the first page", |v| v.held_rows() == PAGE);
-    harness.step();
+    settle(&mut harness);
     open_menu(&mut harness, "f498.txt", "Filter to this folder");
     harness.get_by_label("Filter to this folder").click();
     harness.run_steps(4);
@@ -553,8 +566,8 @@ fn the_export_menu_starts_an_export_that_reports_and_can_be_dismissed() {
     let log = FakeLog::new(1_000);
     let mut harness = log_app(&log);
     until(&mut harness, "the first page", |v| v.held_rows() == PAGE);
+    settle(&mut harness);
     // Without a data directory there is nothing to export to: no menu.
-    harness.step();
     assert!(harness.query_by_label("Export").is_none());
 
     let dir = std::env::temp_dir().join(format!("pb-view-export-{}", std::process::id()));
