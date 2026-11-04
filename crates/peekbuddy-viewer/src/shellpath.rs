@@ -35,7 +35,9 @@ pub fn parent(path: &str) -> Option<&str> {
 /// does. `None` when not even the root exists.
 pub fn nearest_existing(path: &str, exists: impl Fn(&Path) -> bool) -> Option<PathBuf> {
     let mut current = path;
-    loop {
+    // Every step removes at least one character, so the length of the path
+    // bounds the walk, whatever `parent` answers.
+    for _ in 0..=path.len() {
         if exists(Path::new(current)) {
             return Some(PathBuf::from(current));
         }
@@ -51,6 +53,7 @@ pub fn nearest_existing(path: &str, exists: impl Fn(&Path) -> bool) -> Option<Pa
             return exists(Path::new(current)).then(|| PathBuf::from(current));
         }
     }
+    None
 }
 
 #[cfg(test)]
@@ -102,6 +105,25 @@ mod tests {
         // Only the drive root does.
         let root = |path: &Path| path == Path::new(r"D:\");
         assert_eq!(nearest_existing(r"D:\x\y", root), Some(r"D:\".into()));
+    }
+
+    #[test]
+    fn a_doubled_separator_does_not_end_the_walk() {
+        // Compared as text: `C:\work\` is not `C:\work` here, so the walk has to
+        // go on past the empty component.
+        let exact = |path: &Path| path.to_str() == Some(r"C:\work");
+        assert_eq!(
+            nearest_existing(r"C:\work\\gone", exact),
+            Some(r"C:\work".into())
+        );
+    }
+
+    #[test]
+    fn a_two_letter_folder_is_not_taken_for_a_drive() {
+        // `ab` has two characters but is no drive (`C:`), so the walk stops
+        // there and does not jump to the first three characters of the path.
+        let exact = |path: &Path| path.to_str() == Some("ab");
+        assert_eq!(nearest_existing(r"ab\cd\e.txt", exact), Some("ab".into()));
     }
 
     #[test]

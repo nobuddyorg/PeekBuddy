@@ -211,6 +211,33 @@ mod tests {
     }
 
     #[test]
+    fn the_home_monitor_is_the_one_with_the_most_overlapping_area() {
+        // By area the second monitor wins (400 x 300 against 100 x 900); by
+        // the sum of the sides the first would.
+        let narrow = PxRect::at(0, 0, 100, 900);
+        let wide = PxRect::at(100, 0, 400, 300);
+        let placement = restore(&viewer(0, 0, 500, 900), &[narrow, wide]).unwrap();
+        assert!(placement.rect.left >= wide.left, "{placement:?}");
+        // By area the first monitor wins (500 x 500 against 600 x 300); by
+        // the quotient of the sides the second would.
+        let square = PxRect::at(0, 0, 500, 500);
+        let flat = PxRect::at(500, 200, 600, 300);
+        let placement = restore(&viewer(0, 0, 1100, 500), &[square, flat]).unwrap();
+        assert!(placement.rect.right <= square.right, "{placement:?}");
+    }
+
+    #[test]
+    fn a_monitor_that_ends_at_the_origin_is_not_the_primary_one() {
+        // The left monitor ends exactly at x = 0; the origin is on the right
+        // one, which is where a window that lost its monitor goes.
+        let left = PxRect::at(-1920, 0, 1920, 1080);
+        let right = PxRect::at(0, 0, 1920, 1080);
+        let placement = restore(&viewer(5000, 5000, 800, 600), &[left, right]).unwrap();
+        assert!(placement.rect.left >= right.left, "{placement:?}");
+        assert!(placement.rect.right <= right.right, "{placement:?}");
+    }
+
+    #[test]
     fn a_window_larger_than_the_work_area_is_shrunk_to_it() {
         let placement = restore(&viewer(-50, -50, 4000, 3000), &[MAIN]).unwrap();
         assert_eq!(placement.rect, PxRect::at(0, 0, 1920, 1040));
