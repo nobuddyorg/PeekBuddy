@@ -287,7 +287,15 @@ mod tests {
     use peekbuddy_core::event::{Kind, STORE_WAL_BLOCKED, STORE_WRITE_FAILING, Source};
     use peekbuddy_store::pipeline::Health;
 
-    use super::health_event;
+    use std::sync::{Arc, Mutex};
+
+    use peekbuddy_core::perf::Counters;
+    use peekbuddy_core::settings::{Settings, Store as StoreSettings, Watch};
+
+    use super::{Store, caps_of, health_event, now_filetime, volume_of};
+    use crate::datadir::DataDir;
+    use crate::portable::Decision;
+    use crate::probe::CommitLog;
 
     #[test]
     fn each_health_change_is_a_system_row_with_its_cause() {
@@ -303,5 +311,104 @@ mod tests {
             assert_eq!((event.ts, event.qpc), (7, 9));
             assert_eq!(event.source, Source::System);
         }
+    }
+
+    struct Dir(std::path::PathBuf);
+
+    impl Dir {
+        fn new(tag: &str) -> Self {
+            let path = std::env::temp_dir().join(format!("pb-store-{tag}-{}", std::process::id()));
+            let _ = std::fs::remove_dir_all(&path);
+            std::fs::create_dir_all(&path).unwrap();
+            Self(path)
+        }
+    }
+
+    impl Drop for Dir {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.0);
+        }
+    }
+
+    #[test]
+    fn the_caps_follow_the_settings_and_megabytes_are_mebibytes() {
+        let mut settings = Settings {
+            store: StoreSettings {
+                max_age_days: Some(11),
+                max_total_mb: Some(3),
+                max_rows: Some(500),
+            },
+            ..Settings::default()
+        };
+        let caps = caps_of(&settings);
+        assert_eq!(caps.max_age_days, Some(11));
+        assert_eq!(caps.max_total_bytes, Some(3 * 1024 * 1024));
+        assert_eq!(caps.max_rows, Some(500));
+        settings.store.max_total_mb = None;
+        assert_eq!(caps_of(&settings).max_total_bytes, None);
+    }
+
+    #[test]
+    fn now_is_a_filetime_of_this_decade() {
+        // 2020-01-01 as FILETIME ticks.
+        assert!(now_filetime() > 132_223_104_000_000_000);
+    }
+
+    #[test]
+    fn a_volume_is_found_for_a_directory_and_not_for_a_missing_one() {
+        let dir = Dir::new("volume");
+        let text = dir.0.to_string_lossy().into_owned();
+        let (vol, wide) = volume_of(&text).unwrap();
+        assert_eq!(String::from_utf16_lossy(&wide), text);
+        assert_ne!(vol.guid, "");
+        assert!(volume_of(&format!(r"{text}\missing")).is_none());
+    }
+
+    #[test]
+    fn a_store_runs_flushes_closes_and_releases_its_file() {
+        let dir = Dir::new("lifecycle");
+        let data = DataDir::open(&dir.0.join("data"), Decision::Portable).unwrap();
+        let settings = Settings {
+            watches: vec![
+                Watch {
+                    id: "w0".to_owned(),
+                    path: dir.0.to_string_lossy().into_owned(),
+                    ..Watch::default()
+                },
+                Watch {
+                    id: "w1".to_owned(),
+                    path: dir.0.join("missing").to_string_lossy().into_owned(),
+                    ..Watch::default()
+                },
+            ],
+            ..Settings::default()
+        };
+        let counters = Arc::new(Counters::new());
+        let commits = Arc::new(Mutex::new(CommitLog::new()));
+
+        let mut store = Store::start(&data, &settings, &counters, &commits).unwrap();
+
+        assert_eq!(store.roots, 1);
+        assert_eq!(store.lost_batches(), 0);
+        let producer = store.producer();
+        let mut batch = producer.new_batch();
+        batch
+            .push(health_event(Health::Failing, (now_filetime(), 1)), &[])
+            .unwrap();
+        let _ = producer.push(batch);
+        assert!(store.flush());
+        assert!(
+            counters
+                .rows_persisted
+                .load(std::sync::atomic::Ordering::Relaxed)
+                >= 1
+        );
+        store.close();
+        assert!(!store.flush());
+        store.checkpoint();
+        let wal = std::path::PathBuf::from(format!("{}-wal", store.path.display()));
+        assert_eq!(std::fs::metadata(&wal).map_or(0, |meta| meta.len()), 0);
+        store.release();
+        std::fs::remove_file(&store.path).unwrap();
     }
 }
