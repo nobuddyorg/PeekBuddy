@@ -606,3 +606,17 @@ enum Recovery {
     Synchronous,
     Fatal,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn only_the_refused_overlapped_read_asks_for_the_synchronous_reader() {
+        let refused = io::Error::from_raw_os_error(1784);
+        assert!(needs_sync_error(&refused));
+        assert!(!needs_sync_error(&io::Error::from_raw_os_error(5)));
+        assert!(!needs_sync_error(&io::Error::other("no os code")));
+        assert!(!needs_sync_error(&io::Error::from_raw_os_error(-1784)));
+    }
+}
