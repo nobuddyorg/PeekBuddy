@@ -2,7 +2,9 @@
 //! belongs to.
 
 use windows_sys::Win32::Foundation::{FILETIME, SYSTEMTIME};
-use windows_sys::Win32::System::Time::{FileTimeToSystemTime, SystemTimeToTzSpecificLocalTime};
+use windows_sys::Win32::System::Time::{
+    FileTimeToSystemTime, SystemTimeToFileTime, SystemTimeToTzSpecificLocalTime,
+};
 
 /// The year, month (1 to 12) and day (1 to 31) of `filetime` (100 ns ticks
 /// since 1601, UTC) in the user's local time zone, with the daylight saving
@@ -32,9 +34,68 @@ pub fn local_day(filetime: u64) -> (i32, u8, u8) {
     )
 }
 
+/// The offset of the user's local time zone from UTC at the instant
+/// `filetime`, in seconds, with the daylight saving rules in force on that
+/// date (the viewer shows local times and puts UTC in the tooltip). A
+/// timestamp the system cannot convert has offset 0.
+#[must_use]
+pub fn utc_offset_seconds(filetime: u64) -> i32 {
+    let ticks = FILETIME {
+        dwLowDateTime: (filetime & 0xFFFF_FFFF) as u32,
+        dwHighDateTime: (filetime >> 32) as u32,
+    };
+    let mut utc = SYSTEMTIME::default();
+    // SAFETY: both pointers are valid for the call.
+    if unsafe { FileTimeToSystemTime(&raw const ticks, &raw mut utc) } == 0 {
+        return 0;
+    }
+    let mut local = SYSTEMTIME::default();
+    // SAFETY: a null time zone means the current one; both pointers are valid.
+    let ok = unsafe {
+        SystemTimeToTzSpecificLocalTime(std::ptr::null(), &raw const utc, &raw mut local)
+    };
+    if ok == 0 {
+        return 0;
+    }
+    // Both back to ticks, so the sub-millisecond part cancels out.
+    let (mut utc_ticks, mut local_ticks) = (FILETIME::default(), FILETIME::default());
+    // SAFETY: both pointers are valid for the call.
+    let a = unsafe { SystemTimeToFileTime(&raw const utc, &raw mut utc_ticks) };
+    // SAFETY: both pointers are valid for the call.
+    let b = unsafe { SystemTimeToFileTime(&raw const local, &raw mut local_ticks) };
+    if a == 0 || b == 0 {
+        return 0;
+    }
+    let join = |t: FILETIME| (u64::from(t.dwHighDateTime) << 32) | u64::from(t.dwLowDateTime);
+    let seconds = (i128::from(join(local_ticks)) - i128::from(join(utc_ticks))) / 10_000_000;
+    i32::try_from(seconds).unwrap_or(0)
+}
+
 #[cfg(test)]
 mod tests {
-    use super::local_day;
+    use super::{local_day, utc_offset_seconds};
+
+    #[test]
+    fn the_offset_is_a_whole_number_of_quarter_hours_within_the_real_range() {
+        let offset = utc_offset_seconds(NOON_UTC);
+        assert!((-12 * 3600..=14 * 3600).contains(&offset), "{offset}");
+        assert_eq!(offset % 900, 0, "{offset}");
+    }
+
+    #[test]
+    fn the_offset_and_the_day_agree() {
+        // Shifting noon UTC by the offset lands on the day `local_day` says.
+        let shifted =
+            NOON_UTC.saturating_add_signed(i64::from(utc_offset_seconds(NOON_UTC)) * 10_000_000);
+        let (_, _, day) = local_day(NOON_UTC);
+        let (_, _, shifted_day) = local_day(shifted);
+        assert!(day.abs_diff(shifted_day) <= 1);
+    }
+
+    #[test]
+    fn a_time_the_system_cannot_convert_has_no_offset() {
+        assert_eq!(utc_offset_seconds(u64::MAX), 0);
+    }
 
     /// 2026-10-26 12:00:00 UTC in FILETIME ticks.
     const NOON_UTC: u64 = 134_374_896_000_000_000;

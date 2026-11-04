@@ -10,6 +10,7 @@ cargo-fuzz = true
 [dependencies]
 libfuzzer-sys = "0.4.12"
 peekbuddy-core = { path = "../crates/peekbuddy-core" }
+peekbuddy-viewer = { path = "../crates/peekbuddy-viewer" }
 
 # Its own workspace: cargo-fuzz builds with the nightly toolchain and
 # sanitizer flags that the main workspace does not use.
@@ -42,5 +43,11 @@ doc = false
 [[bin]]
 name = "settings_load"
 path = "fuzz_targets/settings_load.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "filterspec_parse"
+path = "fuzz_targets/filterspec_parse.rs"
 test = false
 doc = false

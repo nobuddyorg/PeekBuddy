@@ -14,7 +14,9 @@ ignored = ["wgpu"]
 
 [dependencies]
 egui = { workspace = true }
+egui_table = { workspace = true }
 peekbuddy-core = { workspace = true }
+peekbuddy-store = { workspace = true }
 
 [target.'cfg(windows)'.dependencies]
 # The window and the renderer. wgpu with DX12 only (ADR 0005): eframe's
@@ -32,6 +34,7 @@ wgpu = { workspace = true }
 
 [dev-dependencies]
 egui_kittest = { workspace = true }
+insta = { workspace = true }
 proptest = { workspace = true }
 
 [lints]

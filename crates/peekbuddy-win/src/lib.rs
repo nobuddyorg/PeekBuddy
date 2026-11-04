@@ -45,6 +45,8 @@ pub mod resources;
 #[cfg(windows)]
 pub mod session;
 #[cfg(windows)]
+pub mod shell;
+#[cfg(windows)]
 mod sid;
 #[cfg(windows)]
 pub mod signal;
