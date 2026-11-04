@@ -14,6 +14,8 @@ publish.workspace = true
 ignored = ["tracy-client-sys"]
 
 [features]
+# x64 renders through wgpu/DX12 instead of glow, for A/B runs (#252).
+wgpu = ["peekbuddy-viewer/wgpu"]
 # Forwards the engine's crash trigger for the integration tests (#59).
 test-panic = ["peekbuddy-engine/test-panic"]
 # Forwards the engine's deliberate regressions for the perf harness (#269).

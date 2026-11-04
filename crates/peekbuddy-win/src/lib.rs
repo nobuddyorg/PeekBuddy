@@ -8,6 +8,8 @@
 #![deny(clippy::indexing_slicing)]
 
 pub mod fs;
+#[cfg(feature = "glow")]
+pub mod gl;
 pub mod io;
 pub mod metrics;
 pub mod perf;

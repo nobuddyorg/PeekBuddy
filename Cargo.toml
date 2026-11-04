@@ -102,6 +102,9 @@ wgpu = { version = "=30.0.1", default-features = false, features = [
   "std",
   "wgsl",
 ] }
+# OpenGL bindings of eframe's glow renderer (#252), for the one `unsafe` query
+# in `peekbuddy-win`. The version is the one eframe 0.37.0 builds.
+glow = { version = "=0.17.0", default-features = false }
 # COM for the native folder picker (#68) only, in `peekbuddy-win`'s optional
 # `picker` feature. The version is the one wgpu-hal and AccessKit already
 # build, so the tree gets no second copy. windows-sys has no COM vtables.

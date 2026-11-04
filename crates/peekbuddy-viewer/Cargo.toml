@@ -16,6 +16,10 @@ ignored = ["wgpu"]
 # Makes the in-memory log of the tests public, for `tests/alloc_viewer.rs`.
 # The crate enables it for its own tests through the dev-dependency below.
 test-support = []
+# Renders through wgpu with DX12 on x64 too, for A/B runs against glow (ADR
+# 0005). Cargo features only add, so this is the opt-in; arm64 is on wgpu
+# either way.
+wgpu = ["eframe/wgpu_no_default_features", "dep:wgpu"]
 
 [dependencies]
 egui = { workspace = true }
@@ -24,17 +28,30 @@ peekbuddy-core = { workspace = true }
 peekbuddy-store = { workspace = true }
 
 [target.'cfg(windows)'.dependencies]
-# The window and the renderer. wgpu with DX12 only (ADR 0005): eframe's
-# `wgpu` feature would switch on every backend, so the crate is asked for
-# `wgpu_no_default_features` and the DX12 backend comes from the `wgpu` line
-# below. The glow build on x64 follows in #252.
+peekbuddy-win = { workspace = true, features = ["picker"] }
+raw-window-handle = { workspace = true }
+
+# The window and the renderer (ADR 0005, #252). x64 renders through glow
+# (OpenGL): about 260 MB less private bytes and a 7 MB smaller exe than wgpu.
+[target.'cfg(all(windows, target_arch = "x86_64"))'.dependencies]
+peekbuddy-win = { workspace = true, features = ["glow"] }
+eframe = { version = "=0.37.0", default-features = false, features = [
+  "accesskit",
+  "default_fonts",
+  "glow",
+] }
+wgpu = { workspace = true, optional = true }
+
+# arm64 has no OpenGL driver, so it always renders through wgpu with DX12
+# only. eframe's `wgpu` feature would switch on every backend, so the crate is
+# asked for `wgpu_no_default_features` and the DX12 backend comes from the
+# `wgpu` line below.
+[target.'cfg(all(windows, target_arch = "aarch64"))'.dependencies]
 eframe = { version = "=0.37.0", default-features = false, features = [
   "accesskit",
   "default_fonts",
   "wgpu_no_default_features",
 ] }
-peekbuddy-win = { workspace = true, features = ["picker"] }
-raw-window-handle = { workspace = true }
 wgpu = { workspace = true }
 
 [dev-dependencies]

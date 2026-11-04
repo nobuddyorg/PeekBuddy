@@ -46,6 +46,17 @@ preference is `LowPower`, which picks the integrated GPU on a machine with
 two. `crates/peekbuddy/tests/viewer.rs` runs the exe with `WGPU_BACKEND=vulkan`
 and checks that the adapter is still DX12.
 
+Implemented in #252: x64 renders through glow, arm64 through wgpu/DX12, as
+above. The `peekbuddy-viewer` crate declares `eframe` once per architecture
+(glow on x86_64, wgpu on aarch64), so neither build carries the other
+renderer. The `wgpu` cargo feature (`peekbuddy/wgpu`) adds wgpu on x64 and
+selects it, for A/B runs. `opengl32.dll` is delay-loaded like `dxgi.dll`, and
+the engine-modules test still passes. Measured on the owner PC (Intel N150,
+x64, release build, empty store, viewer idle after the first frame, 3 runs
+each): glow 43 to 44 MB private bytes and first frame 195 to 362 ms; wgpu 298
+to 301 MB and 424 to 1010 ms; exe 9.3 MB against 12.3 MB. The 10M-row figure
+is still to be measured by an owner run.
+
 ## Consequences
 
 - Good: arm64 works on devices without OpenGL.

@@ -120,15 +120,21 @@ fn parse(report: &str) -> serde_json::Value {
 }
 
 #[test]
-fn an_idle_viewer_paints_nothing_and_stays_on_dx12_whatever_the_environment_says() {
+fn an_idle_viewer_paints_nothing_and_keeps_its_renderer_whatever_the_environment_says() {
     let dir = TestDir::new("viewer-idle").unwrap();
     let (mut running, window) = start_engine(dir.path());
 
     let (status, report) = probe(dir.path(), 10, true);
     assert!(status.success(), "{status:?} {report}");
     let report = parse(&report);
-    // The renderer is DX12 although WGPU_BACKEND said vulkan.
-    assert_eq!(report["backend"], "Dx12", "{report}");
+    // x64 renders through OpenGL (glow), arm64 and the `wgpu` feature through
+    // DX12, although WGPU_BACKEND said vulkan.
+    let expected = if cfg!(any(target_arch = "aarch64", feature = "wgpu")) {
+        "Dx12"
+    } else {
+        "OpenGL"
+    };
+    assert_eq!(report["backend"], expected, "{report}");
     // The first frame happened and carries a time since process creation.
     assert!(report["first_frame_us"].as_u64().unwrap() > 0, "{report}");
     // With the window open and left alone for 10 s, almost nothing is

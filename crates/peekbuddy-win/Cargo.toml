@@ -12,11 +12,14 @@ publish.workspace = true
 # The native folder picker (#68): `IFileOpenDialog` through the `windows`
 # crate, because windows-sys has no COM vtables. Only the viewer asks for it.
 picker = ["dep:windows"]
+# The OpenGL renderer string for the viewer's startup log (#252).
+glow = ["dep:glow"]
 # The USN journal reader (#47, ADR 0018). Off in v1: the unprivileged read
 # returns no names, so the shipped capture path is RDCW with reconciliation.
 usn = []
 
 [dependencies]
+glow = { workspace = true, optional = true }
 peekbuddy-core = { workspace = true }
 tracelogging = { workspace = true }
 
