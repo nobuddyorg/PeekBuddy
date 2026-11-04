@@ -8,6 +8,8 @@
 
 use std::fmt;
 
+use crate::event::WatchState;
+
 /// The protocol version spoken by this build.
 pub const PROTOCOL_VERSION: u32 = 1;
 
@@ -31,6 +33,8 @@ mod kind {
     pub const RESYNC: u16 = 9;
     pub const COMMAND: u16 = 10;
     pub const COMMAND_RESULT: u16 = 11;
+    pub const LIST_WATCHES: u16 = 12;
+    pub const WATCH_LIST: u16 = 13;
 }
 
 /// Counters the engine reports (the same six as the ETW counter event).
@@ -102,6 +106,9 @@ pub enum Command {
     AddWatch {
         /// Absolute path.
         path: String,
+        /// The user has seen the warning the engine gave for this path (a
+        /// whole drive) and wants it anyway.
+        confirmed: bool,
     },
     /// Remove the watch `id`.
     RemoveWatch {
@@ -113,6 +120,24 @@ pub enum Command {
         /// The whole file.
         toml: String,
     },
+}
+
+/// One watch as the engine reports it for the viewer's list (#68).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WatchInfo {
+    /// The stable id.
+    pub id: String,
+    /// The root as stored (`\\?\` form).
+    pub path: String,
+    /// Whether the subtree is watched.
+    pub recursive: bool,
+    /// The F19 state. A watch that is not armed yet reports `Arming`.
+    pub state: WatchState,
+    /// False for a watch added after the engine started: it is saved and
+    /// starts capturing with the next engine start.
+    pub armed: bool,
+    /// Changes the pause let pass unrecorded since the watch was paused.
+    pub missed_while_paused: u64,
 }
 
 /// One protocol message.
@@ -156,6 +181,10 @@ pub enum Message {
         /// First row id the viewer may have missed.
         from_id: u64,
     },
+    /// Ask for the list of watches; answered with [`Message::WatchList`].
+    ListWatches,
+    /// Every watch, in settings order.
+    WatchList(Vec<WatchInfo>),
     /// A command.
     Command(Command),
     /// The outcome of a command.
@@ -337,7 +366,10 @@ pub fn encode(message: &Message, out: &mut Vec<u8>) -> bool {
                         w.text(id);
                         w.u8(u8::from(*paused));
                     }
-                    Command::AddWatch { path } => w.text(path),
+                    Command::AddWatch { path, confirmed } => {
+                        w.text(path);
+                        w.u8(u8::from(*confirmed));
+                    }
                     Command::RemoveWatch { id } => w.text(id),
                     Command::ApplySettings { toml } => w.text(toml),
                 }
@@ -347,6 +379,19 @@ pub fn encode(message: &Message, out: &mut Vec<u8>) -> bool {
                 w.u8(u8::from(*ok));
                 w.text(message);
                 kind::COMMAND_RESULT
+            }
+            Message::ListWatches => kind::LIST_WATCHES,
+            Message::WatchList(watches) => {
+                w.u32(u32::try_from(watches.len()).unwrap_or(u32::MAX));
+                for watch in watches {
+                    w.text(&watch.id);
+                    w.text(&watch.path);
+                    w.u8(u8::from(watch.recursive));
+                    w.u8(state_byte(watch.state));
+                    w.u8(u8::from(watch.armed));
+                    w.u64(watch.missed_while_paused);
+                }
+                kind::WATCH_LIST
             }
         }
     };
@@ -365,6 +410,46 @@ pub fn encode(message: &Message, out: &mut Vec<u8>) -> bool {
     true
 }
 
+fn flag(r: &mut Reader<'_>, what: &'static str) -> Result<bool, DecodeError> {
+    match r.u8()? {
+        0 => Ok(false),
+        1 => Ok(true),
+        _ => Err(DecodeError::BadValue(what)),
+    }
+}
+
+/// The wire byte of a lifecycle state: its position in [`WatchState::ALL`].
+fn state_byte(state: WatchState) -> u8 {
+    WatchState::ALL
+        .iter()
+        .position(|candidate| *candidate == state)
+        .and_then(|position| u8::try_from(position).ok())
+        .unwrap_or(0)
+}
+
+fn decode_watch_list(r: &mut Reader<'_>) -> Result<Vec<WatchInfo>, DecodeError> {
+    let count = r.u32()? as usize;
+    // A watch is at least 19 bytes; refuse a count the payload cannot hold
+    // before allocating for it.
+    if count > r.0.len() / 19 {
+        return Err(DecodeError::BadPayload("watch count"));
+    }
+    let mut watches = Vec::with_capacity(count);
+    for _ in 0..count {
+        watches.push(WatchInfo {
+            id: r.text()?,
+            path: r.text()?,
+            recursive: flag(r, "recursive")?,
+            state: *WatchState::ALL
+                .get(usize::from(r.u8()?))
+                .ok_or(DecodeError::BadValue("watch state"))?,
+            armed: flag(r, "armed")?,
+            missed_while_paused: r.u64()?,
+        });
+    }
+    Ok(watches)
+}
+
 fn decode_command(r: &mut Reader<'_>) -> Result<Command, DecodeError> {
     Ok(match r.u8()? {
         0 => Command::PauseAll,
@@ -377,7 +462,10 @@ fn decode_command(r: &mut Reader<'_>) -> Result<Command, DecodeError> {
                 _ => return Err(DecodeError::BadValue("paused")),
             },
         },
-        3 => Command::AddWatch { path: r.text()? },
+        3 => Command::AddWatch {
+            path: r.text()?,
+            confirmed: flag(r, "confirmed")?,
+        },
         4 => Command::RemoveWatch { id: r.text()? },
         5 => Command::ApplySettings { toml: r.text()? },
         _ => return Err(DecodeError::BadValue("command")),
@@ -422,6 +510,8 @@ fn decode_payload(kind: u16, payload: &[u8]) -> Result<Message, DecodeError> {
             },
             message: r.text()?,
         },
+        kind::LIST_WATCHES => Message::ListWatches,
+        kind::WATCH_LIST => Message::WatchList(decode_watch_list(&mut r)?),
         other => return Err(DecodeError::UnknownType(other)),
     };
     r.finish()?;
@@ -499,7 +589,7 @@ mod tests {
 
     use super::{
         Command, Counters, DecodeError, FrameDecoder, MAX_FIELD, MAX_FRAME, Message,
-        PROTOCOL_VERSION, Reader, WatchStateCode, decode, encode,
+        PROTOCOL_VERSION, Reader, WatchInfo, WatchState, WatchStateCode, decode, encode,
     };
 
     fn text() -> impl Strategy<Value = String> {
@@ -511,7 +601,8 @@ mod tests {
             Just(Command::PauseAll),
             Just(Command::ResumeAll),
             (text(), any::<bool>()).prop_map(|(id, paused)| Command::SetWatchPaused { id, paused }),
-            text().prop_map(|path| Command::AddWatch { path }),
+            (text(), any::<bool>())
+                .prop_map(|(path, confirmed)| Command::AddWatch { path, confirmed }),
             text().prop_map(|id| Command::RemoveWatch { id }),
             text().prop_map(|toml| Command::ApplySettings { toml }),
         ]
@@ -549,6 +640,33 @@ mod tests {
                 .prop_map(|(index, state)| Message::WatchState { index, state }),
             any::<u64>().prop_map(|from_id| Message::Resync { from_id }),
             command().prop_map(Message::Command),
+            Just(Message::ListWatches),
+            proptest::collection::vec(
+                (
+                    text(),
+                    text(),
+                    any::<bool>(),
+                    proptest::sample::select(WatchState::ALL.to_vec()),
+                    any::<bool>(),
+                    any::<u64>()
+                ),
+                0..6
+            )
+            .prop_map(|items| Message::WatchList(
+                items
+                    .into_iter()
+                    .map(
+                        |(id, path, recursive, state, armed, missed_while_paused)| WatchInfo {
+                            id,
+                            path,
+                            recursive,
+                            state,
+                            armed,
+                            missed_while_paused
+                        }
+                    )
+                    .collect()
+            )),
             (any::<bool>(), text())
                 .prop_map(|(ok, message)| Message::CommandResult { ok, message }),
         ]
@@ -661,6 +779,56 @@ mod tests {
         assert_eq!(
             decode(&[7, 0, 0, 0, 8, 0, 0, 0, 0, 0, 9]),
             Err(DecodeError::BadValue("state"))
+        );
+    }
+
+    #[test]
+    fn the_watch_messages_are_pinned_and_a_hostile_count_is_refused() {
+        let mut out = Vec::new();
+        assert!(encode(&Message::ListWatches, &mut out));
+        assert_eq!(out, [2, 0, 0, 0, 12, 0]);
+        let mut out = Vec::new();
+        assert!(encode(
+            &Message::WatchList(vec![WatchInfo {
+                id: String::from("a"),
+                path: String::from("b"),
+                recursive: true,
+                state: WatchState::Lost,
+                armed: false,
+                missed_while_paused: 3,
+            }]),
+            &mut out
+        ));
+        // type 13: count 1, "a", "b", recursive 1, state 6 (Lost), armed 0,
+        // missed 3.
+        assert_eq!(
+            out,
+            [
+                27, 0, 0, 0, 13, 0, 1, 0, 0, 0, 1, 0, 0, 0, b'a', 1, 0, 0, 0, b'b', 1, 6, 0, 3, 0,
+                0, 0, 0, 0, 0, 0
+            ]
+        );
+        let mut out = Vec::new();
+        assert!(encode(
+            &Message::Command(Command::AddWatch {
+                path: String::from("p"),
+                confirmed: true
+            }),
+            &mut out
+        ));
+        assert_eq!(out, [9, 0, 0, 0, 10, 0, 3, 1, 0, 0, 0, b'p', 1]);
+        // Four billion watches in a six byte payload: refused, not allocated.
+        assert_eq!(
+            decode(&[6, 0, 0, 0, 13, 0, 0xff, 0xff, 0xff, 0xff]),
+            Err(DecodeError::BadPayload("watch count"))
+        );
+        // A state number past the last one.
+        assert_eq!(
+            decode(&[
+                27, 0, 0, 0, 13, 0, 1, 0, 0, 0, 1, 0, 0, 0, b'a', 1, 0, 0, 0, b'b', 1, 9, 0, 0, 0,
+                0, 0, 0, 0, 0, 0
+            ]),
+            Err(DecodeError::BadValue("watch state"))
         );
     }
 

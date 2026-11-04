@@ -556,6 +556,7 @@ mod run {
             Box::new(pause_rows),
             crate::pause_ctl::now_ticks,
         );
+        pause.bind_signals(&bind);
         let capture = start_capture(
             data,
             loaded,

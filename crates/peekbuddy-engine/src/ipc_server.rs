@@ -4,7 +4,8 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
 
-use peekbuddy_core::ipc::{Command, Message, PROTOCOL_VERSION};
+use peekbuddy_core::ipc::{Command, Message, PROTOCOL_VERSION, WatchInfo};
+use peekbuddy_core::settings::edit::Refusal;
 use peekbuddy_core::settings::{self, Context, Loaded};
 use peekbuddy_win::pipe::{self, PipeClient, PipeServer, Reply};
 use peekbuddy_win::window::WindowHandle;
@@ -52,7 +53,7 @@ pub struct Shared {
     pub settings_path: PathBuf,
     /// Data directory text for validation.
     pub data_dir: String,
-    /// Pause and resume (#63).
+    /// Pause, resume and the watch list (#63, #68).
     pub pause: Arc<crate::pause_ctl::PauseCtl>,
     /// Autostart at logon (#63); none for a test engine.
     pub autostart:
@@ -64,6 +65,59 @@ fn command_result(ok: bool, message: impl Into<String>) -> Message {
         ok,
         message: message.into(),
     }
+}
+
+/// What the add-folder checks need to know about the machine: the data
+/// directory and the exports folder inside it (F16).
+fn edit_context(ctx: &Shared) -> Context {
+    Context {
+        data_dir: ctx.data_dir.clone(),
+        export_dir: Some(
+            Path::new(&ctx.data_dir)
+                .join("exports")
+                .to_string_lossy()
+                .into_owned(),
+        ),
+    }
+}
+
+fn add_watch(ctx: &Shared, path: &str, confirmed: bool) -> Message {
+    match ctx.pause.add_watch(path, confirmed, &edit_context(ctx)) {
+        Ok(added) => {
+            let mut message = format!(
+                "added `{}`; it starts capturing with the next engine start",
+                added.watch.id
+            );
+            for notice in &added.notices {
+                message.push('\n');
+                message.push_str(&notice.text());
+            }
+            command_result(true, message)
+        }
+        // The viewer asks the user and sends the same command again with
+        // `confirmed` set.
+        Err(crate::pause_ctl::EditError::Refused(Refusal::NeedsConfirmation(notice))) => {
+            command_result(false, format!("confirm: {}", notice.text()))
+        }
+        Err(error) => command_result(false, error.to_string()),
+    }
+}
+
+fn remove_watch(ctx: &Shared, id: &str) -> Message {
+    match ctx.pause.remove_watch(id) {
+        Ok(removed) => command_result(
+            true,
+            format!(
+                "removed `{}`; the rows already recorded stay in the log",
+                removed.watch.id
+            ),
+        ),
+        Err(error) => command_result(false, error.to_string()),
+    }
+}
+
+fn list_watches(ctx: &Shared) -> Vec<WatchInfo> {
+    ctx.pause.list()
 }
 
 fn apply_settings(ctx: &Shared, text: &str) -> Message {
@@ -152,17 +206,21 @@ pub fn handle(ctx: &Shared, message: &Message, reply: &mut Reply) {
                 Err(message) => command_result(false, message),
             });
         }
-        Message::Command(_) => {
-            reply.send(&command_result(
-                false,
-                "adding and removing watches arrive with #68",
-            ));
+        Message::Command(Command::AddWatch { path, confirmed }) => {
+            reply.send(&add_watch(ctx, path, *confirmed));
+        }
+        Message::Command(Command::RemoveWatch { id }) => {
+            reply.send(&remove_watch(ctx, id));
+        }
+        Message::ListWatches => {
+            reply.send(&Message::WatchList(list_watches(ctx)));
         }
         // Messages the engine sends, not receives; ignored if a client
         // sends them.
         Message::VersionMismatch { .. }
         | Message::EngineStopping
         | Message::Counters(_)
+        | Message::WatchList(_)
         | Message::WatchState { .. }
         | Message::Resync { .. }
         | Message::CommandResult { .. } => {}
@@ -404,16 +462,133 @@ mod tests {
             unknown.as_slice(),
             [Message::CommandResult { ok: false, .. }]
         ));
-        let later = answer(
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    fn result(answers: &[Message]) -> (bool, String) {
+        match answers {
+            [Message::CommandResult { ok, message }] => (*ok, message.clone()),
+            other => panic!("expected one command result, got {other:?}"),
+        }
+    }
+
+    fn list(ctx: &Shared) -> Vec<peekbuddy_core::ipc::WatchInfo> {
+        match answer(ctx, &Message::ListWatches).as_slice() {
+            [Message::WatchList(watches)] => watches.clone(),
+            other => panic!("expected a watch list, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn a_watch_is_added_listed_and_removed_and_the_file_follows() {
+        let dir = dir("watches");
+        let ctx = ctx(&dir);
+        let listed = list(&ctx);
+        assert_eq!(listed.len(), 1);
+        assert_eq!(listed[0].id, "w1");
+        assert!(listed[0].armed);
+
+        let (ok, message) = result(&answer(
             &ctx,
             &Message::Command(Command::AddWatch {
-                path: String::from("C:/x"),
+                path: String::from("C:/Reports/"),
+                confirmed: false,
             }),
-        );
-        assert!(matches!(
-            later.as_slice(),
-            [Message::CommandResult { ok: false, .. }]
         ));
+        assert!(ok, "{message}");
+        assert!(message.contains("next engine start"), "{message}");
+        let listed = list(&ctx);
+        assert_eq!(listed.len(), 2);
+        assert!(!listed[1].armed, "a new watch waits for the next start");
+        assert_eq!(listed[1].path, r"\\?\C:\Reports");
+        let file = std::fs::read_to_string(dir.join("settings.toml")).unwrap();
+        assert!(file.contains("Reports"), "{file}");
+
+        // The same folder twice is refused and changes nothing.
+        let (ok, message) = result(&answer(
+            &ctx,
+            &Message::Command(Command::AddWatch {
+                path: String::from(r"c:\reports"),
+                confirmed: true,
+            }),
+        ));
+        assert!(!ok);
+        assert!(message.contains("already watched"), "{message}");
+        assert_eq!(list(&ctx).len(), 2);
+
+        // Remove the pending one, then the armed one.
+        let new_id = listed[1].id.clone();
+        let (ok, _) = result(&answer(
+            &ctx,
+            &Message::Command(Command::RemoveWatch { id: new_id }),
+        ));
+        assert!(ok);
+        assert_eq!(list(&ctx).len(), 1);
+        let (ok, message) = result(&answer(
+            &ctx,
+            &Message::Command(Command::RemoveWatch {
+                id: String::from("w1"),
+            }),
+        ));
+        assert!(ok, "{message}");
+        assert_eq!(list(&ctx), []);
+        let file = std::fs::read_to_string(dir.join("settings.toml")).unwrap();
+        assert!(!file.contains("w1") && !file.contains("Reports"), "{file}");
+        let (ok, message) = result(&answer(
+            &ctx,
+            &Message::Command(Command::RemoveWatch {
+                id: String::from("w1"),
+            }),
+        ));
+        assert!(!ok);
+        assert!(message.contains("no watch"), "{message}");
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn the_data_directory_and_what_is_inside_it_are_refused() {
+        let dir = dir("selfexclude");
+        let ctx = ctx(&dir);
+        for path in [
+            dir.to_string_lossy().into_owned(),
+            dir.join("segments").to_string_lossy().into_owned(),
+            dir.join("exports").to_string_lossy().into_owned(),
+        ] {
+            let (ok, message) = result(&answer(
+                &ctx,
+                &Message::Command(Command::AddWatch {
+                    path: path.clone(),
+                    confirmed: true,
+                }),
+            ));
+            assert!(!ok, "{path}");
+            assert!(message.contains("data folder"), "{message}");
+        }
+        assert_eq!(list(&ctx).len(), 1);
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn a_whole_drive_needs_a_second_command_with_the_confirmation() {
+        let dir = dir("drive");
+        let ctx = ctx(&dir);
+        let add = |confirmed| {
+            result(&answer(
+                &ctx,
+                &Message::Command(Command::AddWatch {
+                    path: String::from(r"Z:\"),
+                    confirmed,
+                }),
+            ))
+        };
+        let (ok, message) = add(false);
+        assert!(!ok);
+        assert!(message.starts_with("confirm: "), "{message}");
+        assert!(message.contains("whole drive"), "{message}");
+        assert_eq!(list(&ctx).len(), 1, "nothing changed");
+        let (ok, message) = add(true);
+        assert!(ok, "{message}");
+        assert_eq!(list(&ctx).len(), 2);
         std::fs::remove_dir_all(&dir).unwrap();
     }
 
