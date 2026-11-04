@@ -386,7 +386,7 @@ impl Spill {
 mod tests {
     use std::io::Write as _;
 
-    use super::{Spill, crc32, decode_batch, encode_batch};
+    use super::{Spill, crc32, decode_batch, encode_batch, whole_records};
     use crate::batch::Batch;
     use crate::batch::tests::{event, units};
 
@@ -848,6 +848,39 @@ mod tests {
         // something other than "not found".
         std::fs::create_dir_all(dir.join(super::FILE_NAME)).unwrap();
         assert!(spill.finish().is_err());
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn whole_records_stops_at_the_last_complete_record() {
+        let dir = dir("whole-bound");
+        let mut spill = Spill::open(&dir, 0, 0).unwrap();
+        let (first, second) = (batch(1, 3), batch(10, 4));
+        spill.append(&first).unwrap();
+        spill.append(&second).unwrap();
+        drop(spill);
+        // The file starts with an 8-byte header of its own.
+        let start = 8;
+        let first_end = start + record_len(&first) as u64;
+        let end = first_end + record_len(&second) as u64;
+        let mut file = std::fs::File::open(dir.join(super::FILE_NAME)).unwrap();
+        assert_eq!(file.metadata().unwrap().len(), end);
+
+        assert_eq!(whole_records(&mut file, start, end).unwrap(), end);
+        assert_eq!(whole_records(&mut file, first_end, end).unwrap(), end);
+        // A cut inside the second header or payload, with the bytes still
+        // in the file: the bound alone decides.
+        for cut in [first_end + 5, first_end + 8, end - 1] {
+            assert_eq!(
+                whole_records(&mut file, start, cut).unwrap(),
+                first_end,
+                "{cut}"
+            );
+        }
+        assert_eq!(
+            whole_records(&mut file, start, first_end - 1).unwrap(),
+            start
+        );
         std::fs::remove_dir_all(&dir).unwrap();
     }
 }
