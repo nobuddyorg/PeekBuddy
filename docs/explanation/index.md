@@ -8,6 +8,7 @@
 - [Capture with ReadDirectoryChangesExW](capture-rdcw.md)
 - [Reconciliation](reconcile.md)
 - [Zero undetected loss](zero-undetected-loss.md)
+- [Gaps and reconciliation](gaps-and-reconciliation.md)
 - [Reparse points and cloud placeholders](reparse-and-cloud.md)
 - [The USN journal backend](usn.md)
 - [What happens when a watch is lost](watch-lifecycle.md)

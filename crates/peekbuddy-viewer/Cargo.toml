@@ -28,7 +28,7 @@ eframe = { version = "=0.37.0", default-features = false, features = [
   "default_fonts",
   "wgpu_no_default_features",
 ] }
-peekbuddy-win = { workspace = true }
+peekbuddy-win = { workspace = true, features = ["picker"] }
 raw-window-handle = { workspace = true }
 wgpu = { workspace = true }
 

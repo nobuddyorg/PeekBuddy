@@ -36,6 +36,7 @@ pub mod source;
 pub mod theme;
 pub mod timeline;
 pub mod view;
+pub mod watches;
 pub mod worker;
 
 #[cfg(windows)]

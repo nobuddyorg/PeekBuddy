@@ -71,8 +71,24 @@ problems (with line and column) when it is not; the result also says what
 autostart looks like after the save. `PauseAll`, `ResumeAll` and
 `SetWatchPaused` pause and resume (#63, ADR 0016) and answer `ok: true`, or
 `ok: false` with the reason (an unknown id, a settings file that cannot be
-written). `AddWatch` and `RemoveWatch` answer `CommandResult { ok: false }`
-until watch management (#68) exists. Counters, watch state and resync are defined and encoded but not sent
+written).
+
+Watch management (#68): `AddWatch { path, confirmed }` validates the path
+with `peekbuddy_core::settings::edit` (the data directory, the exports folder
+and anything inside them are refused; a root that is watched already is
+refused; a whole drive needs `confirmed`), writes `settings.toml` atomically
+and answers `ok: true` with the notices (a network folder, a folder that is
+covered by another watch). A whole drive without `confirmed` answers
+`ok: false` with a message that starts with the word `confirm:`; the viewer
+asks the user and sends the same command again with `confirmed: true`. `RemoveWatch`
+takes the watch out of the file and, when it is armed, pauses it at once (a
+state row says so); the rows already recorded stay. `ListWatches` is answered
+with `WatchList`: every watch in settings order with its F19 state, whether
+it is armed yet, and what a pause let pass. A saved watch is armed when the
+engine starts, so a watch added meanwhile reports `armed: false` and the state
+`Arming` until the viewer restarts the engine (`Shutdown`, then a new start).
+The file is written with the settings serializer, so comments in it are not
+kept. Counters, watch state and resync are defined and encoded but not sent
 yet: they need the writer (#52).
 
 ## Back-pressure (design, applies when the live tail exists)
@@ -87,3 +103,4 @@ after 5 s and drops the client.
 | Version | Change |
 | --- | --- |
 | 1 | First version: the messages above. |
+| 1 (still, unreleased) | #68 adds `ListWatches`, `WatchList` and the `confirmed` flag of `AddWatch`. The first release is the first shipped protocol version. |

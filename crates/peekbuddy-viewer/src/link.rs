@@ -27,7 +27,7 @@ use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender};
 use std::thread::JoinHandle;
 use std::time::Duration;
 
-use peekbuddy_core::ipc::{Command, Message, PROTOCOL_VERSION};
+use peekbuddy_core::ipc::{Command, Message, PROTOCOL_VERSION, WatchInfo};
 
 /// How the link thread paces itself.
 #[derive(Debug, Clone, Copy)]
@@ -90,6 +90,8 @@ pub enum LinkEvent {
     },
     /// A message the engine sent on its own (counters, watch state).
     Pushed(Message),
+    /// The answer to [`Link::request_watches`].
+    Watches(Vec<WatchInfo>),
 }
 
 /// An open connection to an engine.
@@ -131,6 +133,8 @@ pub trait Connector: Send + 'static {
 
 enum Control {
     Request { tag: u64, command: Command },
+    ListWatches,
+    StopEngine,
     Reconnect,
 }
 
@@ -183,6 +187,18 @@ impl Link {
         // A dead thread cannot answer; the UI shows the link state anyway.
         let _ = self.control.send(Control::Request { tag, command });
         tag
+    }
+
+    /// Asks for the list of watches; the answer arrives as
+    /// [`LinkEvent::Watches`]. Nothing happens without an engine.
+    pub fn request_watches(&self) {
+        let _ = self.control.send(Control::ListWatches);
+    }
+
+    /// Asks the engine to shut down (to restart it with new watches). The
+    /// link then reports the engine as gone.
+    pub fn stop_engine(&self) {
+        let _ = self.control.send(Control::StopEngine);
     }
 
     /// Tries to connect again now: after "Start engine", or after the user
@@ -322,6 +338,24 @@ fn exchange<C: Connection>(conn: &mut C, tag: u64, command: Command, out: &mut E
     }
 }
 
+/// Asks for the watch list and reads until it arrives. `false` when the
+/// engine was lost on the way.
+fn list_watches<C: Connection>(conn: &mut C, out: &mut Emitter) -> bool {
+    if conn.send(&Message::ListWatches).is_err() {
+        return false;
+    }
+    loop {
+        match conn.receive() {
+            Ok(Some(Message::WatchList(watches))) => {
+                out.emit(LinkEvent::Watches(watches));
+                return true;
+            }
+            Ok(Some(Message::EngineStopping) | None) | Err(_) => return false,
+            Ok(Some(other)) => out.emit(LinkEvent::Pushed(other)),
+        }
+    }
+}
+
 fn serve<C: Connection>(
     conn: &mut C,
     timing: Timing,
@@ -332,6 +366,18 @@ fn serve<C: Connection>(
         match requests.recv_timeout(timing.tick) {
             Ok(Control::Request { tag, command }) => {
                 if !exchange(conn, tag, command, out) {
+                    return Served::Lost;
+                }
+            }
+            Ok(Control::ListWatches) => {
+                if !list_watches(conn, out) {
+                    return Served::Lost;
+                }
+            }
+            Ok(Control::StopEngine) => {
+                // The engine says goodbye and closes the pipe; the next read
+                // or availability check then ends the connection.
+                if conn.send(&Message::Shutdown).is_err() {
                     return Served::Lost;
                 }
             }
@@ -359,6 +405,7 @@ fn idle(requests: &Receiver<Control>, wait: Option<Duration>, out: &Emitter) -> 
         };
         match next {
             Ok(Control::Request { tag, .. }) => out.result(tag, false, NO_ENGINE),
+            Ok(Control::ListWatches | Control::StopEngine) => {}
             Ok(Control::Reconnect) | Err(RecvTimeoutError::Timeout) => return true,
             Err(RecvTimeoutError::Disconnected) => return false,
         }
@@ -434,6 +481,8 @@ pub(crate) mod fake {
         pub sent: Vec<Message>,
         /// Connections made.
         pub connects: u32,
+        /// What `ListWatches` is answered with.
+        pub watches: Vec<peekbuddy_core::ipc::WatchInfo>,
     }
 
     /// A handle to the fake engine.
@@ -448,6 +497,7 @@ pub(crate) mod fake {
                 inbox: VecDeque::new(),
                 sent: Vec::new(),
                 connects: 0,
+                watches: Vec::new(),
             })))
         }
 
@@ -495,6 +545,7 @@ pub(crate) mod fake {
                         ok: true,
                         message: String::from("done"),
                     }),
+                    Message::ListWatches => Some(Message::WatchList(state.watches.clone())),
                     _ => None,
                 };
                 state.inbox.extend(reply);
@@ -706,6 +757,61 @@ mod tests {
             LinkEvent::Pushed(Message::Resync { from_id: 7 })
         );
         engine.with(|e| e.inbox.push_back(Message::EngineStopping));
+        assert_eq!(state(&link), LinkState::Gone);
+        link.shutdown();
+    }
+
+    #[test]
+    fn the_watch_list_is_requested_and_delivered() {
+        use peekbuddy_core::event::WatchState;
+        use peekbuddy_core::ipc::WatchInfo;
+
+        let engine = Engine::new(true);
+        let info = WatchInfo {
+            id: String::from("docs-1"),
+            path: String::from(r"\\?\C:\docs"),
+            recursive: true,
+            state: WatchState::Live,
+            armed: true,
+            missed_while_paused: 0,
+        };
+        engine.with(|state| state.watches = vec![info.clone()]);
+        let (link, _) = start(&engine);
+        link.request_watches();
+        loop {
+            match next(&link) {
+                LinkEvent::Watches(list) => {
+                    assert_eq!(list, [info]);
+                    break;
+                }
+                LinkEvent::State(_) => {}
+                other => panic!("unexpected {other:?}"),
+            }
+        }
+        link.shutdown();
+    }
+
+    #[test]
+    fn stopping_the_engine_sends_a_shutdown() {
+        let engine = Engine::new(true);
+        let (link, _) = start(&engine);
+        assert_eq!(state(&link), LinkState::Connecting);
+        assert!(matches!(state(&link), LinkState::Connected { .. }));
+        link.stop_engine();
+        let deadline = Instant::now() + Duration::from_secs(5);
+        while !engine.with(|e| e.sent.contains(&Message::Shutdown)) {
+            assert!(Instant::now() < deadline, "no shutdown within 5 s");
+            std::thread::sleep(Duration::from_millis(2));
+        }
+        link.shutdown();
+    }
+
+    #[test]
+    fn asking_for_watches_without_an_engine_is_ignored() {
+        let engine = Engine::new(false);
+        let (link, _) = start(&engine);
+        link.request_watches();
+        assert_eq!(state(&link), LinkState::Connecting);
         assert_eq!(state(&link), LinkState::Gone);
         link.shutdown();
     }

@@ -2,9 +2,10 @@
 //! come from eframe, the frame and the state it shows from [`crate::shell`]
 //! and [`crate::link`], which build and test on every host.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashSet};
 use std::path::Path;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::mpsc::{Receiver, TryRecvError};
 use std::sync::{Arc, Mutex, PoisonError};
 use std::time::{Duration, Instant};
 
@@ -20,16 +21,25 @@ use raw_window_handle::{HasWindowHandle as _, RawWindowHandle};
 use crate::filterspec::FilterSpec;
 use crate::geometry::{self, PxRect};
 use crate::gpu::{self, Adapter};
-use crate::link::{Link, LinkEvent, Timing};
+use crate::link::{Link, LinkEvent, LinkState, Timing};
 use crate::link_win::PipeConnector;
 use crate::shell::{Shell, ShellAction};
 use crate::shellpath;
 use crate::source::StoreSource;
 use crate::view::{LogView, ViewEvent};
+use crate::watches::{Tab, WatchAction, WatchPanel};
 use crate::{Options, Probe, theme};
 
 /// How long the close handler waits for the engine to take the settings.
 const SAVE_WAIT: Duration = Duration::from_secs(1);
+
+/// How often the watch list is asked for while the Watches tab is open.
+const WATCH_REFRESH: Duration = Duration::from_secs(2);
+
+/// How long after the engine went away the restart starts a new one: the
+/// old process needs a moment to release its mutex. A second try follows if
+/// the engine does not come back.
+const RESTART_DELAY: Duration = Duration::from_millis(1500);
 
 /// The name in messages. The window title itself is `Options::title`;
 /// Windows draws it, so it cannot carry the wordmark colours (#88).
@@ -152,6 +162,17 @@ struct ViewerApp {
     shell: Shell,
     link: Link,
     view: LogView,
+    tab: Tab,
+    panel: WatchPanel,
+    /// Tags of the commands whose answer belongs on the Watches tab.
+    watch_tags: HashSet<u64>,
+    next_refresh: Instant,
+    /// When to start the engine again after a requested restart.
+    restart_due: Option<Instant>,
+    /// The folder picker's thread, while its dialog is open.
+    picker: Option<Receiver<std::io::Result<Vec<String>>>>,
+    /// Wakes the UI from another thread.
+    waker: Arc<dyn Fn() + Send + Sync>,
     settings: Settings,
     /// Set by the thread that waits for a second launch.
     show_requested: Arc<AtomicBool>,
@@ -224,8 +245,107 @@ impl ViewerApp {
 
     fn handle(&mut self, event: LinkEvent) {
         match event {
-            LinkEvent::State(state) => self.shell.link = state,
-            LinkEvent::Result { .. } | LinkEvent::Pushed(_) => {}
+            LinkEvent::State(state) => {
+                match &state {
+                    LinkState::Connected { .. } => {
+                        self.panel.restarting = false;
+                        self.restart_due = None;
+                        self.link.request_watches();
+                    }
+                    LinkState::Gone if self.panel.restarting => {
+                        self.restart_due = Some(Instant::now() + RESTART_DELAY);
+                    }
+                    _ => {}
+                }
+                self.shell.link = state;
+            }
+            LinkEvent::Result { tag, ok, message } => {
+                if self.watch_tags.remove(&tag) {
+                    self.panel.on_result(ok, &message);
+                    self.link.request_watches();
+                }
+            }
+            LinkEvent::Watches(list) => self.panel.set_watches(list),
+            LinkEvent::Pushed(_) => {}
+        }
+    }
+
+    /// Carries out what the user asked for on the Watches tab.
+    fn watch_action(&mut self, action: WatchAction) {
+        let command = match action {
+            WatchAction::Add { path, confirmed } => Command::AddWatch { path, confirmed },
+            WatchAction::Remove(id) => Command::RemoveWatch { id },
+            WatchAction::SetPaused { id, paused } => Command::SetWatchPaused { id, paused },
+            WatchAction::Browse => {
+                self.browse();
+                return;
+            }
+            WatchAction::RestartEngine => {
+                self.panel.restarting = true;
+                self.link.stop_engine();
+                return;
+            }
+        };
+        let tag = self.link.send(command);
+        self.watch_tags.insert(tag);
+    }
+
+    /// Opens the folder picker on a thread of its own.
+    fn browse(&mut self) {
+        if self.picker.is_some() {
+            return;
+        }
+        let owner = self.hwnd.unwrap_or(0);
+        let (sender, receiver) = std::sync::mpsc::channel();
+        let waker = self.waker.clone();
+        let started = std::thread::Builder::new()
+            .name(String::from("folder-picker"))
+            .spawn(move || {
+                let _ = sender.send(peekbuddy_win::picker::pick_folders(
+                    owner,
+                    "Choose the folders to watch",
+                ));
+                waker();
+            });
+        if started.is_ok() {
+            self.picker = Some(receiver);
+        }
+    }
+
+    /// Takes the picker's answer, if it is there: each folder goes to the
+    /// engine, which decides; cancelling changes nothing.
+    fn picked(&mut self) {
+        let Some(receiver) = &self.picker else {
+            return;
+        };
+        let folders = match receiver.try_recv() {
+            Ok(result) => result,
+            Err(TryRecvError::Empty) => return,
+            Err(TryRecvError::Disconnected) => Ok(Vec::new()),
+        };
+        self.picker = None;
+        match folders {
+            Ok(folders) => {
+                for folder in folders {
+                    let action = self.panel.picked(folder);
+                    self.watch_action(action);
+                }
+            }
+            Err(error) => append_log(
+                &self.options.data_dir,
+                &format!("the folder picker failed: {error}"),
+            ),
+        }
+    }
+
+    /// Starts the engine again once a requested restart is due.
+    fn restart_step(&mut self) {
+        let Some(due) = self.restart_due else {
+            return;
+        };
+        if Instant::now() >= due && matches!(self.shell.link, LinkState::Gone) {
+            self.start_engine();
+            self.restart_due = Some(Instant::now() + 2 * RESTART_DELAY);
         }
     }
 
@@ -338,6 +458,8 @@ impl eframe::App for ViewerApp {
             self.handle(event);
         }
         self.view.logic();
+        self.picked();
+        self.restart_step();
         if self.show_requested.swap(false, Ordering::AcqRel) {
             ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(false));
             ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
@@ -350,9 +472,30 @@ impl eframe::App for ViewerApp {
             self.note_causes(ui.ctx());
         }
         let mut view_events = Vec::new();
+        let mut watch_actions = Vec::new();
         let action = self.shell.show(ui, |ui| {
-            view_events = self.view.show(ui);
+            crate::watches::tabs(
+                ui,
+                &mut self.tab,
+                self.panel.watches.len(),
+                self.panel.attention(),
+            );
+            match self.tab {
+                Tab::Log => view_events = self.view.show(ui),
+                Tab::Watches => watch_actions = self.panel.show(ui),
+            }
         });
+        if self.tab == Tab::Watches && self.shell.link.is_connected() {
+            let now = Instant::now();
+            if now >= self.next_refresh {
+                self.next_refresh = now + WATCH_REFRESH;
+                self.link.request_watches();
+            }
+            ui.ctx().request_repaint_after(WATCH_REFRESH);
+        }
+        for action in watch_actions {
+            self.watch_action(action);
+        }
         for event in view_events {
             match event {
                 ViewEvent::ColumnsChanged(names) => {
@@ -540,6 +683,7 @@ pub fn run(options: Options) -> std::io::Result<()> {
                 let ctx = cc.egui_ctx.clone();
                 Arc::new(move || ctx.request_repaint())
             };
+            let app_waker = Arc::clone(&waker);
             // The filter of the last run; text that no longer parses is dropped.
             let spec = FilterSpec::parse(&settings.viewer.filter).unwrap_or_default();
             let roots = settings
@@ -571,6 +715,13 @@ pub fn run(options: Options) -> std::io::Result<()> {
                 shell: Shell::default(),
                 link,
                 view,
+                tab: Tab::default(),
+                panel: WatchPanel::default(),
+                watch_tags: HashSet::new(),
+                next_refresh: Instant::now(),
+                restart_due: None,
+                picker: None,
+                waker: Arc::clone(&app_waker),
                 settings,
                 show_requested,
                 frames,
