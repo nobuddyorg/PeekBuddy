@@ -136,6 +136,33 @@ fn dots_and_flags_are_recognised() {
 }
 
 #[test]
+fn each_attribute_flag_is_read_on_its_own() {
+    let flags = |attributes: u32| {
+        let mut record = model("f", 1);
+        record.attributes = attributes;
+        let bytes = encode(&[record]);
+        let entry = parse(&bytes, bytes.len()).next().unwrap().unwrap();
+        (entry.is_dir(), entry.is_reparse())
+    };
+    assert_eq!(flags(0x20), (false, false));
+    assert_eq!(flags(ATTR_DIRECTORY), (true, false));
+    assert_eq!(flags(ATTR_REPARSE_POINT), (false, true));
+    assert_eq!(flags(0), (false, false));
+}
+
+#[test]
+fn a_parse_error_names_its_offset_and_kind() {
+    let error = ParseError {
+        offset: 24,
+        kind: ErrorKind::NextPastEnd,
+    };
+    assert_eq!(
+        error.to_string(),
+        "malformed directory record at byte 24: NextPastEnd"
+    );
+}
+
+#[test]
 fn empty_and_oversized_lengths() {
     assert_eq!(parse(&[], 0).count(), 0);
     let bytes = encode(&[model("a", 1)]);
