@@ -28,8 +28,10 @@ pub mod filterspec;
 pub mod follow;
 pub mod geometry;
 pub mod link;
+pub mod onboarding;
 pub mod rows;
 pub mod selection;
+pub mod settings_ui;
 pub mod shell;
 pub mod shellpath;
 pub mod source;
@@ -84,6 +86,8 @@ pub struct Options {
     pub table: Arc<MilestoneTable>,
     /// Measure instead of stay open.
     pub probe: Option<Probe>,
+    /// What the About section shows about this build.
+    pub about: settings_ui::About,
 }
 
 /// Runs the viewer window until it is closed.
@@ -130,6 +134,7 @@ mod tests {
             title: String::from("PeekBuddy"),
             table: Arc::new(MilestoneTable::new()),
             probe: None,
+            about: super::settings_ui::About::default(),
         };
         assert_eq!(options.clone().pipe_name, "pipe");
         // Off Windows there is no window: the role returns at once.

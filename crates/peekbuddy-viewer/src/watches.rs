@@ -18,6 +18,8 @@ pub enum Tab {
     Log,
     /// The watches.
     Watches,
+    /// The settings and About.
+    Settings,
 }
 
 /// The shape in front of a state's label.
@@ -247,10 +249,18 @@ impl WatchPanel {
         }
     }
 
-    /// Draws the screen and returns what the user asked for.
-    pub fn show(&mut self, ui: &mut egui::Ui) -> Vec<WatchAction> {
+    /// Draws only the part that adds folders (the path field, Browse, the
+    /// engine's answer and the question about a whole drive): the first-run
+    /// screen uses it.
+    pub fn show_adder(&mut self, ui: &mut egui::Ui) -> Vec<WatchAction> {
         let mut actions = Vec::new();
         self.add_row(ui, &mut actions);
+        self.result_line(ui);
+        self.question(ui, &mut actions);
+        actions
+    }
+
+    fn result_line(&self, ui: &mut egui::Ui) {
         if let Some((ok, text)) = &self.status {
             ui.horizontal_wrapped(|ui| {
                 let color = if *ok {
@@ -262,6 +272,13 @@ impl WatchPanel {
                 ui.label(text);
             });
         }
+    }
+
+    /// Draws the screen and returns what the user asked for.
+    pub fn show(&mut self, ui: &mut egui::Ui) -> Vec<WatchAction> {
+        let mut actions = Vec::new();
+        self.add_row(ui, &mut actions);
+        self.result_line(ui);
         let waiting = self.waiting();
         if waiting > 0 && !self.restarting {
             ui.horizontal_wrapped(|ui| {
@@ -427,6 +444,7 @@ pub fn tabs(ui: &mut egui::Ui, current: &mut Tab, watches: usize, attention: usi
             format!("Watches ({watches})")
         };
         ui.selectable_value(current, Tab::Watches, label);
+        ui.selectable_value(current, Tab::Settings, "Settings");
     });
     ui.separator();
 }
