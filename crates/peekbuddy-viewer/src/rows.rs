@@ -6,7 +6,7 @@
 //! character such as a right-to-left override shows as `\u{202E}`, and the
 //! row says it was escaped, because a spoofed name must look spoofed.
 
-use peekbuddy_core::event::{Flags, GapReason, Kind, Source, WatchState};
+use peekbuddy_core::event::{GapReason, Kind, Source, WatchState};
 use peekbuddy_core::export::{iso_local, iso_utc};
 use peekbuddy_core::name::{WideStr, escape_for_display, needs_escape};
 use peekbuddy_core::query::Row;
@@ -294,13 +294,6 @@ impl GridRow {
     pub fn file_name(&self) -> &str {
         self.path.get(self.name_start..).unwrap_or_default()
     }
-
-    /// Whether the row was hidden by default (a cloud sync churn row that a
-    /// view with the preset off shows).
-    #[must_use]
-    pub fn is_cloud_churn(&self) -> bool {
-        self.raw.flags & Flags::CLOUD_CHURN.bits() != 0
-    }
 }
 
 #[cfg(test)]
@@ -456,5 +449,34 @@ mod tests {
             format_time(noon + 1_234_567, -3600),
             "2026-10-26 11:00:00.123"
         );
+    }
+
+    #[test]
+    fn a_watch_state_row_says_the_state_in_words() {
+        use peekbuddy_core::event::WatchState;
+
+        for (state, words) in [
+            (WatchState::Arming, "Watch: arming"),
+            (WatchState::Live, "Watch: live"),
+            (WatchState::Overflowed, "Watch: overflowed"),
+            (WatchState::Reconciling, "Watch: reconciling"),
+            (WatchState::SuspendedByUser, "Watch: paused"),
+            (
+                WatchState::SuspendedQueryRemove,
+                "Watch: suspended (volume removal)",
+            ),
+            (WatchState::Lost, "Watch: lost"),
+            (WatchState::Restored, "Watch: restored"),
+            (
+                WatchState::SuspendedLocked,
+                "Watch: suspended (volume locked)",
+            ),
+        ] {
+            assert_eq!(
+                describe(Kind::WatchStateChanged(state)).1,
+                words,
+                "{state:?}"
+            );
+        }
     }
 }

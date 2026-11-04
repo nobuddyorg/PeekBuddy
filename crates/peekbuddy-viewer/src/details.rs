@@ -198,6 +198,19 @@ mod tests {
     }
 
     #[test]
+    fn the_old_path_is_shown_only_for_a_row_that_has_one() {
+        let plain = fields(&row(Source::Rdcw, 1));
+        assert!(
+            plain.iter().all(|(name, _)| *name != "Old path"),
+            "a row without an old path has no such field"
+        );
+        let mut renamed = row(Source::Rdcw, 4);
+        renamed.raw.old_path = "C:\\w\\before.txt".encode_utf16().collect();
+        let renamed = fields(&GridRow::new(renamed.raw, &|_| 0));
+        assert_eq!(get(&renamed, "Old path"), "C:\\w\\before.txt");
+    }
+
+    #[test]
     fn every_stored_field_is_shown_with_the_raw_values_in_words() {
         let fields = fields(&row(Source::Usn, 0x100 | 0x8000_0000));
         assert_eq!(get(&fields, "Id"), "42");

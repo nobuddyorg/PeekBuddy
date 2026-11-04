@@ -353,3 +353,73 @@ proptest! {
         let _ = FilterSpec::parse(&text);
     }
 }
+
+#[test]
+fn chips_have_the_words_of_the_bar_and_find_their_kinds() {
+    let labels: Vec<&str> = Chip::ALL.iter().map(|chip| chip.label()).collect();
+    assert_eq!(
+        labels,
+        [
+            "Created",
+            "Modified",
+            "Deleted",
+            "Renamed",
+            "Attributes",
+            "Gaps",
+            "Engine"
+        ]
+    );
+    assert_eq!(Chip::of(Kind::Created), Some(Chip::Created));
+    assert_eq!(Chip::of(Kind::Modified), Some(Chip::Modified));
+    assert_eq!(Chip::of(Kind::Deleted), Some(Chip::Deleted));
+    assert_eq!(
+        Chip::of(Kind::Overflow(GapReason::RingFull)),
+        Some(Chip::Gaps)
+    );
+    assert_eq!(Chip::of(Kind::EngineStarted), Some(Chip::Engine));
+}
+
+#[test]
+fn today_starts_at_local_midnight_even_when_the_offset_crosses_the_date_line() {
+    let today = |now: u64, offset: i32| {
+        FilterSpec {
+            span: Span::Today,
+            ..FilterSpec::default()
+        }
+        .to_filter(now, offset)
+        .unwrap()
+        .time
+        .from
+        .unwrap()
+    };
+    let hour = 3_600 * 10_000_000;
+    // 23:00 UTC on the 26th is 01:00 on the 27th at UTC+2: local midnight of
+    // the 27th is 22:00 UTC on the 26th.
+    let midnight_utc = NOON - 12 * hour;
+    assert_eq!(
+        today(midnight_utc + 23 * hour, 7_200),
+        midnight_utc + 22 * hour
+    );
+    // 01:00 UTC on the 26th is 20:00 on the 25th at UTC-5: local midnight of
+    // the 25th is 05:00 UTC on the 25th.
+    assert_eq!(
+        today(midnight_utc + hour, -18_000),
+        midnight_utc - 19 * hour
+    );
+}
+
+#[test]
+fn a_range_of_one_instant_is_fine_and_one_that_ends_first_is_not() {
+    let range = |from, to| {
+        FilterSpec {
+            span: Span::Between {
+                from: Some(from),
+                to: Some(to),
+            },
+            ..FilterSpec::default()
+        }
+        .to_filter(NOON, 0)
+    };
+    assert!(range(NOON, NOON).is_ok(), "from equal to to is allowed");
+    assert!(range(NOON, NOON - 1).is_err());
+}

@@ -11,6 +11,31 @@ examine_re = [
   "crates/peekbuddy-win/",
   "crates/peekbuddy-store/",
   "crates/peekbuddy-engine/",
+  "crates/peekbuddy-viewer/",
+]
+# The viewer: its drawing, the window and the engine link are tested by the
+# kittest suite (#71), whose mutants cannot be caught by a unit test. The
+# modules that hold its logic and data (the follow state machine, the
+# debounce, the selection, the filter text form, the rows, the details, the
+# Explorer path conversion and the window geometry) are examined. The
+# timeline, the worker, the link and the brand module are not yet (#310).
+exclude_globs = [
+  "crates/peekbuddy-viewer/src/app.rs",
+  "crates/peekbuddy-viewer/src/brand.rs",
+  "crates/peekbuddy-viewer/src/exporter.rs",
+  "crates/peekbuddy-viewer/src/gpu.rs",
+  "crates/peekbuddy-viewer/src/lib.rs",
+  "crates/peekbuddy-viewer/src/link.rs",
+  "crates/peekbuddy-viewer/src/link_win.rs",
+  "crates/peekbuddy-viewer/src/onboarding.rs",
+  "crates/peekbuddy-viewer/src/settings_ui.rs",
+  "crates/peekbuddy-viewer/src/shell.rs",
+  "crates/peekbuddy-viewer/src/source.rs",
+  "crates/peekbuddy-viewer/src/theme.rs",
+  "crates/peekbuddy-viewer/src/timeline.rs",
+  "crates/peekbuddy-viewer/src/view.rs",
+  "crates/peekbuddy-viewer/src/watches.rs",
+  "crates/peekbuddy-viewer/src/worker.rs",
 ]
 # UI glue, the tray message pump and logging are tested by e2e and UI
 # tests (#71), not by unit tests that can catch mutants.
@@ -18,7 +43,6 @@ exclude_re = [
   "tray",
   "message_loop",
   "logging",
-  "crates/peekbuddy-viewer/",
   # Equivalent mutants: Win32 access masks are disjoint bit flags, so `^`
   # and `|` give the same value.
   "crates/peekbuddy-win/src/process.rs:.*replace \\| with \\^",
@@ -31,6 +55,9 @@ exclude_re = [
   # mutants run on. The parser is tested; the full query is compared with
   # an independent one (`machine_facts_match_independent_queries`).
   "crates/peekbuddy-churn/src/exec/windows.rs:.*replace defender_realtime -> Option<bool> with Some",
+  # Equivalent mutant: the bits of the decoder tables are disjoint (a test
+  # asserts it), so `|` and `^` give the same union of the known bits.
+  "crates/peekbuddy-core/src/decode.rs:.*replace \\| with \\^ in flag_names",
   # Equivalent mutant: `IoSlot::new` rejects empty buffers, so `is_empty`
   # (kept for `len`'s clippy pairing) is always false.
   "crates/peekbuddy-win/src/io/slot.rs:.*replace IoSlot::is_empty -> bool with false",
