@@ -123,6 +123,25 @@ pub struct Removed {
     pub watch: Watch,
 }
 
+/// Whether `path` is the data or export directory of `ctx`, or inside one.
+/// Both sides must be in the same spelling: the engine passes the forms the
+/// file system resolved (long names, final paths), so a short `RUNNER~1` name
+/// or a junction into the data folder is caught too.
+#[must_use]
+pub fn inside_own_folders(path: &str, ctx: &Context) -> Option<Refusal> {
+    let normalised = normalize_root(path.trim()).ok()?;
+    for (refusal, dir) in [
+        (Refusal::DataDir, Some(&ctx.data_dir)),
+        (Refusal::ExportDir, ctx.export_dir.as_ref()),
+    ] {
+        let dir = dir.and_then(|dir| normalize_root(dir).ok());
+        if dir.is_some_and(|dir| is_inside(&normalised, &dir)) {
+            return Some(refusal);
+        }
+    }
+    None
+}
+
 /// Checks `path` against `settings` and `ctx` without changing anything.
 ///
 /// # Errors
@@ -136,14 +155,8 @@ pub fn check(
     ctx: &Context,
 ) -> Result<(String, Vec<Notice>), Refusal> {
     let normalised = normalize_root(path.trim()).map_err(Refusal::Invalid)?;
-    for (refusal, dir) in [
-        (Refusal::DataDir, Some(&ctx.data_dir)),
-        (Refusal::ExportDir, ctx.export_dir.as_ref()),
-    ] {
-        let dir = dir.and_then(|dir| normalize_root(dir).ok());
-        if dir.is_some_and(|dir| is_inside(&normalised, &dir)) {
-            return Err(refusal);
-        }
+    if let Some(refusal) = inside_own_folders(&normalised, ctx) {
+        return Err(refusal);
     }
     if settings.watches.len() >= MAX_WATCHES {
         return Err(Refusal::TooMany);

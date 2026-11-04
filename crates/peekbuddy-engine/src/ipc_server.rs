@@ -5,7 +5,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use peekbuddy_core::ipc::{Command, Message, PROTOCOL_VERSION, WatchInfo};
-use peekbuddy_core::settings::edit::Refusal;
+use peekbuddy_core::settings::edit::{self, Refusal};
 use peekbuddy_core::settings::{self, Context, Loaded};
 use peekbuddy_win::pipe::{self, PipeClient, PipeServer, Reply};
 use peekbuddy_win::window::WindowHandle;
@@ -81,7 +81,48 @@ fn edit_context(ctx: &Shared) -> Context {
     }
 }
 
+/// The form the file system resolves `path` to (long names, final path). A
+/// folder that does not exist yet is resolved through its nearest existing
+/// parent. `None` when no part of the path can be opened.
+fn resolved(path: &str) -> Option<String> {
+    let path = Path::new(path.trim());
+    if let Some(units) = crate::capture_host::canonical_dirs(&[path])
+        .into_iter()
+        .next()
+    {
+        return String::from_utf16(&units).ok();
+    }
+    let base = resolved(&path.parent()?.to_string_lossy())?;
+    Some(format!(
+        "{}\\{}",
+        base.trim_end_matches('\\'),
+        path.file_name()?.to_string_lossy()
+    ))
+}
+
+/// Refuses a folder that is the data or exports folder, or inside one, in
+/// any spelling: the check of `PauseCtl::add_watch` compares the text as
+/// given, so a short `RUNNER~1` name or a junction into the data folder would
+/// pass it. Both sides are resolved here (F16).
+fn refused_by_resolution(ctx: &Shared, path: &str) -> Option<Refusal> {
+    let candidate = resolved(path.trim())?;
+    let data = resolved(&ctx.data_dir).unwrap_or_else(|| ctx.data_dir.clone());
+    let exports = Path::new(&ctx.data_dir).join("exports");
+    let exports = resolved(&exports.to_string_lossy())
+        .unwrap_or_else(|| exports.to_string_lossy().into_owned());
+    edit::inside_own_folders(
+        &candidate,
+        &Context {
+            data_dir: data,
+            export_dir: Some(exports),
+        },
+    )
+}
+
 fn add_watch(ctx: &Shared, path: &str, confirmed: bool) -> Message {
+    if let Some(refusal) = refused_by_resolution(ctx, path) {
+        return command_result(false, refusal.to_string());
+    }
     match ctx.pause.add_watch(path, confirmed, &edit_context(ctx)) {
         Ok(added) => {
             let mut message = format!(

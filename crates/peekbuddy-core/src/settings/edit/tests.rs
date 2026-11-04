@@ -314,3 +314,39 @@ proptest! {
         }
     }
 }
+
+#[test]
+fn a_path_in_the_resolved_spelling_is_checked_against_the_resolved_folders() {
+    use super::inside_own_folders;
+
+    let resolved = Context {
+        data_dir: String::from(r"\\?\C:\Users\runneradmin\AppData\Local\Temp\pbt\data"),
+        export_dir: Some(String::from(
+            r"\\?\C:\Users\runneradmin\AppData\Local\Temp\pbt\data\exports",
+        )),
+    };
+    // What the file system makes of `C:\Users\RUNNER~1\...\pbt\data\segments`.
+    assert_eq!(
+        inside_own_folders(
+            r"\\?\C:\Users\runneradmin\AppData\Local\Temp\pbt\data\segments",
+            &resolved
+        ),
+        Some(Refusal::DataDir)
+    );
+    assert_eq!(
+        inside_own_folders(
+            r"\\?\C:\Users\runneradmin\AppData\Local\Temp\pbt\data",
+            &resolved
+        ),
+        Some(Refusal::DataDir)
+    );
+    assert_eq!(
+        inside_own_folders(
+            r"\\?\C:\Users\runneradmin\AppData\Local\Temp\pbt\database",
+            &resolved
+        ),
+        None,
+        "a sibling with the same prefix is not inside"
+    );
+    assert_eq!(inside_own_folders("not a path", &resolved), None);
+}
