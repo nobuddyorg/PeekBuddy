@@ -27,21 +27,6 @@ egui_table = { workspace = true }
 peekbuddy-core = { workspace = true }
 peekbuddy-store = { workspace = true }
 
-[target.'cfg(windows)'.dependencies]
-peekbuddy-win = { workspace = true, features = ["picker"] }
-raw-window-handle = { workspace = true }
-
-# The window and the renderer (ADR 0005, #252). x64 renders through glow
-# (OpenGL): about 260 MB less private bytes and a 7 MB smaller exe than wgpu.
-[target.'cfg(all(windows, target_arch = "x86_64"))'.dependencies]
-peekbuddy-win = { workspace = true, features = ["glow"] }
-eframe = { version = "=0.37.0", default-features = false, features = [
-  "accesskit",
-  "default_fonts",
-  "glow",
-] }
-wgpu = { workspace = true, optional = true }
-
 # arm64 has no OpenGL driver, so it always renders through wgpu with DX12
 # only. eframe's `wgpu` feature would switch on every backend, so the crate is
 # asked for `wgpu_no_default_features` and the DX12 backend comes from the
@@ -53,6 +38,21 @@ eframe = { version = "=0.37.0", default-features = false, features = [
   "wgpu_no_default_features",
 ] }
 wgpu = { workspace = true }
+
+# The window and the renderer (ADR 0005, #252). x64 renders through glow
+# (OpenGL): about 255 MB less private bytes and a smaller exe than wgpu.
+[target.'cfg(all(windows, target_arch = "x86_64"))'.dependencies]
+eframe = { version = "=0.37.0", default-features = false, features = [
+  "accesskit",
+  "default_fonts",
+  "glow",
+] }
+peekbuddy-win = { workspace = true, features = ["glow"] }
+wgpu = { workspace = true, optional = true }
+
+[target.'cfg(windows)'.dependencies]
+peekbuddy-win = { workspace = true, features = ["picker"] }
+raw-window-handle = { workspace = true }
 
 [dev-dependencies]
 egui_kittest = { workspace = true }

@@ -45,6 +45,9 @@ egui_table = "=0.11.0"
 # Engine process skeleton (#59): manifest and resources at build time, known
 # folders for the data dir (ADR 0010).
 embed-manifest = "1.5.1"
+# OpenGL bindings of eframe's glow renderer (#252), for the one `unsafe` query
+# in `peekbuddy-win`. The version is the one eframe 0.37.0 builds.
+glow = { version = "=0.17.0", default-features = false }
 insta = "1.49.0"
 # Validates --perf-probe output against perf/probe.schema.json (#161); test-only.
 jsonschema = { version = "0.60.1", default-features = false }
@@ -102,9 +105,6 @@ wgpu = { version = "=30.0.1", default-features = false, features = [
   "std",
   "wgsl",
 ] }
-# OpenGL bindings of eframe's glow renderer (#252), for the one `unsafe` query
-# in `peekbuddy-win`. The version is the one eframe 0.37.0 builds.
-glow = { version = "=0.17.0", default-features = false }
 # COM for the native folder picker (#68) only, in `peekbuddy-win`'s optional
 # `picker` feature. The version is the one wgpu-hal and AccessKit already
 # build, so the tree gets no second copy. windows-sys has no COM vtables.
