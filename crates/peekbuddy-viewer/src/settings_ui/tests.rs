@@ -254,3 +254,16 @@ fn megabytes_are_decimal_with_one_digit() {
     assert_eq!(megabytes(1_500_000), "1.5 MB");
     assert_eq!(megabytes(2_048_000_000), "2048.0 MB");
 }
+
+#[test]
+fn every_control_of_the_settings_screen_and_the_diagnostics_preview_has_a_name() {
+    let mut harness = harness(&Settings::default());
+    harness.run();
+    crate::a11y::assert_every_control_is_named(&harness);
+    harness
+        .state_mut()
+        .0
+        .set_diagnostics(Some(String::from("text")));
+    harness.run();
+    crate::a11y::assert_every_control_is_named(&harness);
+}

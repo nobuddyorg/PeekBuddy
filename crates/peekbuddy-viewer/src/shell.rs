@@ -211,6 +211,15 @@ mod tests {
     }
 
     #[test]
+    fn every_control_of_the_banner_has_a_name() {
+        for link in [LinkState::Gone, LinkState::Mismatch { engine_version: 3 }] {
+            let mut harness = harness(link);
+            harness.run();
+            crate::a11y::assert_every_control_is_named(&harness);
+        }
+    }
+
+    #[test]
     fn a_version_mismatch_explains_itself_and_offers_to_check_again() {
         let mut harness = harness(LinkState::Mismatch { engine_version: 9 });
         harness.run();

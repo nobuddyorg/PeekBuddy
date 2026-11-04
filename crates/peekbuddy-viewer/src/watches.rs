@@ -359,17 +359,36 @@ impl WatchPanel {
                                 crate::view::group_digits(watch.missed_while_paused)
                             ));
                         }
+                        let shown_path = display_path(&watch.path);
                         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                            if ui.button("Remove").clicked() {
+                            // Every row has the same words on its buttons; a
+                            // screen reader hears which folder each is for.
+                            let remove = ui.button("Remove");
+                            remove.widget_info(|| {
+                                egui::WidgetInfo::labeled(
+                                    egui::Role::Button,
+                                    true,
+                                    format!("Remove the watch on {shown_path}"),
+                                )
+                            });
+                            if remove.clicked() {
                                 self.ask = Some(Ask::Remove {
                                     id: watch.id.clone(),
-                                    path: display_path(&watch.path),
+                                    path: shown_path.clone(),
                                 });
                             }
                             if watch.armed {
                                 let paused = watch.state == WatchState::SuspendedByUser;
                                 let label = if paused { "Resume" } else { "Pause" };
-                                if ui.button(label).clicked() {
+                                let toggle = ui.button(label);
+                                toggle.widget_info(|| {
+                                    egui::WidgetInfo::labeled(
+                                        egui::Role::Button,
+                                        true,
+                                        format!("{label} the watch on {shown_path}"),
+                                    )
+                                });
+                                if toggle.clicked() {
                                     actions.push(WatchAction::SetPaused {
                                         id: watch.id.clone(),
                                         paused: !paused,

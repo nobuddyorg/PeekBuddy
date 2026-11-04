@@ -167,3 +167,19 @@ fn the_screens_work_from_the_keyboard() {
     harness.run();
     assert_eq!(harness.state().0.step, Step::Folders);
 }
+
+#[test]
+fn every_control_of_every_step_has_a_name() {
+    let mut harness = harness();
+    for step in [
+        Step::Welcome,
+        Step::Folders,
+        Step::Tray,
+        Step::Autostart,
+        Step::Done,
+    ] {
+        harness.state_mut().0.step = step;
+        harness.run();
+        crate::a11y::assert_every_control_is_named(&harness);
+    }
+}

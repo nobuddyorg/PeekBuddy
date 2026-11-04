@@ -144,3 +144,55 @@ mod tests {
         let _ = run;
     }
 }
+
+/// Accessible-name enforcement for the kittest tests (#71): a control that a
+/// screen reader would announce without a name fails the test that draws it.
+#[cfg(test)]
+pub(crate) mod a11y {
+    use egui::accesskit::Role;
+    use egui_kittest::Harness;
+    use egui_kittest::kittest::NodeT as _;
+
+    /// The roles of things a user can operate.
+    const CONTROLS: &[Role] = &[
+        Role::Button,
+        Role::CheckBox,
+        Role::ComboBox,
+        Role::Link,
+        Role::MenuItem,
+        Role::RadioButton,
+        Role::Slider,
+        Role::SpinButton,
+        Role::Switch,
+        Role::Tab,
+        Role::TextInput,
+    ];
+
+    /// Every operable node on screen, named or not: how many controls the
+    /// check looked at.
+    pub(crate) fn controls<S>(harness: &Harness<'_, S>) -> usize {
+        harness
+            .root()
+            .children_recursive()
+            .filter(|node| CONTROLS.contains(&node.accesskit_node().role()))
+            .count()
+    }
+
+    /// Fails when a control on screen has no name, and when there is no
+    /// control at all (a harness that drew nothing would pass otherwise).
+    pub(crate) fn assert_every_control_is_named<S>(harness: &Harness<'_, S>) {
+        let unnamed: Vec<String> = harness
+            .root()
+            .children_recursive()
+            .filter(|node| CONTROLS.contains(&node.accesskit_node().role()))
+            .filter(|node| {
+                node.accesskit_node()
+                    .label()
+                    .is_none_or(|label| label.trim().is_empty())
+            })
+            .map(|node| format!("{node:?}"))
+            .collect();
+        assert_eq!(unnamed, Vec::<String>::new(), "controls without a name");
+        assert!(controls(harness) > 0, "no control was drawn");
+    }
+}

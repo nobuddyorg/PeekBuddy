@@ -572,3 +572,12 @@ fn the_export_menu_starts_an_export_that_reports_and_can_be_dismissed() {
     assert!(harness.state().view.export.is_none());
     assert!(dir.join("exports").is_dir());
 }
+
+#[test]
+fn every_control_of_the_log_screen_has_a_name() {
+    let log = FakeLog::new(1_000);
+    let mut harness = log_app(&log);
+    until(&mut harness, "the first page", |v| v.held_rows() == PAGE);
+    harness.step();
+    crate::a11y::assert_every_control_is_named(&harness);
+}

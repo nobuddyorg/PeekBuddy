@@ -206,7 +206,7 @@ fn a_whole_drive_needs_a_second_click_and_cancel_changes_nothing() {
 fn removing_asks_first_and_says_the_rows_stay() {
     let mut harness = harness(vec![watch("docs", r"\\?\C:\docs", WatchState::Live, true)]);
     harness.run();
-    harness.get_by_label("Remove").click();
+    harness.get_by_label(r"Remove the watch on C:\docs").click();
     harness.run();
     harness.get_by_label("Remove this watch?");
     harness.get_by_label_contains("stay in the log");
@@ -231,8 +231,8 @@ fn pause_and_resume_follow_the_state_and_a_paused_watch_shows_what_it_missed() {
         "{} changes missed while paused",
         crate::view::group_digits(1234)
     ));
-    harness.get_by_label("Resume").click();
-    harness.get_by_label("Pause").click();
+    harness.get_by_label(r"Resume the watch on C:\a").click();
+    harness.get_by_label(r"Pause the watch on C:\b").click();
     harness.run();
     assert_eq!(
         harness.state().1,
@@ -296,4 +296,29 @@ fn the_tabs_switch_and_count_what_needs_attention() {
         .click();
     harness.run();
     assert_eq!(*harness.state(), Tab::Watches);
+}
+
+#[test]
+fn every_control_of_the_watches_tab_and_its_questions_has_a_name() {
+    let mut harness = harness(vec![
+        watch("a", r"\\?\C:\a", WatchState::Live, true),
+        watch("b", r"\\?\C:\b", WatchState::SuspendedByUser, true),
+        watch("c", r"\\?\C:\c", WatchState::Lost, true),
+        watch("d", r"\\?\C:\d", WatchState::Arming, false),
+    ]);
+    harness.run();
+    crate::a11y::assert_every_control_is_named(&harness);
+    // The question about a whole drive is a window of its own.
+    let _ = harness.state_mut().0.picked(String::from(r"D:\"));
+    harness
+        .state_mut()
+        .0
+        .on_result(false, "confirm: whole drive");
+    harness.run();
+    crate::a11y::assert_every_control_is_named(&harness);
+    harness.get_by_label("Cancel").click();
+    harness.run();
+    harness.get_by_label(r"Remove the watch on C:\a").click();
+    harness.run();
+    crate::a11y::assert_every_control_is_named(&harness);
 }
