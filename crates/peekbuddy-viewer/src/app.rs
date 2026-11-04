@@ -822,7 +822,7 @@ impl eframe::App for ViewerApp {
         }
     }
 
-    fn on_exit(&mut self) {
+    fn on_exit(&mut self, #[cfg(target_arch = "x86_64")] _gl: Option<&eframe::glow::Context>) {
         // A running export is cancelled and its partial file removed.
         self.view.cancel_export();
         self.save_window();

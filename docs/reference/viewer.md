@@ -20,11 +20,14 @@ can also run it by hand.
 
 ## Renderer
 
-wgpu on DX12, on x64 and arm64 ([ADR 0005](../adr/0005-viewer-renderer.md)).
-The wgpu instance is built explicitly, so `WGPU_BACKEND`, `WGPU_POWER_PREF` and
-friends have no effect. The adapter name, backend and device type go to
-`logs\viewer.log` at the first frame; `Cpu` means WARP (software), which is
-logged as a warning.
+glow (OpenGL) on x64, wgpu on DX12 on arm64, which has no OpenGL driver
+([ADR 0005](../adr/0005-viewer-renderer.md)). The `wgpu` cargo feature of
+`peekbuddy` moves x64 to wgpu as well, for A/B runs. The wgpu instance is
+built explicitly, so `WGPU_BACKEND`, `WGPU_POWER_PREF` and friends have no
+effect. The adapter name (the OpenGL renderer string with glow), backend
+(`OpenGL` or `Dx12`) and device type go to `logs\viewer.log` at the first
+frame; `Cpu` means software rendering (WARP, or `GDI Generic` when no OpenGL
+driver is installed), which is logged as a warning.
 
 Missing glyphs draw as a box. egui 0.37 can also be told to panic on them,
 which its test harness does on purpose; the viewer never does, because file

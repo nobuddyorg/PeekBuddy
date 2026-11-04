@@ -46,6 +46,26 @@ preference is `LowPower`, which picks the integrated GPU on a machine with
 two. `crates/peekbuddy/tests/viewer.rs` runs the exe with `WGPU_BACKEND=vulkan`
 and checks that the adapter is still DX12.
 
+Implemented in #252: x64 renders through glow, arm64 through wgpu/DX12, as
+above. The `peekbuddy-viewer` crate declares `eframe` once per architecture
+(glow on x86_64, wgpu on aarch64), so neither build carries the other
+renderer. The `wgpu` cargo feature (`peekbuddy/wgpu`) adds wgpu on x64 and
+selects it, for A/B runs. `opengl32.dll` is delay-loaded like `dxgi.dll`, and
+the engine-modules test still passes. Measured on the owner PC (Intel N150,
+x64, release build, empty store, viewer idle after the first frame, 3 runs
+each): glow 43 to 44 MB private bytes and first frame 195 to 362 ms; wgpu 298
+to 301 MB and 424 to 1010 ms; exe 9.3 MB against 12.3 MB. The 10M-row figure
+is still to be measured by an owner run.
+
+Hosted `windows-2025` x64 runners have no OpenGL 2.0 driver (report 0003), so
+the glow viewer cannot open a window there: the first CI run of #252 timed out
+the viewer tests. The x64 test job therefore builds the exe with the `wgpu`
+feature (DX12 on WARP, as before), and the glow path is verified on the
+owner's PC. The same limit applies to a user whose session has only Microsoft's
+OpenGL 1.1 (a Remote Desktop session without GPU acceleration, a bare VM): the
+viewer then reports the error and does not open. If that proves to matter, the
+fallback is a build with both renderers, at the exe size of wgpu.
+
 ## Consequences
 
 - Good: arm64 works on devices without OpenGL.
