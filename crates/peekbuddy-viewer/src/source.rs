@@ -110,9 +110,13 @@ impl PageSource for StoreSource {
     }
 }
 
-#[cfg(test)]
-pub(crate) mod fake {
-    //! An in-memory log with the reader's keyset semantics.
+#[cfg(any(test, feature = "test-support"))]
+#[cfg_attr(not(test), doc(hidden))]
+pub mod fake {
+    //! An in-memory log with the reader's keyset semantics, for the tests and
+    //! for the allocation budget test (`tests/alloc_viewer.rs`), which is a
+    //! separate binary and so needs it public under the `test-support`
+    //! feature.
 
     use std::sync::{Arc, Mutex, PoisonError};
     use std::thread::ThreadId;
@@ -144,6 +148,8 @@ pub(crate) mod fake {
     }
 
     impl FakeLog {
+        /// A log of `rows` rows with the ids `1..=rows`.
+        #[must_use]
         pub fn new(rows: i64) -> Arc<Self> {
             Arc::new(Self {
                 state: Mutex::new(State {
@@ -162,30 +168,38 @@ pub(crate) mod fake {
             f(&mut self.state.lock().unwrap_or_else(PoisonError::into_inner))
         }
 
+        /// Appends `by` rows at the newest end.
         pub fn grow(&self, by: i64) {
             self.with(|s| s.last += by);
         }
 
+        /// Answers at most `rows` rows per call, with a resume cursor.
         pub fn step(&self, rows: usize) {
             self.with(|s| s.step = Some(rows));
         }
 
+        /// What the log says the filter hides.
         pub fn set_hidden(&self, hidden: u64) {
             self.with(|s| s.hidden = hidden);
         }
 
+        /// The threads that asked for pages.
         pub fn threads(&self) -> Vec<ThreadId> {
             self.with(|s| s.threads.clone())
         }
 
+        /// How many page requests were answered.
         pub fn calls(&self) -> usize {
             self.with(|s| s.calls)
         }
 
+        /// How many times the extent was read.
         pub fn extents(&self) -> usize {
             self.with(|s| s.extents)
         }
 
+        /// The row with the id `id`.
+        #[must_use]
         pub fn row(id: i64) -> Row {
             Row {
                 id,

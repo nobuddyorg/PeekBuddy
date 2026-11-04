@@ -101,6 +101,7 @@ fn run_viewer(invocation: &Invocation, table: &Arc<MilestoneTable>) -> std::io::
         title,
         table: Arc::clone(table),
         probe: invocation.viewer_probe.clone(),
+        about: about(),
     })
 }
 
@@ -116,7 +117,23 @@ fn run_viewer(invocation: &Invocation, table: &Arc<MilestoneTable>) -> std::io::
         title: String::new(),
         table: Arc::clone(table),
         probe: invocation.viewer_probe.clone(),
+        about: about(),
     })
+}
+
+/// What the About section of the viewer shows.
+fn about() -> peekbuddy_viewer::settings_ui::About {
+    let facts = facts();
+    peekbuddy_viewer::settings_ui::About {
+        version: facts.version,
+        git_sha: facts.git_sha,
+        target: String::from(if cfg!(target_arch = "aarch64") {
+            "arm64"
+        } else {
+            "x64"
+        }),
+        adapter: None,
+    }
 }
 
 /// What the build script recorded: version, git SHA, compiler, key

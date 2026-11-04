@@ -65,7 +65,7 @@ fn ctl(tag: &str, watches: Vec<Watch>, writable: bool) -> (Arc<PauseCtl>, Rows, 
 #[expect(clippy::panic, reason = "a test helper fails the test with the cause")]
 fn reload(path: &PathBuf) -> Settings {
     let text = std::fs::read_to_string(path).unwrap();
-    let context = peekbuddy_core::settings::Context {
+    let context = Context {
         data_dir: String::from("C:/data"),
         export_dir: None,
     };
@@ -180,4 +180,113 @@ fn the_pause_control_describes_itself_in_debug_output() {
     let text = format!("{ctl:?}");
     assert!(text.contains("PauseCtl"), "{text}");
     assert!(text.contains("global: false"), "{text}");
+}
+
+fn context() -> Context {
+    Context {
+        data_dir: String::from("C:/data"),
+        export_dir: None,
+    }
+}
+
+#[test]
+fn an_added_watch_is_saved_listed_unarmed_and_removing_it_leaves_no_row() {
+    let (ctl, rows, path) = ctl("add", vec![watch("a", true)], true);
+    let added = ctl.add_watch("C:/added", false, &context()).unwrap();
+    let listed = ctl.list_with(|_| Some(WatchState::Live));
+    assert_eq!(listed.len(), 2);
+    assert!(listed[0].armed && !listed[1].armed);
+    assert_eq!(listed[0].state, WatchState::Live);
+    assert_eq!(listed[1].state, WatchState::Arming);
+    assert_eq!(reload(&path).watches.len(), 2);
+    ctl.remove_watch(&added.watch.id).unwrap();
+    assert_eq!(rows.states(), []);
+    assert_eq!(ctl.list_with(|_| None).len(), 1);
+    assert_eq!(reload(&path).watches.len(), 1);
+}
+
+#[test]
+fn removing_an_armed_watch_pauses_it_at_once_and_keeps_the_other_positions() {
+    let (ctl, rows, path) = ctl("remove", vec![watch("a", true), watch("b", true)], true);
+    ctl.remove_watch("a").unwrap();
+    assert_eq!(rows.states(), [(0, WatchState::SuspendedByUser, 0)]);
+    let ids: Vec<String> = ctl
+        .list_with(|_| Some(WatchState::Live))
+        .into_iter()
+        .map(|watch| watch.id)
+        .collect();
+    assert_eq!(ids, ["b"]);
+    // `b` is still root 1 of the running host.
+    ctl.set_watch("b", true).unwrap();
+    assert_eq!(
+        rows.states().last(),
+        Some(&(1, WatchState::SuspendedByUser, 0))
+    );
+    let saved = reload(&path);
+    assert_eq!(saved.watches.len(), 1);
+    assert_eq!(saved.watches[0].id, "b");
+    assert!(!saved.watches[0].enabled);
+    assert!(ctl.set_watch("a", false).is_err(), "a is gone");
+    // The same folder can be added again while the old root is still armed.
+    let again = ctl.add_watch("C:/watched/a", false, &context()).unwrap();
+    assert!(again.watch.id.starts_with("a-"), "{}", again.watch.id);
+    assert_eq!(ctl.list_with(|_| None).len(), 2);
+}
+
+#[test]
+fn a_paused_watch_is_listed_as_suspended_with_what_it_missed() {
+    let (ctl, _rows, _path) = ctl("listpaused", vec![watch("a", true), watch("b", true)], true);
+    ctl.set_watch("a", true).unwrap();
+    ctl.pause().note_missed(RootIdx(0));
+    ctl.pause().note_missed(RootIdx(0));
+    let listed = ctl.list_with(|_| Some(WatchState::Live));
+    assert_eq!(listed[0].state, WatchState::SuspendedByUser);
+    assert_eq!(listed[0].missed_while_paused, 2);
+    assert_eq!(listed[1].state, WatchState::Live);
+    assert_eq!(listed[1].missed_while_paused, 0);
+}
+
+#[test]
+fn a_file_from_a_newer_version_is_not_edited() {
+    let (ctl, _rows, path) = ctl("newer", vec![watch("a", true)], false);
+    let before = std::fs::read_to_string(&path).unwrap();
+    assert!(matches!(
+        ctl.add_watch("C:/x", false, &context()),
+        Err(EditError::Failed(_))
+    ));
+    assert!(matches!(ctl.remove_watch("a"), Err(EditError::Failed(_))));
+    assert_eq!(std::fs::read_to_string(&path).unwrap(), before);
+}
+
+#[test]
+fn applied_settings_keep_the_watches_and_a_later_pause_does_not_undo_them() {
+    use peekbuddy_core::settings::Theme;
+
+    let (ctl, _rows, path) = ctl("apply", vec![watch("a", true)], true);
+    let mut new = Settings::default();
+    new.general.theme = Theme::Dark;
+    new.store.max_age_days = Some(7);
+    // The viewer's text never changes the watches.
+    new.watches = vec![watch("elsewhere", true)];
+    ctl.apply_settings(&new).unwrap();
+    let saved = reload(&path);
+    assert_eq!(saved.general.theme, Theme::Dark);
+    assert_eq!(saved.store.max_age_days, Some(7));
+    let ids: Vec<&str> = saved.watches.iter().map(|w| w.id.as_str()).collect();
+    assert_eq!(ids, ["a"]);
+    // Pausing writes the file from the control's own state, which holds the
+    // new values too.
+    ctl.set_watch("a", true).unwrap();
+    let again = reload(&path);
+    assert_eq!(again.store.max_age_days, Some(7));
+    assert_eq!(again.general.theme, Theme::Dark);
+    assert!(!again.watches[0].enabled);
+}
+
+#[test]
+fn settings_from_a_newer_version_are_not_applied() {
+    let (ctl, _rows, path) = ctl("apply-newer", vec![watch("a", true)], false);
+    let before = std::fs::read_to_string(&path).unwrap();
+    assert!(ctl.apply_settings(&Settings::default()).is_err());
+    assert_eq!(std::fs::read_to_string(&path).unwrap(), before);
 }

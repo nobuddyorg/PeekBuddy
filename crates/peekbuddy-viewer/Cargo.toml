@@ -12,6 +12,11 @@ publish.workspace = true
 # Named only to choose the backends of the wgpu that eframe uses.
 ignored = ["wgpu"]
 
+[features]
+# Makes the in-memory log of the tests public, for `tests/alloc_viewer.rs`.
+# The crate enables it for its own tests through the dev-dependency below.
+test-support = []
+
 [dependencies]
 egui = { workspace = true }
 egui_table = { workspace = true }
@@ -28,14 +33,21 @@ eframe = { version = "=0.37.0", default-features = false, features = [
   "default_fonts",
   "wgpu_no_default_features",
 ] }
-peekbuddy-win = { workspace = true }
+peekbuddy-win = { workspace = true, features = ["picker"] }
 raw-window-handle = { workspace = true }
 wgpu = { workspace = true }
 
 [dev-dependencies]
 egui_kittest = { workspace = true }
 insta = { workspace = true }
+peekbuddy-alloc = { workspace = true }
+# Itself, to switch on `test-support` for the integration tests.
+peekbuddy-viewer = { path = ".", features = ["test-support"] }
 proptest = { workspace = true }
 
 [lints]
 workspace = true
+
+[[test]]
+name = "alloc_viewer"
+harness = false

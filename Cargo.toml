@@ -102,6 +102,10 @@ wgpu = { version = "=30.0.1", default-features = false, features = [
   "std",
   "wgsl",
 ] }
+# COM for the native folder picker (#68) only, in `peekbuddy-win`'s optional
+# `picker` feature. The version is the one wgpu-hal and AccessKit already
+# build, so the tree gets no second copy. windows-sys has no COM vtables.
+windows = { version = "=0.62.2", default-features = false }
 # Exact pin: every bump is a reviewed PR (ADR 0010, F20).
 windows-sys = "=0.61.2"
 winresource = "0.1.34"

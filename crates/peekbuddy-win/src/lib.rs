@@ -28,6 +28,8 @@ pub mod job;
 pub mod localtime;
 #[cfg(windows)]
 pub mod osinfo;
+#[cfg(all(windows, feature = "picker"))]
+pub mod picker;
 #[cfg(windows)]
 pub mod pipe;
 #[cfg(windows)]

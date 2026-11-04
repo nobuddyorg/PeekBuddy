@@ -28,14 +28,17 @@ pub mod filterspec;
 pub mod follow;
 pub mod geometry;
 pub mod link;
+pub mod onboarding;
 pub mod rows;
 pub mod selection;
+pub mod settings_ui;
 pub mod shell;
 pub mod shellpath;
 pub mod source;
 pub mod theme;
 pub mod timeline;
 pub mod view;
+pub mod watches;
 pub mod worker;
 
 #[cfg(windows)]
@@ -83,6 +86,8 @@ pub struct Options {
     pub table: Arc<MilestoneTable>,
     /// Measure instead of stay open.
     pub probe: Option<Probe>,
+    /// What the About section shows about this build.
+    pub about: settings_ui::About,
 }
 
 /// Runs the viewer window until it is closed.
@@ -129,6 +134,7 @@ mod tests {
             title: String::from("PeekBuddy"),
             table: Arc::new(MilestoneTable::new()),
             probe: None,
+            about: super::settings_ui::About::default(),
         };
         assert_eq!(options.clone().pipe_name, "pipe");
         // Off Windows there is no window: the role returns at once.
@@ -136,5 +142,57 @@ mod tests {
         run(options).unwrap();
         #[cfg(windows)]
         let _ = run;
+    }
+}
+
+/// Accessible-name enforcement for the kittest tests (#71): a control that a
+/// screen reader would announce without a name fails the test that draws it.
+#[cfg(test)]
+pub(crate) mod a11y {
+    use egui::accesskit::Role;
+    use egui_kittest::Harness;
+    use egui_kittest::kittest::NodeT as _;
+
+    /// The roles of things a user can operate.
+    const CONTROLS: &[Role] = &[
+        Role::Button,
+        Role::CheckBox,
+        Role::ComboBox,
+        Role::Link,
+        Role::MenuItem,
+        Role::RadioButton,
+        Role::Slider,
+        Role::SpinButton,
+        Role::Switch,
+        Role::Tab,
+        Role::TextInput,
+    ];
+
+    /// Every operable node on screen, named or not: how many controls the
+    /// check looked at.
+    pub(crate) fn controls<S>(harness: &Harness<'_, S>) -> usize {
+        harness
+            .root()
+            .children_recursive()
+            .filter(|node| CONTROLS.contains(&node.accesskit_node().role()))
+            .count()
+    }
+
+    /// Fails when a control on screen has no name, and when there is no
+    /// control at all (a harness that drew nothing would pass otherwise).
+    pub(crate) fn assert_every_control_is_named<S>(harness: &Harness<'_, S>) {
+        let unnamed: Vec<String> = harness
+            .root()
+            .children_recursive()
+            .filter(|node| CONTROLS.contains(&node.accesskit_node().role()))
+            .filter(|node| {
+                node.accesskit_node()
+                    .label()
+                    .is_none_or(|label| label.trim().is_empty())
+            })
+            .map(|node| format!("{node:?}"))
+            .collect();
+        assert_eq!(unnamed, Vec::<String>::new(), "controls without a name");
+        assert!(controls(harness) > 0, "no control was drawn");
     }
 }

@@ -113,6 +113,70 @@ away.
 Not in this version: the compact view (derived groups, #41; the grid shows one
 row per stored record), ascending order, and saved column widths.
 
+## Watches
+
+The **Watches** tab next to **Log** lists every watch the engine reports, one
+row each: a shape, the state as a word, the folder (without the `\\?\`
+prefix), "this folder only" when it is not recursive, and **Pause** or
+**Resume** and **Remove**. The states are the nine of the watch lifecycle
+(F19) plus "Starts after restart" for a saved watch that is not armed yet;
+each has a shape of its own (so colour is never the only signal) and a tooltip
+that says what it means and what PeekBuddy does next. A paused watch also
+says how many changes it counted but did not record. The tab shows how many
+watches need attention (lost, overflowed, drive locked). See
+[Gaps and reconciliation](../explanation/gaps-and-reconciliation.md).
+
+**Watch a folder** takes a path or **Browse...**, which opens the native
+folder dialog (`IFileOpenDialog`, folders only, several at once, the usual
+keyboard) on a thread of its own, so the window keeps painting. The viewer
+only sends the path; the engine decides (see [IPC](ipc.md)): the data
+directory, the exports folder and anything in them are refused with a message,
+a whole drive asks for a second click ("Add anyway"), a network folder or a
+folder inside another watch is added with a word about it. **Remove** asks
+first and says that the rows already recorded stay.
+
+A new watch is saved at once and starts recording when the engine starts the
+next time. The tab says so and offers **Restart engine now**: the viewer asks
+the engine to shut down, waits for it to go and starts it again. The list is
+asked for when the tab opens, after every command and every two seconds while
+the tab is open; nothing asks while the Log is shown.
+
+Not in this version: the engine's backend, filesystem and buffer details, the
+events-per-minute sparkline, per-watch filters and the recursive toggle, a
+note when a picked folder is itself a junction.
+
+## Settings and the first-run screens
+
+The **Settings** tab has the retention caps (days, megabytes, rows; empty means
+no cap), the coalescing window of the compact view (50 to 500 ms; it only
+changes how rows are grouped, never what is stored), the view presets (all of
+them "hidden in view (recorded)"), the theme (applied at once after a save),
+the autostart switch (off unless ticked; the engine's answer says when Task
+Manager has switched the entry off), the data folder with **Open folder**, the
+About section (wordmark, version, commit, target, the graphics adapter, the
+licence) and **Copy diagnostics...**.
+
+Saving sends the whole file to the engine as `ApplySettings`. The engine
+validates, writes it atomically and answers; a refusal is shown under the form
+and next to the field it names, and nothing changes. Without an engine the
+viewer validates with the same code and writes the file itself. **Copy
+diagnostics...** runs `peekbuddy --diagnostics` and shows the text in a
+preview before anything can be copied, because it contains the watched paths;
+nothing is sent anywhere.
+
+The first-run screens (welcome and the privacy statement, folders and
+presets, where the tray icon went, autostart, done) are shown when nothing is
+watched and the `first_run` flag is still set. Leaving them, by finishing or
+skipping, clears the flag. A measuring run (`--viewer-probe`) never shows
+them. **Settings, Show the welcome screens again** brings them back with the
+current choices.
+
+Not in this version: the number of segments a lowered cap would delete (the
+confirmation says that older segments go, without a count), the licence texts
+inside the app (they ship as `THIRD_PARTY_LICENSES.html` in the release
+download), a StartupApproved hint beyond the engine's message, and the
+Windows 10 wording of the tray hint (not checked on both systems).
+
 ## Theme and title bar
 
 `[general] theme` (`system` by default) maps to egui's theme preference and

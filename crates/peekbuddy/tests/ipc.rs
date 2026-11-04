@@ -234,3 +234,90 @@ fn a_wrong_protocol_version_is_answered_with_a_mismatch() {
         })
     );
 }
+
+#[test]
+fn watches_are_added_listed_refused_and_removed_through_the_pipe() {
+    use peekbuddy_core::ipc::{Command as Cmd, Message, PROTOCOL_VERSION};
+    use peekbuddy_win::pipe::PipeClient;
+
+    let dir = TestDir::new("ipc-watches").unwrap();
+    let target = TestDir::new("ipc-watches-target").unwrap();
+    let (mut engine, window) = start(dir.path());
+    let name = peekbuddy_engine::ipc_server::pipe_name(Some(dir.path())).unwrap();
+    let mut client =
+        PipeClient::connect(&name, Some(Path::new(EXE)), Duration::from_secs(5)).unwrap();
+    let mut ask = |message: Message| {
+        client.send(&message).unwrap();
+        client.receive().unwrap().unwrap()
+    };
+    assert!(matches!(
+        ask(Message::Hello {
+            protocol_version: PROTOCOL_VERSION,
+            build: String::from("test"),
+        }),
+        Message::Hello { .. }
+    ));
+    assert_eq!(ask(Message::ListWatches), Message::WatchList(Vec::new()));
+
+    // The data directory and what is inside it are refused (F16).
+    for path in [
+        dir.path().to_path_buf(),
+        dir.path().join("segments"),
+        dir.path().join("exports"),
+    ] {
+        let answer = ask(Message::Command(Cmd::AddWatch {
+            path: path.display().to_string(),
+            confirmed: true,
+        }));
+        let Message::CommandResult { ok, message } = answer else {
+            unreachable!("a command is answered with a result");
+        };
+        assert!(!ok, "{}: {message}", path.display());
+        assert!(message.contains("data folder"), "{message}");
+    }
+    assert_eq!(ask(Message::ListWatches), Message::WatchList(Vec::new()));
+
+    // A whole drive needs the confirmation; nothing changes without it.
+    let drive = String::from(r"Z:\");
+    let Message::CommandResult { ok, message } = ask(Message::Command(Cmd::AddWatch {
+        path: drive,
+        confirmed: false,
+    })) else {
+        unreachable!("a command is answered with a result");
+    };
+    assert!(!ok);
+    assert!(message.starts_with("confirm: "), "{message}");
+    assert_eq!(ask(Message::ListWatches), Message::WatchList(Vec::new()));
+
+    // A real folder is saved and listed, waiting for the next start.
+    let Message::CommandResult { ok, message } = ask(Message::Command(Cmd::AddWatch {
+        path: target.path().display().to_string(),
+        confirmed: false,
+    })) else {
+        unreachable!("a command is answered with a result");
+    };
+    assert!(ok, "{message}");
+    let Message::WatchList(watches) = ask(Message::ListWatches) else {
+        unreachable!("the list is answered with a list");
+    };
+    assert_eq!(watches.len(), 1);
+    assert!(!watches[0].armed);
+    assert!(watches[0].path.starts_with(r"\\?\"), "{}", watches[0].path);
+    let saved = std::fs::read_to_string(dir.path().join("settings.toml")).unwrap();
+    assert!(saved.contains(&watches[0].id), "{saved}");
+
+    // Removing it takes it out of the list and the file.
+    let id = watches[0].id.clone();
+    let Message::CommandResult { ok, message } =
+        ask(Message::Command(Cmd::RemoveWatch { id: id.clone() }))
+    else {
+        unreachable!("a command is answered with a result");
+    };
+    assert!(ok, "{message}");
+    assert_eq!(ask(Message::ListWatches), Message::WatchList(Vec::new()));
+    let saved = std::fs::read_to_string(dir.path().join("settings.toml")).unwrap();
+    assert!(!saved.contains(&id), "{saved}");
+
+    window.post_close().unwrap();
+    assert!(engine.0.wait().unwrap().success());
+}

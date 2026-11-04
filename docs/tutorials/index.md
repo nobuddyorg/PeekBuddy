@@ -1,3 +1,3 @@
 # Tutorials
 
-Getting started with PeekBuddy follows with the first release (#77).
+- [Getting started](getting-started.md)

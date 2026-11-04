@@ -1,0 +1,30 @@
+---
+source: crates/peekbuddy-viewer/src/settings_ui/tests.rs
+expression: text
+---
+version = 1
+
+[general]
+autostart = true
+theme = "light"
+first_run = true
+
+[store]
+max_age_days = 90
+max_rows = 5000000
+
+[view]
+coalesce_ms = 300
+columns = [
+    "time",
+    "kind",
+    "path",
+]
+
+[filters]
+exclude_globs = []
+exclude_regex = []
+presets = [
+    "build-dirs",
+    "temp-lock-swap",
+]

@@ -1,0 +1,44 @@
+---
+source: crates/peekbuddy-viewer/src/watches/tests.rs
+expression: table
+---
+Arming
+  label:   Arming
+  icon:    Dots
+  tooltip: PeekBuddy is opening this folder. It becomes Live as soon as changes are being received.
+Live
+  label:   Live
+  icon:    Dot
+  tooltip: Changes in this folder are being recorded.
+Overflowed
+  label:   Overflowed
+  icon:    Triangle
+  tooltip: Windows reported more changes than PeekBuddy's buffer could hold. A gap is recorded and a scan of the folder follows to find what was missed.
+Reconciling
+  label:   Reconciling
+  icon:    Cycle
+  tooltip: PeekBuddy is scanning the folder to find what changed during a gap. Rows found by the scan are marked as reconcile results.
+SuspendedByUser
+  label:   Paused
+  icon:    Pause
+  tooltip: Paused by you. The watch stays armed, changes are counted but not recorded. Resume to record again.
+SuspendedQueryRemove
+  label:   Suspended (drive removal)
+  icon:    Lock
+  tooltip: The drive is being removed. PeekBuddy let go of the folder and watches it again when the drive is back.
+Lost
+  label:   Lost
+  icon:    Cross
+  tooltip: The folder is gone or cannot be reached. PeekBuddy keeps trying and records when it is back.
+Restored
+  label:   Restored
+  icon:    Check
+  tooltip: The folder is back. PeekBuddy scans it to find what changed while it was gone; then the watch is Live again.
+SuspendedLocked
+  label:   Suspended (drive locked)
+  icon:    Lock
+  tooltip: The drive is locked or being checked. PeekBuddy waits and arms the watch again when the drive is available.
+not armed yet
+  label:   Starts after restart
+  icon:    Clock
+  tooltip: Saved. This folder is recorded once PeekBuddy's engine has restarted.

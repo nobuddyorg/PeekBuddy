@@ -65,6 +65,23 @@ fn until(harness: &mut Harness<'static, App>, what: &str, done: impl Fn(&LogView
     }
 }
 
+/// Right-clicks the row `row` until the item `item` of its menu is on
+/// screen. A menu can close when rows arrive from the worker thread between
+/// two frames, so one click is not always enough on a slow runner.
+#[track_caller]
+fn open_menu(harness: &mut Harness<'static, App>, row: &str, item: &str) {
+    for _ in 0..10 {
+        harness.get_by_label(row).click_secondary();
+        harness.run_steps(4);
+        if harness.query_by_label(item).is_some() {
+            return;
+        }
+        harness.run_steps(2);
+    }
+    // Fails with the tree of the screen, which shows why there is no menu.
+    harness.get_by_label(item);
+}
+
 #[test]
 fn the_first_page_appears_and_only_it_is_held() {
     let log = FakeLog::new(10_000);
@@ -494,8 +511,7 @@ fn the_context_menu_narrows_the_view_and_asks_for_explorer() {
     let mut harness = log_app(&log);
     until(&mut harness, "the first page", |v| v.held_rows() == PAGE);
     harness.step();
-    harness.get_by_label("f998.txt").click_secondary();
-    harness.run_steps(4);
+    open_menu(&mut harness, "f998.txt", "Copy path");
     harness.get_by_label("Copy path");
     harness.get_by_label("Copy row");
     harness.get_by_label("Open containing folder");
@@ -508,8 +524,7 @@ fn the_context_menu_narrows_the_view_and_asks_for_explorer() {
     let mut harness = log_app(&log);
     until(&mut harness, "the first page", |v| v.held_rows() == PAGE);
     harness.step();
-    harness.get_by_label("f998.txt").click_secondary();
-    harness.run_steps(4);
+    open_menu(&mut harness, "f998.txt", "Show in Explorer");
     harness.get_by_label("Show in Explorer").click();
     harness.run_steps(4);
     assert_eq!(
@@ -527,8 +542,7 @@ fn the_folder_filter_uses_the_folder_of_the_row() {
     let mut harness = log_app(&log);
     until(&mut harness, "the first page", |v| v.held_rows() == PAGE);
     harness.step();
-    harness.get_by_label("f498.txt").click_secondary();
-    harness.run_steps(4);
+    open_menu(&mut harness, "f498.txt", "Filter to this folder");
     harness.get_by_label("Filter to this folder").click();
     harness.run_steps(4);
     assert_eq!(harness.state().view.spec.subtree.as_deref(), Some("C:\\w"));
@@ -571,4 +585,13 @@ fn the_export_menu_starts_an_export_that_reports_and_can_be_dismissed() {
     harness.run_steps(3);
     assert!(harness.state().view.export.is_none());
     assert!(dir.join("exports").is_dir());
+}
+
+#[test]
+fn every_control_of_the_log_screen_has_a_name() {
+    let log = FakeLog::new(1_000);
+    let mut harness = log_app(&log);
+    until(&mut harness, "the first page", |v| v.held_rows() == PAGE);
+    harness.step();
+    crate::a11y::assert_every_control_is_named(&harness);
 }

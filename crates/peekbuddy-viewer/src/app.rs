@@ -2,9 +2,10 @@
 //! come from eframe, the frame and the state it shows from [`crate::shell`]
 //! and [`crate::link`], which build and test on every host.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 use std::path::Path;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::mpsc::{Receiver, TryRecvError};
 use std::sync::{Arc, Mutex, PoisonError};
 use std::time::{Duration, Instant};
 
@@ -20,16 +21,94 @@ use raw_window_handle::{HasWindowHandle as _, RawWindowHandle};
 use crate::filterspec::FilterSpec;
 use crate::geometry::{self, PxRect};
 use crate::gpu::{self, Adapter};
-use crate::link::{Link, LinkEvent, Timing};
+use crate::link::{Link, LinkEvent, LinkState, Timing};
 use crate::link_win::PipeConnector;
+use crate::onboarding::{Onboarding, OnboardingAction};
+use crate::settings_ui::{SettingsAction, SettingsScreen};
 use crate::shell::{Shell, ShellAction};
 use crate::shellpath;
 use crate::source::StoreSource;
 use crate::view::{LogView, ViewEvent};
+use crate::watches::{Tab, WatchAction, WatchPanel};
 use crate::{Options, Probe, theme};
 
 /// How long the close handler waits for the engine to take the settings.
 const SAVE_WAIT: Duration = Duration::from_secs(1);
+
+/// How often the watch list is asked for while the Watches tab is open.
+const WATCH_REFRESH: Duration = Duration::from_secs(2);
+
+/// How long after the engine went away the restart starts a new one: the
+/// old process needs a moment to release its mutex. A second try follows if
+/// the engine does not come back.
+const RESTART_DELAY: Duration = Duration::from_millis(1500);
+
+/// Which screen asked for a watch command, so the answer goes back to it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Origin {
+    Tab,
+    Onboarding,
+}
+
+/// The size of the files in `dir`, not looking further down.
+fn directory_size(dir: &Path) -> u64 {
+    std::fs::read_dir(dir).map_or(0, |entries| {
+        entries
+            .filter_map(Result::ok)
+            .filter_map(|entry| entry.metadata().ok())
+            .filter(std::fs::Metadata::is_file)
+            .map(|metadata| metadata.len())
+            .sum()
+    })
+}
+
+/// Opens `dir` in Explorer.
+fn open_folder(dir: &Path) {
+    let parameters = format!("\"{}\"", dir.display());
+    std::thread::spawn(move || {
+        let _ = peekbuddy_win::shell::explorer(&parameters);
+    });
+}
+
+/// The log view of this run: the filter of the last run (text that no longer
+/// parses is dropped), the columns and the details pane as they were left.
+fn log_view(
+    options: &Options,
+    settings: &Settings,
+    waker: &Arc<dyn Fn() + Send + Sync>,
+) -> std::io::Result<LogView> {
+    let spec = FilterSpec::parse(&settings.viewer.filter).unwrap_or_default();
+    let roots = settings
+        .watches
+        .iter()
+        .map(|watch| watch.path.clone())
+        .collect();
+    let mut view = LogView::new(
+        Arc::new(StoreSource::new(&options.segments)),
+        Arc::new(peekbuddy_win::localtime::utc_offset_seconds),
+        Arc::clone(waker),
+        spec,
+        roots,
+        &settings.view.columns,
+    )?;
+    view.set_details(!settings.viewer.details_hidden);
+    view.set_export_dirs(options.segments.clone(), options.data_dir.join("exports"));
+    Ok(view)
+}
+
+/// The settings screen, and the first-run screens when nothing is watched
+/// yet and the user was never onboarded. A measuring run (the probe) goes
+/// straight to the log.
+fn first_screens(options: &Options, settings: &Settings) -> (SettingsScreen, Option<Onboarding>) {
+    let screen = SettingsScreen::new(
+        options.data_dir.display().to_string(),
+        options.about.clone(),
+    );
+    let onboarding =
+        (settings.watches.is_empty() && settings.general.first_run && options.probe.is_none())
+            .then(Onboarding::default);
+    (screen, onboarding)
+}
 
 /// The name in messages. The window title itself is `Options::title`;
 /// Windows draws it, so it cannot carry the wordmark colours (#88).
@@ -152,6 +231,28 @@ struct ViewerApp {
     shell: Shell,
     link: Link,
     view: LogView,
+    tab: Tab,
+    panel: WatchPanel,
+    settings_screen: SettingsScreen,
+    /// The first-run screens, while they are shown.
+    onboarding: Option<Onboarding>,
+    /// The tag of the settings save the engine has not answered yet.
+    settings_tag: Option<u64>,
+    /// A theme to switch to on the next frame (after a save).
+    theme_pending: Option<settings::Theme>,
+    /// The diagnostics text, while the exe collects it.
+    diagnostics: Option<Receiver<String>>,
+    /// Which screen opened the folder picker.
+    picker_origin: Origin,
+    /// Tags of the commands whose answer belongs on a watch screen.
+    watch_tags: HashMap<u64, Origin>,
+    next_refresh: Instant,
+    /// When to start the engine again after a requested restart.
+    restart_due: Option<Instant>,
+    /// The folder picker's thread, while its dialog is open.
+    picker: Option<Receiver<std::io::Result<Vec<String>>>>,
+    /// Wakes the UI from another thread.
+    waker: Arc<dyn Fn() + Send + Sync>,
     settings: Settings,
     /// Set by the thread that waits for a second launch.
     show_requested: Arc<AtomicBool>,
@@ -224,8 +325,278 @@ impl ViewerApp {
 
     fn handle(&mut self, event: LinkEvent) {
         match event {
-            LinkEvent::State(state) => self.shell.link = state,
-            LinkEvent::Result { .. } | LinkEvent::Pushed(_) => {}
+            LinkEvent::State(state) => {
+                match &state {
+                    LinkState::Connected { .. } => {
+                        self.panel.restarting = false;
+                        self.restart_due = None;
+                        self.link.request_watches();
+                    }
+                    LinkState::Gone if self.panel.restarting => {
+                        self.restart_due = Some(Instant::now() + RESTART_DELAY);
+                    }
+                    _ => {}
+                }
+                self.shell.link = state;
+            }
+            LinkEvent::Result { tag, ok, message } => {
+                if let Some(origin) = self.watch_tags.remove(&tag) {
+                    match origin {
+                        Origin::Tab => self.panel.on_result(ok, &message),
+                        Origin::Onboarding => {
+                            if let Some(onboarding) = &mut self.onboarding {
+                                onboarding.adder.on_result(ok, &message);
+                            }
+                        }
+                    }
+                    self.link.request_watches();
+                } else if self.settings_tag == Some(tag) {
+                    self.settings_tag = None;
+                    let saved = load_settings(&self.options.data_dir);
+                    self.settings_screen.on_result(ok, &message, saved.as_ref());
+                    if let (true, Some(saved)) = (ok, saved) {
+                        self.theme_pending = Some(saved.general.theme);
+                        self.settings = saved;
+                    }
+                }
+            }
+            LinkEvent::Watches(list) => self.panel.set_watches(list),
+            LinkEvent::Pushed(_) => {}
+        }
+    }
+
+    /// Carries out what the user asked for on a watch screen.
+    fn watch_action(&mut self, action: WatchAction, origin: Origin) {
+        let command = match action {
+            WatchAction::Add { path, confirmed } => Command::AddWatch { path, confirmed },
+            WatchAction::Remove(id) => Command::RemoveWatch { id },
+            WatchAction::SetPaused { id, paused } => Command::SetWatchPaused { id, paused },
+            WatchAction::Browse => {
+                self.browse(origin);
+                return;
+            }
+            WatchAction::RestartEngine => {
+                self.panel.restarting = true;
+                self.link.stop_engine();
+                return;
+            }
+        };
+        let tag = self.link.send(command);
+        self.watch_tags.insert(tag, origin);
+    }
+
+    /// Opens the folder picker on a thread of its own.
+    fn browse(&mut self, origin: Origin) {
+        if self.picker.is_some() {
+            return;
+        }
+        self.picker_origin = origin;
+        let owner = self.hwnd.unwrap_or(0);
+        let (sender, receiver) = std::sync::mpsc::channel();
+        let waker = self.waker.clone();
+        let started = std::thread::Builder::new()
+            .name(String::from("folder-picker"))
+            .spawn(move || {
+                let _ = sender.send(peekbuddy_win::picker::pick_folders(
+                    owner,
+                    "Choose the folders to watch",
+                ));
+                waker();
+            });
+        if started.is_ok() {
+            self.picker = Some(receiver);
+        }
+    }
+
+    /// Takes the picker's answer, if it is there: each folder goes to the
+    /// engine, which decides; cancelling changes nothing.
+    fn picked(&mut self) {
+        let Some(receiver) = &self.picker else {
+            return;
+        };
+        let folders = match receiver.try_recv() {
+            Ok(result) => result,
+            Err(TryRecvError::Empty) => return,
+            Err(TryRecvError::Disconnected) => Ok(Vec::new()),
+        };
+        self.picker = None;
+        match folders {
+            Ok(folders) => {
+                let origin = self.picker_origin;
+                for folder in folders {
+                    let action = match (origin, &mut self.onboarding) {
+                        (Origin::Onboarding, Some(onboarding)) => onboarding.adder.picked(folder),
+                        _ => self.panel.picked(folder),
+                    };
+                    self.watch_action(action, origin);
+                }
+            }
+            Err(error) => append_log(
+                &self.options.data_dir,
+                &format!("the folder picker failed: {error}"),
+            ),
+        }
+    }
+
+    /// Saves a change of the settings: through the engine when it runs (it
+    /// validates and owns the file), else after the same validation here.
+    fn save_settings(&mut self, change: impl FnOnce(&mut Settings)) {
+        let mut current = load_settings(&self.options.data_dir).unwrap_or_default();
+        change(&mut current);
+        let Ok(text) = settings::to_toml(&current) else {
+            return;
+        };
+        if self.shell.link.is_connected() {
+            let tag = self.link.send(Command::ApplySettings { toml: text });
+            self.settings_tag = Some(tag);
+            return;
+        }
+        let context = Context {
+            data_dir: self.options.data_dir.to_string_lossy().into_owned(),
+            export_dir: None,
+        };
+        match settings::load(&text, &context) {
+            Loaded::Ok { .. } => {
+                let path = self.options.data_dir.join("settings.toml");
+                match peekbuddy_win::atomic::write_atomic(&path, text.as_bytes()) {
+                    Ok(()) => {
+                        self.settings_screen.on_result(
+                            true,
+                            "the engine is not running; it reads the file when it starts",
+                            Some(&current),
+                        );
+                        self.theme_pending = Some(current.general.theme);
+                        self.settings = current;
+                    }
+                    Err(error) => self.settings_screen.on_result(
+                        false,
+                        &format!("could not write settings.toml: {error}"),
+                        None,
+                    ),
+                }
+            }
+            Loaded::TooNew { version, .. } => self.settings_screen.on_result(
+                false,
+                &format!("version {version} is newer than this build reads"),
+                None,
+            ),
+            Loaded::Invalid(problems) => {
+                let text = problems
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>()
+                    .join("\n");
+                self.settings_screen.on_result(false, &text, None);
+            }
+        }
+    }
+
+    /// Fills the settings screen when its tab opens.
+    fn open_settings(&mut self) {
+        let settings = load_settings(&self.options.data_dir).unwrap_or_default();
+        self.settings_screen.load(&settings);
+        self.settings_screen
+            .set_usage(directory_size(&self.options.segments));
+    }
+
+    fn settings_action(&mut self, action: SettingsAction) {
+        match action {
+            SettingsAction::Apply(edit) => self.save_settings(|settings| edit.apply_to(settings)),
+            SettingsAction::OpenDataFolder => open_folder(&self.options.data_dir),
+            SettingsAction::ShowDiagnostics => self.collect_diagnostics(),
+            SettingsAction::ShowOnboarding => {
+                self.onboarding = Some(Onboarding::reopened(
+                    self.settings.general.autostart,
+                    &self.settings.filters.presets,
+                ));
+            }
+        }
+    }
+
+    fn onboarding_action(&mut self, action: OnboardingAction) {
+        match action {
+            OnboardingAction::Watch(action) => self.watch_action(action, Origin::Onboarding),
+            OnboardingAction::Finish { autostart, presets } => {
+                self.save_settings(|settings| {
+                    settings.general.first_run = false;
+                    settings.general.autostart = autostart;
+                    settings.filters.presets = presets;
+                });
+                self.onboarding = None;
+                self.tab = Tab::Log;
+            }
+        }
+    }
+
+    /// Runs `peekbuddy --diagnostics` (the text support asks for) on a thread
+    /// and hands the text to the preview.
+    fn collect_diagnostics(&mut self) {
+        let (sender, receiver) = std::sync::mpsc::channel();
+        let exe = self.options.exe.clone();
+        let mut args = vec![std::ffi::OsString::from("--diagnostics")];
+        if let Some(position) = self
+            .options
+            .engine_args
+            .iter()
+            .position(|arg| arg == "--data-dir")
+        {
+            args.extend(
+                self.options
+                    .engine_args
+                    .iter()
+                    .skip(position)
+                    .take(2)
+                    .cloned(),
+            );
+        }
+        let waker = self.waker.clone();
+        let started = std::thread::Builder::new()
+            .name(String::from("diagnostics"))
+            .spawn(move || {
+                let text = std::process::Command::new(exe)
+                    .args(args)
+                    .output()
+                    .map_or_else(
+                        |error| format!("could not run the diagnostics: {error}"),
+                        |output| String::from_utf8_lossy(&output.stdout).into_owned(),
+                    );
+                let _ = sender.send(text);
+                waker();
+            });
+        if started.is_ok() {
+            self.diagnostics = Some(receiver);
+        } else {
+            self.settings_screen
+                .set_diagnostics(Some(String::from("could not start the diagnostics")));
+        }
+    }
+
+    /// Takes the diagnostics text when it is ready.
+    fn diagnostics_ready(&mut self) {
+        let Some(receiver) = &self.diagnostics else {
+            return;
+        };
+        match receiver.try_recv() {
+            Ok(text) => {
+                self.diagnostics = None;
+                self.settings_screen.set_diagnostics(Some(text));
+            }
+            Err(TryRecvError::Empty) => {}
+            Err(TryRecvError::Disconnected) => {
+                self.diagnostics = None;
+                self.settings_screen.set_diagnostics(None);
+            }
+        }
+    }
+
+    /// Starts the engine again once a requested restart is due.
+    fn restart_step(&mut self) {
+        let Some(due) = self.restart_due else {
+            return;
+        };
+        if Instant::now() >= due && matches!(self.shell.link, LinkState::Gone) {
+            self.start_engine();
+            self.restart_due = Some(Instant::now() + 2 * RESTART_DELAY);
         }
     }
 
@@ -338,6 +709,12 @@ impl eframe::App for ViewerApp {
             self.handle(event);
         }
         self.view.logic();
+        self.picked();
+        self.diagnostics_ready();
+        self.restart_step();
+        if let Some(theme) = self.theme_pending.take() {
+            ctx.set_theme(theme::preference(theme));
+        }
         if self.show_requested.swap(false, Ordering::AcqRel) {
             ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(false));
             ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
@@ -350,9 +727,47 @@ impl eframe::App for ViewerApp {
             self.note_causes(ui.ctx());
         }
         let mut view_events = Vec::new();
+        let mut watch_actions = Vec::new();
+        let mut settings_actions = Vec::new();
+        let mut onboarding_actions = Vec::new();
+        let before = self.tab;
         let action = self.shell.show(ui, |ui| {
-            view_events = self.view.show(ui);
+            if let Some(onboarding) = &mut self.onboarding {
+                onboarding_actions = onboarding.show(ui, &self.panel.watches);
+                return;
+            }
+            crate::watches::tabs(
+                ui,
+                &mut self.tab,
+                self.panel.watches.len(),
+                self.panel.attention(),
+            );
+            match self.tab {
+                Tab::Log => view_events = self.view.show(ui),
+                Tab::Watches => watch_actions = self.panel.show(ui),
+                Tab::Settings => settings_actions = self.settings_screen.show(ui),
+            }
         });
+        if before != Tab::Settings && self.tab == Tab::Settings {
+            self.open_settings();
+        }
+        if self.tab == Tab::Watches && self.shell.link.is_connected() {
+            let now = Instant::now();
+            if now >= self.next_refresh {
+                self.next_refresh = now + WATCH_REFRESH;
+                self.link.request_watches();
+            }
+            ui.ctx().request_repaint_after(WATCH_REFRESH);
+        }
+        for action in watch_actions {
+            self.watch_action(action, Origin::Tab);
+        }
+        for action in settings_actions {
+            self.settings_action(action);
+        }
+        for action in onboarding_actions {
+            self.onboarding_action(action);
+        }
         for event in view_events {
             match event {
                 ViewEvent::ColumnsChanged(names) => {
@@ -384,6 +799,10 @@ impl eframe::App for ViewerApp {
             );
             let adapter = gpu::adapter(frame);
             if let Some(adapter) = &adapter {
+                self.settings_screen.set_adapter(format!(
+                    "{} / {} / {}",
+                    adapter.name, adapter.backend, adapter.device_type
+                ));
                 let warning = if adapter.is_software() {
                     " (software rendering: WARP)"
                 } else {
@@ -540,23 +959,9 @@ pub fn run(options: Options) -> std::io::Result<()> {
                 let ctx = cc.egui_ctx.clone();
                 Arc::new(move || ctx.request_repaint())
             };
-            // The filter of the last run; text that no longer parses is dropped.
-            let spec = FilterSpec::parse(&settings.viewer.filter).unwrap_or_default();
-            let roots = settings
-                .watches
-                .iter()
-                .map(|watch| watch.path.clone())
-                .collect();
-            let mut view = LogView::new(
-                Arc::new(StoreSource::new(&options.segments)),
-                Arc::new(peekbuddy_win::localtime::utc_offset_seconds),
-                Arc::clone(&waker),
-                spec,
-                roots,
-                &settings.view.columns,
-            )?;
-            view.set_details(!settings.viewer.details_hidden);
-            view.set_export_dirs(options.segments.clone(), options.data_dir.join("exports"));
+            let app_waker = Arc::clone(&waker);
+            let view = log_view(&options, &settings, &waker)?;
+            let (settings_screen, onboarding) = first_screens(&options, &settings);
             let link = Link::start(
                 PipeConnector {
                     name: options.pipe_name.clone(),
@@ -571,6 +976,19 @@ pub fn run(options: Options) -> std::io::Result<()> {
                 shell: Shell::default(),
                 link,
                 view,
+                tab: Tab::default(),
+                panel: WatchPanel::default(),
+                settings_screen,
+                onboarding,
+                settings_tag: None,
+                theme_pending: None,
+                diagnostics: None,
+                picker_origin: Origin::Tab,
+                watch_tags: HashMap::new(),
+                next_refresh: Instant::now(),
+                restart_due: None,
+                picker: None,
+                waker: Arc::clone(&app_waker),
                 settings,
                 show_requested,
                 frames,

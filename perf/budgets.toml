@@ -477,12 +477,13 @@ id = "alloc.viewer_per_frame"
 metric = "heap allocations per viewer frame while scrolling"
 unit = "count"
 bound = "max"
+limit = 1100
 class = "deterministic"
 gate = "pr-strict"
 scenario = "alloc"
 status = "provisional"
-source = "F10; limit set after the first measurement (#23, #66)"
-workload = "10M-row log, scripted scroll"
+source = "F10; first measurement (#268): 936 per frame for the log screen on Linux, about 25 visible rows of 3 columns, almost all egui label layout; the limit is that plus 17 % until the first Windows run is read, to be driven down (#66)"
+workload = "10M-row log, scripted wheel inside the held rows, UI pass only, test binary alloc_viewer (#268)"
 how = "counting global allocator (#23)"
 arch = ["x86_64", "aarch64"]
 
