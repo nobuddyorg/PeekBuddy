@@ -57,6 +57,15 @@ each): glow 43 to 44 MB private bytes and first frame 195 to 362 ms; wgpu 298
 to 301 MB and 424 to 1010 ms; exe 9.3 MB against 12.3 MB. The 10M-row figure
 is still to be measured by an owner run.
 
+Hosted `windows-2025` x64 runners have no OpenGL 2.0 driver (report 0003), so
+the glow viewer cannot open a window there: the first CI run of #252 timed out
+the viewer tests. The x64 test job therefore builds the exe with the `wgpu`
+feature (DX12 on WARP, as before), and the glow path is verified on the
+owner's PC. The same limit applies to a user whose session has only Microsoft's
+OpenGL 1.1 (a Remote Desktop session without GPU acceleration, a bare VM): the
+viewer then reports the error and does not open. If that proves to matter, the
+fallback is a build with both renderers, at the exe size of wgpu.
+
 ## Consequences
 
 - Good: arm64 works on devices without OpenGL.
