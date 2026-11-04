@@ -399,3 +399,10 @@ fn a_clash_walks_through_the_counters_up_to_the_cap() {
     assert_eq!(next, format!("{base}-{MAX_WATCHES}"));
     assert!(next.len() <= 64, "{next}");
 }
+
+#[test]
+fn the_counter_limit_leaves_a_free_id_for_every_possible_clash() {
+    // A file holds at most MAX_WATCHES watches and each takes at most one
+    // counter (2 and up), so counters up to MAX_WATCHES + 1 are enough.
+    const { assert!(super::ID_COUNTER_LIMIT > MAX_WATCHES + 1) };
+}

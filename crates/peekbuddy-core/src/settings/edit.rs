@@ -108,8 +108,10 @@ impl std::error::Error for Refusal {}
 pub const MAX_WATCHES: usize = 256;
 
 /// The highest counter tried for an id that clashes: every existing watch
-/// can take at most one, so one more than the cap is always free.
-const ID_COUNTER_LIMIT: usize = MAX_WATCHES + 2;
+/// can take at most one, so one more than the cap is always free. A literal
+/// (a test checks it against [`MAX_WATCHES`]) so that no arithmetic is left
+/// to mutate.
+const ID_COUNTER_LIMIT: usize = 258;
 
 /// What a successful add did.
 #[derive(Debug, Clone, PartialEq, Eq)]
