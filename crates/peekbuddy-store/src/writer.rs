@@ -1318,4 +1318,59 @@ pub(crate) mod tests {
             .unwrap();
         assert_eq!(node, "Docs");
     }
+
+    #[test]
+    fn the_pragmas_set_the_cache_and_the_journal_limit() {
+        let writer = memory_writer();
+        let pragma = |name: &str| -> i64 {
+            writer
+                .connection()
+                .query_row(&format!("PRAGMA {name}"), [], |row| row.get(0))
+                .unwrap()
+        };
+        assert_eq!(pragma("cache_size"), -2048);
+        let dir = std::env::temp_dir().join(format!("pb-writer-pragma-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let on_disk = Writer::open(&dir.join("events.db")).unwrap();
+        let limit: i64 = on_disk
+            .connection()
+            .query_row("PRAGMA journal_size_limit", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(limit, 64 * 1024 * 1024);
+        drop(on_disk);
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn the_log_size_follows_the_frames_and_restarts_after_a_checkpoint() {
+        let dir = std::env::temp_dir().join(format!("pb-writer-wal-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let mut writer = Writer::open(&dir.join("events.db")).unwrap();
+        writer
+            .register_root(&RootInfo {
+                idx: RootIdx(0),
+                vol: VolInfo {
+                    guid: String::from(r"\?\Volume{1}\"),
+                    serial: 42,
+                    letter: None,
+                    journal_id: None,
+                },
+                path: units(r"\?\C:\Work"),
+                recursive: true,
+            })
+            .unwrap();
+        writer.write(&[batch(1, 200, 0)], &[]).unwrap();
+        let big = writer.wal_log_bytes();
+        let (frames, _) = writer.checkpoint_passive().unwrap();
+        assert!(frames > 1);
+        assert_eq!(big, u64::try_from(frames).unwrap() * super::PAGE_BYTES);
+        writer.checkpoint_truncate().unwrap();
+        writer.write(&[batch(1_000, 1, 0)], &[]).unwrap();
+        let small = writer.wal_log_bytes();
+        assert!(small > 0 && small < big, "{small} {big}");
+        drop(writer);
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
 }
