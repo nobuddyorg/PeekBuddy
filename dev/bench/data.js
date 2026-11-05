@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1793793288611,
+  "lastUpdate": 1793871554049,
   "repoUrl": "https://github.com/nobuddyorg/PeekBuddy",
   "entries": {
     "benches (windows-2025)": [
@@ -666,6 +666,53 @@ window.BENCHMARK_DATA = {
           {
             "name": "query.subtree_resolve_10m",
             "value": 9230259.523809522,
+            "unit": "ns"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "name": "Matthias Eggert",
+            "username": "besessener",
+            "email": "8039350+besessener@users.noreply.github.com"
+          },
+          "committer": {
+            "name": "GitHub",
+            "username": "web-flow",
+            "email": "noreply@github.com"
+          },
+          "id": "1fb32b54db3a63e72f95019ed223b13dad455660",
+          "message": "feat(viewer): fall back to wgpu without OpenGL (#349)\n\nx64 starts with glow and starts again with wgpu/DX12 when\nglow cannot start. CI runs the fallback on hosted runners.\n\nCo-authored-by: Matthias Eggert <dem.matze@gmail.com>\nCo-authored-by: Claude Sonnet 5.5 <noreply@anthropic.com>",
+          "timestamp": "2026-11-05T09:06:53Z",
+          "url": "https://github.com/nobuddyorg/PeekBuddy/commit/1fb32b54db3a63e72f95019ed223b13dad455660"
+        },
+        "date": 1793871551933,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "query.filtered_first_1m",
+            "value": 5970631.851851853,
+            "unit": "ns"
+          },
+          {
+            "name": "query.fts_lookup_10m",
+            "value": 19668742.013888888,
+            "unit": "ns"
+          },
+          {
+            "name": "query.page_keyset_10m",
+            "value": 1300193.2291666665,
+            "unit": "ns"
+          },
+          {
+            "name": "query.regex_post_filter_1m",
+            "value": 2045140550,
+            "unit": "ns"
+          },
+          {
+            "name": "query.subtree_resolve_10m",
+            "value": 6073766.785714285,
             "unit": "ns"
           }
         ]
