@@ -113,7 +113,7 @@ the `wpr` start and stop commands but not WPA or PerfView.
 Developer-only; no Tracy code ships (PERFORMANCE.md, "Profiling with Tracy").
 
 ```powershell
-cargo xtask profile --tracy [--alloc] [--role engine|viewer]
+cargo xtask profile --tracy [--alloc] [--wgpu] [--role engine|viewer]
 ```
 
 The Tracy GUI must be exactly 0.14.1: client and GUI versions have to match
