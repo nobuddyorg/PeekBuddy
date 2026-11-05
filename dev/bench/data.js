@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1793871644149,
+  "lastUpdate": 1793874934699,
   "repoUrl": "https://github.com/nobuddyorg/PeekBuddy",
   "entries": {
     "benches (windows-2025)": [
@@ -374,6 +374,83 @@ window.BENCHMARK_DATA = {
           {
             "name": "store/intern_miss_1000",
             "value": 3885970.8333333335,
+            "unit": "ns"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "name": "Matthias Eggert",
+            "username": "besessener",
+            "email": "8039350+besessener@users.noreply.github.com"
+          },
+          "committer": {
+            "name": "GitHub",
+            "username": "web-flow",
+            "email": "noreply@github.com"
+          },
+          "id": "1fb32b54db3a63e72f95019ed223b13dad455660",
+          "message": "feat(viewer): fall back to wgpu without OpenGL (#349)\n\nx64 starts with glow and starts again with wgpu/DX12 when\nglow cannot start. CI runs the fallback on hosted runners.\n\nCo-authored-by: Matthias Eggert <dem.matze@gmail.com>\nCo-authored-by: Claude Sonnet 5.5 <noreply@anthropic.com>",
+          "timestamp": "2026-11-05T09:06:53Z",
+          "url": "https://github.com/nobuddyorg/PeekBuddy/commit/1fb32b54db3a63e72f95019ed223b13dad455660"
+        },
+        "date": 1793874932112,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "filter/eval_6_names",
+            "value": 1871.6906174830451,
+            "unit": "ns"
+          },
+          {
+            "name": "metrics/process_list_300",
+            "value": 718.269021831666,
+            "unit": "ns"
+          },
+          {
+            "name": "notify_parse/extended/64kib",
+            "value": 3461.82755399128,
+            "unit": "ns"
+          },
+          {
+            "name": "notify_parse/full/64kib",
+            "value": 3565.917066920757,
+            "unit": "ns"
+          },
+          {
+            "name": "notify_parse/plain/64kib",
+            "value": 5973.163141630417,
+            "unit": "ns"
+          },
+          {
+            "name": "perf/counters_event",
+            "value": 0.3147800922719629,
+            "unit": "ns"
+          },
+          {
+            "name": "perf/milestone_record",
+            "value": 4.992070914371091,
+            "unit": "ns"
+          },
+          {
+            "name": "reparse/classify_8",
+            "value": 20.858168032167377,
+            "unit": "ns"
+          },
+          {
+            "name": "store/batch_insert_1000",
+            "value": 3648185.0347222225,
+            "unit": "ns"
+          },
+          {
+            "name": "store/intern_hit_1000",
+            "value": 64383.882757713705,
+            "unit": "ns"
+          },
+          {
+            "name": "store/intern_miss_1000",
+            "value": 4539417.291666667,
             "unit": "ns"
           }
         ]
