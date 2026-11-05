@@ -127,14 +127,15 @@ fn an_idle_viewer_paints_nothing_and_keeps_its_renderer_whatever_the_environment
     let (status, report) = probe(dir.path(), 10, true);
     assert!(status.success(), "{status:?} {report}");
     let report = parse(&report);
-    // x64 renders through OpenGL (glow), arm64 and the `wgpu` feature through
-    // DX12, although WGPU_BACKEND said vulkan.
-    let expected = if cfg!(any(target_arch = "aarch64", feature = "wgpu")) {
-        "Dx12"
+    // x64 renders through OpenGL (glow) and falls back to DX12 where there
+    // is no OpenGL 2.0 driver (a hosted runner); arm64 and the `wgpu` feature
+    // use DX12 only. WGPU_BACKEND said vulkan and changed nothing.
+    let backend = report["backend"].as_str().unwrap_or_default();
+    if cfg!(any(target_arch = "aarch64", feature = "wgpu")) {
+        assert_eq!(backend, "Dx12", "{report}");
     } else {
-        "OpenGL"
-    };
-    assert_eq!(report["backend"], expected, "{report}");
+        assert!(matches!(backend, "OpenGL" | "Dx12"), "{report}");
+    }
     // The first frame happened and carries a time since process creation.
     assert!(report["first_frame_us"].as_u64().unwrap() > 0, "{report}");
     // With the window open and left alone for 10 s, almost nothing is

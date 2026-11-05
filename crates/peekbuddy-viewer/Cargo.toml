@@ -16,10 +16,9 @@ ignored = ["wgpu"]
 # Makes the in-memory log of the tests public, for `tests/alloc_viewer.rs`.
 # The crate enables it for its own tests through the dev-dependency below.
 test-support = []
-# Renders through wgpu with DX12 on x64 too, for A/B runs against glow (ADR
-# 0005). Cargo features only add, so this is the opt-in; arm64 is on wgpu
-# either way.
-wgpu = ["eframe/wgpu_no_default_features", "dep:wgpu"]
+# Uses wgpu with DX12 on x64 too and never tries glow, for A/B runs (ADR
+# 0005). arm64 is on wgpu either way.
+wgpu = []
 
 [dependencies]
 egui = { workspace = true }
@@ -39,16 +38,18 @@ eframe = { version = "=0.37.0", default-features = false, features = [
 ] }
 wgpu = { workspace = true }
 
-# The window and the renderer (ADR 0005, #252). x64 renders through glow
-# (OpenGL): about 255 MB less private bytes and a smaller exe than wgpu.
+# The window and the renderers (ADR 0005, #252). x64 tries glow (OpenGL)
+# first, about 255 MB less private bytes than wgpu, and falls back to wgpu
+# when the machine has no OpenGL 2.0 driver, so both are built in.
 [target.'cfg(all(windows, target_arch = "x86_64"))'.dependencies]
 eframe = { version = "=0.37.0", default-features = false, features = [
   "accesskit",
   "default_fonts",
   "glow",
+  "wgpu_no_default_features",
 ] }
 peekbuddy-win = { workspace = true, features = ["glow"] }
-wgpu = { workspace = true, optional = true }
+wgpu = { workspace = true }
 
 [target.'cfg(windows)'.dependencies]
 peekbuddy-win = { workspace = true, features = ["picker"] }

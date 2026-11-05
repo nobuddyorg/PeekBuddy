@@ -48,8 +48,7 @@ jobs:
           shared-key: profiling-${{ matrix.label }}
           save-if: ${{ github.ref == 'refs/heads/main' }}
       - name: Build the profiling profile with Tracy and allocation tracking
-        # wgpu: the hosted runners have no OpenGL 2.0 driver for the glow viewer.
-        run: cargo xtask profile --tracy --alloc --wgpu
+        run: cargo xtask profile --tracy --alloc
       - name: PDB is next to the exe
         run: |
           Get-Item target/profiling/peekbuddy.exe, target/profiling/peekbuddy.pdb |

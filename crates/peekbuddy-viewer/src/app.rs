@@ -924,93 +924,130 @@ fn viewport(title: &str) -> egui::ViewportBuilder {
 ///
 /// The renderer or the window could not start: the user has been told in a
 /// message box and the error is in `logs\viewer.log`.
+#[expect(
+    clippy::needless_pass_by_value,
+    reason = "the viewer owns its options for as long as it runs, as the callers pass them"
+)]
 pub fn run(options: Options) -> std::io::Result<()> {
     let settings = load_settings(&options.data_dir).unwrap_or_default();
-    let show_signal = Signal::open(&options.show_event)?;
     let data_dir = options.data_dir.clone();
-    let native = gpu::native_options(viewport(&options.title));
-    let result = eframe::run_native(
-        TITLE,
-        native,
-        Box::new(move |cc| {
-            cc.egui_ctx
-                .set_theme(theme::preference(settings.general.theme));
-            let frames = Arc::new(AtomicU64::new(0));
-            let idle_window = Arc::new(AtomicBool::new(false));
-            let report = Arc::new(Mutex::new(ProbeReport {
-                idle_seconds: 0,
-                ..ProbeReport::default()
-            }));
-            let show_requested = Arc::new(AtomicBool::new(false));
-            spawn_show_listener(
-                cc.egui_ctx.clone(),
-                show_signal,
-                Arc::clone(&show_requested),
-            )?;
-            if let Some(probe) = &options.probe {
-                spawn_probe(
-                    cc.egui_ctx.clone(),
-                    probe,
-                    (Arc::clone(&frames), Arc::clone(&idle_window)),
-                    Arc::clone(&report),
-                );
+    let mut failures = Vec::new();
+    // The renderers in order of preference (ADR 0005): on x64 glow, then
+    // wgpu when this machine has no OpenGL 2.0 driver (Remote Desktop without
+    // GPU acceleration, a bare VM). A renderer that fails before the app is
+    // created has not touched anything, so the next one gets a clean start.
+    for &renderer in gpu::renderers() {
+        let created = Arc::new(AtomicBool::new(false));
+        let result = eframe::run_native(
+            TITLE,
+            gpu::native_options(renderer, viewport(&options.title)),
+            creator(
+                options.clone(),
+                settings.clone(),
+                Signal::open(&options.show_event)?,
+                Arc::clone(&created),
+            ),
+        );
+        match result {
+            Ok(()) => return Ok(()),
+            Err(error) if !created.load(Ordering::Acquire) => {
+                let line = format!("{renderer} could not start: {error}");
+                append_log(&data_dir, &format!("viewer: {line}"));
+                failures.push(line);
             }
-            let waker: Arc<dyn Fn() + Send + Sync> = {
-                let ctx = cc.egui_ctx.clone();
-                Arc::new(move || ctx.request_repaint())
-            };
-            let app_waker = Arc::clone(&waker);
-            let view = log_view(&options, &settings, &waker)?;
-            let (settings_screen, onboarding) = first_screens(&options, &settings);
-            let link = Link::start(
-                PipeConnector {
-                    name: options.pipe_name.clone(),
-                    exe: options.exe.clone(),
-                },
-                Timing::default(),
-                waker,
-                format!("peekbuddy {}", env!("CARGO_PKG_VERSION")),
-            )?;
-            Ok(Box::new(ViewerApp {
-                options,
-                shell: Shell::default(),
-                link,
-                view,
-                tab: Tab::default(),
-                panel: WatchPanel::default(),
-                settings_screen,
-                onboarding,
-                settings_tag: None,
-                theme_pending: None,
-                diagnostics: None,
-                picker_origin: Origin::Tab,
-                watch_tags: HashMap::new(),
-                next_refresh: Instant::now(),
-                restart_due: None,
-                picker: None,
-                waker: Arc::clone(&app_waker),
-                settings,
-                show_requested,
-                frames,
-                idle_window,
-                hwnd: None,
-                placed: false,
-                normal: None,
-                title_dark: None,
-                first_frame_done: false,
-                report,
-            }))
-        }),
-    );
-    match result {
-        Ok(()) => Ok(()),
-        Err(error) => {
-            let text = format!("PeekBuddy could not open its window:\n\n{error}");
-            append_log(&data_dir, &format!("viewer failed to start: {error}"));
-            chrome::error_box(TITLE, &text);
-            Err(std::io::Error::other(error.to_string()))
+            Err(error) => return fail(&data_dir, &error.to_string()),
         }
     }
+    fail(&data_dir, &failures.join("\n"))
+}
+
+/// The renderer or the window could not start: tells the user in a message
+/// box and puts the error in the log.
+fn fail(data_dir: &Path, error: &str) -> std::io::Result<()> {
+    let text = format!("PeekBuddy could not open its window:\n\n{error}");
+    append_log(data_dir, &format!("viewer failed to start: {error}"));
+    chrome::error_box(TITLE, &text);
+    Err(std::io::Error::other(error.to_owned()))
+}
+
+/// Builds the app once the renderer is up. `created` says that it ran, so a
+/// failure before it can be retried with another renderer.
+fn creator(
+    options: Options,
+    settings: Settings,
+    show_signal: Signal,
+    created: Arc<AtomicBool>,
+) -> eframe::AppCreator<'static> {
+    Box::new(move |cc| {
+        created.store(true, Ordering::Release);
+        cc.egui_ctx
+            .set_theme(theme::preference(settings.general.theme));
+        let frames = Arc::new(AtomicU64::new(0));
+        let idle_window = Arc::new(AtomicBool::new(false));
+        let report = Arc::new(Mutex::new(ProbeReport {
+            idle_seconds: 0,
+            ..ProbeReport::default()
+        }));
+        let show_requested = Arc::new(AtomicBool::new(false));
+        spawn_show_listener(
+            cc.egui_ctx.clone(),
+            show_signal,
+            Arc::clone(&show_requested),
+        )?;
+        if let Some(probe) = &options.probe {
+            spawn_probe(
+                cc.egui_ctx.clone(),
+                probe,
+                (Arc::clone(&frames), Arc::clone(&idle_window)),
+                Arc::clone(&report),
+            );
+        }
+        let waker: Arc<dyn Fn() + Send + Sync> = {
+            let ctx = cc.egui_ctx.clone();
+            Arc::new(move || ctx.request_repaint())
+        };
+        let app_waker = Arc::clone(&waker);
+        let view = log_view(&options, &settings, &waker)?;
+        let (settings_screen, onboarding) = first_screens(&options, &settings);
+        let link = Link::start(
+            PipeConnector {
+                name: options.pipe_name.clone(),
+                exe: options.exe.clone(),
+            },
+            Timing::default(),
+            waker,
+            format!("peekbuddy {}", env!("CARGO_PKG_VERSION")),
+        )?;
+        Ok(Box::new(ViewerApp {
+            options,
+            shell: Shell::default(),
+            link,
+            view,
+            tab: Tab::default(),
+            panel: WatchPanel::default(),
+            settings_screen,
+            onboarding,
+            settings_tag: None,
+            theme_pending: None,
+            diagnostics: None,
+            picker_origin: Origin::Tab,
+            watch_tags: HashMap::new(),
+            next_refresh: Instant::now(),
+            restart_due: None,
+            picker: None,
+            waker: Arc::clone(&app_waker),
+            settings,
+            show_requested,
+            frames,
+            idle_window,
+            hwnd: None,
+            placed: false,
+            normal: None,
+            title_dark: None,
+            first_frame_done: false,
+            report,
+        }))
+    })
 }
 
 #[cfg(test)]
