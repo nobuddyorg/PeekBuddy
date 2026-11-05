@@ -92,11 +92,11 @@ pub fn markers_in(bytes: &[u8]) -> Vec<String> {
         .collect()
 }
 
-/// `cargo xtask profile --tracy [--alloc] [--role engine|viewer] [--target <triple>]`.
+/// `cargo xtask profile --tracy [--alloc] [--wgpu] [--role engine|viewer] [--target <triple>]`.
 pub fn profile(args: &[String]) -> Result<String, String> {
     if !args.iter().any(|arg| arg == "--tracy") {
         return Err(
-            "usage: cargo xtask profile --tracy [--alloc] [--role engine|viewer] \
+            "usage: cargo xtask profile --tracy [--alloc] [--wgpu] [--role engine|viewer] \
                     [--target <triple>]"
                 .to_owned(),
         );
@@ -107,11 +107,16 @@ pub fn profile(args: &[String]) -> Result<String, String> {
         "viewer" => " --viewer",
         other => return Err(format!("unknown role {other:?} (engine or viewer)")),
     };
-    let features = if args.iter().any(|arg| arg == "--alloc") {
+    let mut features = String::from(if args.iter().any(|arg| arg == "--alloc") {
         "profile-tracy-alloc"
     } else {
         "profile-tracy"
-    };
+    });
+    // The x64 viewer renders through glow (#252); a hosted runner has no
+    // OpenGL 2.0 driver, so its job asks for wgpu/DX12.
+    if args.iter().any(|arg| arg == "--wgpu") {
+        features.push_str(",wgpu");
+    }
     let target = option(args, "--target")?;
     let mut build = vec![
         "build",
@@ -120,7 +125,7 @@ pub fn profile(args: &[String]) -> Result<String, String> {
         "--profile",
         "profiling",
         "--features",
-        features,
+        &features,
         "--locked",
     ];
     if let Some(target) = target {

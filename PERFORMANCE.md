@@ -197,7 +197,7 @@ Which tool answers which question, with recipes: [Profile PeekBuddy](docs/how-to
 Developer-only build (#22); no Tracy code ever ships.
 
 ```sh
-cargo xtask profile --tracy [--alloc] [--role engine|viewer]
+cargo xtask profile --tracy [--alloc] [--wgpu] [--role engine|viewer]
 ```
 
 | | |

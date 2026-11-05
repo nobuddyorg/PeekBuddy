@@ -48,7 +48,8 @@ jobs:
           shared-key: profiling-${{ matrix.label }}
           save-if: ${{ github.ref == 'refs/heads/main' }}
       - name: Build the profiling profile with Tracy and allocation tracking
-        run: cargo xtask profile --tracy --alloc
+        # wgpu: the hosted runners have no OpenGL 2.0 driver for the glow viewer.
+        run: cargo xtask profile --tracy --alloc --wgpu
       - name: PDB is next to the exe
         run: |
           Get-Item target/profiling/peekbuddy.exe, target/profiling/peekbuddy.pdb |
@@ -64,7 +65,10 @@ jobs:
           Stop-Process -Id $engine.Id
           # A GUI-subsystem exe does not set $LASTEXITCODE when called
           # directly; wait for it and read its exit code.
-          $viewer = Start-Process target/profiling/peekbuddy.exe -ArgumentList '--viewer' -Wait -PassThru
+          # The probe opens the window, leaves it idle for 3 s and closes it;
+          # a plain --viewer stays open until someone closes it.
+          $report = Join-Path $data 'viewer-probe.json'
+          $viewer = Start-Process target/profiling/peekbuddy.exe -ArgumentList '--viewer', '--data-dir', $data, '--viewer-probe', '3', '--perf-probe-out', $report -Wait -PassThru
           if ($viewer.ExitCode -ne 0) { throw "viewer exit code $($viewer.ExitCode)" }
       - name: The release guard rejects this build (positive control)
         run: |
