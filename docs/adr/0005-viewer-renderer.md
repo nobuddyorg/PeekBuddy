@@ -56,9 +56,10 @@ x64, release build, empty store, viewer idle after the first frame, 3 runs
 each): glow 43 to 44 MB private bytes and first frame 195 to 362 ms; wgpu 298
 to 301 MB and 424 to 1010 ms; exe 9.3 MB against 12.3 MB. With a 10M-row log
 open (831 MB of segments; first page, idle, 3 runs each): glow 47 to 62 MB
-private bytes, wgpu 302 to 303 MB. The 80 MB budget holds on glow and stays
-as it is: the number was taken idle, and the page cache is bounded (12,800
-rows), so scrolling adds little, but a scrolled run was not measured.
+private bytes, wgpu 302 to 303 MB. The page cache is bounded (12,800 rows). A
+scripted run that pressed End, Home, Page Down and Page Up in the open
+viewer (window messages, 2 runs each) peaked at 46 to 51 MB with glow and 301
+MB with wgpu, so the limit is tightened from 80 to 64 MB.
 
 Hosted `windows-2025` x64 runners have no OpenGL 2.0 driver (report 0003), so
 the glow viewer cannot open a window there: the first CI run of #252 timed out
