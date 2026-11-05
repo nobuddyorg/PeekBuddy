@@ -140,11 +140,7 @@ jobs:
           --features peekbuddy-win/usn,peekbuddy-engine/usn
           --profile ci --locked --no-tests=pass
           -E 'binary(usn_source) | test(/^usn::/)'
-      # The hosted x64 image has no OpenGL 2.0 driver (ADR 0005, report 0003),
-      # so the glow viewer of the shipped x64 exe cannot open a window here:
-      # the viewer tests run on wgpu/DX12 (WARP) through the `wgpu` feature.
-      # The glow path is run on the owner PC (this PR, #252).
-      - run: cargo nextest run --workspace --features peekbuddy/wgpu --profile ci --locked --no-tests=pass
+      - run: cargo nextest run --workspace --profile ci --locked --no-tests=pass
         env:
           # The autostart test touches the real Run key (#63); this runner is
           # disposable.

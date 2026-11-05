@@ -20,9 +20,10 @@ can also run it by hand.
 
 ## Renderer
 
-glow (OpenGL) on x64, wgpu on DX12 on arm64, which has no OpenGL driver
+glow (OpenGL) first on x64, wgpu on DX12 when glow cannot start (no OpenGL 2.0
+driver) and always on arm64, which has no OpenGL driver
 ([ADR 0005](../adr/0005-viewer-renderer.md)). The `wgpu` cargo feature of
-`peekbuddy` moves x64 to wgpu as well, for A/B runs. The wgpu instance is
+`peekbuddy` skips glow on x64, for A/B runs. The wgpu instance is
 built explicitly, so `WGPU_BACKEND`, `WGPU_POWER_PREF` and friends have no
 effect. The adapter name (the OpenGL renderer string with glow), backend
 (`OpenGL` or `Dx12`) and device type go to `logs\viewer.log` at the first

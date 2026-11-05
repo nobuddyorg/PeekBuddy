@@ -61,14 +61,16 @@ scripted run that pressed End, Home, Page Down and Page Up in the open
 viewer (window messages, 2 runs each) peaked at 46 to 51 MB with glow and 301
 MB with wgpu, so the limit is tightened from 80 to 64 MB.
 
-Hosted `windows-2025` x64 runners have no OpenGL 2.0 driver (report 0003), so
-the glow viewer cannot open a window there: the first CI run of #252 timed out
-the viewer tests. The x64 test job therefore builds the exe with the `wgpu`
-feature (DX12 on WARP, as before), and the glow path is verified on the
-owner's PC. The same limit applies to a user whose session has only Microsoft's
-OpenGL 1.1 (a Remote Desktop session without GPU acceleration, a bare VM): the
-viewer then reports the error and does not open. If that proves to matter, the
-fallback is a build with both renderers, at the exe size of wgpu.
+Hosted `windows-2025` x64 runners have no OpenGL 2.0 driver (report 0003),
+and a user can be in the same position (a Remote Desktop session without GPU
+acceleration, a bare VM). The x64 exe therefore carries both renderers: it
+starts with glow and, when glow cannot start (no OpenGL 2.0), starts again
+with wgpu/DX12 in the same process; the reason goes to `logs/viewer.log`. Only
+when both fail does the user see the error box. This costs exe size, not
+memory: the release exe is 12.1 MB (glow only: 9.3 MB, wgpu only: 12.3 MB), and
+wgpu is not initialised when glow works. CI exercises the fallback, because
+its x64 runners cannot open glow, and the owner's PC exercises glow. The
+`wgpu` cargo feature skips glow, for A/B runs.
 
 ## Consequences
 
