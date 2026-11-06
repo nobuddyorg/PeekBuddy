@@ -52,6 +52,8 @@ insta = "1.49.0"
 # Validates --perf-probe output against perf/probe.schema.json (#161); test-only.
 jsonschema = { version = "0.60.1", default-features = false }
 known-folders = "1.4.2"
+# The optional allocator of the exe (#268); the default stays the system one.
+mimalloc = { version = "=0.1.52", default-features = false }
 peekbuddy-alloc = { path = "crates/peekbuddy-alloc" }
 peekbuddy-churn = { path = "crates/peekbuddy-churn" }
 peekbuddy-core = { path = "crates/peekbuddy-core" }

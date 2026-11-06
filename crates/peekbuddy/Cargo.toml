@@ -14,6 +14,8 @@ publish.workspace = true
 ignored = ["tracy-client-sys"]
 
 [features]
+# mimalloc as the global allocator, to compare with the system one (#268).
+mimalloc = ["dep:mimalloc"]
 # x64 renders through wgpu/DX12 instead of glow, for A/B runs (#252).
 wgpu = ["peekbuddy-viewer/wgpu"]
 # Forwards the engine's crash trigger for the integration tests (#59).
@@ -40,6 +42,7 @@ profile-tracy = [
 profile-tracy-alloc = ["profile-tracy", "dep:peekbuddy-alloc"]
 
 [dependencies]
+mimalloc = { workspace = true, optional = true }
 peekbuddy-alloc = { workspace = true, optional = true }
 peekbuddy-core = { workspace = true }
 peekbuddy-engine = { workspace = true }
