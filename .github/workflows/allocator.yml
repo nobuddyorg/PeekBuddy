@@ -1,0 +1,85 @@
+# The optional mimalloc allocator (#268): builds on both architectures, and the
+# ingest run of the zero-loss tier (the engine under churn) with each
+# allocator, side by side in the job summary. The default stays the system
+# allocator unless these numbers say otherwise.
+name: allocator
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - .github/workflows/allocator.yml
+      - Cargo.lock
+      - Cargo.toml
+      - crates/peekbuddy/**
+
+permissions:
+  contents: read
+
+concurrency:
+  group: allocator-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_BUILD_WARNINGS: deny
+
+jobs:
+  ingest:
+    name: ingest (${{ matrix.runner }}, ${{ matrix.allocator }})
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [windows-2025, windows-11-vs2026-arm]
+        allocator: [system, mimalloc]
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Rust toolchain
+        run: rustup toolchain install && rustup show
+      - uses: Swatinem/rust-cache@2201cc584a476d1b508be977bbe4b7d1c7a52e9c # v2.9.3
+        with:
+          shared-key: allocator-${{ matrix.runner }}-${{ matrix.allocator }}
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      - uses: taiki-e/install-action@86f7a0ffb25f40114606501a311ebcfaf882ea32 # v2.88.0
+        with:
+          tool: cargo-nextest@0.9.149
+      - name: Build the exe
+        env:
+          ALLOCATOR: ${{ matrix.allocator }}
+        run: |
+          $features = if ($env:ALLOCATOR -eq 'mimalloc') { '--features', 'mimalloc' } else { @() }
+          cargo build --release --package peekbuddy --locked @features
+          Get-Item target/release/peekbuddy.exe | Format-Table Name, Length
+      - name: Ingest under churn
+        env:
+          PEEKBUDDY_ZERO_LOSS_PHASES: ${{ github.workspace }}/target/zero-loss/phases.txt
+          PEEKBUDDY_ZERO_LOSS_PROFILE: burst-50k
+          ALLOCATOR: ${{ matrix.allocator }}
+        run: |
+          $features = if ($env:ALLOCATOR -eq 'mimalloc') { '--features', 'mimalloc' } else { @() }
+          cargo nextest run --locked --profile ci -p peekbuddy @features --run-ignored only -E 'binary(fs_serial_zero_loss)'
+      - name: Summary
+        if: always()
+        env:
+          ALLOCATOR: ${{ matrix.allocator }}
+          RUNNER_LABEL: ${{ matrix.runner }}
+        run: |
+          $out = $env:GITHUB_STEP_SUMMARY
+          "### $env:RUNNER_LABEL, $env:ALLOCATOR allocator" | Out-File $out -Append -Encoding utf8
+          "Exe: $([math]::Round((Get-Item target/release/peekbuddy.exe).Length / 1MB, 2)) MB" | Out-File $out -Append -Encoding utf8
+          '```' | Out-File $out -Append -Encoding utf8
+          if (Test-Path target/zero-loss/phases.txt) { Get-Content target/zero-loss/phases.txt | Out-File $out -Append -Encoding utf8 }
+          '```' | Out-File $out -Append -Encoding utf8
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: allocator-${{ matrix.runner }}-${{ matrix.allocator }}
+          path: target/zero-loss/phases.txt
+          if-no-files-found: ignore
