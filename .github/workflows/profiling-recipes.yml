@@ -75,6 +75,10 @@ jobs:
         run: |
           cargo install flamegraph --version 0.6.14 --locked
           $data = Join-Path $env:RUNNER_TEMP 'pb-flame'
+          # dtrace on the PATH wins over blondie (the x64 image has one) and
+          # records nothing: take its folder off the PATH, as the recipe says.
+          $dtrace = Get-Command dtrace -ErrorAction SilentlyContinue
+          if ($dtrace) { $env:Path = ($env:Path -split ';' | Where-Object { $_ -and ($_ -ne (Split-Path $dtrace.Source)) }) -join ';' }
           cargo flamegraph --profile profiling --bin peekbuddy -o "$env:OUT\flamegraph.svg" -- --headless --data-dir $data --perf-probe 8
           if ((Get-Item "$env:OUT\flamegraph.svg").Length -lt 10000) { throw 'the flamegraph is empty' }
 
@@ -100,8 +104,15 @@ jobs:
           $data = Join-Path $env:RUNNER_TEMP 'pb-wpr-start'
           New-Item -ItemType Directory -Force $data | Out-Null
           Set-Content (Join-Path $data 'settings.toml') "version = 1`n[general]`nfirst_run = false`n"
+          $tree = Join-Path $env:RUNNER_TEMP 'pb-wpr-tree'
+          New-Item -ItemType Directory -Force $tree | Out-Null
+          Add-Content (Join-Path $data 'settings.toml') "[[watch]]`nid = `"w0`"`npath = '$tree'`n"
           wpr -start perf\peekbuddy.wprp!PeekBuddyStartup -filemode
-          target/profiling/peekbuddy.exe --headless --data-dir $data --perf-probe 5
+          # An engine that has something to do, so the samples are its own.
+          $engine = Start-Process target/profiling/peekbuddy.exe -ArgumentList '--headless', '--data-dir', $data, '--perf-probe', '12' -PassThru
+          Start-Sleep -Seconds 3
+          1..3000 | ForEach-Object { Set-Content (Join-Path $tree "f$_.txt") 'x' }
+          $engine | Wait-Process -Timeout 60
           wpr -stop "$env:OUT\startup.etl"
           # Symbolise with the PDB that sits next to the exe: xperf resolves
           # the sampled stacks through dbghelp and _NT_SYMBOL_PATH.
@@ -110,8 +121,11 @@ jobs:
           if (-not $xperf) { $xperf = Get-Item 'C:\Program Files (x86)\Windows Kits\10\Windows Performance Toolkit\xperf.exe' }
           & $xperf -i "$env:OUT\startup.etl" -symbols -o "$env:OUT\startup-profile.txt" -a profile -detail
           $text = Get-Content "$env:OUT\startup-profile.txt" -Raw
-          if ($text -notmatch 'peekbuddy(_[a-z]+)*::') { throw 'no PeekBuddy symbol in the profile; the first lines are: ' + ($text.Substring(0, [Math]::Min(1500, $text.Length))) }
-          Select-String -Path "$env:OUT\startup-profile.txt" -Pattern 'peekbuddy' | Select-Object -First 15 | ForEach-Object { $_.Line }
+          $own = @(Select-String -Path "$env:OUT\startup-profile.txt" -Pattern 'peekbuddy\.exe!')
+          "frames in peekbuddy.exe: $($own.Count)"
+          $own | Select-Object -First 12 | ForEach-Object { $_.Line.Substring(0, [Math]::Min(200, $_.Line.Length)) }
+          $named = @($own | Where-Object { $_.Line -match 'peekbuddy\.exe!(?!"Unknown")\S' })
+          if ($named.Count -eq 0) { throw 'no frame of peekbuddy.exe was resolved to a name by the PDB' }
 
       # 2. PerfView
       - name: PerfView 4.0.0 thread time
@@ -156,9 +170,12 @@ jobs:
           if ((Get-FileHash $pm -Algorithm SHA256).Hash -ne $env:PRESENTMON_SHA256) { throw 'PresentMon does not match the pinned hash' }
           $data = Join-Path $env:RUNNER_TEMP 'pb-pm'
           New-Item -ItemType Directory -Force $data | Out-Null
-          $monitor = Start-Process $pm -ArgumentList '--process_name', 'peekbuddy.exe', '--output_file', "$env:OUT\frames.csv", '--terminate_on_proc_exit', '--stop_existing_session' -PassThru -NoNewWindow
-          Start-Sleep -Seconds 2
-          Start-Process target/profiling/peekbuddy.exe -ArgumentList '--viewer', '--data-dir', $data, '--viewer-probe', '10' -Wait
+          # The viewer first: --terminate_on_proc_exit ends PresentMon at once
+          # when the process it is asked to watch does not exist yet.
+          $viewer = Start-Process target/profiling/peekbuddy.exe -ArgumentList '--viewer', '--data-dir', $data, '--viewer-probe', '14' -PassThru
+          Start-Sleep -Seconds 3
+          $monitor = Start-Process $pm -ArgumentList '--process_name', 'peekbuddy.exe', '--output_file', "$env:OUT\frames.csv", '--terminate_on_proc_exit', '--stop_existing_session', '--no_console_stats' -PassThru -NoNewWindow
+          $viewer | Wait-Process -Timeout 60
           $monitor | Wait-Process -Timeout 30 -ErrorAction SilentlyContinue
           if (-not (Test-Path "$env:OUT\frames.csv")) { throw 'no frames.csv' }
           Get-Content "$env:OUT\frames.csv" | Select-Object -First 4
@@ -193,16 +210,24 @@ jobs:
           $tree = Join-Path $env:RUNNER_TEMP 'pb-tracy-tree'
           New-Item -ItemType Directory -Force $data, $tree | Out-Null
           Set-Content (Join-Path $data 'settings.toml') "version = 1`n[general]`nfirst_run = false`n[[watch]]`nid = `"w0`"`npath = '$tree'`n"
-          $engine = Start-Process target/profiling/peekbuddy.exe -ArgumentList '--headless', '--data-dir', $data -PassThru
-          Start-Sleep -Seconds 4
-          $cap = Start-Process $capture -ArgumentList '-o', "$env:OUT\engine.tracy", '-s', '6', '-f' -PassThru -NoNewWindow
+          # The engine ends by itself after the probe, which closes its zone;
+          # the capture is longer than the probe and so sees it close.
+          $engine = Start-Process target/profiling/peekbuddy.exe -ArgumentList '--headless', '--data-dir', $data, '--perf-probe', '14' -PassThru
+          Start-Sleep -Seconds 3
+          $cap = Start-Process $capture -ArgumentList '-o', "$env:OUT\engine.tracy", '-s', '20', '-f' -PassThru -NoNewWindow
           1..400 | ForEach-Object { Set-Content (Join-Path $tree "f$_.txt") 'x'; if ($_ % 50 -eq 0) { Start-Sleep -Milliseconds 500 } }
+          $engine | Wait-Process -Timeout 60
           $cap | Wait-Process -Timeout 60
-          Stop-Process -Id $engine.Id -Force
           & $csv "$env:OUT\engine.tracy" | Out-File "$env:OUT\zones.csv" -Encoding utf8
           & $csv -m "$env:OUT\engine.tracy" | Out-File "$env:OUT\messages.csv" -Encoding utf8
           Get-Content "$env:OUT\zones.csv" | Select-Object -First 10
           if ((Get-Content "$env:OUT\zones.csv" -Raw) -notmatch 'engine') { throw 'no engine zone in the capture' }
+          # tracy-csvexport has no plots: look for the plot names in the trace.
+          $bytes = [IO.File]::ReadAllBytes("$env:OUT\engine.tracy")
+          $latin = [Text.Encoding]::GetEncoding(28591).GetString($bytes)
+          foreach ($plot in 'batch size', 'ring depth', 'spill replay', 'overflows', 'gaps') {
+            "plot '$plot' in the trace: $($latin.Contains($plot))"
+          }
 
       - name: Summary
         if: always()
