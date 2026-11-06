@@ -302,10 +302,19 @@ impl Runner {
                 direction,
                 limit: PAGE_SIZE.saturating_sub(rows.len()).max(1),
             };
+            #[cfg(feature = "tracy")]
+            let fetch_started = Instant::now();
             let page = match self.source.page(&request, cancel) {
                 Ok(page) => page,
                 Err(error) => return Some(Err(error)),
             };
+            #[cfg(feature = "tracy")]
+            if let Some(client) = tracy_client::Client::running() {
+                client.plot(
+                    tracy_client::plot_name!("page fetch ms"),
+                    fetch_started.elapsed().as_secs_f64() * 1000.0,
+                );
+            }
             if page.cancelled || cancel.is_cancelled() {
                 return None;
             }

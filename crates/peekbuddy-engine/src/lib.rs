@@ -40,6 +40,8 @@ mod sample;
 pub mod settings;
 #[cfg(windows)]
 pub mod store_win;
+#[cfg(all(windows, feature = "tracy"))]
+mod tracy_plots;
 #[cfg(windows)]
 pub mod tray_win;
 #[cfg(all(windows, feature = "usn"))]
