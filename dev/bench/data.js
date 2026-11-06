@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1793957805970,
+  "lastUpdate": 1793957810960,
   "repoUrl": "https://github.com/nobuddyorg/PeekBuddy",
   "entries": {
     "benches (windows-2025)": [
@@ -451,6 +451,83 @@ window.BENCHMARK_DATA = {
           {
             "name": "store/intern_miss_1000",
             "value": 4539417.291666667,
+            "unit": "ns"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "name": "Matthias Eggert",
+            "username": "besessener",
+            "email": "8039350+besessener@users.noreply.github.com"
+          },
+          "committer": {
+            "name": "GitHub",
+            "username": "web-flow",
+            "email": "noreply@github.com"
+          },
+          "id": "6e0aabea38a937f64ceb8caee26fd64dd73befc4",
+          "message": "fix: lockfile of the tracy features, close the viewer test (#364)\n\n* fix: commit the lockfile of the tracy features\n\nCo-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>\n\n* test: close the viewer until none comes back\n\nCo-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>\n\n* test: give the viewer tests steps to settle\n\nCo-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>\n\n---------\n\nCo-authored-by: Matthias Eggert <dem.matze@gmail.com>\nCo-authored-by: Claude Sonnet 5.5 <noreply@anthropic.com>",
+          "timestamp": "2026-11-06T09:21:03Z",
+          "url": "https://github.com/nobuddyorg/PeekBuddy/commit/6e0aabea38a937f64ceb8caee26fd64dd73befc4"
+        },
+        "date": 1793957808038,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "filter/eval_6_names",
+            "value": 1881.7490174360428,
+            "unit": "ns"
+          },
+          {
+            "name": "metrics/process_list_300",
+            "value": 721.0527920167259,
+            "unit": "ns"
+          },
+          {
+            "name": "notify_parse/extended/64kib",
+            "value": 3478.7539876656338,
+            "unit": "ns"
+          },
+          {
+            "name": "notify_parse/full/64kib",
+            "value": 3571.1579512259395,
+            "unit": "ns"
+          },
+          {
+            "name": "notify_parse/plain/64kib",
+            "value": 5981.273985218442,
+            "unit": "ns"
+          },
+          {
+            "name": "perf/counters_event",
+            "value": 0.3152645452657118,
+            "unit": "ns"
+          },
+          {
+            "name": "perf/milestone_record",
+            "value": 4.9924014303722934,
+            "unit": "ns"
+          },
+          {
+            "name": "reparse/classify_8",
+            "value": 20.811664717229096,
+            "unit": "ns"
+          },
+          {
+            "name": "store/batch_insert_1000",
+            "value": 3656990.238095238,
+            "unit": "ns"
+          },
+          {
+            "name": "store/intern_hit_1000",
+            "value": 64545.947918431906,
+            "unit": "ns"
+          },
+          {
+            "name": "store/intern_miss_1000",
+            "value": 4547574.642857143,
             "unit": "ns"
           }
         ]
