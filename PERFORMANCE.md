@@ -268,9 +268,17 @@ Oct 2026 (runs 40135633554 and 40184372781 on `windows-2025` and
 | PGO (ARM64) | `rustc` crashes with `STATUS_ACCESS_VIOLATION` compiling `half` under `-Cprofile-generate` plus `linker-plugin-lto` | PGO is x64-only for now |
 | size gate | a throwaway PR (#154) adding a 9 MB static failed `test (windows x64)` in the step "Release build without Tracy (#22) and within the size budget (#28)" (`binary.size.cap`, 8 MB) and so `ci-ok`; closed unmerged | gate verified |
 
-Not done: symbolising a WPR trace of the shipped exe against the published
-PDB (needs a running engine and a real trace), and the per-crate `cargo bloat`
-delta only becomes informative with real dependencies in the exe.
+### Re-measured with the real exe (#165)
+
+The exe is real now: engine, viewer with both renderers (ADR 0005), the
+dependency list embedded by cargo-auditable.
+
+| Question | Result (2026-11-06) | Decision |
+| --- | --- | --- |
+| exe size per architecture | the assets of v0.1.0-rc.1: x64 12.58 MB, arm64 10.61 MB (`cargo xtask size` is part of `release.yml`; `binary.size.cap` is 14 MB, ADR 0019) | within the cap; `binary.size` (12 MB, report only) is exceeded on x64 by the second renderer |
+| per-crate share, x64 (`cargo bloat --release --crates`, local, 12.1 MB file, 9.7 MB of code) | std 19 %, naga 9 %, egui 6 %, wgpu-core 5.5 %, harfrust 3.7 %, skrifa 3.3 %, vello_cpu 3 %; the PeekBuddy crates together about 8 % (viewer 2.2 %, core 2.1 %, engine 1.5 %, store 1.4 %) | the renderers and the text stack are the weight, not the product code; no change |
+| a WPR trace of the shipped build symbolises with the PDB | yes: `xperf -a profile -detail` with the folder of `peekbuddy.exe` and `peekbuddy.pdb` in `_NT_SYMBOL_PATH` names frames `peekbuddy.exe!...` (`profiling-recipes.yml`, run 42243375385, both runners); the released exe carries no PDB, so the trace is of a profiling build of the same commit | documented in `docs/how-to/profile.md` and `docs/how-to/release.md` |
+| PGO | the experiment of `release-profile.yml` ran again on 2026-11-06 (run 42247200315): x64 completes, arm64 still fails (the `rustc` crash of 25 Oct); it still trains on the micro-benches, not on the engine | not adopted: no trained engine workload yet, and a PGO build would exist for x64 only; the monthly job keeps measuring |
 
 ## End-to-end harness (#27)
 
@@ -404,6 +412,9 @@ Pending recalibration hooks:
 
 ## Changelog
 
+- 2026-11-06: #165 re-measured with the real exe (sizes, per-crate share, a
+  WPR trace symbolised with the PDB, PGO unchanged); #166 the profiling
+  recipes executed on the runners and dated in `docs/how-to/profile.md`.
 - 2026-11-03: #65 raises `binary.size` to 12 MB and `binary.size.cap` to 14 MB for
   the viewer in the single exe (11.47 MB measured, report 0003, ADR 0019).
 - 2026-10-25: #29 profiling playbook (`docs/how-to/profile.md`); only the
