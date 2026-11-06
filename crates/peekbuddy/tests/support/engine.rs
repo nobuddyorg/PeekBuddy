@@ -149,9 +149,25 @@ pub fn wait_until_settled(data: &Path, quiet: Duration) {
         } else if since.elapsed() >= quiet && reconciles_balanced(data) {
             return;
         }
-        assert!(Instant::now() < deadline, "the log never settled");
+        assert!(
+            Instant::now() < deadline,
+            "the log never settled: {}",
+            reconcile_state(data)
+        );
         std::thread::sleep(Duration::from_millis(250));
     }
+}
+
+/// The reconcile rows of the log, for the message of a log that never settles.
+fn reconcile_state(data: &Path) -> String {
+    let rows = all_rows(data);
+    let walks: Vec<String> = rows
+        .iter()
+        .filter(|r| matches!(r.kind, Kind::ReconcileStarted | Kind::ReconcileFinished))
+        .map(|r| format!("{}:{:?}:{}", r.id, r.kind, r.raw_mask))
+        .collect();
+    let newest = rows.last().map(|r| r.id);
+    format!("{} rows, newest {newest:?}, walks {walks:?}", rows.len())
 }
 
 pub fn reconciles_balanced(data: &Path) -> bool {
