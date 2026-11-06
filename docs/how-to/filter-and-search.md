@@ -11,7 +11,7 @@ field.
 | --- | --- |
 | **Search** | Names that contain the text (`Ctrl+F` focuses it, `Esc` clears it). Three characters or more use the trigram index; one or two use a `LIKE` over the names. Matching is ASCII case-insensitive in both: SQLite folds only `A-Z`, so a short search for a non-ASCII letter is case-sensitive. |
 | **Created, Modified, ...** | Kind chips. Nothing chosen means every kind. A chip stands for a class of kinds: *Gaps* covers overflows, access-denied directories and store failures; *Engine* covers starts, stops, rotations and watch state. |
-| **When** | Any time, the last 5 minutes, the last hour, or today (since local midnight). A custom range is written in the filter text. |
+| **When** | Any time, the last 5 minutes, the last hour, or today (since local midnight). A custom range: choose "Custom range..." (or open More) and type **From** and **To** in local time as `2026-10-26`, `2026-10-26 14:30` or `2026-10-26 14:30:15`; either may stay empty, and a **To** without a time includes the whole day, minute or second typed. The filter text shows the same range as `from:` and `to:`. |
 | **More** | The advanced row (below). |
 | **Show / Hide** | Rows the view hides by default (cloud sync churn) are stored and counted, never dropped: "N hidden by the view" with a button to show them. |
 

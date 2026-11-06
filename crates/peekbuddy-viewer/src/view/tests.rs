@@ -675,3 +675,53 @@ fn the_arrow_keys_skip_the_rows_that_are_folded_away() {
     harness.step();
     assert_eq!(harness.state().view.selection.cursor(), Some(1));
 }
+
+#[test]
+fn the_from_and_to_fields_make_a_custom_range() {
+    let log = FakeLog::new(5_000);
+    let mut harness = log_app(&log);
+    until(&mut harness, "the first page", |v| v.held_rows() == PAGE);
+    harness.state_mut().view.more = true;
+    harness.run_steps(10);
+    harness.get_by_label("From").focus();
+    harness.run_steps(10);
+    harness.get_by_label("From").type_text("2026-10-26 14:00");
+    harness.run_steps(10);
+    harness.get_by_label("To").focus();
+    harness.run_steps(10);
+    harness.get_by_label("To").type_text("2026-10-26");
+    harness.run_steps(10);
+    // The offset of this harness is 0, so local time is UTC.
+    let span = harness.state().view.spec.span;
+    assert!(matches!(span, super::Span::Between { .. }), "{span:?}");
+    let super::Span::Between { from, to } = span else {
+        return;
+    };
+    let hour = 36_000_000_000;
+    assert_eq!(to.unwrap() - from.unwrap(), 10 * hour - 1);
+    assert!(harness.state().view.range_error.is_none());
+    assert!(harness.state().view.spec.to_text().contains("from:"));
+
+    // A field that is not a time says so and leaves the range alone.
+    harness.get_by_label("To").focus();
+    harness.run_steps(10);
+    harness.get_by_label("To").type_text("x");
+    harness.run_steps(10);
+    assert!(harness.state().view.range_error.is_some());
+    assert_eq!(harness.state().view.spec.span, span);
+
+    // Emptying both fields goes back to any time.
+    for label in ["From", "To"] {
+        let view = &mut harness.state_mut().view;
+        if label == "From" {
+            view.range_from.clear();
+        } else {
+            view.range_to.clear();
+        }
+    }
+    harness.get_by_label("From").focus();
+    harness.run_steps(10);
+    harness.get_by_label("From").type_text(" ");
+    harness.run_steps(10);
+    assert_eq!(harness.state().view.spec.span, super::Span::Any);
+}
