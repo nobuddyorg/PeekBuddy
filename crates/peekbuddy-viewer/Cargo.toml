@@ -16,6 +16,9 @@ ignored = ["wgpu"]
 # Makes the in-memory log of the tests public, for `tests/alloc_viewer.rs`.
 # The crate enables it for its own tests through the dev-dependency below.
 test-support = []
+# A Tracy frame mark per egui frame and the page fetch time as a plot (#163).
+# Only the profiling build turns it on.
+tracy = ["dep:tracy-client"]
 # Uses wgpu with DX12 on x64 too and never tries glow, for A/B runs (ADR
 # 0005). arm64 is on wgpu either way.
 wgpu = []
@@ -25,6 +28,7 @@ egui = { workspace = true }
 egui_table = { workspace = true }
 peekbuddy-core = { workspace = true }
 peekbuddy-store = { workspace = true }
+tracy-client = { workspace = true, optional = true }
 
 # arm64 has no OpenGL driver, so it always renders through wgpu with DX12
 # only. eframe's `wgpu` feature would switch on every backend, so the crate is

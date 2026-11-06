@@ -9,6 +9,9 @@ repository.workspace = true
 publish.workspace = true
 
 [features]
+# Tracy plots and a frame mark per committed batch (#163). Only the profiling
+# build turns it on.
+tracy = ["dep:tracy-client"]
 # The USN journal capture source (#212, ADR 0018). Off in v1.
 usn = ["peekbuddy-win/usn"]
 # Compiles the --test-panic crash trigger (#59). Never enabled in releases.
@@ -19,6 +22,7 @@ inject = []
 
 [dependencies]
 peekbuddy-core = { workspace = true }
+tracy-client = { workspace = true, optional = true }
 
 [target.'cfg(windows)'.dependencies]
 known-folders = { workspace = true }

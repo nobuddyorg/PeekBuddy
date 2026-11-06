@@ -126,9 +126,23 @@ To look at engine and viewer together, start both roles from the profiling
 build and connect the GUI to each in turn (one client per process; run a
 second GUI instance for the second process).
 
-Last verified: not yet executed. `profiling.yml` builds the profiling exe
-and starts both roles in CI; there is no headless capture check yet because
-the engine does not produce batches (#59, #52).
+What the GUI shows (#163):
+
+- **Zones.** One per role, for the whole run (`engine`, `viewer`).
+  The capture path has no zone or span on purpose: `cargo xtask check-deps`
+  refuses a `tracing` macro there (#21).
+- **Frames.** The main frame set is the viewer's egui frame
+  (`frame_mark` per frame). The secondary frame set `batch` is one frame per
+  committed batch of the engine, marked on the writer thread.
+- **Plots.** Engine, per batch: `batch size`, `ring depth`, `spill replay`
+  (1 when the batch came from the spill file), `overflows`, `gaps`. Viewer, per
+  page read by the worker: `page fetch ms`.
+
+Last verified: the profiling exe is built and both roles are started in CI
+(`profiling.yml`). The plots and frame marks are compiled in and checked by
+`cargo clippy -p peekbuddy --features profile-tracy-alloc`; they have not been
+looked at in the Tracy GUI, and there is no headless capture check yet (it
+needs `tracy-capture` and `tracy-csvexport` 0.14.1, which CI does not install).
 
 ## 4. Superluminal and VTune
 
