@@ -90,7 +90,7 @@ fn a_second_engine_exits_zero_within_a_second_and_leaves_the_first_running() {
     let mut second = spawn(dir.path(), &[]);
     let status = wait_for_exit(&mut second, limit);
     assert!(status.success(), "{status:?}");
-    assert!(started.elapsed() < limit);
+    assert!(started.elapsed() < limit, "took {:?}", started.elapsed());
 
     assert!(
         first.0.try_wait().unwrap().is_none(),
