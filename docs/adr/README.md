@@ -12,7 +12,7 @@ Status legend: **Proposed** (waiting for evidence), **Accepted**,
 | [0002](0002-source-agnostic-capture-and-zero-undetected-loss.md) | Source-agnostic capture, zero undetected loss | Accepted | F2, F4, F19, R5, R7 |
 | [0003](0003-raw-is-truth.md) | Raw is truth | Accepted | F3 |
 | [0004](0004-sqlite-day-segments.md) | SQLite day segments, one writer | Accepted | F5, R1, R2, R3 |
-| [0005](0005-viewer-renderer.md) | Viewer renderer by measurement | Proposed | F9 |
+| [0005](0005-viewer-renderer.md) | Viewer renderer by measurement | Accepted | F9 |
 | [0006](0006-wake-and-timer-budget.md) | No periodic timers while idle | Accepted | F6 |
 | [0007](0007-performance-gate-policy.md) | Performance gate policy | Accepted | F7, F10, F11 |
 | [0008](0008-data-dir-and-self-exclusion.md) | Data dir and self-exclusion | Accepted | F16 |
@@ -27,6 +27,7 @@ Status legend: **Proposed** (waiting for evidence), **Accepted**,
 | [0017](0017-segment-dictionary.md) | Replicate the dictionary in every segment | Accepted | #54 |
 | [0018](0018-usn-stays-behind-a-feature.md) | Keep the USN backend behind a feature in v1 | Accepted | #47 |
 | [0019](0019-exe-size-with-the-viewer.md) | Raise the exe size budget for the viewer | Accepted | #65, M14 |
+| [0020](0020-sealed-days-and-the-viewer.md) | Leave sealed days as they are and let a busy segment wait | Accepted | #54, #218 |
 
 Decisions owned elsewhere: F8 memory budgets and R6 SQLite heap limit in
 `PERFORMANCE.md` (#20, #52); F12 runners in #11 and #34; F18 links and cloud

@@ -30,6 +30,8 @@ profile-tracy = [
   "dep:tracing-tracy",
   "dep:tracy-client",
   "dep:tracy-client-sys",
+  "peekbuddy-engine/tracy",
+  "peekbuddy-viewer/tracy",
   "tracing-tracy/enable",
   "tracing-tracy/ondemand",
   "tracing-tracy/only-localhost",

@@ -2655,6 +2655,7 @@ dependencies = [
  "peekbuddy-store",
  "peekbuddy-win",
  "serde_json",
+ "tracy-client",
 ]
 
 [[package]]
@@ -2692,6 +2693,7 @@ dependencies = [
  "peekbuddy-win",
  "proptest",
  "raw-window-handle",
+ "tracy-client",
  "wgpu",
 ]
 

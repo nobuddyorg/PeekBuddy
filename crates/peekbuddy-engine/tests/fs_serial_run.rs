@@ -396,3 +396,42 @@ fn pausing_a_watch_is_a_row_and_nothing_is_recorded_until_it_resumes() {
     });
     engine.stop();
 }
+
+#[test]
+fn an_export_into_the_data_dir_causes_no_event_even_when_a_watch_contains_it() {
+    // The watch root is the folder that holds both the tree and the data
+    // directory, the case F16 exists for.
+    let engine = Running::start("selfx", "..", "");
+    wait_for_armed(&engine, "armed.txt");
+
+    let exports = engine.data.join("exports");
+    std::fs::create_dir_all(&exports).unwrap();
+    for round in 0..20 {
+        std::fs::write(
+            exports.join(format!("export-{round}.csv.partial")),
+            b"a,b\n",
+        )
+        .unwrap();
+        std::fs::rename(
+            exports.join(format!("export-{round}.csv.partial")),
+            exports.join(format!("export-{round}.csv")),
+        )
+        .unwrap();
+    }
+    // A file of the tree, written after the exports, is seen: whatever the
+    // engine was going to log about the exports is in the log by then.
+    engine.wait("a file of the tree after the exports", || {
+        std::fs::write(engine.tree.join("after.txt"), b"x").is_ok()
+            && engine.has_row(Kind::Created, "after.txt")
+    });
+    let leaked: Vec<String> = rows(&engine.data)
+        .iter()
+        .map(|row| String::from_utf16_lossy(&row.path))
+        .filter(|path| path.contains("export") || path.contains("segments"))
+        .collect();
+    assert!(
+        leaked.is_empty(),
+        "the log has rows of its own files: {leaked:?}"
+    );
+    engine.stop();
+}

@@ -314,3 +314,100 @@ fn an_existing_file_survives_a_failed_export() {
     .unwrap_err();
     assert_eq!(std::fs::read_to_string(&target).unwrap(), "old");
 }
+
+/// A store of `count` events written in batches, for the size of the export
+/// budget (`export.1m_rows`).
+fn build_big(dir: &Dir, count: u64) {
+    const BATCH: usize = 1_000;
+    let config = SegmentsConfig {
+        rotation: Rotation {
+            dir: dir.path().to_path_buf(),
+            day_of: day_of(),
+            size_cap: u64::MAX,
+        },
+        caps: Caps::default(),
+        retire: Arc::new(NoViewer),
+    };
+    let (mut writer, _) = Writer::open_segments(config, 1).unwrap();
+    writer
+        .register_root(&RootInfo {
+            idx: RootIdx(0),
+            vol: VolInfo {
+                guid: String::from("vol-1"),
+                serial: 1,
+                letter: Some(String::from("C:")),
+                journal_id: None,
+            },
+            path: units(r"\\?\C:\Watched"),
+            recursive: true,
+        })
+        .unwrap();
+    let mut index = 0;
+    while index < count {
+        let mut batch = Batch::with_capacity(BATCH, BATCH * 96);
+        let rest = usize::try_from(count - index).unwrap_or(BATCH);
+        for _ in 0..BATCH.min(rest) {
+            let kind =
+                [Kind::Created, Kind::Modified, Kind::Deleted][usize::try_from(index % 3).unwrap()];
+            let name = format!(r"dir{}\sub{}\file {index}.txt", index % 40, index % 7);
+            batch.push(event(1 + index, kind), &units(&name)).unwrap();
+            index += 1;
+        }
+        writer.write(&[batch], &[]).unwrap();
+    }
+    writer.wait_background();
+}
+
+#[test]
+#[ignore = "1 million rows: run with --ignored --release (the export budget)"]
+#[expect(
+    clippy::print_stdout,
+    reason = "the numbers are the output of this test"
+)]
+fn a_million_rows_export_in_both_formats_within_the_budget() {
+    let dir = Dir::new("million");
+    build_big(&dir, 1_000_000);
+    let reader = Reader::new(dir.path());
+    for format in [Format::Csv, Format::JsonLines] {
+        let target = dir.path().join("big.export");
+        let progress = Progress::default();
+        let started = std::time::Instant::now();
+        let outcome = export_file(
+            &reader,
+            &job(format),
+            &target,
+            &offset,
+            &CancelFlag::new(),
+            &progress,
+        )
+        .unwrap();
+        let elapsed = started.elapsed();
+        let rows = match outcome {
+            Outcome::Done { rows } => rows,
+            Outcome::Cancelled => 0,
+        };
+        let bytes = std::fs::metadata(&target).unwrap().len();
+        // The number the budget row `export.1m_rows` (2 s) is read from.
+        println!("export {format:?}: {rows} rows, {bytes} bytes, {elapsed:?}");
+        assert!(rows >= 1_000_000);
+        // A guard against a regression by an order of magnitude, not the
+        // budget: the budget is tracked in the nightly trend.
+        assert!(elapsed.as_secs() < 30, "{format:?} took {elapsed:?}");
+        std::fs::remove_file(&target).unwrap();
+        // The same export into a sink: what the read and the formatting cost
+        // without the disk.
+        let started = std::time::Instant::now();
+        export_file_with(
+            &reader,
+            &job(format),
+            &target,
+            &offset,
+            &CancelFlag::new(),
+            &Progress::default(),
+            |_file| io::sink(),
+        )
+        .unwrap();
+        println!("export {format:?} into a sink: {:?}", started.elapsed());
+        std::fs::remove_file(&target).unwrap();
+    }
+}

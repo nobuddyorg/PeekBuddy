@@ -28,6 +28,8 @@ use peekbuddy_win::perf::{etw, since_process_create_us};
 
 use crate::datadir::DataDir;
 use crate::probe::{BatchCommit, CommitLog};
+#[cfg(feature = "tracy")]
+use crate::tracy_plots;
 
 /// How long quitting waits for the queue to reach the disk (F19).
 pub const FLUSH_DEADLINE: Duration = Duration::from_secs(5);
@@ -280,6 +282,8 @@ fn on_commit(counters: &Counters, commits: &Mutex<CommitLog>, info: &CommitInfo)
     }
     let snapshot: CounterSnapshot = counters.snapshot();
     etw::counters(&snapshot);
+    #[cfg(feature = "tracy")]
+    tracy_plots::commit(info, &snapshot);
 }
 
 #[cfg(test)]

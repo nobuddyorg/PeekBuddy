@@ -80,11 +80,17 @@ fn a_second_engine_exits_zero_within_a_second_and_leaves_the_first_running() {
     let mut first = Kill(spawn(dir.path(), &[]));
     let window = wait_for_window(dir.path(), &mut first.0);
 
+    // One second is the specified bar. The coverage job runs instrumented
+    // code, which is several times slower, and sets a wider limit (#338).
+    let limit = std::env::var("PEEKBUDDY_SECOND_ENGINE_LIMIT_MS")
+        .ok()
+        .and_then(|ms| ms.parse().ok())
+        .map_or(Duration::from_secs(1), Duration::from_millis);
     let started = Instant::now();
     let mut second = spawn(dir.path(), &[]);
-    let status = wait_for_exit(&mut second, Duration::from_secs(1));
+    let status = wait_for_exit(&mut second, limit);
     assert!(status.success(), "{status:?}");
-    assert!(started.elapsed() < Duration::from_secs(1));
+    assert!(started.elapsed() < limit);
 
     assert!(
         first.0.try_wait().unwrap().is_none(),
@@ -106,16 +112,27 @@ fn close_viewer(data: &Path) {
         &data.to_string_lossy().to_lowercase(),
     ));
     let deadline = Instant::now() + Duration::from_secs(120);
-    let shown = loop {
+    // On a machine without OpenGL 2.0 the viewer opens a window for glow,
+    // gives it up and opens another one for wgpu (ADR 0005): closing the
+    // first leaves the second, so the window is closed again until none has
+    // come back for a few seconds.
+    let mut absent_since = None;
+    let mut closed = false;
+    loop {
         if let Some(shown) = WindowHandle::find_title(&title) {
-            break shown;
+            absent_since = None;
+            closed = shown.post_close().is_ok() || closed;
+        } else if closed {
+            let since = *absent_since.get_or_insert_with(Instant::now);
+            if since.elapsed() > Duration::from_secs(5) {
+                return;
+            }
         }
-        assert!(Instant::now() < deadline, "no viewer window after 120 s");
-        std::thread::sleep(Duration::from_millis(100));
-    };
-    shown.post_close().unwrap();
-    while WindowHandle::find_title(&title).is_some() {
-        assert!(Instant::now() < deadline, "the viewer window did not close");
+        assert!(
+            Instant::now() < deadline,
+            "the viewer window did not show up or did not close (closed once: {closed});              viewer.log: {:?}",
+            std::fs::read_to_string(data.join("logs").join("viewer.log")).unwrap_or_default()
+        );
         std::thread::sleep(Duration::from_millis(100));
     }
 }

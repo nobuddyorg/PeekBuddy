@@ -723,6 +723,10 @@ impl eframe::App for ViewerApp {
 
     fn ui(&mut self, ui: &mut egui::Ui, frame: &mut eframe::Frame) {
         self.frames.fetch_add(1, Ordering::Relaxed);
+        #[cfg(feature = "tracy")]
+        if let Some(client) = tracy_client::Client::running() {
+            client.frame_mark();
+        }
         if self.idle_window.load(Ordering::Relaxed) {
             self.note_causes(ui.ctx());
         }
