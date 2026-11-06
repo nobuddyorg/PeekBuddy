@@ -919,7 +919,18 @@ fn viewport(title: &str) -> egui::ViewportBuilder {
         .with_title(title)
         .with_inner_size([1100.0, 700.0])
         .with_min_inner_size([640.0, 400.0])
-        .with_icon(egui::IconData::default())
+        .with_icon(icon())
+}
+
+/// The window and taskbar icon: `assets/icon/peek.svg` of nobuddy.org, 64 px
+/// as raw RGBA.
+fn icon() -> egui::IconData {
+    const SIZE: u32 = 64;
+    egui::IconData {
+        rgba: include_bytes!("../../../assets/icon/window-64.rgba").to_vec(),
+        width: SIZE,
+        height: SIZE,
+    }
 }
 
 /// Runs the viewer window until it closes.

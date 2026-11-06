@@ -112,6 +112,7 @@ fn delay_load_gpu_libraries() -> std::io::Result<()> {
 
 fn main() -> Result<(), Box<dyn Error>> {
     directive("cargo:rerun-if-changed=build.rs")?;
+    directive("cargo:rerun-if-changed=../../assets/icon/peekbuddy.ico")?;
     build_facts()?;
     if std::env::var_os("CARGO_CFG_WINDOWS").is_none() {
         return Ok(());
@@ -136,6 +137,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         resource.set("FileDescription", "PeekBuddy");
         resource.set("ProductName", "PeekBuddy");
         resource.set("CompanyName", "NoBuddy");
+        resource.set_icon("../../assets/icon/peekbuddy.ico");
         resource.compile()?;
     } else {
         directive("cargo:warning=rc.exe not found: building peekbuddy without VERSIONINFO")?;
