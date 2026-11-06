@@ -1,0 +1,178 @@
+# The release build (#73, docs/how-to/release.md). It starts on a tag
+# `v<version>` (release-plz creates it and starts this workflow itself with
+# `workflow_dispatch`, because a tag pushed with the built-in token starts
+# nothing) and builds, attests and publishes the assets. On a pull request that
+# changes this file it builds and attests but publishes nothing.
+#
+# This file is written by hand: dist cannot sign between the build and the
+# archive (#74), and its generated workflow does not pass zizmor. dist is not
+# used.
+name: Release
+
+on:
+  push:
+    tags: ["v[0-9]+.[0-9]+.[0-9]+*"]
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - .github/workflows/release.yml
+      - .github/workflows/release-verify.yml
+
+permissions: {}
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  CARGO_TERM_COLOR: always
+  # The version in the file names: the tag, or a stand-in on a pull request.
+  VERSION: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || 'v0.0.0-pr' }}
+
+jobs:
+  build:
+    name: build (${{ matrix.target }})
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    permissions:
+      contents: read # check out the source
+      id-token: write # sign the attestation with the identity of this workflow
+      attestations: write # store the attestation
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: x86_64-pc-windows-msvc
+            runner: windows-2025
+          - target: aarch64-pc-windows-msvc
+            runner: windows-11-vs2026-arm
+    defaults:
+      run:
+        shell: pwsh
+    env:
+      TARGET: ${{ matrix.target }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Rust toolchain
+        run: rustup toolchain install && rustup show && rustup target add $env:TARGET
+      - uses: taiki-e/install-action@86f7a0ffb25f40114606501a311ebcfaf882ea32 # v2.88.0
+        with:
+          tool: cargo-auditable@0.7.7,cargo-about@0.9.2
+      - name: Unsigned build
+        # The signing of #74 goes here: between the build and the archive, so
+        # the archive, the checksums and the attestation cover the signed exe.
+        run: Write-Output 'unsigned build (O3, ADR 0012)'
+      - name: Build with the dependency list embedded
+        run: cargo auditable build --release --locked --package peekbuddy --target $env:TARGET
+      - name: Size budget (#28)
+        run: cargo xtask size "target/$env:TARGET/release/peekbuddy.exe"
+      - name: Third-party licences
+        run: cargo about generate --locked --workspace --output-file THIRD_PARTY_LICENSES.html dist/about.hbs
+      - name: Package
+        run: |
+          $stem = "peekbuddy-$env:VERSION-$env:TARGET"
+          New-Item -ItemType Directory -Force out, stage | Out-Null
+          Copy-Item "target/$env:TARGET/release/peekbuddy.exe", LICENSE, README.md, THIRD_PARTY_LICENSES.html stage/
+          Compress-Archive -Path stage/* -DestinationPath "out/$stem.zip"
+          Copy-Item "target/$env:TARGET/release/peekbuddy.exe" "out/$stem.exe"
+          Get-ChildItem out | Format-Table Name, Length
+      - name: Attest
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4
+        with:
+          subject-path: out/*
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: assets-${{ matrix.target }}
+          path: out/
+          if-no-files-found: error
+
+  global:
+    name: checksums and SBOM
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read # check out the source
+      id-token: write # sign the attestation with the identity of this workflow
+      attestations: write # store the attestation
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Rust toolchain
+        run: rustup toolchain install && rustup show
+      - uses: taiki-e/install-action@86f7a0ffb25f40114606501a311ebcfaf882ea32 # v2.88.0
+        with:
+          tool: cargo-about@0.9.2,cargo-cyclonedx@0.5.10
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        with:
+          pattern: assets-*
+          path: out/
+          merge-multiple: true
+      - name: SBOM
+        run: |
+          cargo xtask dist-extras
+          cp target/dist-extras/peekbuddy.cdx.json "out/peekbuddy-$VERSION.cdx.json"
+      - name: Checksums
+        working-directory: out
+        run: sha256sum -- * > ../SHA256SUMS && mv ../SHA256SUMS SHA256SUMS && cat SHA256SUMS
+      - name: Attest the SBOM and the checksums
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4
+        with:
+          subject-path: |
+            out/*.cdx.json
+            out/SHA256SUMS
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: release-files
+          path: out/
+          if-no-files-found: error
+
+  publish:
+    name: publish the release
+    needs: global
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: write # create the GitHub Release
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      TAG: ${{ github.ref_name }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        with:
+          name: release-files
+          path: out/
+      - name: Release notes from the changelog
+        run: |
+          version="${TAG#v}"
+          # The section of this version in CHANGELOG.md, without its heading.
+          awk -v v="$version" '
+            index($0, "## [" v "]") == 1 { found = 1; next }
+            found && index($0, "## [") == 1 { exit }
+            found { print }
+          ' CHANGELOG.md > notes.md
+          if [ ! -s notes.md ]; then echo "No section for $version in CHANGELOG.md" >&2; exit 1; fi
+          cat notes.md
+      - name: Create the release
+        # `gh release create` fails when the release exists: an asset is never
+        # replaced (SmartScreen's reputation is per file hash).
+        run: |
+          flags=(--verify-tag --title "PeekBuddy ${TAG#v}" --notes-file notes.md)
+          case "$TAG" in *-*) flags+=(--prerelease) ;; esac
+          gh release create "$TAG" "${flags[@]}" out/*
+
+  verify:
+    name: verify the published release
+    needs: publish
+    uses: $/.github/workflows/release-verify.yml
+    with:
+      tag: ${{ github.ref_name }}
+    permissions:
+      contents: read # download the release assets

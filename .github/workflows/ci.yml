@@ -6,6 +6,9 @@ on:
   push:
     branches: [main]
   merge_group:
+  # release-plz starts CI on its release PR with this: a PR it opens with the
+  # built-in token starts no workflow (#73).
+  workflow_dispatch:
 
 permissions:
   contents: read

@@ -1,0 +1,46 @@
+# git-cliff 2.14.2 (#73): the CHANGELOG.md that release-plz writes. The groups
+# are the conventional-commit types enforced by `committed` (#10).
+[changelog]
+header = """
+# Changelog
+
+All notable changes to PeekBuddy are in this file. It is generated from the
+commit messages by release-plz and git-cliff.
+
+"""
+body = """
+{% if version -%}
+## [{{ version | trim_start_matches(pat="v") }}] - {{ timestamp | date(format="%Y-%m-%d") }}
+{% else -%}
+## [Unreleased]
+{% endif -%}
+{% for group, commits in commits | group_by(attribute="group") %}
+### {{ group | striptags | trim | upper_first }}
+{% for commit in commits %}
+- {% if commit.scope %}**{{ commit.scope }}:** {% endif %}{{ commit.message | upper_first }}{% if commit.breaking %} (breaking){% endif %}
+{%- endfor %}
+{% endfor %}
+"""
+trim = true
+
+[git]
+conventional_commits = true
+filter_unconventional = true
+split_commits = false
+protect_breaking_commits = true
+filter_commits = false
+tag_pattern = "v[0-9].*"
+sort_commits = "oldest"
+commit_parsers = [
+  { message = "^feat", group = "Features" },
+  { message = "^fix", group = "Fixes" },
+  { message = "^perf", group = "Performance" },
+  { message = "^refactor", group = "Refactoring" },
+  { message = "^docs", group = "Documentation" },
+  { message = "^test", group = "Tests" },
+  { message = "^(ci|build)", group = "Build and CI" },
+  { message = "^revert", group = "Reverts" },
+  { message = "^chore: merge", skip = true },
+  { message = "^chore[(]deps[)]", skip = true },
+  { message = "^(chore|style)", group = "Other" },
+]
