@@ -14,6 +14,11 @@ use peekbuddy_engine::Names;
 use peekbuddy_testkit::TestDir;
 use peekbuddy_win::window::WindowHandle;
 
+#[path = "support/viewer.rs"]
+mod viewer;
+
+use viewer::close_viewer;
+
 const EXE: &str = env!("CARGO_BIN_EXE_peekbuddy");
 
 fn spawn(data: &Path, extra: &[&str]) -> Child {
@@ -104,37 +109,6 @@ fn a_second_engine_exits_zero_within_a_second_and_leaves_the_first_running() {
     // one for this directory, which has to be closed before the test ends.
     close_viewer(dir.path());
     quit(window, &mut first.0);
-}
-
-/// Waits for the viewer an engine of `data` started, and closes it.
-fn close_viewer(data: &Path) {
-    let title = peekbuddy_viewer::isolated_title(peekbuddy_win::pipe::stable_hash(
-        &data.to_string_lossy().to_lowercase(),
-    ));
-    let deadline = Instant::now() + Duration::from_secs(120);
-    // On a machine without OpenGL 2.0 the viewer opens a window for glow,
-    // gives it up and opens another one for wgpu (ADR 0005): closing the
-    // first leaves the second, so the window is closed again until none has
-    // come back for a few seconds.
-    let mut absent_since = None;
-    let mut closed = false;
-    loop {
-        if let Some(shown) = WindowHandle::find_title(&title) {
-            absent_since = None;
-            closed = shown.post_close().is_ok() || closed;
-        } else if closed {
-            let since = *absent_since.get_or_insert_with(Instant::now);
-            if since.elapsed() > Duration::from_secs(5) {
-                return;
-            }
-        }
-        assert!(
-            Instant::now() < deadline,
-            "the viewer window did not show up or did not close (closed once: {closed});              viewer.log: {:?}",
-            std::fs::read_to_string(data.join("logs").join("viewer.log")).unwrap_or_default()
-        );
-        std::thread::sleep(Duration::from_millis(100));
-    }
 }
 
 #[test]
