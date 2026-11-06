@@ -1,0 +1,217 @@
+# The recipes of docs/how-to/profile.md, executed on the hosted runners (#166,
+# #163, #165). Manual, and on changes to this file. The hosted runners run
+# elevated, which most recipes need. Every recipe is its
+# own step, so one failing tool does not hide the others; the summary lists
+# what ran. The release assets are pinned by the SHA-256 that GitHub publishes
+# for each of them.
+name: profiling-recipes
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - .github/workflows/profiling-recipes.yml
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  TRACY_ZIP_SHA256: f7499d74914aa3ba94a2c1ce72f36477d7b61d9d0f7c9790e05274c258c97fb5
+  PERFVIEW_SHA256: 270e2ba419b0b2d93c4b15b0851f257edf655c92fe0ad95add3d0b5f6d6aad48
+  PRESENTMON_SHA256: b2a706bc6ad475749e3b7e3409263aa1e6906d45bdcf993f6dbc0f660188f1af
+
+jobs:
+  recipes:
+    name: recipes (${{ matrix.label }})
+    runs-on: ${{ matrix.label }}
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        label: [windows-2025, windows-11-vs2026-arm]
+    defaults:
+      run:
+        shell: pwsh
+    env:
+      LABEL: ${{ matrix.label }}
+      OUT: ${{ github.workspace }}\recipes-out
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Rust toolchain
+        run: rustup toolchain install && rustup show
+      - uses: Swatinem/rust-cache@2201cc584a476d1b508be977bbe4b7d1c7a52e9c # v2.9.3
+        with:
+          shared-key: recipes-${{ matrix.label }}
+          save-if: false
+      - name: Profiling build
+        run: |
+          New-Item -ItemType Directory -Force $env:OUT | Out-Null
+          cargo build --profile profiling --package peekbuddy --locked
+          Get-Item target/profiling/peekbuddy.exe, target/profiling/peekbuddy.pdb | Format-Table Name, Length
+          "recipe|result" | Out-File "$env:OUT\summary.txt" -Encoding utf8
+          [string](Get-ComputerInfo | Select-Object -ExpandProperty OsName) | Out-File "$env:OUT\os.txt"
+          ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator) | Out-File "$env:OUT\elevated.txt"
+
+      # 1. samply
+      - name: samply 0.13.1
+        id: samply
+        continue-on-error: true
+        run: |
+          cargo install samply --version 0.13.1 --locked
+          $data = Join-Path $env:RUNNER_TEMP 'pb-samply'
+          samply record --save-only --no-open --duration 8 -o "$env:OUT\samply.json.gz" -- target/profiling/peekbuddy.exe --headless --data-dir $data --perf-probe 8
+          if ((Get-Item "$env:OUT\samply.json.gz").Length -lt 10000) { throw 'the samply profile is empty' }
+      # 1. cargo flamegraph
+      - name: cargo-flamegraph 0.6.14
+        id: flamegraph
+        continue-on-error: true
+        run: |
+          cargo install flamegraph --version 0.6.14 --locked
+          $data = Join-Path $env:RUNNER_TEMP 'pb-flame'
+          cargo flamegraph --profile profiling --bin peekbuddy -o "$env:OUT\flamegraph.svg" -- --headless --data-dir $data --perf-probe 8
+          if ((Get-Item "$env:OUT\flamegraph.svg").Length -lt 10000) { throw 'the flamegraph is empty' }
+
+      # 2. WPR
+      - name: WPR PeekBuddy.Light, 60 s idle
+        id: wpr
+        continue-on-error: true
+        run: |
+          $data = Join-Path $env:RUNNER_TEMP 'pb-wpr'
+          New-Item -ItemType Directory -Force $data | Out-Null
+          Set-Content (Join-Path $data 'settings.toml') "version = 1`n[general]`nfirst_run = false`n"
+          wpr -start perf\peekbuddy.wprp!PeekBuddy.Light -filemode
+          target/profiling/peekbuddy.exe --headless --data-dir $data --perf-probe 60
+          Start-Sleep -Seconds 2
+          wpr -stop "$env:OUT\idle.etl"
+          Get-Item "$env:OUT\idle.etl" | Format-Table Name, Length
+          tracerpt "$env:OUT\idle.etl" -of CSV -o "$env:OUT\idle.csv" -summary "$env:OUT\idle-summary.txt" -y
+          Get-Content "$env:OUT\idle-summary.txt" | Select-Object -First 40
+      - name: WPR PeekBuddyStartup, symbols from the PDB
+        id: wprsym
+        continue-on-error: true
+        run: |
+          $data = Join-Path $env:RUNNER_TEMP 'pb-wpr-start'
+          New-Item -ItemType Directory -Force $data | Out-Null
+          Set-Content (Join-Path $data 'settings.toml') "version = 1`n[general]`nfirst_run = false`n"
+          wpr -start perf\peekbuddy.wprp!PeekBuddyStartup -filemode
+          target/profiling/peekbuddy.exe --headless --data-dir $data --perf-probe 5
+          wpr -stop "$env:OUT\startup.etl"
+          # Symbolise with the PDB that sits next to the exe: xperf resolves
+          # the sampled stacks through dbghelp and _NT_SYMBOL_PATH.
+          $env:_NT_SYMBOL_PATH = (Resolve-Path target/profiling).Path
+          $xperf = Get-Command xperf -ErrorAction SilentlyContinue
+          if (-not $xperf) { $xperf = Get-Item 'C:\Program Files (x86)\Windows Kits\10\Windows Performance Toolkit\xperf.exe' }
+          & $xperf -i "$env:OUT\startup.etl" -symbols -o "$env:OUT\startup-profile.txt" -a profile -detail
+          $text = Get-Content "$env:OUT\startup-profile.txt" -Raw
+          if ($text -notmatch 'peekbuddy(_[a-z]+)*::') { throw 'no PeekBuddy symbol in the profile; the first lines are: ' + ($text.Substring(0, [Math]::Min(1500, $text.Length))) }
+          Select-String -Path "$env:OUT\startup-profile.txt" -Pattern 'peekbuddy' | Select-Object -First 15 | ForEach-Object { $_.Line }
+
+      # 2. PerfView
+      - name: PerfView 4.0.0 thread time
+        id: perfview
+        continue-on-error: true
+        run: |
+          $exe = Join-Path $env:RUNNER_TEMP 'PerfView.exe'
+          Invoke-WebRequest -Uri 'https://github.com/microsoft/perfview/releases/download/v4.0.0/PerfView.exe' -OutFile $exe
+          if ((Get-FileHash $exe -Algorithm SHA256).Hash -ne $env:PERFVIEW_SHA256) { throw 'PerfView.exe does not match the pinned hash' }
+          $data = Join-Path $env:RUNNER_TEMP 'pb-perfview'
+          New-Item -ItemType Directory -Force $data | Out-Null
+          Set-Content (Join-Path $data 'settings.toml') "version = 1`n[general]`nfirst_run = false`n"
+          $engine = Start-Process target/profiling/peekbuddy.exe -ArgumentList '--headless', '--data-dir', $data, '--perf-probe', '20' -PassThru
+          & $exe /AcceptEULA /NoGui /ThreadTime /MaxCollectSec:10 /Merge:true /Zip:false "/DataFile:$env:OUT\perfview.etl" collect
+          $engine | Wait-Process -Timeout 60 -ErrorAction SilentlyContinue
+          if (-not (Test-Path "$env:OUT\perfview.etl")) { throw 'PerfView wrote no trace' }
+          Get-Item "$env:OUT\perfview.etl" | Format-Table Name, Length
+
+      # 5. dhat
+      - name: dhat 0.3.3 on a throwaway test
+        id: dhat
+        continue-on-error: true
+        run: |
+          $crate = Join-Path $env:RUNNER_TEMP 'dhat-try'
+          New-Item -ItemType Directory -Force "$crate\src" | Out-Null
+          Set-Content "$crate\Cargo.toml" "[package]`nname = `"dhat-try`"`nversion = `"0.0.0`"`nedition = `"2024`"`n[dependencies]`ndhat = `"=0.3.3`"`n"
+          Set-Content "$crate\src\lib.rs" "#[global_allocator]`nstatic ALLOC: dhat::Alloc = dhat::Alloc;`n#[test]`nfn heap() {`n    let _profiler = dhat::Profiler::new_heap();`n    let v: Vec<u64> = (0..100_000).collect();`n    assert_eq!(v.len(), 100_000);`n}`n"
+          Push-Location $crate
+          cargo test --release -- --test-threads=1
+          Pop-Location
+          if (-not (Test-Path "$crate\dhat-heap.json")) { throw 'no dhat-heap.json' }
+          Copy-Item "$crate\dhat-heap.json" "$env:OUT\dhat-heap.json"
+
+      # 6. PresentMon
+      - name: PresentMon 2.6.0 on the viewer
+        id: presentmon
+        continue-on-error: true
+        run: |
+          $pm = Join-Path $env:RUNNER_TEMP 'PresentMon.exe'
+          Invoke-WebRequest -Uri 'https://github.com/GameTechDev/PresentMon/releases/download/v2.6.0/PresentMon-2.6.0-x64.exe' -OutFile $pm
+          if ((Get-FileHash $pm -Algorithm SHA256).Hash -ne $env:PRESENTMON_SHA256) { throw 'PresentMon does not match the pinned hash' }
+          $data = Join-Path $env:RUNNER_TEMP 'pb-pm'
+          New-Item -ItemType Directory -Force $data | Out-Null
+          $monitor = Start-Process $pm -ArgumentList '--process_name', 'peekbuddy.exe', '--output_file', "$env:OUT\frames.csv", '--terminate_on_proc_exit', '--stop_existing_session' -PassThru -NoNewWindow
+          Start-Sleep -Seconds 2
+          Start-Process target/profiling/peekbuddy.exe -ArgumentList '--viewer', '--data-dir', $data, '--viewer-probe', '10' -Wait
+          $monitor | Wait-Process -Timeout 30 -ErrorAction SilentlyContinue
+          if (-not (Test-Path "$env:OUT\frames.csv")) { throw 'no frames.csv' }
+          Get-Content "$env:OUT\frames.csv" | Select-Object -First 4
+
+      # 7. Defender
+      - name: Defender exclusion on and off
+        id: defender
+        continue-on-error: true
+        run: |
+          "real-time protection: $((Get-MpComputerStatus).RealTimeProtectionEnabled)"
+          Add-MpPreference -ExclusionPath C:\pbperf
+          if ((Get-MpPreference).ExclusionPath -notcontains 'C:\pbperf') { throw 'the exclusion was not added' }
+          Remove-MpPreference -ExclusionPath C:\pbperf
+          if ((Get-MpPreference).ExclusionPath -contains 'C:\pbperf') { throw 'the exclusion was not removed' }
+
+      # 3. Tracy: the headless capture of #163
+      - name: Tracy 0.14.1 capture
+        id: tracy
+        if: matrix.label == 'windows-2025'
+        continue-on-error: true
+        run: |
+          $zip = Join-Path $env:RUNNER_TEMP 'tracy.zip'
+          Invoke-WebRequest -Uri 'https://github.com/wolfpld/tracy/releases/download/v0.14.1/windows-0.14.1.zip' -OutFile $zip
+          if ((Get-FileHash $zip -Algorithm SHA256).Hash -ne $env:TRACY_ZIP_SHA256) { throw 'the Tracy zip does not match the pinned hash' }
+          $tools = Join-Path $env:RUNNER_TEMP 'tracy'
+          Expand-Archive $zip $tools
+          Get-ChildItem $tools -Recurse -Filter '*.exe' | Select-Object FullName | Out-String | Write-Host
+          $capture = (Get-ChildItem $tools -Recurse -Filter 'tracy-capture.exe' | Select-Object -First 1).FullName
+          $csv = (Get-ChildItem $tools -Recurse -Filter 'tracy-csvexport.exe' | Select-Object -First 1).FullName
+          cargo build --profile profiling --package peekbuddy --features profile-tracy --locked
+          $data = Join-Path $env:RUNNER_TEMP 'pb-tracy'
+          $tree = Join-Path $env:RUNNER_TEMP 'pb-tracy-tree'
+          New-Item -ItemType Directory -Force $data, $tree | Out-Null
+          Set-Content (Join-Path $data 'settings.toml') "version = 1`n[general]`nfirst_run = false`n[[watch]]`nid = `"w0`"`npath = '$tree'`n"
+          $engine = Start-Process target/profiling/peekbuddy.exe -ArgumentList '--headless', '--data-dir', $data -PassThru
+          Start-Sleep -Seconds 4
+          $cap = Start-Process $capture -ArgumentList '-o', "$env:OUT\engine.tracy", '-s', '6', '-f' -PassThru -NoNewWindow
+          1..400 | ForEach-Object { Set-Content (Join-Path $tree "f$_.txt") 'x'; if ($_ % 50 -eq 0) { Start-Sleep -Milliseconds 500 } }
+          $cap | Wait-Process -Timeout 60
+          Stop-Process -Id $engine.Id -Force
+          & $csv "$env:OUT\engine.tracy" | Out-File "$env:OUT\zones.csv" -Encoding utf8
+          & $csv -m "$env:OUT\engine.tracy" | Out-File "$env:OUT\messages.csv" -Encoding utf8
+          Get-Content "$env:OUT\zones.csv" | Select-Object -First 10
+          if ((Get-Content "$env:OUT\zones.csv" -Raw) -notmatch 'engine') { throw 'no engine zone in the capture' }
+
+      - name: Summary
+        if: always()
+        env:
+          RESULTS: ${{ toJson(steps) }}
+        run: |
+          $steps = $env:RESULTS | ConvertFrom-Json
+          $lines = @("### Recipes on $env:LABEL", '', "OS: $(Get-Content $env:OUT\os.txt -ErrorAction SilentlyContinue); elevated: $(Get-Content $env:OUT\elevated.txt -ErrorAction SilentlyContinue)", '', '| recipe | outcome |', '| --- | --- |')
+          foreach ($p in $steps.PSObject.Properties) { if ($p.Value.outcome) { $lines += "| $($p.Name) | $($p.Value.outcome) |" } }
+          $lines | Out-File $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+          $lines
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: recipes-${{ matrix.label }}
+          path: recipes-out/
+          if-no-files-found: ignore
