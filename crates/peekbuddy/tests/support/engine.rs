@@ -131,8 +131,8 @@ pub fn newest_id(data: &Path) -> i64 {
         .unwrap_or(0)
 }
 
-/// Waits until the log has not grown for `quiet` and every reconcile that
-/// started has finished.
+/// Waits until the log has not grown for `quiet` and the newest reconcile
+/// has finished.
 pub fn wait_until_settled(data: &Path, quiet: Duration) {
     let limit = Duration::from_secs(180);
     let mut deadline = Instant::now() + limit;
@@ -170,15 +170,12 @@ fn reconcile_state(data: &Path) -> String {
     format!("{} rows, newest {newest:?}, walks {walks:?}", rows.len())
 }
 
+/// The newest walk has finished. A walk that a killed engine never finished
+/// stays open for good, so only the newest one counts.
 pub fn reconciles_balanced(data: &Path) -> bool {
-    let rows = all_rows(data);
-    let started = rows
+    all_rows(data)
         .iter()
-        .filter(|r| r.kind == Kind::ReconcileStarted)
-        .count();
-    let finished = rows
-        .iter()
-        .filter(|r| r.kind == Kind::ReconcileFinished)
-        .count();
-    started == finished
+        .rev()
+        .find(|r| matches!(r.kind, Kind::ReconcileStarted | Kind::ReconcileFinished))
+        .is_none_or(|r| r.kind == Kind::ReconcileFinished)
 }
