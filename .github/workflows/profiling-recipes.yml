@@ -224,25 +224,22 @@ jobs:
           # the capture is longer than the probe and so sees it close.
           $engine = Start-Process target/profiling/peekbuddy.exe -ArgumentList '--headless', '--data-dir', $data, '--perf-probe', '14' -PassThru
           Start-Sleep -Seconds 3
-          $cap = Start-Process $capture -ArgumentList '-o', "$env:OUT\engine.tracy", '-s', '20', '-f' -PassThru -NoNewWindow
+          $cap = Start-Process $capture -ArgumentList '-o', "$env:OUT\engine.tracy", '-s', '20', '-f' -PassThru -NoNewWindow -RedirectStandardOutput "$env:OUT\capture.log"
           1..400 | ForEach-Object { Set-Content (Join-Path $tree "f$_.txt") 'x'; if ($_ % 50 -eq 0) { Start-Sleep -Milliseconds 500 } }
           $engine | Wait-Process -Timeout 60
           $cap | Wait-Process -Timeout 60
           & $csv "$env:OUT\engine.tracy" | Out-File "$env:OUT\zones.csv" -Encoding utf8
           & $csv -m "$env:OUT\engine.tracy" | Out-File "$env:OUT\messages.csv" -Encoding utf8
           Get-Content "$env:OUT\zones.csv" | Select-Object -First 10
-          # The role zone ends with the process and is not in a capture that
-          # stops first; what the capture must hold are the batch frames.
-          Get-Content "$env:OUT\zones.csv" | Measure-Object | ForEach-Object { "zone rows in the csv: $($_.Count - 1)" }
-          # tracy-csvexport has no plots: look for the plot names in the trace.
-          $bytes = [IO.File]::ReadAllBytes("$env:OUT\engine.tracy")
-          $latin = [Text.Encoding]::GetEncoding(28591).GetString($bytes)
-          $missing = @('batch size', 'ring depth', 'spill replay', 'overflows', 'gaps' | Where-Object { -not $latin.Contains($_) })
-          foreach ($plot in 'batch size', 'ring depth', 'spill replay', 'overflows', 'gaps') {
-            "plot '$plot' in the trace: $($latin.Contains($plot))"
-          }
-          if ($missing.Count -gt 0) { throw "plots missing from the trace: $($missing -join ', ')" }
-
+          # What a headless capture can show: tracy-capture counts the frame
+          # marks it received (the secondary set `batch`, one per committed
+          # batch). tracy-csvexport has no plots, and the plot names are not
+          # readable in the compressed trace. The role zone ends with the
+          # process, which can be gone before the zone end is sent.
+          Get-Content "$env:OUT\capture.log" | Select-Object -Last 8
+          $frames = [int](([regex]::Match((Get-Content "$env:OUT\capture.log" -Raw), 'Frames:\s+(\d+)')).Groups[1].Value)
+          "frame marks received: $frames"
+          if ($frames -lt 1) { throw 'the capture holds no frame mark of the engine' }
       - name: Summary
         if: always()
         env:
