@@ -31,6 +31,8 @@ pub mod ipc_server;
 #[cfg(windows)]
 pub mod links;
 #[cfg(windows)]
+pub mod live_log;
+#[cfg(windows)]
 pub mod pause_ctl;
 #[cfg(windows)]
 pub mod reconciler;
@@ -590,6 +592,7 @@ mod run {
             Host, HostParts, Services, StoreSink, filters_from_settings, real_probe,
             watches_from_settings,
         };
+        use crate::live_log::StoreLiveLog;
         use crate::reconciler::{Reconciler, RootSpec, StoreRows};
 
         let watches = watches_from_settings(&loaded.settings);
@@ -614,12 +617,14 @@ mod run {
             peekbuddy_store::snapshot::SnapshotDb::open(&data.root.join("snapshot.db"))
                 .ok()
                 .and_then(|snapshot| {
-                    Reconciler::start(
+                    let live = Arc::new(StoreLiveLog::new(&data.segments, &specs));
+                    Reconciler::start_with_live(
                         snapshot,
                         StoreRows::new(producer.clone()),
                         specs,
                         crate::pause_ctl::now_ticks,
                         Host::observer(bind),
+                        Some(live),
                     )
                     .ok()
                 });

@@ -66,6 +66,7 @@ fn reconcile(
         reason,
         cancel: &cancel,
         clock,
+        live: None,
     };
     let mut rows = Rows::new();
     let summary = run(&cfg, tree, snapshot, &mut rows).unwrap();
@@ -323,6 +324,10 @@ impl DirSource for CancelAfter<'_> {
         }
         result
     }
+
+    fn exists(&mut self, path: &[u16]) -> bool {
+        self.inner.exists(path)
+    }
 }
 
 #[test]
@@ -349,6 +354,7 @@ fn a_cancel_stops_within_a_directory_and_keeps_the_previous_snapshot() {
         reason: None,
         cancel: &cancel,
         clock,
+        live: None,
     };
     let mut rows = Rows::new();
     let summary = run(&cfg, &mut source, &mut s, &mut rows).unwrap();
@@ -374,6 +380,7 @@ fn rows_that_are_not_durable_keep_the_snapshot_where_it_was() {
         reason: None,
         cancel: &cancel,
         clock,
+        live: None,
     };
     let mut rows = Rows::new();
     rows.durable = false;
@@ -623,6 +630,7 @@ fn the_finish_row_carries_the_elapsed_time_in_100_tick_units() {
         reason: None,
         cancel: &cancel,
         clock: jumping,
+        live: None,
     };
     let mut rows = Rows::new();
     run(&cfg, &mut t, &mut s, &mut rows).unwrap();
@@ -672,4 +680,82 @@ fn a_committed_transaction_cannot_be_rolled_back() {
     s.commit().unwrap();
     s.rollback();
     assert_eq!(s.len(), 1);
+}
+
+fn reconcile_with_live(
+    tree: &mut MemoryTree,
+    snapshot: &mut MemorySnapshot,
+    live: &crate::reconcile::memory::MemoryLive,
+) -> (Summary, Rows) {
+    let cancel = AtomicBool::new(false);
+    let cfg = Config {
+        root: RootIdx(1),
+        vol: VolIdx(0),
+        reason: Some(GapReason::BufferOverflow),
+        cancel: &cancel,
+        clock,
+        live: Some(live),
+    };
+    let mut rows = Rows::new();
+    let summary = run(&cfg, tree, snapshot, &mut rows).unwrap();
+    (summary, rows)
+}
+
+#[test]
+fn a_path_created_live_and_deleted_in_the_gap_is_reported_deleted() {
+    // The live stream logged `a\\gone.txt` as created; the snapshot never knew
+    // it (no walk since), and it was deleted during the gap: the walk sees it
+    // neither on disk nor in the snapshot (#290).
+    let (mut t, mut snapshot) = baselined(&[("a", dir(1)), ("a\\kept.txt", file(2, 1, 1, 1))]);
+    let live = crate::reconcile::memory::MemoryLive {
+        paths: vec![u("a\\kept.txt"), u("a\\gone.txt"), u("b")],
+    };
+    let (summary, rows) = reconcile_with_live(&mut t, &mut snapshot, &live);
+    let deleted: Vec<String> = rows
+        .rows
+        .iter()
+        .filter(|(kind, ..)| *kind == Kind::ReconciledDeleted)
+        .map(|(_, path, _)| path_text(path))
+        .collect();
+    assert_eq!(deleted, ["a\\gone.txt", "b"]);
+    assert_eq!(summary.changed, 2);
+    assert_eq!(
+        kinds(&rows).last(),
+        Some(&Kind::ReconcileFinished),
+        "the rows come before the end of the walk"
+    );
+}
+
+#[test]
+fn paths_that_still_exist_are_not_reported_and_no_live_log_is_no_change() {
+    let (mut t, mut snapshot) = baselined(&[("a", dir(1)), ("a\\x", file(2, 1, 1, 1))]);
+    let live = crate::reconcile::memory::MemoryLive {
+        paths: vec![u("a"), u("a\\x")],
+    };
+    let (summary, rows) = reconcile_with_live(&mut t, &mut snapshot, &live);
+    assert_eq!(summary.changed, 0);
+    assert!(!kinds(&rows).contains(&Kind::ReconciledDeleted));
+    let (summary, _) = reconcile(&mut t, &mut snapshot, Some(GapReason::BufferOverflow));
+    assert_eq!(summary.changed, 0);
+}
+
+#[test]
+fn a_cancel_while_reading_the_live_log_rolls_the_walk_back() {
+    let (mut t, mut snapshot) = baselined(&[("a", dir(1))]);
+    let cancel = AtomicBool::new(true);
+    let live = crate::reconcile::memory::MemoryLive {
+        paths: vec![u("a\\gone.txt")],
+    };
+    let cfg = Config {
+        root: RootIdx(1),
+        vol: VolIdx(0),
+        reason: Some(GapReason::BufferOverflow),
+        cancel: &cancel,
+        clock,
+        live: Some(&live),
+    };
+    let mut rows = Rows::new();
+    let summary = run(&cfg, &mut t, &mut snapshot, &mut rows).unwrap();
+    assert!(summary.cancelled);
+    assert!(!kinds(&rows).contains(&Kind::ReconciledDeleted));
 }

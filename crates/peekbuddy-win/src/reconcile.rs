@@ -115,6 +115,18 @@ fn map_error(code: u32) -> ListError {
 }
 
 impl DirSource for DirLister {
+    fn exists(&mut self, path: &[u16]) -> bool {
+        use std::os::windows::ffi::OsStringExt as _;
+        let full = std::ffi::OsString::from_wide(&self.full_path(path));
+        // Attributes only, a reparse point is not followed. Anything but "not
+        // found" (access denied, a sharing violation) does not show that the
+        // entry is gone, so it counts as there.
+        std::fs::symlink_metadata(full).map_or_else(
+            |error| error.kind() != std::io::ErrorKind::NotFound,
+            |_| true,
+        )
+    }
+
     fn list(&mut self, path: &[u16], out: &mut Listing) -> Result<(), ListError> {
         let full = self.full_path(path);
         let options = OpenOptions {
@@ -232,6 +244,16 @@ mod tests {
         assert_eq!(root.full_path(&wide("a")), wide(r"\\?\U:\a"));
         let deep = DirLister::new(&wide(r"\\?\C:\Users"));
         assert_eq!(deep.full_path(&wide("a")), wide(r"\\?\C:\Users\a"));
+    }
+
+    #[test]
+    fn an_entry_exists_when_it_is_there_and_not_when_it_is_missing() {
+        let drive = std::env::var("SystemDrive").unwrap_or_else(|_| String::from("C:"));
+        let mut lister = DirLister::new(&wide(&format!(r"\\?\{drive}\")));
+        assert!(lister.exists(&[]));
+        assert!(lister.exists(&wide("Windows")));
+        assert!(!lister.exists(&wide("no such entry 7f3a1c")));
+        assert!(!lister.exists(&wide(r"Windows\no such entry 7f3a1c\and below")));
     }
 
     #[test]

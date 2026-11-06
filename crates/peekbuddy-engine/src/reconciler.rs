@@ -19,7 +19,7 @@ use std::time::Duration;
 
 use peekbuddy_core::event::{Event, GapReason, RootIdx, VolIdx};
 use peekbuddy_core::reconcile::walk::{Config, Summary, run};
-use peekbuddy_core::reconcile::{RowOut, Snapshot};
+use peekbuddy_core::reconcile::{LiveLog, RowOut, Snapshot};
 use peekbuddy_store::batch::Batch;
 use peekbuddy_store::pipeline::{Producer, Push};
 use peekbuddy_win::reconcile::{BackgroundMode, DirLister};
@@ -188,6 +188,27 @@ impl Reconciler {
         N: Snapshot + Send + 'static,
         R: RowOut + Send + 'static,
     {
+        Self::start_with_live(snapshot, rows, roots, clock, observer, None)
+    }
+
+    /// Like [`Reconciler::start`], with the live log a walk reads to find the
+    /// entries that were created and deleted inside a gap (#290).
+    ///
+    /// # Errors
+    ///
+    /// The OS error when the thread cannot be spawned.
+    pub fn start_with_live<N, R>(
+        snapshot: N,
+        rows: R,
+        roots: Vec<RootSpec>,
+        clock: fn() -> (u64, u64),
+        observer: Arc<dyn Observer>,
+        live: Option<Arc<dyn LiveLog + Send + Sync>>,
+    ) -> io::Result<Self>
+    where
+        N: Snapshot + Send + 'static,
+        R: RowOut + Send + 'static,
+    {
         let shared = Arc::new(Shared {
             state: Mutex::new(State {
                 queue: VecDeque::new(),
@@ -203,7 +224,17 @@ impl Reconciler {
         let inner = Arc::clone(&shared);
         let thread = std::thread::Builder::new()
             .name(String::from("peekbuddy-reconcile"))
-            .spawn(move || work(&inner, snapshot, rows, &roots, clock, observer.as_ref()))?;
+            .spawn(move || {
+                work(
+                    &inner,
+                    snapshot,
+                    rows,
+                    &roots,
+                    clock,
+                    observer.as_ref(),
+                    live.as_deref(),
+                );
+            })?;
         Ok(Self {
             shared,
             thread: Some(thread),
@@ -294,6 +325,7 @@ fn work<N: Snapshot, R: RowOut>(
     roots: &[RootSpec],
     clock: fn() -> (u64, u64),
     observer: &dyn Observer,
+    live: Option<&(dyn LiveLog + Send + Sync)>,
 ) {
     let _background = BackgroundMode::enter();
     loop {
@@ -326,6 +358,7 @@ fn work<N: Snapshot, R: RowOut>(
                     reason,
                     cancel: &shared.cancel,
                     clock,
+                    live: live.map(|log| log as &dyn LiveLog),
                 };
                 run(&cfg, &mut source, &mut snapshot, &mut rows).ok()
             });

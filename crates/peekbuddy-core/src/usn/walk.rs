@@ -115,6 +115,10 @@ mod tests {
             }
             Ok(())
         }
+
+        fn exists(&mut self, path: &[u16]) -> bool {
+            self.dirs.contains_key(&String::from_utf16_lossy(path))
+        }
     }
 
     fn tree() -> Tree {
