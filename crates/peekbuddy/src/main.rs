@@ -20,13 +20,11 @@ mod cli;
 #[cfg(feature = "profile-tracy")]
 mod tracy;
 
-#[cfg(all(feature = "mimalloc", feature = "profile-tracy-alloc"))]
-compile_error!("mimalloc and profile-tracy-alloc both set the global allocator");
-
 /// mimalloc instead of the system allocator (#268). Off by default: the system
 /// allocator stays unless the comparison of the `allocator` workflow says
-/// otherwise.
-#[cfg(feature = "mimalloc")]
+/// otherwise. The Tracy allocation profile (`profile-tracy-alloc`) sets its own
+/// global allocator and wins when both features are on (`--all-features`).
+#[cfg(all(feature = "mimalloc", not(feature = "profile-tracy-alloc")))]
 #[global_allocator]
 static ALLOC: mimalloc::MiMalloc = mimalloc::MiMalloc;
 
