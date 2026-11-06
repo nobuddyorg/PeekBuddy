@@ -116,6 +116,7 @@ WPA comes from the Microsoft Store or the ADK. Symbols: set
 and add the folder holding the PDB next to the exe.
 
 Last verified: 2026-11-06 on both hosted runners, [run 42243375385](https://github.com/nobuddyorg/PeekBuddy/actions/runs/42243375385):
+
 - `wpr -start perf\peekbuddy.wprp!PeekBuddy.Light -filemode`, 60 s of the
   idle engine, `wpr -stop` and `tracerpt` read back the trace.
 - **A trace of the shipped build symbolises with the PDB**: `PeekBuddyStartup`
@@ -128,6 +129,7 @@ Last verified: 2026-11-06 on both hosted runners, [run 42243375385](https://gith
 - PerfView 4.0.0 (`/NoGui /ThreadTime /MaxCollectSec:10 collect`) wrote a
   thread-time trace of the engine. Opening it in the PerfView GUI was not
   done.
+
 CI also records the `etw_smoke` example with `PeekBuddy.Light` on every PR (job
 `etw smoke (windows x64)`).
 
