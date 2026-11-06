@@ -1,0 +1,71 @@
+# Checks the assets a release published, on each native runner (#73): the
+# checksum, the attestation, a smoke run of the exe and `cargo audit bin`.
+# Called by release.yml after the announcement (dist `post-announce-jobs`).
+name: release-verify
+
+on:
+  workflow_call:
+    inputs:
+      plan:
+        description: the dist plan (JSON) of the release
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: verify (${{ matrix.target }})
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: x86_64-pc-windows-msvc
+            runner: windows-2025
+          - target: aarch64-pc-windows-msvc
+            runner: windows-11-vs2026-arm
+    defaults:
+      run:
+        shell: pwsh
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      TARGET: ${{ matrix.target }}
+      PLAN: ${{ inputs.plan }}
+    steps:
+      - name: Download the published assets
+        run: |
+          $tag = ($env:PLAN | ConvertFrom-Json).announcement_tag
+          if (-not $tag) { throw 'the plan has no announcement tag' }
+          "tag: $tag"
+          gh release download $tag --repo $env:GITHUB_REPOSITORY --pattern "*$env:TARGET*" --dir assets
+          Get-ChildItem assets | Format-Table Name, Length
+      - name: Checksum
+        run: |
+          $zip = Get-ChildItem assets -Filter '*.zip' | Select-Object -First 1
+          $want = (Get-Content "$($zip.FullName).sha256").Split(' ')[0].ToLower()
+          $have = (Get-FileHash $zip.FullName -Algorithm SHA256).Hash.ToLower()
+          if ($want -ne $have) { throw "checksum mismatch: $want $have" }
+          "checksum ok: $have"
+      - name: Attestation
+        run: |
+          $zip = Get-ChildItem assets -Filter '*.zip' | Select-Object -First 1
+          gh attestation verify $zip.FullName --repo $env:GITHUB_REPOSITORY
+      - name: Smoke run of the published exe
+        run: |
+          $zip = Get-ChildItem assets -Filter '*.zip' | Select-Object -First 1
+          Expand-Archive $zip.FullName extracted
+          $exe = (Get-ChildItem extracted -Recurse -Filter peekbuddy.exe | Select-Object -First 1).FullName
+          $run = Start-Process $exe -ArgumentList '--diagnostics' -Wait -PassThru -RedirectStandardOutput diagnostics.txt
+          if ($run.ExitCode -ne 0) { throw "--diagnostics exited with $($run.ExitCode)" }
+          Get-Content diagnostics.txt | Select-Object -First 20
+          "exe=$exe" | Out-File $env:GITHUB_ENV -Append -Encoding utf8
+      - name: cargo audit bin
+        run: |
+          rustup toolchain install stable --profile minimal
+          cargo install cargo-audit --version 0.22.2 --locked --features binary-scanning
+          cargo audit bin "$env:exe"

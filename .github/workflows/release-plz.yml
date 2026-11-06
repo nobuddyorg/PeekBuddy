@@ -1,0 +1,85 @@
+# The release PR and the tag (#73, docs/how-to/release.md). Both jobs use the
+# built-in token. Events created with it start no workflow, so each job starts
+# what must follow by hand: CI on the release PR, and the release build on the
+# new tag (`workflow_dispatch` is the one trigger the built-in token may fire).
+name: release-plz
+
+on:
+  push:
+    branches: [main]
+
+permissions: {}
+
+concurrency:
+  group: release-plz
+  cancel-in-progress: false
+
+jobs:
+  release-plz-release:
+    name: tag a merged release PR
+    if: github.repository == 'nobuddyorg/PeekBuddy'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: write
+      actions: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Rust toolchain
+        run: rustup toolchain install && rustup show
+      - name: Create the tag of a merged release PR
+        id: release-plz
+        uses: release-plz/action@8b5bf233ecb5779f63508db7cd050e948ee77cc2 # v0.5.144
+        with:
+          command: release
+          version: 0.3.174
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Start the release build for each new tag
+        if: steps.release-plz.outputs.releases_created == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASES: ${{ steps.release-plz.outputs.releases }}
+        run: |
+          echo "$RELEASES" | jq -r '.[].tag' | while read -r tag; do
+            echo "release build for $tag"
+            gh workflow run release.yml --repo "$GITHUB_REPOSITORY" --ref "$tag"
+          done
+
+  release-plz-pr:
+    name: open or update the release PR
+    if: github.repository == 'nobuddyorg/PeekBuddy'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: write
+      pull-requests: write
+      actions: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Rust toolchain
+        run: rustup toolchain install && rustup show
+      - name: Open or update the release PR
+        id: release-plz
+        uses: release-plz/action@8b5bf233ecb5779f63508db7cd050e948ee77cc2 # v0.5.144
+        with:
+          command: release-pr
+          version: 0.3.174
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Run CI on the release PR
+        if: steps.release-plz.outputs.prs_created == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PRS: ${{ steps.release-plz.outputs.prs }}
+        run: |
+          echo "$PRS" | jq -r '.[].head_branch' | while read -r branch; do
+            echo "CI for $branch"
+            gh workflow run ci.yml --repo "$GITHUB_REPOSITORY" --ref "$branch"
+          done

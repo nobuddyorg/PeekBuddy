@@ -1,0 +1,22 @@
+# release-plz 0.3.174 (#73). One binary is released, from git tags alone: it
+# is not published to crates.io. release-plz opens the release PR (version
+# bump and CHANGELOG.md) and, when that PR is merged, creates the tag; dist
+# (release.yml) builds the tag and creates the GitHub Release, so exactly one
+# tool creates the Release.
+[workspace]
+git_only = true
+semver_check = false
+changelog_update = true
+changelog_config = "cliff.toml"
+pr_labels = ["release"]
+git_release_enable = false
+git_tag_enable = true
+publish = false
+# The crates of the workspace share one version.
+release = false
+
+[[package]]
+name = "peekbuddy"
+release = true
+changelog_path = "CHANGELOG.md"
+git_tag_name = "v{{ version }}"

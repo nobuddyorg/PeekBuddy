@@ -10,6 +10,10 @@ publish.workspace = true
 
 # tracy-client-sys is a direct dependency only to pin its exact version
 # (the Tracy protocol, #22); no code names it.
+# The one binary dist releases (#73); `publish = false` would hide it.
+[package.metadata.dist]
+dist = true
+
 [package.metadata.cargo-machete]
 ignored = ["tracy-client-sys"]
 
