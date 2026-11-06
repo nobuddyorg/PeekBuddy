@@ -13,7 +13,7 @@ Every release has a file named `SHA256SUMS` with one line per asset. In
 PowerShell, in the folder of your download:
 
 ```powershell
-Get-FileHash .\peekbuddy-<version>-x86_64-pc-windows-msvc.zip -Algorithm SHA256
+Get-FileHash .\peekbuddy-v<version>-x86_64-pc-windows-msvc.zip -Algorithm SHA256
 ```
 
 Compare the hash with the line of the same file name in `SHA256SUMS`. They must
@@ -31,7 +31,7 @@ workflow of this repository, from a named commit. With the
 [GitHub CLI](https://cli.github.com/):
 
 ```powershell
-gh attestation verify .\peekbuddy-<version>-x86_64-pc-windows-msvc.zip --repo nobuddyorg/PeekBuddy
+gh attestation verify .\peekbuddy-v<version>-x86_64-pc-windows-msvc.zip --repo nobuddyorg/PeekBuddy
 ```
 
 A good result lists the repository, the workflow and the commit. A file that
