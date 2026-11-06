@@ -62,6 +62,7 @@ jobs:
       # 1. samply
       - name: samply 0.13.1
         id: samply
+        timeout-minutes: 12
         continue-on-error: true
         run: |
           cargo install samply --version 0.13.1 --locked
@@ -71,6 +72,7 @@ jobs:
       # 1. cargo flamegraph
       - name: cargo-flamegraph 0.6.14
         id: flamegraph
+        timeout-minutes: 12
         continue-on-error: true
         run: |
           cargo install flamegraph --version 0.6.14 --locked
@@ -84,6 +86,7 @@ jobs:
       # 2. WPR
       - name: WPR PeekBuddy.Light, 60 s idle
         id: wpr
+        timeout-minutes: 12
         continue-on-error: true
         run: |
           $data = Join-Path $env:RUNNER_TEMP 'pb-wpr'
@@ -98,6 +101,7 @@ jobs:
           Get-Content "$env:OUT\idle-summary.txt" | Select-Object -First 40
       - name: WPR PeekBuddyStartup, symbols from the PDB
         id: wprsym
+        timeout-minutes: 12
         continue-on-error: true
         run: |
           $data = Join-Path $env:RUNNER_TEMP 'pb-wpr-start'
@@ -129,6 +133,7 @@ jobs:
       # 2. PerfView
       - name: PerfView 4.0.0 thread time
         id: perfview
+        timeout-minutes: 12
         continue-on-error: true
         run: |
           $exe = Join-Path $env:RUNNER_TEMP 'PerfView.exe'
@@ -162,6 +167,7 @@ jobs:
       # 6. PresentMon
       - name: PresentMon 2.6.0 on the viewer
         id: presentmon
+        timeout-minutes: 12
         continue-on-error: true
         run: |
           $pm = Join-Path $env:RUNNER_TEMP 'PresentMon.exe'
@@ -175,7 +181,7 @@ jobs:
           Start-Sleep -Seconds 3
           # All processes for 10 s: if no present of any process is seen, the
           # runner has no desktop that presents (the session is not interactive).
-          & $pm --output_file "$env:OUT\frames.csv" --timed 10 --stop_existing_session --no_console_stats
+          & $pm --output_file "$env:OUT\frames.csv" --timed 10 --terminate_after_timed --stop_existing_session --no_console_stats
           "PresentMon exit code: $LASTEXITCODE"
           $viewer | Wait-Process -Timeout 60
           if (-not (Test-Path "$env:OUT\frames.csv")) { throw 'PresentMon wrote no frames.csv' }
@@ -198,6 +204,7 @@ jobs:
       - name: Tracy 0.14.1 capture
         id: tracy
         if: matrix.label == 'windows-2025'
+        timeout-minutes: 12
         continue-on-error: true
         run: |
           $zip = Join-Path $env:RUNNER_TEMP 'tracy.zip'
@@ -226,7 +233,6 @@ jobs:
           Get-Content "$env:OUT\zones.csv" | Select-Object -First 10
           # The role zone ends with the process and is not in a capture that
           # stops first; what the capture must hold are the batch frames.
-          $text = (& $capture --help 2>&1 | Out-String)
           Get-Content "$env:OUT\zones.csv" | Measure-Object | ForEach-Object { "zone rows in the csv: $($_.Count - 1)" }
           # tracy-csvexport has no plots: look for the plot names in the trace.
           $bytes = [IO.File]::ReadAllBytes("$env:OUT\engine.tracy")
