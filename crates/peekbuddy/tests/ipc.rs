@@ -14,6 +14,11 @@ use peekbuddy_engine::Names;
 use peekbuddy_testkit::TestDir;
 use peekbuddy_win::window::WindowHandle;
 
+#[path = "support/viewer.rs"]
+mod viewer;
+
+use viewer::close_viewer;
+
 const EXE: &str = env!("CARGO_BIN_EXE_peekbuddy");
 
 struct Engine(Child);
@@ -145,22 +150,7 @@ fn a_second_launch_exits_zero_and_shows_the_viewer_through_the_pipe() {
 
     // The engine started a viewer for this directory (#65): it opens a
     // window, titled after the directory, and closes when asked.
-    let title = peekbuddy_viewer::isolated_title(peekbuddy_win::pipe::stable_hash(
-        &dir.path().to_string_lossy().to_lowercase(),
-    ));
-    let deadline = Instant::now() + Duration::from_secs(120);
-    let shown = loop {
-        if let Some(shown) = WindowHandle::find_title(&title) {
-            break shown;
-        }
-        assert!(Instant::now() < deadline, "no viewer window after 120 s");
-        std::thread::sleep(Duration::from_millis(100));
-    };
-    shown.post_close().unwrap();
-    while WindowHandle::find_title(&title).is_some() {
-        assert!(Instant::now() < deadline, "the viewer window did not close");
-        std::thread::sleep(Duration::from_millis(100));
-    }
+    close_viewer(dir.path());
 
     window.post_close().unwrap();
     assert!(engine.0.wait().unwrap().success());
