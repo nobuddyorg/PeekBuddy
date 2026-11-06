@@ -444,14 +444,28 @@ mod run {
         }
     }
 
+    /// How long a second launch waits for the running engine to answer.
+    const FORWARD_LIMIT: std::time::Duration = std::time::Duration::from_secs(2);
+
     /// Second launch: ask the running engine to show the viewer. If that
-    /// fails there is nothing more to do; the second launch still exits 0.
+    /// fails, or the engine does not answer in [`FORWARD_LIMIT`] (the pipe
+    /// read has no timeout of its own), there is nothing more to do; the
+    /// second launch still exits 0.
     fn forward_to_running_engine(options: &Options) {
         if let (Ok(pipe), Ok(exe)) = (
             crate::ipc_server::pipe_name(options.data_dir.as_deref()),
             std::env::current_exe(),
         ) {
-            let _ = crate::ipc_server::forward_show_viewer(&pipe, &exe);
+            let (done, answered) = std::sync::mpsc::channel();
+            let spawned = std::thread::Builder::new()
+                .name("forward-show-viewer".into())
+                .spawn(move || {
+                    let _ = crate::ipc_server::forward_show_viewer(&pipe, &exe);
+                    let _ = done.send(());
+                });
+            if spawned.is_ok() {
+                let _ = answered.recv_timeout(FORWARD_LIMIT);
+            }
         }
     }
 
