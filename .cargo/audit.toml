@@ -1,0 +1,8 @@
+# cargo audit reads Cargo.lock for every target, including the ones this
+# project never builds.
+[advisories]
+# zbus_names, zvariant and zvariant_derive are "unmaintained" notices (no
+# vulnerability). They come in only through accesskit_unix, which egui-winit
+# pulls in for Linux; PeekBuddy is Windows-only, so they are never compiled.
+# Drop them when egui moves off them.
+ignore = ["RUSTSEC-2026-0370", "RUSTSEC-2026-0371", "RUSTSEC-2026-0372"]
