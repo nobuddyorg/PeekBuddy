@@ -15,6 +15,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: profiling-recipes-${{ github.ref }}
+  cancel-in-progress: true
+
 env:
   CARGO_TERM_COLOR: always
   TRACY_ZIP_SHA256: f7499d74914aa3ba94a2c1ce72f36477d7b61d9d0f7c9790e05274c258c97fb5
@@ -133,7 +137,8 @@ jobs:
         run: |
           $crate = Join-Path $env:RUNNER_TEMP 'dhat-try'
           New-Item -ItemType Directory -Force "$crate\src" | Out-Null
-          Set-Content "$crate\Cargo.toml" "[package]`nname = `"dhat-try`"`nversion = `"0.0.0`"`nedition = `"2024`"`n[dependencies]`ndhat = `"=0.3.3`"`n"
+          $manifest = @("[package]", "name = `"dhat-try`"", "version = `"0.0.0`"", "edition = `"2024`"", "[dependencies]", "dhat = `"=0.3.3`"")
+          Set-Content "$crate\Cargo.toml" ($manifest -join [Environment]::NewLine)
           Set-Content "$crate\src\lib.rs" "#[global_allocator]`nstatic ALLOC: dhat::Alloc = dhat::Alloc;`n#[test]`nfn heap() {`n    let _profiler = dhat::Profiler::new_heap();`n    let v: Vec<u64> = (0..100_000).collect();`n    assert_eq!(v.len(), 100_000);`n}`n"
           Push-Location $crate
           cargo test --release -- --test-threads=1
