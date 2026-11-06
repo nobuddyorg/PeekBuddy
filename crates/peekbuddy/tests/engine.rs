@@ -80,11 +80,17 @@ fn a_second_engine_exits_zero_within_a_second_and_leaves_the_first_running() {
     let mut first = Kill(spawn(dir.path(), &[]));
     let window = wait_for_window(dir.path(), &mut first.0);
 
+    // One second is the specified bar. The coverage job runs instrumented
+    // code, which is several times slower, and sets a wider limit (#338).
+    let limit = std::env::var("PEEKBUDDY_SECOND_ENGINE_LIMIT_MS")
+        .ok()
+        .and_then(|ms| ms.parse().ok())
+        .map_or(Duration::from_secs(1), Duration::from_millis);
     let started = Instant::now();
     let mut second = spawn(dir.path(), &[]);
-    let status = wait_for_exit(&mut second, Duration::from_secs(1));
+    let status = wait_for_exit(&mut second, limit);
     assert!(status.success(), "{status:?}");
-    assert!(started.elapsed() < Duration::from_secs(1));
+    assert!(started.elapsed() < limit);
 
     assert!(
         first.0.try_wait().unwrap().is_none(),
