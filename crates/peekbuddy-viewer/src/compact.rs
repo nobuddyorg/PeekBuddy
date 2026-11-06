@@ -68,14 +68,13 @@ pub struct Folds {
 
 /// The `RootIdx` for the roots of the held rows, in order of appearance.
 fn root_index(roots: &mut Vec<Vec<u16>>, root: &[u16]) -> RootIdx {
-    let at = roots
-        .iter()
-        .position(|known| known.as_slice() == root)
-        .unwrap_or_else(|| {
-            roots.push(root.to_vec());
-            roots.len() - 1
-        });
-    RootIdx(u16::try_from(at).unwrap_or(u16::MAX - 1))
+    let at = if let Some(at) = roots.iter().position(|known| known.as_slice() == root) {
+        at
+    } else {
+        roots.push(root.to_vec());
+        roots.len().saturating_sub(1)
+    };
+    RootIdx(u16::try_from(at).unwrap_or(u16::MAX))
 }
 
 fn stored(row: &GridRow, roots: &mut Vec<Vec<u16>>) -> StoredEvent {
@@ -111,12 +110,6 @@ fn stored(row: &GridRow, roots: &mut Vec<Vec<u16>>) -> StoredEvent {
 }
 
 impl Folds {
-    /// No folds: every row is plain (the raw view).
-    #[must_use]
-    pub fn none() -> Self {
-        Self::default()
-    }
-
     /// Derives the folds of `rows`, given newest first, the first of them at
     /// virtual index `top`. A group whose head is in `expanded` shows its
     /// members.

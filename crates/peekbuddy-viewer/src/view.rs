@@ -376,7 +376,7 @@ impl LogView {
             compact: false,
             expanded: BTreeSet::new(),
             expanded_gen: 0,
-            folds: Folds::none(),
+            folds: Folds::default(),
             folds_key: None,
         };
         view.worker.send(Job::Extent { generation: 1 });
@@ -1247,7 +1247,7 @@ impl LogView {
         self.folds = if self.compact {
             Folds::build(self.timeline.iter(), self.timeline.top(), &self.expanded)
         } else {
-            Folds::none()
+            Folds::default()
         };
         // Only the heads that are still there stay opened.
         let folds = &self.folds;

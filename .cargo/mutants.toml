@@ -64,6 +64,14 @@ exclude_re = [
   # A pending slot leaks its memory on drop so the kernel cannot write into
   # freed pages; no test can observe a leak.
   "crates/peekbuddy-win/src/io/slot.rs:.*replace <impl Drop for IoSlot>::drop with",
+  # `local_day` and `utc_offset_seconds` convert through the time zone of the
+  # machine, and the machines the mutants run on are set to UTC: local time
+  # equals UTC there, so a failed conversion (the `ok == 0` branches), a zero
+  # offset and every step of the offset arithmetic give the same answer. The
+  # arithmetic itself is tested apart from the Win32 calls (`offset_between`,
+  # `ticks_of`).
+  "crates/peekbuddy-win/src/localtime.rs:.*in (local_day|utc_offset_seconds)",
+  "crates/peekbuddy-win/src/localtime.rs:.*replace utc_offset_seconds -> i32 with 0",
   # Equivalent mutant: high and low FILETIME halves do not overlap.
   "crates/peekbuddy-win/src/perf/clock.rs:.*replace \\| with \\^ in ticks",
   # The pool of spare batches is capped at the ring size so its memory stays

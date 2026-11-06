@@ -411,3 +411,37 @@ fn a_million_rows_export_in_both_formats_within_the_budget() {
         std::fs::remove_file(&target).unwrap();
     }
 }
+
+#[test]
+fn an_export_crosses_page_boundaries_without_losing_or_repeating_a_row() {
+    use peekbuddy_store::export::export_file_paged;
+
+    let dir = Dir::new("pages");
+    build(&dir, 3, 40);
+    let reader = Reader::new(dir.path());
+    let expected = paged(&reader, &Filter::default());
+    for page_rows in [1, 7, 40, expected.len(), 1_000] {
+        let target = dir.path().join("pages.export");
+        let outcome = export_file_paged(
+            &reader,
+            &job(Format::JsonLines),
+            &target,
+            &offset,
+            &CancelFlag::new(),
+            &Progress::default(),
+            io::BufWriter::new,
+            page_rows,
+        )
+        .unwrap();
+        assert!(matches!(outcome, Outcome::Done { rows } if rows == expected.len() as u64));
+        let back = read_jsonl(&std::fs::read_to_string(&target).unwrap()).unwrap();
+        assert_eq!(back, expected, "pages of {page_rows}");
+    }
+}
+
+#[test]
+fn an_export_error_says_what_failed() {
+    let io = ExportError::Io(io::Error::other("disk full"));
+    assert!(io.to_string().starts_with("export write failed"), "{io}");
+    assert!(io.to_string().contains("disk full"), "{io}");
+}
