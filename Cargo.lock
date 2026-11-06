@@ -387,7 +387,7 @@ checksum = "f2032f911046de80f0a198e0901378627c33f59ea0ac00e363d481118bd70a53"
 
 [[package]]
 name = "benches"
-version = "0.0.0"
+version = "0.1.0-rc.1"
 dependencies = [
  "criterion",
  "peekbuddy-core",
@@ -2588,7 +2588,7 @@ dependencies = [
 
 [[package]]
 name = "peekbuddy"
-version = "0.0.0"
+version = "0.1.0-rc.1"
 dependencies = [
  "embed-manifest",
  "jsonschema",
@@ -2613,14 +2613,14 @@ dependencies = [
 
 [[package]]
 name = "peekbuddy-alloc"
-version = "0.0.0"
+version = "0.1.0-rc.1"
 dependencies = [
  "proptest",
 ]
 
 [[package]]
 name = "peekbuddy-churn"
-version = "0.0.0"
+version = "0.1.0-rc.1"
 dependencies = [
  "peekbuddy-testkit",
  "peekbuddy-win",
@@ -2631,7 +2631,7 @@ dependencies = [
 
 [[package]]
 name = "peekbuddy-core"
-version = "0.0.0"
+version = "0.1.0-rc.1"
 dependencies = [
  "insta",
  "peekbuddy-alloc",
@@ -2646,7 +2646,7 @@ dependencies = [
 
 [[package]]
 name = "peekbuddy-engine"
-version = "0.0.0"
+version = "0.1.0-rc.1"
 dependencies = [
  "insta",
  "jsonschema",
@@ -2660,7 +2660,7 @@ dependencies = [
 
 [[package]]
 name = "peekbuddy-store"
-version = "0.0.0"
+version = "0.1.0-rc.1"
 dependencies = [
  "insta",
  "peekbuddy-alloc",
@@ -2671,7 +2671,7 @@ dependencies = [
 
 [[package]]
 name = "peekbuddy-testkit"
-version = "0.0.0"
+version = "0.1.0-rc.1"
 dependencies = [
  "insta",
  "peekbuddy-win",
@@ -2679,7 +2679,7 @@ dependencies = [
 
 [[package]]
 name = "peekbuddy-viewer"
-version = "0.0.0"
+version = "0.1.0-rc.1"
 dependencies = [
  "eframe",
  "egui",
@@ -2699,7 +2699,7 @@ dependencies = [
 
 [[package]]
 name = "peekbuddy-win"
-version = "0.0.0"
+version = "0.1.0-rc.1"
 dependencies = [
  "glow",
  "peekbuddy-alloc",
@@ -4711,7 +4711,7 @@ checksum = "e450f9b2ed1dff33c94c12589a87338689467b9c4f5d8a5710bd09a847d2c8a7"
 
 [[package]]
 name = "xtask"
-version = "0.0.0"
+version = "0.1.0-rc.1"
 dependencies = [
  "peekbuddy-churn",
  "peekbuddy-win",
