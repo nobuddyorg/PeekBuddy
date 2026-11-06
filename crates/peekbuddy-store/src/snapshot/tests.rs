@@ -41,6 +41,7 @@ fn walk(tree: &mut MemoryTree, db: &mut SnapshotDb) -> (Summary, Rows) {
         reason: Some(GapReason::NotifyEnumDir),
         cancel: &cancel,
         clock,
+        live: None,
     };
     let mut rows = Rows::new();
     let summary = run(&cfg, tree, db, &mut rows).unwrap();
@@ -125,6 +126,7 @@ fn a_rollback_leaves_the_previous_snapshot() {
         reason: None,
         cancel: &cancel,
         clock,
+        live: None,
     };
     let mut rows = Rows::new();
     rows.durable = false;

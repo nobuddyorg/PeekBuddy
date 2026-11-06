@@ -3,7 +3,7 @@
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
 
-use super::{DirSource, Item, ListError, Listing, Meta, RowOut, Snapshot};
+use super::{DirSource, Item, ListError, Listing, LiveLog, Meta, RowOut, Snapshot};
 use crate::event::{Event, Flags, GapReason, Kind, NameKind, NameRef, RootIdx, Source, VolIdx};
 
 /// The separator of the relative paths in rows and listings.
@@ -22,6 +22,9 @@ pub struct Config<'a> {
     pub cancel: &'a AtomicBool,
     /// Wall time (FILETIME ticks) and a monotonic count, now.
     pub clock: fn() -> (u64, u64),
+    /// What the live stream created since the last walk, to find the entries
+    /// that were created and deleted inside a gap (#290). `None` skips that.
+    pub live: Option<&'a dyn LiveLog>,
 }
 
 /// What a walk found.
@@ -303,6 +306,36 @@ where
     }
     if !baseline {
         settle(&mut walk, snapshot, root, &created, deleted)?;
+        if let Some(live) = cfg.live {
+            // The rows of the live stream must be durable to be read back.
+            walk.out.flush();
+            let cancelled = &mut walk.summary.cancelled;
+            let mut gone: Vec<Vec<u16>> = Vec::new();
+            live.created_since_last_walk(root, &mut |path| {
+                if cfg.cancel.load(Ordering::Acquire) {
+                    *cancelled = true;
+                    return false;
+                }
+                if !source.exists(path) {
+                    gone.push(path.to_vec());
+                }
+                true
+            });
+            // A path that is gone and that the walk did not already report as
+            // deleted: created live, then deleted during the gap. A second
+            // row for one that was reported is harmless (the derived view
+            // folds it).
+            for path in &gone {
+                walk.row(Kind::ReconciledDeleted, path, &Meta::default());
+            }
+            if walk.summary.cancelled {
+                snapshot.rollback();
+                let counts = (walk.summary.scanned, walk.summary.changed, 0);
+                walk.state_row(Kind::ReconcileFinished, 1, counts);
+                walk.out.flush();
+                return Ok(walk.summary);
+            }
+        }
     }
     if baseline {
         let counts = (walk.summary.files, walk.summary.dirs, 0);

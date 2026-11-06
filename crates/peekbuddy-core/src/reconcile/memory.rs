@@ -86,6 +86,34 @@ impl DirSource for MemoryTree {
         }
         Ok(())
     }
+
+    fn exists(&mut self, path: &[u16]) -> bool {
+        self.has(path)
+    }
+}
+
+impl MemoryTree {
+    /// Whether an entry exists (what [`DirSource::exists`] answers).
+    fn has(&self, path: &[u16]) -> bool {
+        path.is_empty() || self.entries.contains_key(path)
+    }
+}
+
+/// A live log that is a list of paths (tests).
+#[derive(Debug, Default, Clone)]
+pub struct MemoryLive {
+    /// The paths created since the last walk, oldest first.
+    pub paths: Vec<Vec<u16>>,
+}
+
+impl super::LiveLog for MemoryLive {
+    fn created_since_last_walk(&self, _root: u16, each: &mut dyn FnMut(&[u16]) -> bool) {
+        for path in &self.paths {
+            if !each(path) {
+                break;
+            }
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
