@@ -354,14 +354,10 @@ impl PauseCtl {
             .signals
             .get()
             .and_then(|bind| bind.get())
-            .map(|signals| {
-                signals
-                    .states()
-                    .into_iter()
-                    .map(|(root, state)| (root.0, state.watch_state()))
-                    .collect()
-            })
-            .unwrap_or_default();
+            .into_iter()
+            .flat_map(Signaller::states)
+            .map(|(root, state)| (root.0, state.watch_state()))
+            .collect();
         self.list_with(|root| states.get(&root.0).copied())
     }
 
