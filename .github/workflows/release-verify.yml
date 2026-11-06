@@ -64,6 +64,16 @@ jobs:
           if ($run.ExitCode -ne 0) { throw "--diagnostics exited with $($run.ExitCode)" }
           Get-Content diagnostics.txt | Select-Object -First 20
           "exe=$exe" | Out-File $env:GITHUB_ENV -Append -Encoding utf8
+      - name: Defender scan of the asset
+        run: |
+          $zip = Get-ChildItem assets -Filter '*.zip' | Select-Object -First 1
+          $mp = "$env:ProgramFiles\Windows Defender\MpCmdRun.exe"
+          if (-not (Test-Path $mp)) { Write-Warning 'no MpCmdRun on this runner'; return }
+          & $mp -Scan -ScanType 3 -File $zip.FullName
+          # 0: clean. 2: a threat was found. Anything else: Defender could not
+          # scan on this runner (it is switched off on the x64 image).
+          if ($LASTEXITCODE -eq 2) { throw 'Defender flagged the release asset; submit it to Microsoft Security Intelligence before announcing' }
+          if ($LASTEXITCODE -ne 0) { Write-Warning "Defender could not scan ($LASTEXITCODE)" }
       - name: cargo audit bin
         run: |
           rustup toolchain install stable --profile minimal
