@@ -217,6 +217,23 @@ pub trait DirSource {
     ///
     /// Why the directory could not be listed.
     fn list(&mut self, path: &[u16], out: &mut Listing) -> Result<(), ListError>;
+
+    /// Whether an entry exists at `path` (relative to the root, `\`
+    /// separated). A reparse point counts as an entry and is not followed.
+    fn exists(&mut self, path: &[u16]) -> bool;
+}
+
+/// What the live stream logged since the last walk of a root (#290).
+///
+/// The snapshot is only moved by walks, so an entry that the live stream
+/// logged as created and that was deleted during a gap is in neither the
+/// snapshot nor on disk: the walk finds nothing to report. This is how the
+/// walk learns of such entries.
+pub trait LiveLog: std::fmt::Debug {
+    /// Calls `each` with the path (relative to the root, `\` separated) of
+    /// every entry that live rows of `root` created or renamed to since the
+    /// last finished walk of it, oldest first, until `each` returns `false`.
+    fn created_since_last_walk(&self, root: u16, each: &mut dyn FnMut(&[u16]) -> bool);
 }
 
 /// The last known state of the trees, kept on disk.

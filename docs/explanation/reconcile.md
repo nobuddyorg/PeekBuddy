@@ -69,9 +69,24 @@ appear twice, never be missing.
 Names are exact UTF-16LE bytes and file ids 16 bytes, so lone surrogates and
 ReFS ids round-trip.
 
-## Not done yet
+## What the live stream knows that the snapshot does not
 
-The snapshot is updated by the walks only, not by the live stream, so a walk
-after an overflow also reports changes the live stream had already logged
-before the gap (never fewer). The derived view folds such duplicates (#41).
-Keeping the snapshot current from live records in the writer is a follow-up.
+The snapshot is updated by the walks only, not by the live stream. Two
+consequences, one of them handled:
+
+- A walk after an overflow also reports changes the live stream had already
+  logged before the gap (never fewer). The derived view folds such duplicates
+  (#41).
+- An entry the live stream logged as created, which was deleted during the
+  gap, is in neither the snapshot nor on disk, so the comparison alone never
+  reports its deletion (#290). After the comparison, a walk that follows a
+  gap asks the event store (`peekbuddy_engine::live_log::StoreLiveLog`, read on
+  the reconcile thread, never on the capture path) for the entries that live
+  rows created or renamed to since the last finished walk of the root, looks
+  whether each is still there (`DirSource::exists`, attributes only, a reparse
+  point is not followed) and writes `ReconciledDeleted` for those that are
+  gone. A path the comparison already reported as deleted can get a second
+  row; the derived view folds it. Cost: proportional to the live rows since
+  the last walk, once per gap, and nothing on the hot path. If retention has
+  already deleted the segments of that window, those paths are reported as
+  before (never fewer rows than without it).

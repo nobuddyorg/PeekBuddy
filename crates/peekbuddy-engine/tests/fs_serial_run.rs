@@ -259,6 +259,28 @@ impl Running {
         }
     }
 
+    /// Stops the engine and starts it again on the same data directory;
+    /// `while_down` runs in between, when nothing watches the tree: that time
+    /// is a gap, which the next start reconciles.
+    fn restart(&mut self, while_down: impl FnOnce(&Self)) {
+        let window = WindowHandle::find(&self.class).unwrap();
+        window.post_close().unwrap();
+        let exit = self.engine.take().unwrap().join().unwrap().unwrap();
+        assert!(matches!(exit, Exit::Ran { .. }), "{exit:?}");
+        while_down(self);
+        let options = Options {
+            headless: true,
+            data_dir: Some(self.data.clone()),
+            ..Options::default()
+        };
+        let table = Arc::new(MilestoneTable::new());
+        self.engine = Some(std::thread::spawn(move || {
+            run(&options, &table, register_provider())
+        }));
+        let class = self.class.clone();
+        wait_for("the engine window", || WindowHandle::find(&class).is_some());
+    }
+
     fn has_state(&self, state: WatchState) -> bool {
         rows(&self.data)
             .iter()
@@ -433,5 +455,24 @@ fn an_export_into_the_data_dir_causes_no_event_even_when_a_watch_contains_it() {
         leaked.is_empty(),
         "the log has rows of its own files: {leaked:?}"
     );
+    engine.stop();
+}
+
+#[test]
+fn an_entry_created_live_and_deleted_while_the_engine_was_down_is_reported_deleted() {
+    // The live stream logs the file as created; no walk has seen it, so the
+    // snapshot does not know it; it is deleted during the gap. The walk of the
+    // next start finds it neither on disk nor in the snapshot: only the log
+    // of the live stream says it existed (#290).
+    let mut engine = Running::start("livedel", "", "");
+    wait_for_armed(&engine, "armed.txt");
+    std::fs::write(engine.tree.join("transient.txt"), b"x").unwrap();
+    engine.wait("the live row of the transient file", || {
+        engine.has_row(Kind::Created, "transient.txt")
+    });
+    engine.restart(|engine| std::fs::remove_file(engine.tree.join("transient.txt")).unwrap());
+    engine.wait("the walk to report the file deleted", || {
+        engine.has_row(Kind::ReconciledDeleted, "transient.txt")
+    });
     engine.stop();
 }
