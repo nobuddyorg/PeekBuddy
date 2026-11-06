@@ -423,3 +423,56 @@ fn a_range_of_one_instant_is_fine_and_one_that_ends_first_is_not() {
     assert!(range(NOON, NOON).is_ok(), "from equal to to is allowed");
     assert!(range(NOON, NOON - 1).is_err());
 }
+
+#[test]
+fn a_typed_local_time_is_read_with_the_offset_of_the_user() {
+    use super::{format_local_time, parse_local_time};
+    // 2026-10-26 14:00 in UTC+2 is 12:00 UTC.
+    assert_eq!(parse_local_time("2026-10-26 14:00", 7200, false), Ok(NOON));
+    assert_eq!(
+        parse_local_time("2026-10-26T14:00:00", 7200, false),
+        Ok(NOON)
+    );
+    // West of UTC the same instant is earlier on the clock.
+    assert_eq!(
+        parse_local_time("2026-10-26 07:00", -18_000, false),
+        Ok(NOON)
+    );
+    // The end of a range includes the whole unit that was typed.
+    let second = 10_000_000;
+    assert_eq!(
+        parse_local_time("2026-10-26 14:00:05", 7200, true),
+        Ok(NOON + 5 * second + second - 1)
+    );
+    assert_eq!(
+        parse_local_time("2026-10-26 14:00", 7200, true),
+        Ok(NOON + 60 * second - 1)
+    );
+    let day = 86_400 * second;
+    assert_eq!(
+        parse_local_time("2026-10-26", 0, true),
+        Ok(parse_local_time("2026-10-26", 0, false).unwrap() + day - 1)
+    );
+    // What is shown reads back.
+    assert_eq!(format_local_time(NOON, 7200), "2026-10-26 14:00:00");
+    assert_eq!(
+        parse_local_time(&format_local_time(NOON, 7200), 7200, false),
+        Ok(NOON)
+    );
+}
+
+#[test]
+fn a_typed_local_time_that_is_not_one_says_how_to_write_it() {
+    use super::parse_local_time;
+    for text in [
+        "",
+        "yesterday",
+        "2026-10-26 25:00",
+        "2026-13-01",
+        "2026-10-26 14",
+        "26.10.2026",
+    ] {
+        let message = parse_local_time(text, 0, false).unwrap_err();
+        assert!(message.contains("2026-10-26"), "{text:?}: {message}");
+    }
+}

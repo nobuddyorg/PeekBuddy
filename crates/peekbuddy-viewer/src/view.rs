@@ -32,7 +32,9 @@ use peekbuddy_core::query::{CancelFlag, Filter};
 
 use crate::compact::{Fold, Folds};
 use crate::debounce::{DELAY, Debounce};
-use crate::filterspec::{Chip, Field, FilterSpec, PatternKind, Span, SpecError};
+use crate::filterspec::{
+    Chip, Field, FilterSpec, PatternKind, Span, SpecError, format_local_time, parse_local_time,
+};
 use crate::follow::Follow;
 use crate::rows::{GridRow, OffsetFn, RowClass};
 use crate::selection::{Selection, Step};
@@ -267,6 +269,10 @@ pub struct LogView {
     /// The text form being edited, and what is wrong with it.
     text: String,
     text_error: Option<String>,
+    /// The From and To fields of a custom range, as typed (local time).
+    range_from: String,
+    range_to: String,
+    range_error: Option<String>,
     focus_search: bool,
     /// The compact view is on: groups are folded inside the held rows.
     compact: bool,
@@ -363,6 +369,9 @@ impl LogView {
             hidden: None,
             more: false,
             text_error: None,
+            range_from: String::new(),
+            range_to: String::new(),
+            range_error: None,
             focus_search: false,
             compact: false,
             expanded: BTreeSet::new(),
@@ -434,6 +443,57 @@ impl LogView {
         self.text = self.spec.to_text();
         self.text_error = None;
         self.debounce.touch(Instant::now());
+    }
+
+    /// The From and To fields show the custom range of the spec, or are empty
+    /// when the spec has none.
+    fn sync_range_fields(&mut self) {
+        let offset = (self.offset)(filetime_now());
+        let (from, to) = match self.spec.span {
+            Span::Between { from, to } => (from, to),
+            _ => (None, None),
+        };
+        let show = |ticks: Option<u64>| {
+            ticks.map_or_else(String::new, |ticks| format_local_time(ticks, offset))
+        };
+        self.range_from = show(from);
+        self.range_to = show(to);
+        self.range_error = None;
+    }
+
+    /// Reads the From and To fields into the spec. Returns whether the spec
+    /// changed; a field that is not a time says so and leaves the spec alone.
+    fn range_edited(&mut self) -> bool {
+        let offset = (self.offset)(filetime_now());
+        let read = |text: &str, end: bool| -> Result<Option<u64>, String> {
+            if text.trim().is_empty() {
+                Ok(None)
+            } else {
+                parse_local_time(text, offset, end).map(Some)
+            }
+        };
+        let (from, to) = match (read(&self.range_from, false), read(&self.range_to, true)) {
+            (Ok(from), Ok(to)) => (from, to),
+            (Err(error), _) => {
+                self.range_error = Some(format!("From: {error}"));
+                return false;
+            }
+            (_, Err(error)) => {
+                self.range_error = Some(format!("To: {error}"));
+                return false;
+            }
+        };
+        self.range_error = None;
+        let span = if from.is_none() && to.is_none() {
+            Span::Any
+        } else {
+            Span::Between { from, to }
+        };
+        if span == self.spec.span {
+            return false;
+        }
+        self.spec.span = span;
+        true
     }
 
     /// Applies the spec: compiles it, and on success reads the new view. An
@@ -936,7 +996,14 @@ impl LogView {
                     changed = true;
                 }
             }
-            changed |= span_menu(ui, &mut self.spec.span);
+            let mut custom = false;
+            if span_menu(ui, &mut self.spec.span, &mut custom) {
+                self.sync_range_fields();
+                changed = true;
+            }
+            if custom {
+                self.more = true;
+            }
             if ui.selectable_label(self.more, "More").clicked() {
                 self.more = !self.more;
             }
@@ -1067,6 +1134,14 @@ impl LogView {
                 ui.colored_label(ui.visuals().error_fg_color, format!("x {error}"));
             }
         });
+        changed |= self.range_row(ui);
+        changed |= self.text_row(ui);
+        changed
+    }
+
+    /// The text form of the filter. Returns whether the spec changed.
+    fn text_row(&mut self, ui: &mut egui::Ui) -> bool {
+        let mut changed = false;
         ui.horizontal_wrapped(|ui| {
             let label = ui.label("Filter text");
             let field = ui.add(
@@ -1079,6 +1154,7 @@ impl LogView {
                 match FilterSpec::parse(&self.text) {
                     Ok(spec) => {
                         self.spec = spec;
+                        self.sync_range_fields();
                         self.text_error = None;
                         changed = true;
                     }
@@ -1090,9 +1166,42 @@ impl LogView {
             }
             if ui.button("Clear filter").clicked() {
                 self.spec = FilterSpec::default();
+                self.sync_range_fields();
                 changed = true;
             }
             if let Some(error) = &self.text_error {
+                ui.colored_label(ui.visuals().error_fg_color, format!("x {error}"));
+            }
+        });
+        changed
+    }
+
+    /// The From and To fields of a custom range. Returns whether the spec
+    /// changed.
+    fn range_row(&mut self, ui: &mut egui::Ui) -> bool {
+        let mut changed = false;
+        ui.horizontal_wrapped(|ui| {
+            let from = ui.label("From");
+            let from_field = ui.add(
+                egui::TextEdit::singleline(&mut self.range_from)
+                    .id_salt("range-from")
+                    .hint_text("2026-10-26 14:30")
+                    .desired_width(150.0),
+            );
+            let from_field = from_field.labelled_by(from.id);
+            let to = ui.label("To");
+            let to_field = ui.add(
+                egui::TextEdit::singleline(&mut self.range_to)
+                    .id_salt("range-to")
+                    .hint_text("2026-10-26 18:00")
+                    .desired_width(150.0),
+            );
+            let to_field = to_field.labelled_by(to.id);
+            ui.weak("local time");
+            if from_field.changed() || to_field.changed() {
+                changed |= self.range_edited();
+            }
+            if let Some(error) = &self.range_error {
                 ui.colored_label(ui.visuals().error_fg_color, format!("x {error}"));
             }
         });
@@ -1240,7 +1349,7 @@ impl LogView {
 
 /// The time span chooser. Returns whether it changed. (A custom range is set
 /// with `from:` and `to:` in the filter text.)
-fn span_menu(ui: &mut egui::Ui, span: &mut Span) -> bool {
+fn span_menu(ui: &mut egui::Ui, span: &mut Span, custom: &mut bool) -> bool {
     let before = *span;
     let name = match span {
         Span::Any => "Any time",
@@ -1256,6 +1365,14 @@ fn span_menu(ui: &mut egui::Ui, span: &mut Span) -> bool {
             ui.selectable_value(span, Span::Last5Minutes, "Last 5 minutes");
             ui.selectable_value(span, Span::LastHour, "Last hour");
             ui.selectable_value(span, Span::Today, "Today");
+            if ui
+                .selectable_label(matches!(span, Span::Between { .. }), "Custom range...")
+                .clicked()
+            {
+                // The From and To fields are in the advanced row.
+                *custom = true;
+                ui.close();
+            }
         });
     *span != before
 }

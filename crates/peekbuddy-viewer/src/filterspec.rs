@@ -591,5 +591,56 @@ impl<'a> Parser<'a> {
     }
 }
 
+/// A time typed by the user, in local time: `2026-10-26`,
+/// `2026-10-26 14:30` or `2026-10-26 14:30:15` (a `T` instead of the space is
+/// accepted too). `offset` is the UTC offset in seconds east. With `end` the
+/// result is the last tick of the day, minute or second given, so that a
+/// range ending on a date includes that whole date.
+///
+/// # Errors
+///
+/// What is wrong with the text, in words for the field.
+pub fn parse_local_time(text: &str, offset: i32, end: bool) -> Result<u64, String> {
+    const HELP: &str = "use 2026-10-26, 2026-10-26 14:30 or 2026-10-26 14:30:15";
+    let text = text.trim();
+    let (date, clock) = match text.split_once([' ', 'T']) {
+        Some((date, clock)) => (date, Some(clock.trim())),
+        None => (text, None),
+    };
+    if date.len() != 10 {
+        return Err(HELP.to_owned());
+    }
+    let (clock, unit) = match clock {
+        None => (String::from("00:00:00"), DAY),
+        Some(clock) if clock.len() == 5 => (format!("{clock}:00"), 60 * SECOND),
+        Some(clock) if clock.len() == 8 => (clock.to_owned(), SECOND),
+        Some(_) => return Err(HELP.to_owned()),
+    };
+    let utc = parse_iso_utc(&format!("{date}T{clock}.0000000Z")).ok_or_else(|| HELP.to_owned())?;
+    let shift = u64::from(offset.unsigned_abs()) * SECOND;
+    let local = if end {
+        utc.saturating_add(unit - 1)
+    } else {
+        utc
+    };
+    // Local time is UTC plus the offset.
+    Ok(if offset >= 0 {
+        local.saturating_sub(shift)
+    } else {
+        local.saturating_add(shift)
+    })
+}
+
+/// A time as `parse_local_time` reads it: `2026-10-26 14:30:15`, local.
+#[must_use]
+pub fn format_local_time(ticks: u64, offset: i32) -> String {
+    let iso = peekbuddy_core::export::iso_local(ticks, offset);
+    format!(
+        "{} {}",
+        iso.get(..10).unwrap_or_default(),
+        iso.get(11..19).unwrap_or_default()
+    )
+}
+
 #[cfg(test)]
 mod tests;
