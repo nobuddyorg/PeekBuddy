@@ -8,6 +8,10 @@ Every recipe ends with a `Last verified` line. A recipe is dated only when
 someone ran it; otherwise it says `not yet executed`. Recipes older than six
 months are flagged in the release checklist (#77).
 
+The recipes are executed on the hosted runners by the manual workflow
+`profiling-recipes.yml`; its summary lists which of them worked. Re-run it
+after a tool or a profile changes, and update the lines below from its run.
+
 Elevation: samply, `cargo flamegraph`, WPR kernel providers and Tracy
 sampling or context-switch capture need an elevated shell or process. The
 PeekBuddy engine itself never runs elevated in v1.
@@ -66,7 +70,14 @@ Look at: the widest frames under the thread you care about, and whether the
 engine thread tree is mostly idle. A flat profile with the engine at ~0 %
 is the goal.
 
-Last verified: not yet executed.
+Last verified: 2026-11-06 on the hosted runners (elevated), [run 42243375385](https://github.com/nobuddyorg/PeekBuddy/actions/runs/42243375385) of
+`profiling-recipes.yml`. samply 0.13.1 records the engine and writes its
+profile on `windows-2025` (Windows Server 2025) and on `windows-11-vs2026-arm`
+(Windows 11 Enterprise). `cargo flamegraph` 0.6.14 works on the arm64 runner.
+On the x64 image it records no stacks ("No stack counts found"): there
+`C:\Windows\System32\dtrace.exe` exists and wins over blondie, and removing a
+folder from `PATH` does not help because System32 must stay on it. Use samply
+on that image, or an x64 machine without `dtrace.exe`.
 
 ## 2. WPR, WPA and PerfView
 
@@ -104,9 +115,21 @@ WPA comes from the Microsoft Store or the ADK. Symbols: set
 `_NT_SYMBOL_PATH` to `srv*C:\symbols*https://msdl.microsoft.com/download/symbols`
 and add the folder holding the PDB next to the exe.
 
-Last verified: not yet executed. CI records the `etw_smoke` example with
-`PeekBuddy.Light` on every PR (job `etw smoke (windows x64)`), which covers
-the `wpr` start and stop commands but not WPA or PerfView.
+Last verified: 2026-11-06 on both hosted runners, [run 42243375385](https://github.com/nobuddyorg/PeekBuddy/actions/runs/42243375385):
+- `wpr -start perf\peekbuddy.wprp!PeekBuddy.Light -filemode`, 60 s of the
+  idle engine, `wpr -stop` and `tracerpt` read back the trace.
+- **A trace of the shipped build symbolises with the PDB**: `PeekBuddyStartup`
+  around an engine that handles 3,000 file events, then
+  `xperf -i startup.etl -symbols -a profile -detail` with `_NT_SYMBOL_PATH` set
+  to the folder of `peekbuddy.exe` and `peekbuddy.pdb` gives frames named
+  `peekbuddy.exe!<function>` (the step fails when none is named). Kernel
+  frames stay `"Unknown"` without the Microsoft symbol server. The WPA GUI was
+  not opened: it needs a desktop.
+- PerfView 4.0.0 (`/NoGui /ThreadTime /MaxCollectSec:10 collect`) wrote a
+  thread-time trace of the engine. Opening it in the PerfView GUI was not
+  done.
+CI also records the `etw_smoke` example with `PeekBuddy.Light` on every PR (job
+`etw smoke (windows x64)`).
 
 ## 3. Tracy
 
@@ -138,11 +161,16 @@ What the GUI shows (#163):
   (1 when the batch came from the spill file), `overflows`, `gaps`. Viewer, per
   page read by the worker: `page fetch ms`.
 
-Last verified: the profiling exe is built and both roles are started in CI
-(`profiling.yml`). The plots and frame marks are compiled in and checked by
-`cargo clippy -p peekbuddy --features profile-tracy-alloc`; they have not been
-looked at in the Tracy GUI, and there is no headless capture check yet (it
-needs `tracy-capture` and `tracy-csvexport` 0.14.1, which CI does not install).
+Last verified: 2026-11-06, [run 42243375385](https://github.com/nobuddyorg/PeekBuddy/actions/runs/42243375385) (`windows-2025`): the headless capture
+of #163. The profiling build with `profile-tracy` runs the engine on a watched
+folder with 400 new files; `tracy-capture` 0.14.1 (from the release zip, pinned
+by its SHA-256) connects, saves the trace and reports `Frames: 3`: the three
+batch commits of that run, as frame marks of the set `batch`. What the capture
+cannot show: `tracy-csvexport` has no plots, and the plot names are not
+readable in the compressed trace, so the plots (`batch size`, `ring depth`,
+`spill replay`, `overflows`, `gaps`, `page fetch ms`) are checked only by
+compiling; and the role zone is not in a capture that ends with the process
+(`Zones: 0`). The Tracy GUI itself was not opened.
 
 ## 4. Superluminal and VTune
 
@@ -183,7 +211,9 @@ fn heap() {
 
 The result is `dhat-heap.json`; open it in the dhat viewer.
 
-Last verified: not yet executed.
+Last verified: 2026-11-06, [run 42243375385](https://github.com/nobuddyorg/PeekBuddy/actions/runs/42243375385) (both runners): dhat 0.3.3 in a
+throwaway test crate writes `dhat-heap.json`. Opening the file in the dhat
+viewer was not done (it is a web page).
 
 ## 6. Viewer frame pacing
 
@@ -204,7 +234,13 @@ Measuring idle: egui repaints a full frame on every pointer move
 different numbers over RDP or on the WARP software adapter that hosted
 runners use.
 
-Last verified: not yet executed.
+Last verified: 2026-11-06, [run 42243375385](https://github.com/nobuddyorg/PeekBuddy/actions/runs/42243375385): **PresentMon 2.6.0 records nothing on
+the hosted runners.** It starts, records for 10 s while the viewer runs and
+exits 0, but writes no `frames.csv`: there is no presenting desktop session
+there, so no swap-chain present is seen (the viewer itself runs, on WARP).
+Run it on a machine with a desktop; the flags above are the ones the workflow
+uses (`--output_file`, `--timed`, `--terminate_after_timed`,
+`--stop_existing_session`).
 
 ## 7. Defender on or excluded
 
@@ -225,7 +261,10 @@ Remove-MpPreference -ExclusionPath C:\pbperf
 Do not switch real-time protection off for a measurement; an exclusion for
 the work directory is enough and is undone by the second command.
 
-Last verified: not yet executed.
+Last verified: 2026-11-06, [run 42243375385](https://github.com/nobuddyorg/PeekBuddy/actions/runs/42243375385) (both runners): `Add-MpPreference
+-ExclusionPath` and `Remove-MpPreference` work on the elevated runner and the
+state is read back with `Get-MpPreference`; the x64 image reports real-time
+protection off, the arm64 image on, as stated above.
 
 ## 8. Checklist before claiming a perf win
 
