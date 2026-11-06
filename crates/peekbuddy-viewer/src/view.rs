@@ -127,6 +127,15 @@ impl Col {
         }
     }
 
+    /// How wide a column may grow when the table has room to spare: the
+    /// paths take it, the short columns stay near their natural width.
+    const fn max_width(self) -> f32 {
+        match self {
+            Self::Path | Self::OldPath => 2400.0,
+            Self::Time | Self::Kind | Self::Size | Self::Source => self.width() * 1.25,
+        }
+    }
+
     const fn width(self) -> f32 {
         match self {
             Self::Time => 180.0,
@@ -1264,7 +1273,7 @@ impl LogView {
             .map(|col| {
                 Column::new(col.width())
                     .resizable(true)
-                    .range(48.0..=2400.0)
+                    .range(48.0..=col.max_width())
             })
             .collect();
         let mut table = Table::new()
@@ -1272,7 +1281,7 @@ impl LogView {
             .num_rows(self.timeline.total())
             .columns(columns)
             .headers(vec![HeaderRow::new(HEADER_HEIGHT)])
-            .auto_size_mode(AutoSizeMode::OnParentResize);
+            .auto_size_mode(AutoSizeMode::Always);
         if let Some((row, align)) = self.scroll_to.take() {
             table = table.scroll_to_row(row, Some(align));
         }
