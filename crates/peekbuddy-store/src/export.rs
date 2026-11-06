@@ -22,7 +22,7 @@ use crate::read::Reader;
 /// Bytes buffered before a write reaches the file.
 pub const BUFFER_BYTES: usize = 1024 * 1024;
 /// Rows fetched per page.
-pub const PAGE_ROWS: usize = 1_000;
+pub const PAGE_ROWS: usize = 5_000;
 
 /// How far an export has come; shared with the thread that shows it.
 #[derive(Debug, Default)]
