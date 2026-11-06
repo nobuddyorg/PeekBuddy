@@ -32,7 +32,7 @@ jobs:
         run: rustup toolchain install && rustup show
       - name: Create the tag of a merged release PR
         id: release-plz
-        uses: release-plz/action@8b5bf233ecb5779f63508db7cd050e948ee77cc2 # v0.5.144
+        uses: release-plz/action@f67a7e724bdad4a0f6875f186060a0ca2770d76c # v0.5.147
         with:
           command: release
           version: 0.3.174
@@ -67,7 +67,7 @@ jobs:
         run: rustup toolchain install && rustup show
       - name: Open or update the release PR
         id: release-plz
-        uses: release-plz/action@8b5bf233ecb5779f63508db7cd050e948ee77cc2 # v0.5.144
+        uses: release-plz/action@f67a7e724bdad4a0f6875f186060a0ca2770d76c # v0.5.147
         with:
           command: release-pr
           version: 0.3.174
