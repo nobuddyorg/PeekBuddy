@@ -28,6 +28,11 @@ mod tracy;
 #[global_allocator]
 static ALLOC: mimalloc::MiMalloc = mimalloc::MiMalloc;
 
+/// With both features the Tracy allocator is the global one and mimalloc is
+/// not used; the import keeps the unused-dependency lint quiet.
+#[cfg(all(feature = "mimalloc", feature = "profile-tracy-alloc"))]
+use mimalloc as _;
+
 use cli::{Invocation, Role};
 
 /// Mutex of the viewer role; the engine's is in `peekbuddy_engine`.
