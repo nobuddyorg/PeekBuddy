@@ -264,6 +264,10 @@ jobs:
         with:
           tool: cargo-nextest@0.9.149,cargo-llvm-cov@0.9.1
       - run: cargo llvm-cov nextest --workspace --all-features --locked --profile ci --no-tests=pass --lcov --output-path lcov.info
+        env:
+          # Instrumented code is slower; the normal and nightly builds keep the
+          # 1 s bar of this test (#338).
+          PEEKBUDDY_SECOND_ENGINE_LIMIT_MS: "6000"
       - uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
         with:
           files: lcov.info
