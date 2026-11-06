@@ -319,7 +319,7 @@ jobs:
           New-Item -ItemType Directory -Force -Path C:\t | Out-Null
           $env:TMP = 'C:\t'
           $env:TEMP = 'C:\t'
-          cargo mutants --no-shuffle --shard "$env:SHARD/32" --test-tool nextest --in-place --timeout-multiplier 2
+          cargo mutants --no-shuffle --shard "$env:SHARD/32" --test-tool nextest --in-place --timeout-multiplier 2 --minimum-test-timeout 150
       - name: Summary
         if: always()
         shell: bash

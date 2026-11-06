@@ -20,7 +20,7 @@ use crate::catalog::{Catalog, CatalogError};
 use crate::read::Reader;
 
 /// Bytes buffered before a write reaches the file.
-pub const BUFFER_BYTES: usize = 1024 * 1024;
+pub const BUFFER_BYTES: usize = 1_048_576;
 /// Rows fetched per page.
 pub const PAGE_ROWS: usize = 5_000;
 
@@ -141,8 +141,35 @@ pub fn export_file_with<W: Write>(
     progress: &Progress,
     wrap: impl FnOnce(File) -> W,
 ) -> Result<Outcome, ExportError> {
+    export_file_paged(
+        reader, job, target, offset, cancel, progress, wrap, PAGE_ROWS,
+    )
+}
+
+/// Like [`export_file_with`], reading `page_rows` rows at a time (tests use
+/// a small page to cross page boundaries).
+///
+/// # Errors
+///
+/// [`ExportError`]; the partial file is removed first.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "the arguments of export_file_with and the page size"
+)]
+pub fn export_file_paged<W: Write>(
+    reader: &Reader,
+    job: &Job,
+    target: &Path,
+    offset: OffsetFn<'_>,
+    cancel: &CancelFlag,
+    progress: &Progress,
+    wrap: impl FnOnce(File) -> W,
+    page_rows: usize,
+) -> Result<Outcome, ExportError> {
     let partial = partial_path(target);
-    let result = write_partial(reader, job, &partial, offset, cancel, progress, wrap);
+    let result = write_partial(
+        reader, job, &partial, offset, cancel, progress, wrap, page_rows,
+    );
     let finished = match result {
         Ok(Some(rows)) => fs::rename(&partial, target)
             .map(|()| Outcome::Done { rows })
@@ -157,6 +184,10 @@ pub fn export_file_with<W: Write>(
 }
 
 /// Writes the partial file; `None` when cancelled.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "the arguments of export_file_paged, passed on"
+)]
 fn write_partial<W: Write>(
     reader: &Reader,
     job: &Job,
@@ -165,6 +196,7 @@ fn write_partial<W: Write>(
     cancel: &CancelFlag,
     progress: &Progress,
     wrap: impl FnOnce(File) -> W,
+    page_rows: usize,
 ) -> Result<Option<u64>, ExportError> {
     progress.written.store(0, Ordering::Relaxed);
     progress
@@ -183,7 +215,7 @@ fn write_partial<W: Write>(
             filter: job.filter.clone(),
             cursor,
             direction: Direction::Newer,
-            limit: PAGE_ROWS,
+            limit: page_rows,
         };
         let page = reader.page(&request, cancel)?;
         if page.cancelled {

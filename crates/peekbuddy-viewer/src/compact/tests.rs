@@ -83,6 +83,39 @@ fn folded_rows_are_counted_by_position() {
     assert!(folds.is_folded(103));
     assert!(!folds.is_folded(104));
     assert!(!folds.is_folded(10_000));
+    // Folded rows take no room: of the 105 rows before index 105 two are
+    // folded, and the count stops growing past the held rows.
+    assert_eq!(folds.shown_before(0), 0);
+    assert_eq!(folds.shown_before(102), 102);
+    assert_eq!(folds.shown_before(103), 102);
+    assert_eq!(folds.shown_before(104), 102);
+    assert_eq!(folds.shown_before(105), 103);
+    assert_eq!(folds.shown_before(110), 108);
+    assert_eq!(folds.shown_before(10_000), 9_998);
+}
+
+#[test]
+fn only_a_head_is_a_head() {
+    let rows = rows();
+    let folds = Folds::build(rows.iter(), 0, &BTreeSet::new());
+    assert!(folds.is_head(4));
+    for id in [1, 2, 3, 5, 99] {
+        assert!(!folds.is_head(id), "{id}");
+    }
+}
+
+#[test]
+fn rows_of_several_watches_are_told_apart_by_root() {
+    // The same file name under two roots is two paths, not one burst.
+    let mut a = grid(2, 1, Kind::Modified, r"C:\w\same.txt");
+    let mut b = grid(1, 0, Kind::Modified, r"C:\w\same.txt");
+    a.raw.root = units(r"C:\one");
+    b.raw.root = units(r"C:\two");
+    let separate = Folds::build([&a, &b].into_iter(), 0, &BTreeSet::new());
+    assert_eq!(separate.folded(), 0);
+    b.raw.root = units(r"C:\one");
+    let together = Folds::build([&a, &b].into_iter(), 0, &BTreeSet::new());
+    assert_eq!(together.folded(), 1);
 }
 
 #[test]
@@ -98,7 +131,7 @@ fn an_expanded_group_shows_every_member_and_folds_nothing() {
 
 #[test]
 fn the_raw_view_folds_nothing() {
-    let folds = Folds::none();
+    let folds = Folds::default();
     assert_eq!(folds.of(4), Fold::Plain);
     assert_eq!(folds.folded(), 0);
     assert_eq!(folds.hidden_before(50), 0);

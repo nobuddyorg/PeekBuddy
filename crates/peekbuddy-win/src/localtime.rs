@@ -66,14 +66,26 @@ pub fn utc_offset_seconds(filetime: u64) -> i32 {
     if a == 0 || b == 0 {
         return 0;
     }
-    let join = |t: FILETIME| (u64::from(t.dwHighDateTime) << 32) | u64::from(t.dwLowDateTime);
-    let seconds = (i128::from(join(local_ticks)) - i128::from(join(utc_ticks))) / 10_000_000;
+    offset_between(ticks_of(utc_ticks), ticks_of(local_ticks))
+}
+
+/// The ticks of a `FILETIME`.
+fn ticks_of(time: FILETIME) -> u64 {
+    (u64::from(time.dwHighDateTime) << 32) | u64::from(time.dwLowDateTime)
+}
+
+/// Seconds from `utc` to `local`, both in ticks of the same instant.
+fn offset_between(utc: u64, local: u64) -> i32 {
+    let seconds = (i128::from(local) - i128::from(utc)) / i128::from(TICKS_PER_SECOND);
     i32::try_from(seconds).unwrap_or(0)
 }
 
+const TICKS_PER_SECOND: u64 = 10_000_000;
+
 #[cfg(test)]
 mod tests {
-    use super::{local_day, utc_offset_seconds};
+    use super::{local_day, offset_between, ticks_of, utc_offset_seconds};
+    use windows_sys::Win32::Foundation::FILETIME;
 
     #[test]
     fn the_offset_is_a_whole_number_of_quarter_hours_within_the_real_range() {
@@ -90,6 +102,27 @@ mod tests {
         let (_, _, day) = local_day(NOON_UTC);
         let (_, _, shifted_day) = local_day(shifted);
         assert!(day.abs_diff(shifted_day) <= 1);
+    }
+
+    #[test]
+    fn the_two_halves_of_a_filetime_are_one_number() {
+        let time = FILETIME {
+            dwLowDateTime: 0x1234_5678,
+            dwHighDateTime: 0x9ABC_DEF0,
+        };
+        assert_eq!(ticks_of(time), 0x9ABC_DEF0_1234_5678);
+    }
+
+    #[test]
+    fn the_offset_is_local_minus_utc_in_whole_seconds() {
+        let hour = 3_600 * 10_000_000;
+        assert_eq!(offset_between(1_000 * hour, 1_002 * hour), 7_200);
+        assert_eq!(offset_between(1_000 * hour, 995 * hour), -18_000);
+        assert_eq!(offset_between(5 * hour, 5 * hour), 0);
+        // Sub-second ticks do not make a second.
+        assert_eq!(offset_between(0, 10_000_000 - 1), 0);
+        // An offset that cannot be an i32 is no offset.
+        assert_eq!(offset_between(0, u64::MAX), 0);
     }
 
     #[test]
