@@ -46,6 +46,10 @@ Assets of a release `v<version>` (immutable once published):
 | `source.tar.gz`, `source.tar.gz.sha256` | the source |
 | GitHub attestations | one per archive (`gh attestation verify`) |
 
+No PDB is released: dist builds the exe stripped, and a symbolised trace is
+made from a profiling build of the same commit (`cargo build --profile
+profiling`, see [Profile](profile.md)).
+
 `release.yml` is generated: change `dist-workspace.toml` and run
 `scripts/ci/release-workflow.ps1 -Mode Write` (with `dist` 0.33.1 on the
 `PATH`), never edit the file by hand. The script adds the one line dist has no
@@ -83,8 +87,8 @@ The checklist covers, in order:
 4. **Quality gates**: mutation results reviewed, coverage targets met, CodeQL
    and Scorecard clean, `cargo audit` and cargo-deny clean, Miri and fuzzing
    green nightly.
-5. **Release artifacts**: `SHA256SUMS`, attestations, SBOM, third-party
-   licences and PDBs present; the release notes carry the *unsigned build*
+5. **Release artifacts**: checksums, attestations, SBOM and third-party
+   licences present; the release notes carry the *unsigned build*
    note; `release-verify` is green.
 6. **Docs**: the tutorial, how-tos, reference and explanation pages are
    current; the README has current screenshots and the *Unsigned builds*

@@ -12,7 +12,7 @@ checksum = "sha256"
 github-attestations = true
 cargo-auditable = true
 cargo-cyclonedx = true
-pr-run-mode = "upload"
+pr-run-mode = "plan"
 install-updater = false
 # release.yml gets one trigger dist does not know, workflow_dispatch: the tag
 # that release-plz creates with the built-in token starts no workflow, so
