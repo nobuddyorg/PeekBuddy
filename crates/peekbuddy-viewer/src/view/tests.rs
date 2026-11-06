@@ -290,9 +290,9 @@ fn the_column_chooser_reports_the_new_list_and_keeps_one_column() {
     until(&mut harness, "the first page", |v| v.held_rows() == PAGE);
     settle(&mut harness);
     harness.get_by_label("Columns").click();
-    harness.run();
+    harness.run_steps(12);
     harness.get_by_label("Size").click();
-    harness.run();
+    harness.run_steps(12);
     assert_eq!(
         harness.state().event,
         Some(ViewEvent::ColumnsChanged(names(&["kind", "path", "size"])))
@@ -419,13 +419,13 @@ fn ctrl_f_finds_the_search_box_and_escape_clears_it() {
     let mut harness = log_app(&log);
     until(&mut harness, "the first page", |v| v.held_rows() == PAGE);
     harness.key_press_modifiers(egui::Modifiers::COMMAND, egui::Key::F);
-    harness.run();
+    harness.run_steps(12);
     assert!(!harness.state().view.focus_search, "the request was served");
     harness.get_by_label("Search").type_text("rep");
-    harness.run();
+    harness.run_steps(12);
     assert_eq!(harness.state().view.spec.name, "rep");
     harness.key_press(egui::Key::Escape);
-    harness.run();
+    harness.run_steps(12);
     assert_eq!(harness.state().view.spec.name, "");
 }
 
