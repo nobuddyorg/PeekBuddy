@@ -1,18 +1,17 @@
 # Checks the assets a release published, on each native runner (#73): the
 # checksum, the attestation, a smoke run of the exe and `cargo audit bin`.
-# Called by release.yml after the announcement (dist `post-announce-jobs`).
+# Called by release.yml after the release is published.
 name: release-verify
 
 on:
   workflow_call:
     inputs:
-      plan:
-        description: the dist plan (JSON) of the release
+      tag:
+        description: the tag of the release to verify
         required: true
         type: string
 
-permissions:
-  contents: read
+permissions: {}
 
 jobs:
   verify:
@@ -20,7 +19,7 @@ jobs:
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 30
     permissions:
-      contents: read
+      contents: read # download the release assets
     strategy:
       fail-fast: false
       matrix:
@@ -35,26 +34,28 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       TARGET: ${{ matrix.target }}
-      PLAN: ${{ inputs.plan }}
+      TAG: ${{ inputs.tag }}
     steps:
       - name: Download the published assets
         run: |
-          $tag = ($env:PLAN | ConvertFrom-Json).announcement_tag
-          if (-not $tag) { throw 'the plan has no announcement tag' }
-          "tag: $tag"
-          gh release download $tag --repo $env:GITHUB_REPOSITORY --pattern "*$env:TARGET*" --dir assets
+          gh release download $env:TAG --repo $env:GITHUB_REPOSITORY --pattern "*$env:TARGET*" --pattern SHA256SUMS --dir assets
           Get-ChildItem assets | Format-Table Name, Length
       - name: Checksum
         run: |
-          $zip = Get-ChildItem assets -Filter '*.zip' | Select-Object -First 1
-          $want = (Get-Content "$($zip.FullName).sha256").Split(' ')[0].ToLower()
-          $have = (Get-FileHash $zip.FullName -Algorithm SHA256).Hash.ToLower()
-          if ($want -ne $have) { throw "checksum mismatch: $want $have" }
-          "checksum ok: $have"
+          $sums = Get-Content assets/SHA256SUMS
+          foreach ($file in Get-ChildItem assets -Exclude SHA256SUMS) {
+            $line = $sums | Where-Object { $_.EndsWith(" $($file.Name)") -or $_.EndsWith("*$($file.Name)") }
+            if (-not $line) { throw "$($file.Name) is not in SHA256SUMS" }
+            $want = $line.Split(' ')[0].ToLower()
+            $have = (Get-FileHash $file.FullName -Algorithm SHA256).Hash.ToLower()
+            if ($want -ne $have) { throw "checksum mismatch for $($file.Name): $want $have" }
+            "checksum ok: $($file.Name)"
+          }
       - name: Attestation
         run: |
-          $zip = Get-ChildItem assets -Filter '*.zip' | Select-Object -First 1
-          gh attestation verify $zip.FullName --repo $env:GITHUB_REPOSITORY
+          foreach ($file in Get-ChildItem assets -Exclude SHA256SUMS) {
+            gh attestation verify $file.FullName --repo $env:GITHUB_REPOSITORY
+          }
       - name: Smoke run of the published exe
         run: |
           $zip = Get-ChildItem assets -Filter '*.zip' | Select-Object -First 1

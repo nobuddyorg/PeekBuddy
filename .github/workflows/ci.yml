@@ -435,31 +435,10 @@ jobs:
           path: target/nextest/ci/junit.xml
           if-no-files-found: warn
 
-  dist-plan:
-    name: dist plan
-    runs-on: ubuntu-24.04
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - name: Install dist 0.33.1 (pinned by hash)
-        run: |
-          curl --proto '=https' --tlsv1.2 -fsSL -o dist.tar.xz https://github.com/axodotdev/cargo-dist/releases/download/v0.33.1/cargo-dist-x86_64-unknown-linux-gnu.tar.xz
-          echo "da68e159d5fed1ee61b00284da444e719927dbd0b7d0e2c34e57a04414453cf9  dist.tar.xz" | sha256sum -c -
-          mkdir -p "$HOME/dist-bin"
-          tar -xJf dist.tar.xz --strip-components=1 -C "$HOME/dist-bin"
-          echo "$HOME/dist-bin" >> "$GITHUB_PATH"
-      - name: The release configuration is valid
-        run: dist plan
-      - name: release.yml is what dist makes of it
-        shell: pwsh
-        run: ./scripts/ci/release-workflow.ps1 -Mode Check
-
   ci-ok:
     name: ci-ok
     if: always()
-    needs: [prek, deny, core-linux, lint, test-x64, etw-smoke, bench-ab, dist-plan]
+    needs: [prek, deny, core-linux, lint, test-x64, etw-smoke, bench-ab]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:

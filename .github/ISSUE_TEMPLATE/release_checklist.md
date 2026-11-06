@@ -36,7 +36,7 @@ screenshot. Nothing is ticked without one. Runbook: docs/how-to/release.md -->
 
 - [ ] README and release notes state the SmartScreen prompt and the Smart App Control block; the verification steps were tested on the release assets (hash and `gh attestation verify` pass, a tampered copy fails both):
 - [ ] `release-verify` green on both runners for the published assets (checksum, attestation, `--diagnostics` smoke run, Defender scan, `cargo audit bin`):
-- [ ] `sha256.sum`, per-asset `.sha256`, attestations, SBOM (`peekbuddy.cdx.xml`) and `THIRD_PARTY_LICENSES.html` (inside each zip) present:
+- [ ] `SHA256SUMS`, attestations, SBOM (`peekbuddy-v<version>.cdx.json`) and `THIRD_PARTY_LICENSES.html` (inside each zip) present:
 - [ ] `CHANGELOG.md` generated and reviewed; release notes list the known limitations (unsigned, UNC watching, Windows 10 best-effort, arm64 validated in CI only):
 
 ## Docs
