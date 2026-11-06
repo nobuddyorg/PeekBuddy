@@ -20,6 +20,14 @@ mod cli;
 #[cfg(feature = "profile-tracy")]
 mod tracy;
 
+/// mimalloc instead of the system allocator (#268). Off by default: the system
+/// allocator stays unless the comparison of the `allocator` workflow says
+/// otherwise. The Tracy allocation profile (`profile-tracy-alloc`) sets its own
+/// global allocator and wins when both features are on (`--all-features`).
+#[cfg(all(feature = "mimalloc", not(feature = "profile-tracy-alloc")))]
+#[global_allocator]
+static ALLOC: mimalloc::MiMalloc = mimalloc::MiMalloc;
+
 use cli::{Invocation, Role};
 
 /// Mutex of the viewer role; the engine's is in `peekbuddy_engine`.
