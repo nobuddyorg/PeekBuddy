@@ -41,6 +41,6 @@ commit_parsers = [
   { message = "^(ci|build)", group = "Build and CI" },
   { message = "^revert", group = "Reverts" },
   { message = "^chore: merge", skip = true },
-  { message = "^chore\(deps\)", skip = true },
+  { message = "^chore[(]deps[)]", skip = true },
   { message = "^(chore|style)", group = "Other" },
 ]
