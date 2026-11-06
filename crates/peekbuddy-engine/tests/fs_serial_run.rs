@@ -115,6 +115,9 @@ fn the_engine_runs_answers_records_and_reports() {
 
     // It records what happens in the watched tree.
     wait_for("the watch to be armed", || {
+        // A file written before the watch is armed is never a Created row, so
+        // every try makes it new again.
+        let _ = std::fs::remove_file(tree.join("seen.txt"));
         std::fs::write(tree.join("seen.txt"), b"x").is_ok()
             && rows(&data).iter().any(|row| {
                 row.kind == Kind::Created

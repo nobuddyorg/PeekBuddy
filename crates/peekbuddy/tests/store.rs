@@ -206,7 +206,13 @@ path = '{}'
     assert!(window.query_end_session(2_000).unwrap());
     window.end_session(5_000).unwrap();
     let flushed = started.elapsed();
-    assert!(flushed < Duration::from_secs(2), "{flushed:?}");
+    // Two seconds is the bar; instrumented code and the arm runner are slower
+    // and set a wider limit.
+    let limit = std::env::var("PEEKBUDDY_SESSION_END_LIMIT_MS")
+        .ok()
+        .and_then(|ms| ms.parse().ok())
+        .map_or(Duration::from_secs(2), Duration::from_millis);
+    assert!(flushed < limit, "{flushed:?}");
     window.post_close().ok();
     let _ = engine.wait();
 
