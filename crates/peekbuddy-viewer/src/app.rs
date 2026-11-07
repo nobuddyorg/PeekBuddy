@@ -92,6 +92,8 @@ fn log_view(
         &settings.view.columns,
     )?;
     view.set_details(!settings.viewer.details_hidden);
+    view.set_compact(settings.viewer.compact);
+    view.set_column_widths(&settings.viewer.column_widths);
     view.set_export_dirs(options.segments.clone(), options.data_dir.join("exports"));
     Ok(view)
 }
@@ -645,6 +647,31 @@ impl ViewerApp {
         }
     }
 
+    /// Carries out what the grid asked for.
+    fn view_event(&mut self, event: ViewEvent) {
+        match event {
+            ViewEvent::ColumnsChanged(names) => {
+                self.update_settings("the columns", |settings| settings.view.columns = names);
+            }
+            ViewEvent::DetailsToggled(open) => {
+                self.update_settings("the details pane", |settings| {
+                    settings.viewer.details_hidden = !open;
+                });
+            }
+            ViewEvent::CompactToggled(on) => {
+                self.update_settings("the compact view", |settings| {
+                    settings.viewer.compact = on;
+                });
+            }
+            ViewEvent::ColumnWidthsChanged(widths) => {
+                self.update_settings("the column widths", |settings| {
+                    settings.viewer.column_widths = widths;
+                });
+            }
+            ViewEvent::Open { path, select } => open_in_explorer(path, select),
+        }
+    }
+
     /// Remembers the window.
     fn save_window(&mut self) {
         let rect = self.normal;
@@ -778,17 +805,7 @@ impl eframe::App for ViewerApp {
             self.onboarding_action(action);
         }
         for event in view_events {
-            match event {
-                ViewEvent::ColumnsChanged(names) => {
-                    self.update_settings("the columns", |settings| settings.view.columns = names);
-                }
-                ViewEvent::DetailsToggled(open) => {
-                    self.update_settings("the details pane", |settings| {
-                        settings.viewer.details_hidden = !open;
-                    });
-                }
-                ViewEvent::Open { path, select } => open_in_explorer(path, select),
-            }
+            self.view_event(event);
         }
         match action {
             Some(ShellAction::StartEngine) => self.start_engine(),

@@ -638,6 +638,30 @@ fn the_compact_toggle_folds_bursts_and_the_raw_view_shows_every_row() {
     assert!(!view.compact);
     assert_eq!(view.folds.folded(), 0);
     assert!(!view.status.text.contains("folded"));
+    // The switch is reported, so the app can save it.
+    assert_eq!(
+        harness.state().event,
+        Some(ViewEvent::CompactToggled(false))
+    );
+}
+
+#[test]
+fn restored_settings_apply_without_a_write_until_the_user_resizes() {
+    let log = FakeLog::new(100);
+    let mut harness = log_app(&log);
+    {
+        let view = &mut harness.state_mut().view;
+        view.set_compact(true);
+        view.set_column_widths(&std::collections::BTreeMap::from([(
+            String::from("path"),
+            333,
+        )]));
+    }
+    until(&mut harness, "the first page", |v| v.held_rows() > 0);
+    harness.run_steps(40);
+    assert!(harness.state().view.compact());
+    // Restoring and drawing report nothing to save.
+    assert_eq!(harness.state().event, None);
 }
 
 #[test]

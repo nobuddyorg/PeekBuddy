@@ -338,6 +338,23 @@ fn viewer_issues(viewer: &super::Viewer) -> Vec<Issue> {
             ));
         }
     }
+    for (name, width) in &viewer.column_widths {
+        let key = format!("viewer.column_widths.{name}");
+        if !COLUMNS.contains(&name.as_str()) {
+            let mut issue = Issue::new(key, format!("unknown column `{name}`"));
+            issue.suggestion = super::load::closest(name, COLUMNS.iter().copied());
+            out.push(issue);
+        } else if !super::COLUMN_WIDTH.contains(width) {
+            out.push(Issue::new(
+                key,
+                format!(
+                    "must be {} to {} pixels",
+                    super::COLUMN_WIDTH.start(),
+                    super::COLUMN_WIDTH.end()
+                ),
+            ));
+        }
+    }
     if viewer.filter.len() > super::MAX_FILTER_TEXT {
         out.push(Issue::new(
             "viewer.filter",
