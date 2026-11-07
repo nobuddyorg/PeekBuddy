@@ -5,8 +5,15 @@
 //!
 //! # The model
 //!
-//! The grid shows rows **newest first**; a row's *virtual index* is its place
-//! in that order (0 is the newest). The log is far too big to hold, so the
+//! A row's *virtual index* is its place in the newest-first order (0 is the
+//! newest). The grid shows the rows in an [`Order`]: newest first, or oldest
+//! first (ascending), where the display index is the virtual index mirrored
+//! at the length of the view. Everything below is written in virtual
+//! indices; the public methods that take or give a *display* index (`plan`,
+//! `row_at`, `index_of`, `total`, `keep_near`, `display_top`,
+//! `at_follow_edge`) convert at the border, so the fetches, the keyset
+//! cursors and the live tail work the same in both orders. The log is far
+//! too big to hold, so the
 //! timeline keeps one contiguous **island** of rows (`rows`, strictly
 //! decreasing ids) and the virtual index of its first row (`top`). Everything
 //! outside the island is a placeholder until a fetch fills it in.
@@ -38,9 +45,13 @@
 //!   and is matched against what is pending.
 //! * While the user is away from the newest rows, new rows are only counted
 //!   (the "N new events" pill): the island does not move under the pointer.
+//! * Oldest first, a row that arrives is appended below the others: no display
+//!   index of a held row changes, and following means sitting at the last row.
 
 use std::collections::VecDeque;
 use std::ops::Range;
+
+pub use crate::order::Order;
 
 /// Rows in one fetch.
 pub const PAGE: usize = peekbuddy_core::query::PAGE_SIZE;
@@ -161,6 +172,13 @@ pub struct Timeline<R> {
     /// Counts every change to the held rows or their place, so a view
     /// derived from them (the compact folds) knows when to be made again.
     revision: u64,
+    order: Order,
+    /// The id span at the start: the length a filtered (non-seekable) view
+    /// is mirrored at when shown oldest first, because its real length is
+    /// not known before the oldest row is read.
+    base: u64,
+    /// Rows that joined the view at its newest end since then.
+    grown: u64,
 }
 
 impl<R: Identified> Timeline<R> {
@@ -172,6 +190,7 @@ impl<R: Identified> Timeline<R> {
             (Some(extent), true) => extent.span(),
             _ => 0,
         };
+        let base = extent.map_or(0, |extent| extent.span());
         Self {
             rows: VecDeque::new(),
             top: 0,
@@ -188,7 +207,99 @@ impl<R: Identified> Timeline<R> {
             pending_newer: None,
             pending_seek: None,
             revision: 0,
+            order: Order::Descending,
+            base,
+            grown: 0,
         }
+    }
+
+    /// The same timeline shown in `order`.
+    #[must_use]
+    pub const fn with_order(mut self, order: Order) -> Self {
+        self.order = order;
+        self
+    }
+
+    /// The order the rows are shown in.
+    #[must_use]
+    pub const fn order(&self) -> Order {
+        self.order
+    }
+
+    /// The length the view is mirrored at when shown oldest first: the rows
+    /// that have a place, not the ones that arrived while the user was away
+    /// (they get theirs with the jump to the newest).
+    fn mirror(&self) -> u64 {
+        let held = self.top + u64::try_from(self.rows.len()).unwrap_or(u64::MAX);
+        if self.seekable {
+            // A row can slip into a page before the tail delivers it, so the
+            // total may be short of what is held: the rows held always count.
+            self.total.saturating_sub(self.unseen).max(held)
+        } else if self.at_oldest {
+            held
+        } else {
+            self.base
+                .saturating_add(self.grown)
+                .max(held.saturating_add(SLACK))
+        }
+    }
+
+    /// The virtual range of a range of display rows.
+    fn to_virtual(&self, display: &Range<u64>) -> Range<u64> {
+        match self.order {
+            Order::Descending => display.clone(),
+            Order::Ascending => {
+                let mirror = self.mirror();
+                mirror.saturating_sub(display.end)..mirror.saturating_sub(display.start)
+            }
+        }
+    }
+
+    /// The other index of a row: virtual to display and display to virtual
+    /// are the same mirror.
+    fn mirrored(&self, index: u64) -> u64 {
+        match self.order {
+            Order::Descending => index,
+            Order::Ascending => self.mirror().saturating_sub(1).saturating_sub(index),
+        }
+    }
+
+    /// The display range that shows the newest `rows` rows: where a fresh
+    /// view starts and where following sits.
+    #[must_use]
+    pub fn newest_view(&self, rows: u64) -> Range<u64> {
+        match self.order {
+            Order::Descending => 0..rows,
+            Order::Ascending => {
+                let mirror = self.mirror();
+                mirror.saturating_sub(rows)..mirror
+            }
+        }
+    }
+
+    /// The display index of the newest row.
+    #[must_use]
+    pub fn newest_row(&self) -> u64 {
+        self.mirrored(0)
+    }
+
+    /// The display index of the first held row.
+    #[must_use]
+    pub fn display_top(&self) -> u64 {
+        match self.order {
+            Order::Descending => self.top,
+            Order::Ascending => {
+                let held = u64::try_from(self.rows.len()).unwrap_or(u64::MAX);
+                self.mirror().saturating_sub(self.top.saturating_add(held))
+            }
+        }
+    }
+
+    /// Whether the view `visible` (display rows) shows the newest row: the
+    /// edge that follow mode sits at.
+    #[must_use]
+    pub fn at_follow_edge(&self, visible: &Range<u64>) -> bool {
+        self.at_newest && self.to_virtual(visible).start == 0
     }
 
     /// Changes whenever the held rows or the virtual index of the first one
@@ -212,8 +323,11 @@ impl<R: Identified> Timeline<R> {
 
     /// Rows in the view (what the scrollbar spans).
     #[must_use]
-    pub const fn total(&self) -> u64 {
-        self.total
+    pub fn total(&self) -> u64 {
+        match self.order {
+            Order::Descending => self.total,
+            Order::Ascending => self.mirror(),
+        }
     }
 
     /// Tells the timeline how many rows of the id span the filter hides, so
@@ -228,6 +342,8 @@ impl<R: Identified> Timeline<R> {
             .saturating_add(self.hidden)
             .saturating_sub(hidden);
         self.hidden = hidden;
+        // Oldest first the display index of every row moves with the total.
+        self.revision += 1;
     }
 
     /// Whether `total` is an estimate (a filtered view that is still being
@@ -281,11 +397,20 @@ impl<R: Identified> Timeline<R> {
         self.top
     }
 
-    /// The row at virtual index `index`, if it is held.
+    /// The row at display index `index`, if it is held.
     #[must_use]
     pub fn row_at(&self, index: u64) -> Option<&R> {
-        let offset = usize::try_from(index.checked_sub(self.top)?).ok()?;
+        if self.order == Order::Ascending && index >= self.mirror() {
+            return None;
+        }
+        let offset = usize::try_from(self.virtual_index(index).checked_sub(self.top)?).ok()?;
         self.rows.get(offset)
+    }
+
+    /// The virtual index (newest is 0) of the display row `index`.
+    #[must_use]
+    pub fn virtual_index(&self, index: u64) -> u64 {
+        self.mirrored(index)
     }
 
     /// Marks the log as having no row yet: the view is complete and empty,
@@ -299,11 +424,11 @@ impl<R: Identified> Timeline<R> {
         self.at_oldest = true;
     }
 
-    /// The virtual index of the row with `id`, if it is held.
+    /// The display index of the row with `id`, if it is held.
     #[must_use]
     pub fn index_of(&self, id: i64) -> Option<u64> {
         let position = self.rows.iter().position(|row| row.id() == id)?;
-        Some(self.top + u64::try_from(position).ok()?)
+        Some(self.mirrored(self.top + u64::try_from(position).ok()?))
     }
 
     /// The held rows, newest first.
@@ -327,7 +452,10 @@ impl<R: Identified> Timeline<R> {
         let extent = self.extent?;
         let span = u128::from(extent.span());
         let total = u128::from(self.total.max(1));
-        let down = u128::from(index).saturating_mul(span) / total;
+        // The island keeps the index it had before the rows that were only
+        // counted arrived, so the log is `unseen` rows further on than it says.
+        let index = u128::from(index).saturating_add(u128::from(self.unseen));
+        let down = index.saturating_mul(span) / total;
         let down = i64::try_from(down).unwrap_or(i64::MAX);
         let id = extent.newest.saturating_sub(down).max(extent.oldest);
         // Rows with `id < cursor`: the row with `id` is the first one.
@@ -335,7 +463,12 @@ impl<R: Identified> Timeline<R> {
     }
 
     fn seek(&mut self, index: u64) -> Fetch {
-        let index = index.min(self.total.saturating_sub(1));
+        let last = if self.seekable {
+            self.total.saturating_sub(self.unseen)
+        } else {
+            self.total
+        };
+        let index = index.min(last.saturating_sub(1));
         self.pending_seek = Some(index);
         Fetch::Seek {
             index,
@@ -346,6 +479,11 @@ impl<R: Identified> Timeline<R> {
     /// The fetches the view `visible` needs now (at most two). A fetch that is
     /// already out is not asked for again.
     pub fn plan(&mut self, visible: &Range<u64>) -> Vec<Fetch> {
+        let visible = self.to_virtual(visible);
+        self.plan_virtual(&visible)
+    }
+
+    fn plan_virtual(&mut self, visible: &Range<u64>) -> Vec<Fetch> {
         let mut out = Vec::new();
         if self.pending_seek.is_some() {
             return out;
@@ -395,14 +533,19 @@ impl<R: Identified> Timeline<R> {
 
     /// Goes back to the newest rows: the "N new events" pill.
     pub fn jump_to_newest(&mut self) -> Fetch {
-        self.unseen = 0;
+        self.absorb_unseen();
         self.pending_older = None;
         self.pending_newer = None;
         self.seek(0)
     }
 
-    /// Goes to the oldest rows: the End key. Only a seekable view knows where
-    /// they are.
+    /// The rows that were only counted have a place now.
+    fn absorb_unseen(&mut self) {
+        self.grown = self.grown.saturating_add(self.unseen);
+        self.unseen = 0;
+    }
+
+    /// Goes to the oldest rows. Only a seekable view knows where they are.
     pub fn jump_to_oldest(&mut self) -> Option<Fetch> {
         if !self.seekable {
             return None;
@@ -490,6 +633,8 @@ impl<R: Identified> Timeline<R> {
             let drift = self.top;
             self.top = 0;
             self.at_newest = true;
+            // These rows are in the island now, so none is unseen any more.
+            self.absorb_unseen();
             if self.seekable {
                 self.total = self.total.saturating_sub(drift);
             }
@@ -552,6 +697,7 @@ impl<R: Identified> Timeline<R> {
             for row in fresh {
                 self.rows.push_front(row);
             }
+            self.grown = self.grown.saturating_add(count);
             self.top = 0;
             self.trim_far_from(0);
             self.recompute_total();
@@ -584,7 +730,7 @@ impl<R: Identified> Timeline<R> {
             self.top = 0;
             self.at_newest = cursor.is_none();
             self.at_oldest = true;
-            self.unseen = 0;
+            self.absorb_unseen();
             self.total = if cursor.is_none() {
                 0
             } else {
@@ -598,14 +744,16 @@ impl<R: Identified> Timeline<R> {
         self.at_oldest = !fetched.more;
         if self.at_newest {
             self.top = 0;
-            self.unseen = 0;
+            self.absorb_unseen();
         }
         if let Some(front) = self.rows.front().map(Identified::id) {
             self.tail_cursor = Some(self.tail_cursor.map_or(front, |seen| seen.max(front)));
         }
         if self.at_oldest && self.seekable {
-            // The island reaches the end: the view ends here.
-            self.total = self.top + u64::try_from(self.rows.len()).unwrap_or(u64::MAX);
+            // The island reaches the end: the view ends here, and the rows
+            // that were only counted lie beyond the island's index.
+            self.total = (self.top + u64::try_from(self.rows.len()).unwrap_or(u64::MAX))
+                .saturating_add(self.unseen);
         }
         self.recompute_total();
         true
@@ -635,6 +783,7 @@ impl<R: Identified> Timeline<R> {
 
     /// Keeps the island within [`MAX_ROWS`] around the view.
     pub fn keep_near(&mut self, visible: &Range<u64>) {
+        let visible = self.to_virtual(visible);
         let center = visible.start / 2 + visible.end / 2;
         self.trim_far_from(center);
         self.recompute_total();
@@ -648,3 +797,7 @@ impl<R: Identified> Timeline<R> {
     reason = "a test panics when the timeline keeps asking, and compares fetch lists to empty ones"
 )]
 mod tests;
+
+#[cfg(test)]
+#[expect(clippy::panic, reason = "a test panics when the timeline keeps asking")]
+mod ascending;

@@ -20,6 +20,7 @@ use peekbuddy_core::derive::{Config, DisplayItem, GroupKind, ViewMode, derive_al
 use peekbuddy_core::event::{Event, Flags, NameKind, NameRef, RootIdx, StoredEvent, VolIdx};
 use peekbuddy_core::name::WideStr;
 
+use crate::order::Order;
 use crate::rows::GridRow;
 
 /// What a held row is in the compact view.
@@ -58,11 +59,12 @@ impl Fold {
 /// The folds of the held rows.
 #[derive(Debug, Default)]
 pub struct Folds {
-    /// Virtual index of the first held row when the folds were made.
+    /// Display index of the first held row when the folds were made.
     top: u64,
     /// Every row that is not plain, by event id.
     marks: HashMap<i64, Fold>,
-    /// `hidden[k]` is how many of the first `k` held rows are folded away.
+    /// `hidden[k]` is how many of the first `k` held rows (in display order)
+    /// are folded away.
     hidden: Vec<u32>,
 }
 
@@ -119,6 +121,20 @@ impl Folds {
         top: u64,
         expanded: &BTreeSet<i64>,
     ) -> Self {
+        Self::build_ordered(rows, top, expanded, Order::Descending)
+    }
+
+    /// Like [`Folds::build`] for a grid shown in `sorted`: `rows` are still
+    /// given newest first, but `top` is the display index of the first row
+    /// *shown* (the oldest one when ascending). The head of a group is still
+    /// its newest member, which then sits below the folded ones.
+    #[must_use]
+    pub fn build_ordered<'a>(
+        rows: impl DoubleEndedIterator<Item = &'a GridRow> + Clone,
+        top: u64,
+        expanded: &BTreeSet<i64>,
+        sorted: Order,
+    ) -> Self {
         let mut roots = Vec::new();
         let events: Vec<(StoredEvent, &[u16])> = rows
             .clone()
@@ -164,11 +180,15 @@ impl Folds {
         let mut hidden = Vec::with_capacity(events.len() + 1);
         let mut count = 0_u32;
         hidden.push(0);
-        for row in rows {
+        let mut tally = |row: &GridRow| {
             if marks.get(&row.id) == Some(&Fold::Folded) {
                 count += 1;
             }
             hidden.push(count);
+        };
+        match sorted {
+            Order::Descending => rows.for_each(&mut tally),
+            Order::Ascending => rows.rev().for_each(&mut tally),
         }
         Self { top, marks, hidden }
     }
