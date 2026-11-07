@@ -328,3 +328,57 @@ fn a_cancelled_scan_says_so_and_a_finished_one_reports_progress() {
     assert!(stopped.cancelled);
     assert!(stopped.summary.rows.len() < 20_000);
 }
+
+#[test]
+fn a_time_is_found_as_the_id_before_it_across_segments() {
+    let dir = Dir::new("before");
+    let mut writer = open(dir.path());
+    let first = writer
+        .write(
+            &[batch(&[
+                (100, Kind::Created, "a", 1),
+                (200, Kind::Created, "b", 2),
+                (300, Kind::Created, "c", 3),
+            ])],
+            &[],
+        )
+        .unwrap()
+        .first_id;
+    let second = writer
+        .write(
+            &[batch(&[
+                (DAY + 100, Kind::Created, "d", 4),
+                (DAY + 200, Kind::Created, "e", 5),
+            ])],
+            &[],
+        )
+        .unwrap();
+    writer.wait_background();
+    let reader = Reader::new(dir.path());
+    assert_eq!(reader.id_before(50).unwrap(), 0);
+    assert_eq!(reader.id_before(100).unwrap(), 0);
+    assert_eq!(reader.id_before(101).unwrap(), first);
+    assert_eq!(reader.id_before(250).unwrap(), first + 1);
+    assert_eq!(reader.id_before(DAY).unwrap(), first + 2);
+    // The rotation row of the second day sits between the two days.
+    assert_eq!(reader.id_before(DAY + 150).unwrap(), second.last_id - 1);
+    assert_eq!(reader.id_before(u64::MAX).unwrap(), second.last_id);
+}
+
+#[test]
+fn a_gap_names_its_root() {
+    let dir = Dir::new("roots");
+    let mut writer = open(dir.path());
+    writer
+        .write(
+            &[batch(&[(10, Kind::Overflow(GapReason::RingFull), "", 0)])],
+            &[],
+        )
+        .unwrap();
+    let set = changes(dir.path(), 0);
+    let gap = set.summary.gaps[0];
+    assert_eq!(
+        set.roots.get(&gap.root).map(String::as_str),
+        Some(r"\\?\C:\Watched")
+    );
+}

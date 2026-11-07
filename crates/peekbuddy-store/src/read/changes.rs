@@ -19,7 +19,7 @@ use peekbuddy_core::changes::{Fold, Summary, op_for};
 use peekbuddy_core::event::Kind;
 use peekbuddy_core::name::fold_upper;
 use peekbuddy_core::query::CancelFlag;
-use rusqlite::{Connection, OpenFlags};
+use rusqlite::{Connection, OpenFlags, OptionalExtension};
 
 use super::{PathCache, Paths, Reader, kind_of};
 use crate::catalog::{Catalog, CatalogError};
@@ -52,6 +52,10 @@ pub struct ChangeSet {
     pub summary: Summary<PathKey>,
     /// The path of every key a row mentions.
     pub shown: HashMap<PathKey, String>,
+    /// The watch roots the gaps of the summary name, by [`GapInfo::root`].
+    ///
+    /// [`GapInfo::root`]: peekbuddy_core::changes::GapInfo::root
+    pub roots: HashMap<u32, String>,
     /// The id the scan started after.
     pub since_id: i64,
     /// The last row id read; `since_id` when there was none.
@@ -103,6 +107,7 @@ impl Reader {
         let mut run = Run {
             fold: Fold::new(),
             exemplars: HashMap::new(),
+            roots: HashMap::new(),
             scanned: 0,
             last_id: since_id,
             cancelled: false,
@@ -138,10 +143,64 @@ impl Reader {
         Ok(ChangeSet {
             summary,
             shown,
+            roots: run.roots,
             since_id,
             last_id: run.last_id,
             cancelled: run.cancelled,
         })
+    }
+
+    /// The id of the last row older than `ts` (FILETIME ticks), or 0 when
+    /// every row is as old or newer: "since this time" is "after this id".
+    /// Ids grow with time, so each segment is searched by halving.
+    ///
+    /// # Errors
+    ///
+    /// The catalog's error, or SQLite's.
+    pub fn id_before(&self, ts: u64) -> Result<i64, CatalogError> {
+        let ts = i64::try_from(ts).unwrap_or(i64::MAX);
+        let catalog = Catalog::open_for_reading(&self.dir.join("catalog.db"))?;
+        let mut found = 0;
+        for segment in catalog.list()? {
+            let Ok(conn) = Connection::open_with_flags(
+                self.dir.join(&segment.file),
+                OpenFlags::SQLITE_OPEN_READ_ONLY,
+            ) else {
+                continue;
+            };
+            let (low, high): (Option<i64>, Option<i64>) =
+                conn.query_row("SELECT min(id), max(id) FROM event", [], |r| {
+                    Ok((r.get(0)?, r.get(1)?))
+                })?;
+            let (Some(mut low), Some(mut high)) = (low, high) else {
+                continue;
+            };
+            let ts_of = |id: i64| -> rusqlite::Result<Option<i64>> {
+                conn.query_row(
+                    "SELECT ts FROM event WHERE id >= ?1 ORDER BY id LIMIT 1",
+                    [id],
+                    |r| r.get(0),
+                )
+                .optional()
+            };
+            // The newest id whose ts is before `ts`.
+            let mut last_older = None;
+            while low <= high {
+                let mid = low + (high - low) / 2;
+                match ts_of(mid)? {
+                    Some(at) if at < ts => {
+                        last_older = Some(mid);
+                        low = mid + 1;
+                    }
+                    _ => high = mid - 1,
+                }
+            }
+            match last_older {
+                Some(id) => found = found.max(id),
+                None => break,
+            }
+        }
+        Ok(found)
     }
 
     /// The path text of every key a row of the summary mentions.
@@ -192,6 +251,7 @@ struct Run {
     fold: Fold<PathKey>,
     /// The first node each key was seen at, to show its path afterwards.
     exemplars: HashMap<PathKey, (usize, i64)>,
+    roots: HashMap<u32, String>,
     scanned: u64,
     last_id: i64,
     cancelled: bool,
@@ -249,7 +309,11 @@ impl Run {
             let (key, root) = if about_root {
                 let root_id: i64 = row.get(5)?;
                 // A root is told apart by its path, the same in every segment.
-                let root = u32::try_from(path_key(&paths.root(root_id)) >> 32).unwrap_or(0);
+                let root_path = paths.root(root_id);
+                let root = u32::try_from(path_key(&root_path) >> 32).unwrap_or(0);
+                self.roots
+                    .entry(root)
+                    .or_insert_with(|| String::from_utf16_lossy(&root_path));
                 (0, root)
             } else {
                 if keys.len() >= KEY_CACHE_NODES {
