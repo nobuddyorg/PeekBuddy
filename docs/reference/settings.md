@@ -41,6 +41,8 @@ take effect on the next start: nothing watches the file.
 | `[viewer] filter` | text, at most 4096 bytes | empty | the viewer's filter in canonical text form (#67) |
 | `[viewer] raw` | bool | false | one row per stored record instead of derived groups (#66) |
 | `[viewer] details_hidden` | bool | false | the details pane is closed (#69) |
+| `[viewer] compact` | bool | false | the Compact toggle is on (#347) |
+| `[viewer.column_widths]` | table of column name to integer 24-4096 | empty | widths in pixels of the columns the user resized, written after a pause (#347); a column without an entry gets its natural width; names are `[view] columns` names |
 | `[filters] exclude_globs` | list of globs | empty | gitignore style, see [filters](filters.md) |
 | `[filters] exclude_regex` | list of regexes | empty | searched anywhere in the path |
 | `[filters] presets` | list of preset ids | empty | embedded presets |

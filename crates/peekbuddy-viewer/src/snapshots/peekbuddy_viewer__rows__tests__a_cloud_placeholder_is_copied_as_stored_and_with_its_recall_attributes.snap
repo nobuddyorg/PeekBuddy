@@ -1,0 +1,7 @@
+---
+source: crates/peekbuddy-viewer/src/rows.rs
+expression: text
+---
+id	time_utc	time_local	kind	source	path	old_path	is_dir	size	attrs	raw_mask	root
+7	2026-10-26T12:00:00.0000000Z	2026-10-26 12:00:00.000	Modified	RDCW	C:\x\cloud\big.iso		false	8589934592	0x00401000	0x00000003	C:\x
+7	2026-10-26T12:00:00.0000000Z	2026-10-26 12:00:00.000	Created	RDCW	C:\x\cloud\a\tb.doc		false	1536	0x000c0020	0x00000003	C:\x

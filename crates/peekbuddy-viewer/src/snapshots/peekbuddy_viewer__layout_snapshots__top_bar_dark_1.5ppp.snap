@@ -1,0 +1,82 @@
+---
+source: crates/peekbuddy-viewer/src/layout_snapshots.rs
+expression: text
+---
+scene: top bar
+look: dark_1.5ppp
+region: 0.0,0.0 1100.0x160.0
+
+[accessible tree]
+Button "Log" 16.0,46.3 37.5x20.0
+Button "Watches (1)" 61.5,46.3 83.8x20.0
+Button "Settings" 153.3,46.3 63.4x20.0
+TextInput "Search" 62.7,78.3 200.0x20.0
+Button "Created" 270.7,78.3 62.3x20.0
+Button "Modified" 340.9,78.3 68.2x20.0
+Button "Deleted" 417.1,78.3 62.4x20.0
+Button "Renamed" 487.5,78.3 71.1x20.0
+Button "Attributes" 566.6,78.3 75.0x20.0
+Button "Gaps" 649.7,78.3 44.3x20.0
+Button "Engine" 702.0,78.3 55.7x20.0
+ComboBox "When" 765.6,78.3 100.0x20.0
+Button "More" 915.5,78.3 46.8x20.0
+Button "Compact" 970.3,78.3 67.9x20.0
+Button "Details" 16.0,101.3 55.8x20.0
+Button "Columns" 16.0,124.3 66.4x20.0
+Splitter "Resize panel" 798.0,147.3 6.0x331.7
+
+[painted, back to front]
+rect 8.0,8.0 1084.0x504.0 fill #1b1b1b
+rect 8.0,8.0 1084.0x29.3 fill #1b1b1b
+text 16.0,10.0 110.0x25.3 #8c8c8c/#e0954f "PeekBuddy"
+linesegment 7.5,37.3 1085.0x1.0
+rect 8.0,38.3 1084.0x448.7 fill #1b1b1b
+rect 16.0,46.3 37.5x20.0 fill #005c80
+text 24.0,49.0 21.5x14.7 #c0deff "Log"
+rect 61.5,46.3 83.8x20.0
+text 69.5,49.0 67.8x14.7 #d7d7d7 "Watches (1)"
+rect 153.3,46.3 63.4x20.0
+text 161.3,49.0 47.4x14.7 #d7d7d7 "Settings"
+linesegment 15.5,71.8 1069.0x1.0
+text 16.0,78.3 38.7x20.0 #8c8c8c "Search"
+rect 62.7,78.3 200.0x20.0 fill #0a0a0a
+text 70.7,80.3 93.6x14.7 #8c8c8c99 "name contains..."
+text 70.7,80.3 0.0x14.7 #d7d7d7 ""
+rect 270.7,78.3 62.3x20.0
+text 278.7,81.0 46.3x14.7 #d7d7d7 "Created"
+rect 340.9,78.3 68.2x20.0
+text 348.9,81.0 52.2x14.7 #d7d7d7 "Modified"
+rect 417.1,78.3 62.4x20.0
+text 425.1,81.0 46.4x14.7 #d7d7d7 "Deleted"
+rect 487.5,78.3 71.1x20.0
+text 495.5,81.0 55.1x14.7 #d7d7d7 "Renamed"
+rect 566.6,78.3 75.0x20.0
+text 574.6,81.0 59.0x14.7 #d7d7d7 "Attributes"
+rect 649.7,78.3 44.3x20.0
+text 657.7,81.0 28.3x14.7 #d7d7d7 "Gaps"
+rect 702.0,78.3 55.7x20.0
+text 710.0,81.0 39.7x14.7 #d7d7d7 "Engine"
+rect 765.6,78.3 141.9x20.0
+rect 765.6,78.3 100.0x20.0 fill #323232
+text 773.6,81.0 51.2x14.7 #d7d7d7 "Any time"
+path 845.7,85.2 9.8x6.3
+text 873.6,81.0 33.9x14.7 #8c8c8c "When"
+rect 915.5,78.3 46.8x20.0
+text 923.5,81.0 30.8x14.7 #d7d7d7 "More"
+rect 970.3,78.3 67.9x20.0
+text 978.3,81.0 51.9x14.7 #d7d7d7 "Compact"
+rect 16.0,101.3 55.8x20.0 fill #005c80
+text 24.0,104.0 39.8x14.7 #c0deff "Details"
+rect 16.0,124.3 66.4x20.0 fill #323232
+text 24.0,127.0 50.4x14.7 #d7d7d7 "Columns"
+text 16.0,124.3 185.3x20.0 #8c8c8c "about 1 000 events"
+rect 802.0,147.3 282.0x331.7 fill #1b1b1b
+text 810.0,149.3 266.0x14.7 #8c8c8c "Select a row to see everything stored about it."
+linesegment 801.0,146.8 1.0x332.7
+rect 16.0,147.3 785.0x22026.0
+text 16.0,153.0 28.6x14.7 #ffffff "Time"
+text 241.0,153.0 25.8x14.7 #ffffff "Kind"
+text 453.5,153.0 26.6x14.7 #ffffff "Path"
+linesegment 240.5,146.8 1.0x332.7
+linesegment 453.0,146.8 1.0x332.7
+linesegment 800.5,146.8 1.0x332.7

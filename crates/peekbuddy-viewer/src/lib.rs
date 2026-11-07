@@ -21,6 +21,7 @@ use std::sync::Arc;
 use peekbuddy_core::perf::MilestoneTable;
 
 pub mod brand;
+pub mod colwidth;
 pub mod compact;
 pub mod debounce;
 pub mod details;
@@ -41,6 +42,11 @@ pub mod timeline;
 pub mod view;
 pub mod watches;
 pub mod worker;
+
+#[cfg(test)]
+mod layout_snapshots;
+#[cfg(test)]
+mod paint_dump;
 
 #[cfg(windows)]
 mod app;

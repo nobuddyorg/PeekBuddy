@@ -237,6 +237,11 @@ fn arb_settings() -> impl Strategy<Value = Settings> {
             any::<bool>(),
             "[a-z:,\\-]{0,20}",
             any::<bool>(),
+            proptest::collection::btree_map(
+                proptest::sample::select(COLUMNS.to_vec()),
+                24u32..=4096,
+                0..4,
+            ),
         ),
     )
         .prop_map(|(general, store, view, filters, watches, viewer)| {
@@ -263,6 +268,12 @@ fn arb_settings() -> impl Strategy<Value = Settings> {
                 filter: viewer.3,
                 raw: viewer.4,
                 details_hidden: !viewer.4,
+                compact: viewer.4,
+                column_widths: viewer
+                    .5
+                    .into_iter()
+                    .map(|(name, width)| (String::from(name), width))
+                    .collect(),
             };
             settings.filters = Filters {
                 exclude_globs: filters.0.iter().map(|g| format!("*.{g}")).collect(),
@@ -418,4 +429,52 @@ fn a_bad_viewer_table_gets_positioned_messages() {
     assert!(typo.contains("did you mean `width`"), "{typo}");
     let long = format!("version = 1\n[viewer]\nfilter = \"{}\"\n", "a".repeat(5000));
     assert!(messages(&long).contains("viewer.filter"));
+}
+
+#[test]
+fn saved_column_widths_and_compact_load_and_old_files_still_do() {
+    let old = "version = 1
+[viewer]
+width = 900
+height = 600
+";
+    match load(old, &ctx()) {
+        Loaded::Ok { settings, .. } => {
+            assert!(!settings.viewer.compact);
+            assert!(settings.viewer.column_widths.is_empty());
+        }
+        other => panic!("{other:?}"),
+    }
+    let new = "version = 1
+[viewer]
+compact = true
+[viewer.column_widths]
+path = 700
+time = 140
+";
+    match load(new, &ctx()) {
+        Loaded::Ok { settings, .. } => {
+            assert!(settings.viewer.compact);
+            assert_eq!(settings.viewer.column_widths.get("path"), Some(&700));
+            assert_eq!(settings.viewer.column_widths.len(), 2);
+        }
+        other => panic!("{other:?}"),
+    }
+}
+
+#[test]
+fn bad_column_widths_get_positioned_messages() {
+    let text = messages(
+        "version = 1
+[viewer.column_widths]
+path = 5
+time = 99999
+pth = 100
+kind = 120
+",
+    );
+    assert!(text.contains("viewer.column_widths.path"), "{text}");
+    assert!(text.contains("viewer.column_widths.time"), "{text}");
+    assert!(text.contains("did you mean `path`"), "{text}");
+    assert!(!text.contains("column_widths.kind"), "{text}");
 }

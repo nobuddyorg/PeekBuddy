@@ -1,0 +1,25 @@
+---
+source: crates/peekbuddy-viewer/src/layout_snapshots.rs
+expression: text
+---
+scene: welcome screen
+look: dark_1.0ppp
+region: 0.0,0.0 800.0x900.0
+
+[accessible tree]
+Button "Next" 8.0,163.0 43.8x20.0
+Button "Skip" 59.8,163.0 39.8x20.0
+
+[painted, back to front]
+rect 8.0,8.0 784.0x175.0 fill #1b1b1b
+text 8.0,8.0 140.0x32.0 #8c8c8c/#e0954f "PeekBuddy"
+text 156.0,16.5 62.5x15.0 #8c8c8c "Step 1 of 5"
+linesegment 7.5,45.5 785.0x1.0
+text 8.0,52.0 190.7x21.0 #8c8c8c "Welcome to PeekBuddy"
+text 8.0,76.0 627.2x15.0 #8c8c8c "PeekBuddy quietly records every change in the folders you ch..."
+text 8.0,100.0 758.0x30.0 #8c8c8c "No login, no server, no tracking; the log never leaves your ..."
+text 8.0,133.0 538.4x15.0 #8c8c8c "It stores paths, names, sizes, attributes and times of chang..."
+rect 8.0,163.0 43.8x20.0 fill #323232
+text 16.0,165.5 27.8x15.0 #d7d7d7 "Next"
+rect 59.8,163.0 39.8x20.0 fill #323232
+text 67.8,165.5 23.8x15.0 #d7d7d7 "Skip"

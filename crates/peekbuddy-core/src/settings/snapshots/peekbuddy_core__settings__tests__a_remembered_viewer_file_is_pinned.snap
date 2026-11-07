@@ -1,0 +1,34 @@
+---
+source: crates/peekbuddy-core/src/settings/mod.rs
+expression: to_toml(&settings).unwrap()
+---
+version = 1
+
+[general]
+autostart = false
+theme = "system"
+first_run = true
+
+[store]
+
+[view]
+coalesce_ms = 150
+columns = [
+    "time",
+    "kind",
+    "path",
+]
+
+[viewer]
+width = 1280
+height = 800
+compact = true
+
+[viewer.column_widths]
+path = 640
+time = 150
+
+[filters]
+exclude_globs = []
+exclude_regex = []
+presets = []

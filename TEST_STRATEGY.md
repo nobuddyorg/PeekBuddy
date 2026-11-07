@@ -8,10 +8,10 @@ and how to add one.
 
 | Layer | What | Where it lives | Runs on |
 | --- | --- | --- | --- |
-| Unit and property | Pure logic: event model, names, filters, derived views, parsers | `mod tests` in each module; proptest | Linux and Windows, every PR |
+| Unit and property | Pure logic: event model, names, filters, derived views, parsers | `mod tests` in each module; proptest | Any host; Windows in CI, every PR |
 | Win32 integration | Real watchers, real NTFS, pipes, tokens | `tests/` of `peekbuddy-win`, `-engine`, `-store` | Windows x64 every PR, arm64 advisory |
 | End-to-end | Launch `peekbuddy.exe`, drive it, check the log | `tests/e2e*.rs` | Windows, every PR (`e2e` group) |
-| UI | egui_kittest snapshots and UIA smoke | `peekbuddy-viewer` (#71) | Windows |
+| UI | egui_kittest interaction tests, layout snapshots ([UI tests](#ui-tests-kittest)); UIA smoke (#71, not yet) | `peekbuddy-viewer` | Any host; Windows in CI, every PR |
 | Performance ([PERFORMANCE.md](PERFORMANCE.md)) | Allocation budgets (#23), micro-benchmarks (#26), end-to-end harness (#27) | own test binaries and `benches` | Windows, PR (deterministic) and nightly (trends) |
 
 ## Runner and profiles
@@ -197,6 +197,99 @@ insta::with_settings!({ filters => peekbuddy_testkit::snapshot_filters() }, {
 #[case::refs("ReFS")]
 fn volume_kinds(#[case] fs: &str) { /* ... */ }
 ```
+
+## UI tests (kittest)
+
+The viewer's screens are drawn by plain `egui` code that knows nothing about
+eframe, so [`egui_kittest`](https://crates.io/crates/egui_kittest) (pinned
+to 0.37.0) runs them in-process, on Linux and on Windows, without a window.
+A test finds controls through the AccessKit tree (what a screen reader
+sees), operates them with clicks and keys, and asserts on the state or on
+what is drawn.
+
+**Add a test.** Next to the screen, in its `tests` module (the log screen
+has `view/tests.rs` with `FakeLog`, a synthetic in-memory log of any size,
+and the helpers `until` and `settle` that wait for the worker thread):
+
+```rust
+let log = FakeLog::new(10_000);
+let mut harness = log_app(&log);
+until(&mut harness, "the first page", |v| v.held_rows() == PAGE);
+harness.get_by_label("Compact").click();          // a mouse click
+harness.key_press(egui::Key::ArrowDown);          // a key
+harness.step();                                   // one frame
+harness.get_by_label_contains("selected");        // fails with the tree
+crate::a11y::assert_every_control_is_named(&harness);
+```
+
+- Query by the accessible name, never by position. A control without a name
+  fails `a11y::assert_every_control_is_named`; give it one with `labelled_by`
+  or a text.
+- Keyboard-only paths are tests too: `Node::focus()` then `key_press`
+  (Enter, Space), or `key_press` for the grid's keys. Do not click in a test
+  that claims a keyboard path.
+- A worker answers on another thread. Use `until` for "this arrived" and
+  `settle` before a click, because an answer between lookup and click can
+  move the row.
+- `FakeLog::shape_rows(f)` changes every row it serves (a spoofed name, a
+  cloud placeholder's attributes); `bursts(n)` gives `n` rows one path, which
+  the compact view folds.
+
+**Layout snapshots instead of image snapshots.** `egui_kittest` can compare
+PNG files (features `snapshot` and `wgpu`, committed per OS and architecture,
+tolerance in `kittest.toml`). PeekBuddy does not use them: the hosted
+runners draw on WARP, a software adapter whose anti-aliasing and glyph
+rasterisation change with the driver build, so a committed image would turn
+red when the runner image is updated, with no change in the viewer, and the
+fix (regenerate on the runner and commit) would train everyone to accept
+image diffs. The rule is that a test must not fail without a change in the
+code. What egui lays out and paints is plain data and the same on every
+host, so `paint_dump::dump` writes it as text, and `insta` compares it:
+
+- `[accessible tree]`: role, name and rectangle (in points) of every named
+  node inside a region of the screen;
+- `[painted, back to front]`: every text (with its colour per section),
+  filled rectangle and other shape in that region, with colours as `#rrggbb`.
+
+`layout_snapshots.rs` takes four screens (the top bar with the tabs and the
+filter bar, the welcome screen, a spoofed name (#69) in grid and details, the
+compact grid) in light and dark at 1.0 and 1.5 pixels per point, 16 files in
+`crates/peekbuddy-viewer/src/snapshots/`. A moved or clipped control, a
+wrapped line, a colour that changed in one theme and a layout that breaks
+at 1.5 ppp are all line diffs in the PR. What the pixels look like is the
+owner's review of the running app (an owner run, not CI). To add a screen,
+build its harness with `.with_theme(look.theme).with_pixels_per_point(look.ppp)`
+for each `Look::ALL` and pass it to `dump`.
+
+**Update snapshots.** After a change that moves the layout on purpose:
+
+```sh
+INSTA_UPDATE=always cargo nextest run -p peekbuddy-viewer   # rewrite the .snap files
+git diff crates/peekbuddy-viewer/src/snapshots              # read it like code
+```
+
+(`cargo insta review` works too if cargo-insta is installed.) On CI (insta
+writes nothing when `CI` is set) a snapshot that differs fails and a new
+one without its file fails. Commit the `.snap` files; never `.snap.new`.
+
+**Run the end-to-end tests locally.** They launch the real `peekbuddy.exe`
+(the integration tests of `crates/peekbuddy/tests/`: `engine.rs`,
+`viewer.rs`, `ipc.rs` and the `fs_serial_*` files) and need an interactive
+Windows session, because the viewer opens a window and the engine a tray
+icon. From a normal desktop session (not over SSH or a service):
+
+```sh
+cargo nextest run -p peekbuddy --test viewer --test engine --test ipc
+cargo nextest run -p peekbuddy --profile ci -E 'binary(/^fs_serial/)'   # the long ones
+```
+
+They use an isolated data directory (`--data-dir`, the window title carries
+a hash of it), so a PeekBuddy that runs for you is not touched, but close a
+second window of yours that sits on the same screen position. A test that
+fails to find the window usually ran in a session without a desktop:
+`peekbuddy_testkit::assert_interactive_session()` says so. The UI Automation
+smoke of #71 (`tests/e2e*.rs`, nextest group `e2e`) is not written yet; when
+it is, it runs the same way with `-E 'binary(/^e2e/)'`.
 
 ## Conventions
 

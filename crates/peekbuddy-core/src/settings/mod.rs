@@ -11,6 +11,8 @@ mod load;
 mod migrate;
 mod validate;
 
+use std::collections::BTreeMap;
+
 use serde::{Deserialize, Serialize};
 
 pub use load::{Loaded, Problem, load, load_with};
@@ -141,6 +143,9 @@ pub const COLUMNS: &[&str] = &[
 /// Smallest and largest window side the viewer restores, in pixels.
 pub const WINDOW_SIDE: std::ops::RangeInclusive<u32> = 200..=32_768;
 
+/// Width in pixels the viewer accepts for a saved column.
+pub const COLUMN_WIDTH: std::ops::RangeInclusive<u32> = 24..=4096;
+
 /// Longest filter text the viewer keeps, in bytes.
 pub const MAX_FILTER_TEXT: usize = 4096;
 
@@ -150,6 +155,10 @@ pub const MAX_FILTER_TEXT: usize = 4096;
 /// pixels; the viewer clamps them to a visible monitor on restore.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(default)]
+#[expect(
+    clippy::struct_excessive_bools,
+    reason = "independent remembered switches of the file format: maximized, raw, details, compact"
+)]
 pub struct Viewer {
     /// Left edge of the window.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -175,6 +184,14 @@ pub struct Viewer {
     /// The details pane is closed (#69). Open is the default.
     #[serde(skip_serializing_if = "is_false")]
     pub details_hidden: bool,
+    /// The compact view is on (#347). Off is the default.
+    #[serde(skip_serializing_if = "is_false")]
+    pub compact: bool,
+    /// Widths of the grid columns the user resized, in pixels, by column
+    /// name (#347). A column without an entry gets its natural width. The
+    /// table comes last: TOML wants plain values before tables.
+    #[serde(skip_serializing_if = "BTreeMap::is_empty")]
+    pub column_widths: BTreeMap<String, u32>,
 }
 
 #[expect(clippy::trivially_copy_pass_by_ref, reason = "serde's signature")]
@@ -261,6 +278,8 @@ pub(crate) const VIEWER_KEYS: &[&str] = &[
     "filter",
     "raw",
     "details_hidden",
+    "compact",
+    "column_widths",
 ];
 pub(crate) const FILTER_KEYS: &[&str] = &["exclude_globs", "exclude_regex", "presets"];
 pub(crate) const WATCH_KEYS: &[&str] = &[
@@ -312,6 +331,17 @@ pub const DEFAULT_MAX_TOTAL_MB: u64 = 2048;
 #[cfg(test)]
 mod tests {
     use super::{Settings, Watch, default_toml, to_toml};
+
+    #[test]
+    fn a_remembered_viewer_file_is_pinned() {
+        let mut settings = Settings::default();
+        settings.viewer.width = Some(1280);
+        settings.viewer.height = Some(800);
+        settings.viewer.compact = true;
+        settings.viewer.column_widths.insert("path".into(), 640);
+        settings.viewer.column_widths.insert("time".into(), 150);
+        insta::assert_snapshot!(to_toml(&settings).unwrap());
+    }
 
     #[test]
     fn the_default_file_is_pinned() {
