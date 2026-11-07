@@ -426,16 +426,10 @@ impl ViewerApp {
     /// Carries out what the user asked for on the Changes tab.
     fn changes_action(&mut self, action: ChangesAction) {
         let command = match action {
-            ChangesAction::MarkNow => {
-                let now = crate::view::filetime_now();
-                let stamp = crate::rows::format_time(
-                    now,
-                    peekbuddy_win::localtime::utc_offset_seconds(now),
-                );
-                Command::MarkNow {
-                    name: format!("Marker {}", stamp.get(11..19).unwrap_or_default()),
-                }
-            }
+            // The engine names it with the time.
+            ChangesAction::MarkNow => Command::MarkNow {
+                name: String::new(),
+            },
             ChangesAction::Rename { event_id, name } => Command::RenameMarker { event_id, name },
             ChangesAction::ShowRows { dir, name } => {
                 self.view.show_path(&dir, &name);

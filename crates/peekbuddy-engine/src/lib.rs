@@ -266,7 +266,7 @@ mod run {
             loaded_settings.settings.watches.len() + usize::from(tray_wanted) + 1,
         );
         let gate = Arc::clone(&instruments.gate);
-        let (pause, capture) = start_pause_and_capture(
+        let (pause, capture, markers) = start_pause_and_capture(
             &data,
             &loaded_settings,
             &store,
@@ -298,7 +298,7 @@ mod run {
             &data,
             &hidden,
             &shutdown,
-            (&pause, autostart, &store),
+            (&pause, autostart, &markers),
         )?;
 
         if tray_wanted {
@@ -307,7 +307,7 @@ mod run {
                 &tray_cell,
                 &shutdown,
                 &data,
-                (&loaded_settings, &pause),
+                (&loaded_settings, &pause, &markers),
                 (abnormal_termination.is_some(), options),
                 milestones,
             )?;
@@ -583,7 +583,11 @@ mod run {
         counters: &Arc<peekbuddy_core::perf::Counters>,
         shutdown: &Rc<RefCell<Shutdown>>,
         instruments: &Instruments,
-    ) -> std::io::Result<(Arc<crate::pause_ctl::PauseCtl>, Option<SharedHost>)> {
+    ) -> std::io::Result<(
+        Arc<crate::pause_ctl::PauseCtl>,
+        Option<SharedHost>,
+        Arc<crate::marker_ctl::MarkerCtl>,
+    )> {
         let (pause_rows, bind) = crate::capture_host::PauseSignals::new();
         let pause = crate::pause_ctl::PauseCtl::new(
             loaded.settings.clone(),
@@ -604,7 +608,15 @@ mod run {
             (shutdown, instruments),
         )?;
         pause.announce_start();
-        Ok((pause, capture))
+        let markers = Arc::new(crate::marker_ctl::MarkerCtl::new(
+            producer.clone(),
+            data.segments.clone(),
+            (
+                crate::pause_ctl::now_ticks,
+                peekbuddy_win::localtime::utc_offset_seconds,
+            ),
+        ));
+        Ok((pause, capture, markers))
     }
 
     /// Starts capture: the watches of the settings, their lifecycle and the
@@ -729,10 +741,10 @@ mod run {
         data: &DataDir,
         hidden: &HiddenWindow,
         shutdown: &Rc<RefCell<Shutdown>>,
-        (pause, autostart, store): (
+        (pause, autostart, markers): (
             &Arc<crate::pause_ctl::PauseCtl>,
             Option<SharedAutostart>,
-            &peekbuddy_store::pipeline::Producer,
+            &Arc<crate::marker_ctl::MarkerCtl>,
         ),
     ) -> std::io::Result<()> {
         let name = crate::ipc_server::pipe_name(options.data_dir.as_deref())?;
@@ -743,11 +755,7 @@ mod run {
             settings_path: data.settings.clone(),
             data_dir: data.root.to_string_lossy().into_owned(),
             pause: Arc::clone(pause),
-            markers: Arc::new(crate::marker_ctl::MarkerCtl::new(
-                store.clone(),
-                data.segments.clone(),
-                crate::pause_ctl::now_ticks,
-            )),
+            markers: Arc::clone(markers),
             autostart,
         };
         let server = match crate::ipc_server::start(&name, shared) {
@@ -777,9 +785,10 @@ Another PeekBuddy engine of this user owns it, or another program created it fir
         cell: &SharedTray,
         shutdown: &Rc<RefCell<Shutdown>>,
         data: &DataDir,
-        (loaded, pause): (
+        (loaded, pause, markers): (
             &crate::settings::LoadedSettings,
             &Arc<crate::pause_ctl::PauseCtl>,
+            &Arc<crate::marker_ctl::MarkerCtl>,
         ),
         (crashed, options): (bool, &Options),
         milestones: &MilestoneTable,
@@ -804,6 +813,7 @@ Another PeekBuddy engine of this user owns it, or another program created it fir
             crate::instrument::viewer_args(options.data_dir.as_deref()),
             data.root.clone(),
             Arc::clone(pause),
+            Arc::clone(markers),
             TrayState {
                 health,
                 rate: 0.0,

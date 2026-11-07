@@ -376,7 +376,7 @@ mod tests {
         std::sync::Arc::new(crate::marker_ctl::MarkerCtl::new(
             producer,
             store,
-            crate::pause_ctl::now_ticks,
+            (crate::pause_ctl::now_ticks, |_| 0),
         ))
     }
 
@@ -461,12 +461,13 @@ mod tests {
                 name: String::new(),
             }),
         );
-        assert_eq!(
-            blank,
-            [Message::CommandResult {
-                ok: true,
-                message: String::from("marked `Marker`")
-            }]
+        assert!(
+            matches!(
+                blank.as_slice(),
+                [Message::CommandResult { ok: true, message }]
+                    if message.starts_with("marked `Marker ")
+            ),
+            "{blank:?}"
         );
         let renamed = answer(
             &ctx,
