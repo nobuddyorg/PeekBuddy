@@ -12,6 +12,7 @@
 //! draws what the thread left. It knows nothing about eframe, so it runs under
 //! `egui_kittest` on any host.
 
+use std::collections::HashMap;
 use std::fmt::Write as _;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex, PoisonError};
@@ -24,6 +25,9 @@ use peekbuddy_store::read::changes::{ChangeSet, Progress};
 use peekbuddy_store::segment::DayKey;
 
 use crate::rows::{OffsetFn, format_time};
+
+/// Lines "Copy list" takes.
+pub const COPY_LIMIT: usize = 100_000;
 
 /// FILETIME ticks per minute.
 const MINUTE: u64 = 600_000_000;
@@ -117,23 +121,42 @@ const fn words(kind: NetKind) -> (&'static str, &'static str) {
     }
 }
 
-/// The rows of `set` as lines, in the order of the fold.
+/// What a path that is not resolved yet is drawn as.
+const PENDING: &str = "...";
+
+/// The path of `key`: resolved with the set, resolved since (`names`), or
+/// still pending.
+fn path_of<'a>(set: &'a ChangeSet, names: &'a HashMap<u64, String>, key: u64) -> &'a str {
+    let known = set.path(key);
+    if known.is_empty() {
+        names.get(&key).map_or(PENDING, String::as_str)
+    } else {
+        known
+    }
+}
+
+/// One row of the fold as a line.
+fn line_of(set: &ChangeSet, names: &HashMap<u64, String>, row: &Net<u64>) -> Line {
+    let (glyph, label) = words(row.kind);
+    Line {
+        glyph,
+        label,
+        path: path_of(set, names, row.key).to_owned(),
+        from: row.from.map(|from| path_of(set, names, from).to_owned()),
+        modified: row.modified,
+        raw_events: row.raw_events,
+    }
+}
+
+/// The rows of `set` as lines, in the order of the fold; paths that were not
+/// resolved with the set are drawn as `...`.
 #[must_use]
 pub fn lines(set: &ChangeSet) -> Vec<Line> {
+    let none = HashMap::new();
     set.summary
         .rows
         .iter()
-        .map(|row: &Net<u64>| {
-            let (glyph, label) = words(row.kind);
-            Line {
-                glyph,
-                label,
-                path: set.path(row.key).to_owned(),
-                from: row.from.map(|from| set.path(from).to_owned()),
-                modified: row.modified,
-                raw_events: row.raw_events,
-            }
-        })
+        .map(|row| line_of(set, &none, row))
         .collect()
 }
 
@@ -194,7 +217,11 @@ struct Shared {
     running: bool,
     /// Which request the state belongs to; a newer one replaces it.
     generation: u64,
-    result: Option<(Since, ChangeSet)>,
+    result: Option<(Since, Arc<ChangeSet>)>,
+    /// Paths resolved after the diff came back (see `EAGER` in the store).
+    names: HashMap<u64, String>,
+    /// A thread is resolving paths.
+    resolving: bool,
 }
 
 /// The panel.
@@ -337,7 +364,10 @@ impl ChangesPanel {
             if shared.generation == generation {
                 shared.running = false;
                 match outcome {
-                    Ok(set) => shared.result = Some((since, set)),
+                    Ok(set) => {
+                        shared.names.clear();
+                        shared.result = Some((since, Arc::new(set)));
+                    }
                     Err(error) => shared.error = Some(format!("changes: {error}")),
                 }
             }
@@ -362,8 +392,40 @@ impl ChangesPanel {
 
     /// The finished diff, if any.
     #[must_use]
-    pub fn result(&self) -> Option<(Since, ChangeSet)> {
+    pub fn result(&self) -> Option<(Since, Arc<ChangeSet>)> {
         self.lock().result.clone()
+    }
+
+    /// Resolves the paths of `keys` on a thread, unless one is running.
+    fn resolve(&self, set: &Arc<ChangeSet>, keys: Vec<u64>) {
+        {
+            let mut shared = self.lock();
+            if shared.resolving || keys.is_empty() {
+                return;
+            }
+            shared.resolving = true;
+        }
+        let (dir, shared, waker, set) = (
+            self.segments.clone(),
+            Arc::clone(&self.shared),
+            Arc::clone(&self.waker),
+            Arc::clone(set),
+        );
+        std::thread::spawn(move || {
+            let found = Reader::new(&dir).resolve(&set, &keys);
+            let mut shared = shared.lock().unwrap_or_else(PoisonError::into_inner);
+            shared.resolving = false;
+            // Only if the diff on screen is still this one.
+            if shared
+                .result
+                .as_ref()
+                .is_some_and(|(_, current)| Arc::ptr_eq(current, &set))
+            {
+                shared.names.extend(found);
+            }
+            drop(shared);
+            waker();
+        });
     }
 
     /// Draws the panel and returns what the user asked for.
@@ -527,9 +589,14 @@ impl ChangesPanel {
     }
 
     fn result_view(&mut self, ui: &mut egui::Ui, actions: &mut Vec<ChangesAction>) {
-        let (running, progress, result) = {
+        let (running, progress, result, names) = {
             let shared = self.lock();
-            (shared.running, shared.progress, shared.result.clone())
+            (
+                shared.running,
+                shared.progress,
+                shared.result.clone(),
+                shared.names.clone(),
+            )
         };
         if running {
             ui.horizontal(|ui| {
@@ -557,6 +624,14 @@ impl ChangesPanel {
             }
             return;
         };
+        Self::heading(ui, &since, &set);
+        if let Some(copy) = self.copy_button(ui, &set, &names) {
+            ui.ctx().copy_text(copy);
+        }
+        self.list(ui, &set, &names, actions);
+    }
+
+    fn heading(ui: &mut egui::Ui, since: &Since, set: &ChangeSet) {
         ui.strong(format!("What changed {}", since.describe()));
         if set.cancelled {
             ui.colored_label(
@@ -564,7 +639,7 @@ impl ChangesPanel {
                 "! Stopped early: this list is partial.",
             );
         }
-        let gaps = gap_lines(&set);
+        let gaps = gap_lines(set);
         if set.summary.incomplete() {
             ui.colored_label(
                 ui.visuals().warn_fg_color,
@@ -574,25 +649,77 @@ impl ChangesPanel {
         for line in &gaps {
             ui.label(line);
         }
-        ui.label(totals(&set));
+        ui.label(totals(set));
         if set.summary.transient > 0 {
             ui.small("Files that only existed inside the range are counted, not listed.");
         }
-        let rows = lines(&set);
+    }
+
+    /// The Copy list button; the text to copy when it was pressed.
+    fn copy_button(
+        &self,
+        ui: &mut egui::Ui,
+        set: &Arc<ChangeSet>,
+        names: &HashMap<u64, String>,
+    ) -> Option<String> {
+        if set.summary.rows.len() > COPY_LIMIT {
+            ui.small(format!(
+                "The list is long: Copy list takes the first {COPY_LIMIT}."
+            ));
+        }
         if ui.button("Copy list").clicked() {
+            let first: Vec<&Net<u64>> = set.summary.rows.iter().take(COPY_LIMIT).collect();
+            let keys: Vec<u64> = first
+                .iter()
+                .flat_map(|row| std::iter::once(row.key).chain(row.from))
+                .collect();
+            let mut all = names.clone();
+            all.extend(Reader::new(&self.segments).resolve(set, &keys));
             let mut text = String::from("change\tpath\tfrom\traw events\n");
-            for line in &rows {
-                text.push_str(&line.tsv());
+            for row in first {
+                text.push_str(&line_of(set, &all, row).tsv());
                 text.push('\n');
             }
-            ui.ctx().copy_text(text);
+            return Some(text);
         }
+        None
+    }
+
+    /// The virtualized list of lines.
+    fn list(
+        &self,
+        ui: &mut egui::Ui,
+        set: &Arc<ChangeSet>,
+        names: &HashMap<u64, String>,
+        actions: &mut Vec<ChangesAction>,
+    ) {
+        let total = set.summary.rows.len();
         let height = ui.text_style_height(&egui::TextStyle::Body) + 6.0;
         egui::ScrollArea::vertical()
             .id_salt("changes")
             .auto_shrink([false, false])
-            .show_rows(ui, height, rows.len(), |ui, range| {
-                for line in rows.iter().skip(range.start).take(range.len()) {
+            .show_rows(ui, height, total, |ui, range| {
+                // Paths the set did not resolve are fetched for what is on
+                // screen only.
+                let missing: Vec<u64> = set
+                    .summary
+                    .rows
+                    .iter()
+                    .skip(range.start)
+                    .take(range.len())
+                    .flat_map(|row| std::iter::once(row.key).chain(row.from))
+                    .filter(|key| path_of(set, names, *key) == PENDING)
+                    .collect();
+                self.resolve(set, missing);
+                let visible: Vec<Line> = set
+                    .summary
+                    .rows
+                    .iter()
+                    .skip(range.start)
+                    .take(range.len())
+                    .map(|row| line_of(set, names, row))
+                    .collect();
+                for line in &visible {
                     ui.horizontal(|ui| {
                         ui.monospace(line.glyph);
                         ui.label(line.label);

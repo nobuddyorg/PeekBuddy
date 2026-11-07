@@ -382,3 +382,30 @@ fn a_gap_names_its_root() {
         Some(r"\\?\C:\Watched")
     );
 }
+
+/// Times one pass over a kept store (`PEEKBUDDY_QUERY_DIR`, built by the query
+/// bench): `cargo test --release -p peekbuddy-store --test changes -- --ignored --nocapture`.
+#[test]
+#[ignore = "needs the kept query-bench store"]
+#[expect(clippy::print_stdout, reason = "the point is the printed timing")]
+fn timing_of_a_pass_over_a_kept_store() {
+    let Some(dir) = std::env::var_os("PEEKBUDDY_QUERY_DIR") else {
+        return;
+    };
+    let started = std::time::Instant::now();
+    let mut scanned_in = None;
+    let set = Reader::new(Path::new(&dir))
+        .changes_since(0, &CancelFlag::new(), &mut |p| {
+            if p.segments_done == p.segments {
+                scanned_in = Some(started.elapsed());
+            }
+        })
+        .unwrap();
+    println!("scan done after {scanned_in:?}");
+    println!(
+        "changes_since: {} rows folded to {} lines in {:?}",
+        set.summary.raw_events,
+        set.summary.rows.len(),
+        started.elapsed()
+    );
+}

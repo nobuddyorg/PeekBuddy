@@ -267,26 +267,27 @@ impl<K: Copy + Eq + Hash + Ord> Fold<K> {
         }
         // A file deleted and another created under the same name is a
         // replace: one modified row.
+        let created: HashMap<K, usize> = rows
+            .iter()
+            .enumerate()
+            .filter(|(_, r)| r.kind == NetKind::Created)
+            .map(|(i, r)| (r.key, i))
+            .collect();
         for gone in deleted {
             let Some(key) = gone.origin else { continue };
-            let created = rows
-                .iter()
-                .position(|r| r.kind == NetKind::Created && r.key == key);
-            match created.map(|i| rows.swap_remove(i)) {
-                Some(born) => rows.push(Net {
-                    kind: NetKind::Modified,
-                    key,
-                    from: None,
-                    modified: true,
-                    raw_events: gone.raw.saturating_add(born.raw_events),
-                }),
-                None => rows.push(Net {
+            let born = created.get(&key).and_then(|&i| rows.get_mut(i));
+            if let Some(born) = born {
+                born.kind = NetKind::Modified;
+                born.modified = true;
+                born.raw_events = gone.raw.saturating_add(born.raw_events);
+            } else {
+                rows.push(Net {
                     kind: NetKind::Deleted,
                     key,
                     from: None,
                     modified: false,
                     raw_events: gone.raw,
-                }),
+                });
             }
         }
         rows.sort_by_key(|r| (r.kind, r.key));

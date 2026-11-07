@@ -14,6 +14,7 @@
 //! [`ChangeSet::cancelled`] set.
 
 use std::collections::HashMap;
+use std::sync::Arc;
 
 use peekbuddy_core::changes::{Fold, Summary, op_for};
 use peekbuddy_core::event::Kind;
@@ -21,12 +22,20 @@ use peekbuddy_core::name::fold_upper;
 use peekbuddy_core::query::CancelFlag;
 use rusqlite::{Connection, OpenFlags, OptionalExtension};
 
-use super::{PathCache, Paths, Reader, kind_of};
+use super::{BACKSLASH, PathCache, Paths, Reader, kind_of};
 use crate::catalog::{Catalog, CatalogError};
 use crate::ids::{FileIdColumns, join};
+use crate::interner::TOP_LEVEL;
+use crate::names::from_columns;
 
 /// Rows scanned between two progress reports and cancel checks.
 const STEP: u64 = 8_192;
+
+/// Rows whose paths are resolved before [`Reader::changes_since`] returns.
+/// A diff with more lines resolves the rest on demand
+/// ([`Reader::resolve`]) and is listed in the order the files were first
+/// seen, not alphabetically.
+pub const EAGER: usize = 20_000;
 
 /// Nodes whose path hash one segment pass remembers.
 const KEY_CACHE_NODES: usize = 262_144;
@@ -50,8 +59,13 @@ pub struct Progress {
 pub struct ChangeSet {
     /// The folded rows, keyed by path hash.
     pub summary: Summary<PathKey>,
-    /// The path of every key a row mentions.
+    /// The path of every key resolved so far (see [`EAGER`]).
     pub shown: HashMap<PathKey, String>,
+    /// Where each key was first seen: day file index and node, to resolve
+    /// its path later.
+    pub exemplars: HashMap<PathKey, (usize, i64)>,
+    /// The day files the exemplars point into.
+    pub files: Vec<String>,
     /// The watch roots the gaps of the summary name, by [`GapInfo::root`].
     ///
     /// [`GapInfo::root`]: peekbuddy_core::changes::GapInfo::root
@@ -72,17 +86,75 @@ impl ChangeSet {
     }
 }
 
-/// FNV-1a over the upper-cased UTF-16 units of a path.
-#[must_use]
-pub fn path_key(path: &[u16]) -> PathKey {
-    let mut hash: u64 = 0xcbf2_9ce4_8422_2325;
-    for &unit in path {
-        for byte in fold_upper(unit).to_le_bytes() {
-            hash ^= u64::from(byte);
-            hash = hash.wrapping_mul(0x0000_0100_0000_01b3);
-        }
+/// The state of the path hash before any unit.
+const SEED: u64 = 0xcbf2_9ce4_8422_2325;
+
+/// One more unit into the hash (upper-cased, as the file system compares).
+fn extend(mut hash: u64, unit: u16) -> u64 {
+    for byte in fold_upper(unit).to_le_bytes() {
+        hash ^= u64::from(byte);
+        hash = hash.wrapping_mul(0x0000_0100_0000_01b3);
     }
     hash
+}
+
+/// FNV-1a over the upper-cased UTF-16 units of a path. Hashing the units of
+/// a parent, a backslash and a name in turn gives the same value as hashing
+/// the joined path, which is how the scan finds a file's key without
+/// building its path.
+#[must_use]
+pub fn path_key(path: &[u16]) -> PathKey {
+    path.iter().fold(SEED, |hash, &unit| extend(hash, unit))
+}
+
+/// The hash state after the path of directory node `id`, from the states of
+/// the directories seen so far.
+fn dir_state(paths: &mut Paths<'_>, id: i64, states: &mut HashMap<i64, u64>) -> u64 {
+    let mut chain: Vec<(i64, Arc<[u16]>)> = Vec::new();
+    let mut at = id;
+    let mut base = None;
+    // The tree is acyclic; the bound guards a damaged file.
+    for _ in 0..4_096 {
+        if at == TOP_LEVEL {
+            break;
+        }
+        if let Some(&known) = states.get(&at) {
+            base = Some(known);
+            break;
+        }
+        let Some((up, name)) = paths.node(at, true) else {
+            break;
+        };
+        chain.push((at, name));
+        at = up;
+    }
+    let mut state = base.unwrap_or(SEED);
+    let mut has_prefix = base.is_some();
+    for (node, name) in chain.into_iter().rev() {
+        if has_prefix {
+            state = extend(state, BACKSLASH);
+        }
+        state = name.iter().fold(state, |hash, &unit| extend(hash, unit));
+        has_prefix = true;
+        states.insert(node, state);
+    }
+    state
+}
+
+/// The key of the file in column `name` (and `wide` when the name is not
+/// valid UTF-16 text) below the directory with state `prefix`.
+fn leaf_key(prefix: u64, has_prefix: bool, text: &str, wide: Option<&[u8]>) -> Option<u64> {
+    let mut state = prefix;
+    if has_prefix {
+        state = extend(state, BACKSLASH);
+    }
+    match wide {
+        None => Some(text.encode_utf16().fold(state, extend)),
+        Some(bytes) => {
+            let name = from_columns(text, Some(bytes))?;
+            Some(name.into_units().into_iter().fold(state, extend))
+        }
+    }
 }
 
 impl Reader {
@@ -138,16 +210,36 @@ impl Reader {
                 break;
             }
         }
-        let summary = run.fold.finish();
-        let shown = self.resolve(&files, &summary, &run.exemplars);
-        Ok(ChangeSet {
+        let mut summary = run.fold.finish();
+        // Listed in the order the files were first seen: no strings needed.
+        let order = |key: PathKey| run.exemplars.get(&key).copied().unwrap_or_default();
+        summary.rows.sort_by_cached_key(|r| (r.kind, order(r.key)));
+        let mut set = ChangeSet {
             summary,
-            shown,
+            shown: HashMap::new(),
+            exemplars: run.exemplars,
+            files,
             roots: run.roots,
             since_id,
             last_id: run.last_id,
             cancelled: run.cancelled,
-        })
+        };
+        let eager: Vec<PathKey> = set
+            .summary
+            .rows
+            .iter()
+            .take(EAGER)
+            .flat_map(|r| std::iter::once(r.key).chain(r.from))
+            .collect();
+        set.shown = self.resolve(&set, &eager);
+        if set.summary.rows.len() <= EAGER {
+            // Everything is known: alphabetical, case-folded.
+            let shown = &set.shown;
+            set.summary
+                .rows
+                .sort_by_cached_key(|r| (r.kind, shown.get(&r.key).map(|p| p.to_uppercase())));
+        }
+        Ok(set)
     }
 
     /// The id of the last row older than `ts` (FILETIME ticks), or 0 when
@@ -203,44 +295,36 @@ impl Reader {
         Ok(found)
     }
 
-    /// The path text of every key a row of the summary mentions.
-    fn resolve(
-        &self,
-        files: &[String],
-        summary: &Summary<PathKey>,
-        exemplars: &HashMap<PathKey, (usize, i64)>,
-    ) -> HashMap<PathKey, String> {
-        let mut wanted: Vec<PathKey> = Vec::new();
-        for row in &summary.rows {
-            wanted.push(row.key);
-            wanted.extend(row.from);
-        }
+    /// The path text of `keys` of `set`; a key the set does not know is
+    /// left out.
+    #[must_use]
+    pub fn resolve(&self, set: &ChangeSet, keys: &[PathKey]) -> HashMap<PathKey, String> {
+        let (files, exemplars) = (&set.files, &set.exemplars);
+        let mut wanted: Vec<PathKey> = keys.to_vec();
         wanted.sort_unstable();
         wanted.dedup();
         let mut shown = HashMap::with_capacity(wanted.len());
-        let mut open: Option<(usize, Connection)> = None;
-        // Group by segment so each file opens once.
+        // Grouped by segment, so each file opens once and its paths share
+        // one cache of directories.
         let mut by_segment: Vec<(usize, i64, PathKey)> = wanted
             .iter()
             .filter_map(|key| exemplars.get(key).map(|&(seg, node)| (seg, node, *key)))
             .collect();
         by_segment.sort_unstable();
-        for (seg, node, key) in by_segment {
-            if open.as_ref().is_none_or(|(at, _)| *at != seg) {
-                open = files.get(seg).and_then(|file| {
-                    Connection::open_with_flags(
-                        self.dir.join(file),
-                        OpenFlags::SQLITE_OPEN_READ_ONLY,
-                    )
-                    .ok()
-                    .map(|conn| (seg, conn))
-                });
-            }
-            let Some((_, conn)) = open.as_ref() else {
+        for group in by_segment.chunk_by(|a, b| a.0 == b.0) {
+            let Some(file) = group.first().and_then(|(seg, ..)| files.get(*seg)) else {
                 continue;
             };
-            let (_, path) = Paths::with_cache(conn, PathCache::default()).path_of(node);
-            shown.insert(key, String::from_utf16_lossy(&path));
+            let Ok(conn) =
+                Connection::open_with_flags(self.dir.join(file), OpenFlags::SQLITE_OPEN_READ_ONLY)
+            else {
+                continue;
+            };
+            let mut resolver = Paths::with_cache(&conn, PathCache::default());
+            for &(_, node, key) in group {
+                let (_, path) = resolver.path_of(node);
+                shown.insert(key, String::from_utf16_lossy(&path));
+            }
         }
         shown
     }
@@ -282,11 +366,13 @@ impl Run {
         report: &mut dyn FnMut(u64),
     ) -> rusqlite::Result<()> {
         let mut statement = conn.prepare(
-            "SELECT id, kind, node_id, file_id, file_id_hi, root_id, is_dir \
-             FROM event WHERE id > ?1 ORDER BY id",
+            "SELECT e.id, e.kind, e.node_id, e.file_id, e.file_id_hi, e.root_id, e.is_dir, \
+             n.parent_id, n.name, n.name_w \
+             FROM event e LEFT JOIN node n ON n.id = e.node_id \
+             WHERE e.id > ?1 ORDER BY e.id",
         )?;
         let mut rows = statement.query([since_id])?;
-        let mut keys: HashMap<i64, PathKey> = HashMap::new();
+        let mut states: HashMap<i64, u64> = HashMap::new();
         while let Some(row) = rows.next()? {
             self.scanned += 1;
             let id: i64 = row.get(0)?;
@@ -316,12 +402,19 @@ impl Run {
                     .or_insert_with(|| String::from_utf16_lossy(&root_path));
                 (0, root)
             } else {
-                if keys.len() >= KEY_CACHE_NODES {
-                    keys.clear();
+                if states.len() >= KEY_CACHE_NODES {
+                    states.clear();
                 }
-                let key = *keys
-                    .entry(node)
-                    .or_insert_with(|| path_key(&paths.path_of(node).1));
+                let key = match row.get::<_, Option<i64>>(7)? {
+                    Some(parent) => {
+                        let prefix = dir_state(paths, parent, &mut states);
+                        let text = row.get_ref(8)?.as_str().unwrap_or_default();
+                        let wide = row.get_ref(9)?.as_blob_or_null()?;
+                        leaf_key(prefix, parent != TOP_LEVEL, text, wide)
+                    }
+                    None => None,
+                }
+                .unwrap_or_else(|| path_key(&paths.path_of(node).1));
                 (key, 0)
             };
             let file_id = join(FileIdColumns {
