@@ -483,3 +483,95 @@ kind = 120
     assert!(text.contains("did you mean `path`"), "{text}");
     assert!(!text.contains("column_widths.kind"), "{text}");
 }
+
+const WITH_RULES: &str = r#"version = 1
+
+[[watch]]
+id = "docs"
+path = 'C:\Users\Me\Documents'
+
+[[rule]]
+name = "Config changed"
+watches = ["docs"]
+glob = "*.toml"
+kinds = ["modified", "created"]
+threshold = 3
+window_s = 20
+cooldown_s = 120
+
+[[rule]]
+name = "Deletes"
+kinds = ["deleted"]
+threshold = 50
+window_s = 10
+toast = false
+
+[rule.command]
+argv = ['C:\tools\alert.exe', "%path%", "%kind%"]
+timeout_s = 15
+confirmed = true
+"#;
+
+#[test]
+fn rules_load_round_trip_and_files_without_them_still_load() {
+    match load("version = 1\n", &ctx()) {
+        Loaded::Ok { settings, .. } => assert_eq!(settings.rules, []),
+        other => panic!("{other:?}"),
+    }
+    let Loaded::Ok { settings, .. } = load(WITH_RULES, &ctx()) else {
+        panic!("{}", messages(WITH_RULES));
+    };
+    assert_eq!(settings.rules.len(), 2);
+    assert_eq!(settings.rules[0].threshold, 3);
+    assert_eq!(settings.rules[0].window_s, 20);
+    assert!(settings.rules[0].toast);
+    let command = settings.rules[1].command.as_ref().unwrap();
+    assert_eq!(command.argv.len(), 3);
+    assert!(command.confirmed);
+    let text = to_toml(&settings).unwrap();
+    match load(&text, &ctx()) {
+        Loaded::Ok {
+            settings: again, ..
+        } => assert_eq!(*again, *settings),
+        other => panic!("{other:?}\n{text}"),
+    }
+    // Rules are not written when there are none.
+    assert!(!to_toml(&Settings::default()).unwrap().contains("rule"));
+}
+
+#[test]
+fn a_bad_rule_gets_positioned_messages_naming_the_key() {
+    let typo = messages(&WITH_RULES.replace("threshold = 3", "treshold = 3"));
+    assert!(
+        typo.contains("rule[0]") && typo.contains("did you mean `threshold`"),
+        "{typo}"
+    );
+    let text = WITH_RULES
+        .replace("kinds = [\"deleted\"]", "kinds = [\"vanished\"]")
+        .replace("confirmed = true", "confirmed = false")
+        .replace("watches = [\"docs\"]", "watches = [\"nope\"]");
+    let shown = messages(&text);
+    assert!(shown.contains("rule[1].kinds"), "{shown}");
+    assert!(shown.contains("rule[1].command.confirmed"), "{shown}");
+    assert!(shown.contains("rule[0].watches[0]"), "{shown}");
+}
+
+#[test]
+fn two_rules_may_not_share_a_name() {
+    let text = WITH_RULES.replace("name = \"Deletes\"", "name = \" config CHANGED \"");
+    assert!(
+        messages(&text).contains("another rule is called"),
+        "{}",
+        messages(&text)
+    );
+}
+
+#[test]
+fn an_unknown_key_in_the_command_table_is_found() {
+    let text = WITH_RULES.replace("timeout_s = 15", "timeout = 15");
+    assert!(
+        messages(&text).contains("rule[1].command"),
+        "{}",
+        messages(&text)
+    );
+}

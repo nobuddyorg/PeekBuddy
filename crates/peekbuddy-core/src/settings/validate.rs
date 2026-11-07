@@ -364,6 +364,34 @@ fn viewer_issues(viewer: &super::Viewer) -> Vec<Issue> {
     out
 }
 
+/// `[[rule]]`: each rule against the watch ids, and the number of rules.
+fn rule_issues(settings: &Settings) -> Vec<Issue> {
+    let mut out = Vec::new();
+    if settings.rules.len() > crate::rules::MAX_RULES {
+        out.push(Issue::new(
+            "rule",
+            format!("at most {} rules", crate::rules::MAX_RULES),
+        ));
+    }
+    let ids: Vec<&str> = settings.watches.iter().map(|w| w.id.as_str()).collect();
+    let mut names: HashSet<String> = HashSet::new();
+    for (index, rule) in settings.rules.iter().enumerate() {
+        for (key, message) in crate::rules::check(rule, &ids) {
+            out.push(Issue::new(format!("rule[{index}].{key}"), message));
+        }
+        if !rule.name.trim().is_empty() && !names.insert(rule.name.trim().to_lowercase()) {
+            out.push(
+                Issue::new(
+                    format!("rule[{index}].name"),
+                    format!("another rule is called `{}`", rule.name.trim()),
+                )
+                .at(rule.name.clone()),
+            );
+        }
+    }
+    out
+}
+
 /// Validates `settings` and normalises its watch paths in place. Returns
 /// every problem found, not just the first.
 pub(crate) fn validate(settings: &mut Settings, ctx: &Context) -> Vec<Issue> {
@@ -392,6 +420,7 @@ pub(crate) fn validate(settings: &mut Settings, ctx: &Context) -> Vec<Issue> {
         &mut out,
     );
 
+    out.extend(rule_issues(settings));
     let mut ids: HashSet<String> = HashSet::new();
     let mut roots: Vec<(String, String)> = Vec::new();
     for (index, watch) in settings.watches.iter_mut().enumerate() {

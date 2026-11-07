@@ -404,5 +404,68 @@ fn reparse(c: &mut Criterion) {
     group.finish();
 }
 
-criterion_group!(benches, perf, metrics, notify_parse, filter, reparse, store);
+/// Six events through 50 rules (#81): the cost the capture path pays when
+/// the user has a rule set.
+fn rules(c: &mut Criterion) {
+    use peekbuddy_core::rules::Rule as UserRule;
+    use peekbuddy_core::rules::eval::Evaluator;
+
+    let user: Vec<UserRule> = (0..50)
+        .map(|i| UserRule {
+            name: format!("rule {i}"),
+            glob: match i % 4 {
+                0 => String::from("*.log"),
+                1 => format!("dir{}/**/*.txt", i % 5),
+                2 => String::new(),
+                _ => String::from("**/cache/*"),
+            },
+            threshold: 1 + (i % 7),
+            window_s: 5,
+            cooldown_s: 2,
+            ..UserRule::default()
+        })
+        .collect();
+    let Ok(mut evaluator) = Evaluator::compile(&user, &[String::from("a")]) else {
+        return;
+    };
+    let names: Vec<Vec<u16>> = [
+        "src\\main.rs",
+        "x.log",
+        "dir1\\s\\n.txt",
+        "a\\cache\\b",
+        "q.md",
+        "z",
+    ]
+    .iter()
+    .map(|n| n.encode_utf16().collect())
+    .collect();
+    let mut event = filter_event(false);
+    event.kind = Kind::Created;
+    let mut group = c.benchmark_group("rules");
+    group.throughput(Throughput::Elements(
+        u64::try_from(names.len()).unwrap_or(1),
+    ));
+    group.bench_function("eval_6_events_50_rules", |b| {
+        b.iter(|| {
+            let mut fired = 0_u32;
+            for name in &names {
+                event.ts += 400_000;
+                evaluator.on_event(black_box(&event), WideStr::new(name), |_| fired += 1);
+            }
+            fired
+        });
+    });
+    group.finish();
+}
+
+criterion_group!(
+    benches,
+    perf,
+    metrics,
+    notify_parse,
+    filter,
+    rules,
+    reparse,
+    store
+);
 criterion_main!(benches);

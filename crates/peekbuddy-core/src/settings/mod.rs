@@ -46,6 +46,9 @@ pub struct Settings {
     /// The watched roots.
     #[serde(rename = "watch", skip_serializing_if = "Vec::is_empty")]
     pub watches: Vec<Watch>,
+    /// Rules that notify (#81).
+    #[serde(rename = "rule", skip_serializing_if = "Vec::is_empty")]
+    pub rules: Vec<crate::rules::Rule>,
 }
 
 impl Default for Settings {
@@ -58,6 +61,7 @@ impl Default for Settings {
             viewer: Viewer::default(),
             filters: Filters::default(),
             watches: Vec::new(),
+            rules: Vec::new(),
         }
     }
 }
@@ -268,7 +272,7 @@ impl Default for Watch {
 
 /// Keys of each table, for the unknown-key check and "did you mean".
 pub(crate) const TOP_KEYS: &[&str] = &[
-    "version", "general", "store", "view", "viewer", "filters", "watch",
+    "version", "general", "store", "view", "viewer", "filters", "watch", "rule",
 ];
 pub(crate) const GENERAL_KEYS: &[&str] = &["autostart", "theme", "first_run"];
 pub(crate) const STORE_KEYS: &[&str] = &["max_age_days", "max_total_mb", "max_rows"];
