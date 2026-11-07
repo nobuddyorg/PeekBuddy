@@ -42,6 +42,12 @@ exclude_globs = [
 exclude_re = [
   "tray",
   "message_loop",
+  # Runaway mutants: an iterator that always yields makes `collect` grow
+  # until the runner runs out of memory, and a single-instance lock that is
+  # always free starts engines no test stops. Shards 10 and 30 of the nightly
+  # lost their runners on these in two full runs.
+  "crates/peekbuddy-core/src/reconcile/dirinfo.rs:.*Iterator for Entries.*::next.*with Some",
+  "crates/peekbuddy-win/src/single_instance.rs:.*replace SingleInstance::acquire.*with Ok.Some",
   "logging",
   # Equivalent mutants: Win32 access masks are disjoint bit flags, so `^`
   # and `|` give the same value.
