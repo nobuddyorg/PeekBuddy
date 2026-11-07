@@ -264,3 +264,66 @@ fn many_distinct_paths_stay_within_the_counter_budget_and_the_error_bound() {
     assert!(paths.iter().all(|r| r.5 <= 14), "{paths:?}");
     assert!(paths[0].4 >= 400 && paths[0].4 - paths[0].5 <= 400);
 }
+
+#[test]
+fn the_reader_gives_hourly_counts_and_the_busiest_of_an_hour() {
+    use peekbuddy_store::read::Reader;
+    let dir = Dir::new("read");
+    let mut writer = open(&dir.db());
+    let mut rows = Vec::new();
+    for i in 0..30_u64 {
+        rows.push((HOUR + i, Kind::Modified, r"logs\app.log"));
+    }
+    for i in 0..5_u64 {
+        rows.push((2 * HOUR + i, Kind::Created, "b.txt"));
+    }
+    writer.write(&[batch(&rows)], &[]).unwrap();
+    writer.flush_churn().unwrap();
+    // The reader wants a catalog; a plain writer has none, so read the
+    // segment directly through a one-file directory.
+    let catalog_dir = dir.0.join("seg");
+    std::fs::create_dir_all(&catalog_dir).unwrap();
+    drop(writer);
+    let _ = std::fs::copy(dir.db(), catalog_dir.join("events-2026-10-01.db"));
+    let catalog = peekbuddy_store::catalog::Catalog::open(&catalog_dir.join("catalog.db")).unwrap();
+    catalog
+        .put(&peekbuddy_store::catalog::SegmentRow {
+            file: String::from("events-2026-10-01.db"),
+            first_id: 1,
+            last_id: 35,
+            first_ts: i64::try_from(HOUR).unwrap(),
+            last_ts: i64::try_from(2 * HOUR + 5).unwrap(),
+            rows: 35,
+            bytes: 0,
+            sealed: false,
+            schema_version: 3,
+            purge_pending: false,
+        })
+        .unwrap();
+    let reader = Reader::new(&catalog_dir);
+    let counts = reader.hourly_counts(0).unwrap();
+    let shown: Vec<_> = counts
+        .iter()
+        .map(|c| (c.hour_ts, c.root.as_str(), c.events))
+        .collect();
+    assert_eq!(
+        shown,
+        [
+            (HOUR.cast_signed(), r"\\?\C:\Watched", 30),
+            ((2 * HOUR).cast_signed(), r"\\?\C:\Watched", 5),
+        ]
+    );
+    assert_eq!(
+        reader
+            .hourly_counts((2 * HOUR).cast_signed())
+            .unwrap()
+            .len(),
+        1
+    );
+    let churn = reader.hour_churn(HOUR.cast_signed(), 10).unwrap();
+    assert_eq!(churn.len(), 1);
+    assert_eq!(churn[0].paths[0].label, r"C:\Watched\logs\app.log");
+    assert_eq!(churn[0].paths[0].count, 30);
+    assert_eq!(churn[0].exts[0].label, "LOG");
+    assert_eq!(reader.hour_churn((9 * HOUR).cast_signed(), 10).unwrap(), []);
+}

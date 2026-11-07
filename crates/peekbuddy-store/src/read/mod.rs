@@ -40,6 +40,7 @@
 //! [`PATH_CACHE_NODES`] nodes and is dropped when it is full.
 
 pub mod changes;
+pub mod stats;
 
 use std::collections::HashMap;
 use std::fmt::Write as _;
