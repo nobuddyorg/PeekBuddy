@@ -31,6 +31,12 @@ harness = false
 name = "query"
 harness = false
 
+# Private bytes of the viewer with 1M and with 10M rows (#347); does nothing
+# unless PEEKBUDDY_QUERY_ROWS and PEEKBUDDY_PERF_OUT are set.
+[[bench]]
+name = "viewer_memory"
+harness = false
+
 # The scripted scroll of the log grid (#347): frame p95 and p99.
 [[bench]]
 name = "viewer"
