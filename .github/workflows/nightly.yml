@@ -577,6 +577,31 @@ jobs:
           path: target/query-bench/output.json
           if-no-files-found: ignore
 
+  viewer-memory:
+    # The viewer reads a real store through its worker while a scripted wheel
+    # sweeps the grid; the private bytes with a 10M-row log may exceed those
+    # with a 1M-row log by 5 MB at most (#347, F8). The stores are built by
+    # the bench itself.
+    name: viewer private bytes (windows x64)
+    runs-on: windows-2025
+    timeout-minutes: 90
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Rust toolchain
+        run: rustup toolchain install && rustup show
+      - name: 1M rows against 10M rows
+        run: cargo xtask perf --scenario viewer-memory --out target/perf/viewer-memory.json
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: viewer-memory
+          path: target/perf/viewer-memory.json
+          if-no-files-found: ignore
+
   zero-loss:
     # The zero-loss tier at nightly scale (#277, #17): a million events from
     # eight writers, forced overflows, a kill in a burst and a deleted root.
@@ -714,7 +739,7 @@ jobs:
   report:
     name: report
     if: always() && github.event_name == 'schedule'
-    needs: [miri, fuzz, proptest-long, stress, soak, vhd, beta, fresh-deps, mutants-scope, mutants, mutation-score, mutants-core-linux, bench-trend, query-bench, zero-loss, perf-selfcheck, idle-60]
+    needs: [miri, fuzz, proptest-long, stress, soak, vhd, beta, fresh-deps, mutants-scope, mutants, mutation-score, mutants-core-linux, bench-trend, query-bench, viewer-memory, zero-loss, perf-selfcheck, idle-60]
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:

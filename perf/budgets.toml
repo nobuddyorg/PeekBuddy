@@ -189,6 +189,21 @@ how = "PeakPagefileUsage after the burst (#24)"
 arch = ["x86_64", "aarch64"]
 
 [[budget]]
+id = "viewer.private_bytes.growth"
+metric = "growth of the viewer's private bytes from a 1M-row to a 10M-row log"
+unit = "MB"
+bound = "max"
+limit = 5
+class = "resource"
+gate = "nightly-strict"
+scenario = "viewer-memory"
+status = "provisional"
+source = "#347, F8; what the viewer holds is the screen and the cache limits, never the length of the log"
+workload = "1M-row and 10M-row stores, scripted wheel down and back up twice, UI pass only"
+how = "cargo xtask perf --scenario viewer-memory: PROCESS_MEMORY_COUNTERS_EX2.PrivateUsage (#24) of benches/viewer_memory after the second sweep"
+arch = ["x86_64", "aarch64"]
+
+[[budget]]
 id = "viewer.private_bytes.10m_rows"
 metric = "viewer private bytes with a 10M-row log open"
 unit = "MB"

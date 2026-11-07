@@ -29,7 +29,7 @@ const AB_FAIL: f64 = 0.50;
 /// nothing. A difference below two ticks is not a change.
 const CPU_RESOLUTION_MS: f64 = 31.25;
 
-const USAGE: &str = "usage: cargo xtask perf [--scenario startup|idle|memory|ingest|handles|pr|all] \
+const USAGE: &str = "usage: cargo xtask perf [--scenario startup|idle|memory|ingest|handles|viewer-memory|pr|all] \
 [--exe path] [--runs n] [--warmup n] [--idle-secs n] [--profile name]... [--ab <base-exe>] \
 [--expect-fail <row id>] [--out file]";
 
@@ -46,6 +46,9 @@ enum Scenario {
     Ingest,
     /// Pause and resume cycles over the pipe (#269).
     Handles,
+    /// The viewer with a 1M-row and a 10M-row log (#347): minutes to build
+    /// the stores, so only the nightly asks for it, never `all`.
+    ViewerMemory,
     /// What every pull request runs: startup and idle, in minutes (#27).
     Pr,
     All,
@@ -66,6 +69,10 @@ impl Scenario {
 
     fn includes_handles(self) -> bool {
         matches!(self, Self::Handles | Self::All)
+    }
+
+    fn includes_viewer_memory(self) -> bool {
+        matches!(self, Self::ViewerMemory)
     }
 }
 
@@ -113,6 +120,7 @@ fn parse_args(args: &[String]) -> Result<Options, String> {
                     "memory" => Scenario::Memory,
                     "ingest" => Scenario::Ingest,
                     "handles" => Scenario::Handles,
+                    "viewer-memory" => Scenario::ViewerMemory,
                     "pr" => Scenario::Pr,
                     "all" => Scenario::All,
                     other => return Err(format!("unknown scenario {other}\n{USAGE}")),
@@ -305,7 +313,7 @@ fn judge(budgets: &[Budget], id: &'static str, value: f64, note: &str) -> Row {
         "min" => value >= limit,
         _ => value <= limit,
     });
-    let strict = row.gate == "pr-strict";
+    let strict = row.gate == "pr-strict" || row.gate == "nightly-strict";
     let verdict = match (strict, within) {
         (true, true) => Verdict::Pass,
         (true, false) => Verdict::Fail,
@@ -899,6 +907,92 @@ fn measure_handles(
     Ok(())
 }
 
+/// The log sizes of the private bytes run: the growth between them is the
+/// budget.
+const MEMORY_ROWS: [u64; 2] = [1_000_000, 10_000_000];
+
+/// Runs the `viewer_memory` bench (`benches/benches/viewer_memory.rs`) with
+/// a store of `rows` rows under `dir` and returns the JSON it wrote.
+fn viewer_memory_run(rows: u64, dir: &Path) -> Result<Value, String> {
+    let out = dir.join(format!("viewer-memory-{rows}.json"));
+    let output = std::process::Command::new("cargo")
+        .args([
+            "bench",
+            "--locked",
+            "-p",
+            "benches",
+            "--bench",
+            "viewer_memory",
+        ])
+        .env("PEEKBUDDY_QUERY_ROWS", rows.to_string())
+        .env("PEEKBUDDY_QUERY_DIR", dir.join(format!("store-{rows}")))
+        .env("PEEKBUDDY_PERF_OUT", &out)
+        .stdin(std::process::Stdio::null())
+        .output()
+        .map_err(|error| format!("cargo bench: {error}"))?;
+    if !output.status.success() {
+        let shown = format!(
+            "{}{}",
+            String::from_utf8_lossy(&output.stderr),
+            String::from_utf8_lossy(&output.stdout)
+        );
+        let tail: String = shown
+            .chars()
+            .rev()
+            .take(3000)
+            .collect::<Vec<_>>()
+            .into_iter()
+            .rev()
+            .collect();
+        return Err(format!(
+            "the viewer_memory run with {rows} rows failed ({}):\n{tail}",
+            output.status
+        ));
+    }
+    let text = std::fs::read_to_string(&out)
+        .map_err(|error| format!("viewer_memory output {}: {error}", out.display()))?;
+    serde_json::from_str(&text).map_err(|error| format!("viewer_memory output: {error}"))
+}
+
+/// The row of the growth of the viewer's private bytes from the small to
+/// the large log. A bound that holds by construction (the screen and the
+/// caches have fixed limits), so it fails the nightly outright.
+fn viewer_memory_row(budgets: &[Budget], small: &Value, large: &Value) -> Result<Row, String> {
+    let after = |doc: &Value| number_of(doc, "privateBytesAfter");
+    let growth = (after(large)? - after(small)?) / 1_048_576.0;
+    let note = format!(
+        "{:.1} MB with {:.0} rows, {:.1} MB with {:.0} rows; {:.0} and {:.0} rows held",
+        after(small)? / 1_048_576.0,
+        number_of(small, "rows")?,
+        after(large)? / 1_048_576.0,
+        number_of(large, "rows")?,
+        number_of(small, "heldRows")?,
+        number_of(large, "heldRows")?,
+    );
+    Ok(judge(budgets, "viewer.private_bytes.growth", growth, &note))
+}
+
+fn measure_viewer_memory(
+    budgets: &[Budget],
+    rows: &mut Vec<Row>,
+    detail: &mut Detail,
+) -> Result<(), String> {
+    let dir = std::env::temp_dir().join(format!("pbperf-{}-viewer-memory", std::process::id()));
+    std::fs::create_dir_all(&dir).map_err(|error| format!("{}: {error}", dir.display()))?;
+    let result = (|| {
+        let [small, large] = MEMORY_ROWS;
+        let small = viewer_memory_run(small, &dir)?;
+        let large = viewer_memory_run(large, &dir)?;
+        let row = viewer_memory_row(budgets, &small, &large)?;
+        Ok::<_, String>((row, serde_json::json!({ "small": small, "large": large })))
+    })();
+    let _ = std::fs::remove_dir_all(&dir);
+    let (row, doc) = result?;
+    rows.push(row);
+    detail.insert(String::from("viewerMemory"), doc);
+    Ok(())
+}
+
 fn measure(options: &Options) -> Result<(Vec<Row>, Value), String> {
     let budgets = budgets::load()?;
     let mut rows = Vec::new();
@@ -915,6 +1009,9 @@ fn measure(options: &Options) -> Result<(Vec<Row>, Value), String> {
     if options.scenario.includes_ingest() {
         measure_ingest(options, &budgets, &mut rows, &mut detail)?;
     }
+    if options.scenario.includes_viewer_memory() {
+        measure_viewer_memory(&budgets, &mut rows, &mut detail)?;
+    }
     Ok((rows, Value::Object(detail)))
 }
 
@@ -926,7 +1023,8 @@ fn runner_info() -> Value {
 /// `cargo xtask perf`.
 pub fn run(args: &[String]) -> Result<String, String> {
     let options = parse_args(args)?;
-    if !options.exe.is_file() {
+    // The viewer run builds its own bench binary; no exe is involved.
+    if !options.scenario.includes_viewer_memory() && !options.exe.is_file() {
         return Err(format!(
             "{} does not exist; build it with cargo build --release first",
             options.exe.display()
@@ -1229,6 +1327,30 @@ mod tests {
         assert!(
             super::ingest_rows(&budgets(), &ingest_doc("nope", true, 0, 0), &mut rows).is_err()
         );
+    }
+
+    #[test]
+    fn the_growth_between_the_two_logs_is_judged_strictly() {
+        let rows = vec![{
+            let mut row = budgets().remove(0);
+            "viewer.private_bytes.growth".clone_into(&mut row.id);
+            row.gate = String::from("nightly-strict");
+            row.limit = Some(5.0);
+            row
+        }];
+        let doc = |rows: u64, after: u64| json!({ "rows": rows, "privateBytesAfter": after, "heldRows": 900 });
+        let mb = 1_048_576;
+        let small = doc(1_000_000, 100 * mb);
+        let within = super::viewer_memory_row(&rows, &small, &doc(10_000_000, 104 * mb)).unwrap();
+        assert_eq!(within.verdict, Verdict::Pass);
+        assert!((within.value.unwrap() - 4.0).abs() < 1e-9);
+        let over = super::viewer_memory_row(&rows, &small, &doc(10_000_000, 106 * mb)).unwrap();
+        assert_eq!(over.verdict, Verdict::Fail);
+        // A smaller second log is no growth.
+        let less = super::viewer_memory_row(&rows, &small, &doc(10_000_000, 90 * mb)).unwrap();
+        assert_eq!(less.verdict, Verdict::Pass);
+        // A document without the number is an error, not a pass.
+        assert!(super::viewer_memory_row(&rows, &small, &json!({})).is_err());
     }
 
     #[test]
