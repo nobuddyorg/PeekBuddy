@@ -569,6 +569,13 @@ impl LogView {
         true
     }
 
+    /// Shows the raw rows of one path: its file name, below its folder.
+    pub fn show_path(&mut self, dir: &str, name: &str) {
+        name.clone_into(&mut self.spec.name);
+        self.spec.subtree = (!dir.is_empty()).then(|| dir.to_owned());
+        self.apply_spec();
+    }
+
     /// Applies the spec: compiles it, and on success reads the new view. An
     /// invalid spec keeps the previous results and says why.
     fn apply_spec(&mut self) {

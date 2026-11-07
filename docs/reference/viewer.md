@@ -128,6 +128,17 @@ away.
 Not in this version: the compact view (derived groups, #41; the grid shows one
 row per stored record), ascending order, and saved column widths.
 
+## Changes
+
+The **Changes** tab holds the markers and "what changed since" (#82; see
+[the how-to](../how-to/what-changed-since.md)). **Ctrl+M** and **Mark now**
+send `MarkNow` to the engine, **Rename** sends `RenameMarker`. The diff is
+computed on a thread of its own by `peekbuddy_store::read::changes`: one pass
+over the day files after the marker's event id, folded per file by
+`peekbuddy_core::changes`, with progress and a **Stop** button. The lines
+are drawn with `ScrollArea::show_rows`, so a diff of any size costs one
+screenful of widgets per frame.
+
 ## Watches
 
 The **Watches** tab next to **Log** lists every watch the engine reports, one
