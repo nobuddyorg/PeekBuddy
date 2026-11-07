@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1794041830121,
+  "lastUpdate": 1794041858964,
   "repoUrl": "https://github.com/nobuddyorg/PeekBuddy",
   "entries": {
     "benches (windows-2025)": [
@@ -528,6 +528,83 @@ window.BENCHMARK_DATA = {
           {
             "name": "store/intern_miss_1000",
             "value": 4547574.642857143,
+            "unit": "ns"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "name": "Matthias Eggert",
+            "username": "besessener",
+            "email": "8039350+besessener@users.noreply.github.com"
+          },
+          "committer": {
+            "name": "GitHub",
+            "username": "web-flow",
+            "email": "noreply@github.com"
+          },
+          "id": "c7872b7274bf760a92cf0cbc229a8042fc2fd794",
+          "message": "fix: keep beta quiet about the unused mimalloc (#391)\n\nCo-authored-by: Matthias Eggert <dem.matze@gmail.com>\nCo-authored-by: Claude Sonnet 5.5 <noreply@anthropic.com>",
+          "timestamp": "2026-11-06T23:56:21Z",
+          "url": "https://github.com/nobuddyorg/PeekBuddy/commit/c7872b7274bf760a92cf0cbc229a8042fc2fd794"
+        },
+        "date": 1794041856382,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "filter/eval_6_names",
+            "value": 1524.1699859392631,
+            "unit": "ns"
+          },
+          {
+            "name": "metrics/process_list_300",
+            "value": 956.0323180877358,
+            "unit": "ns"
+          },
+          {
+            "name": "notify_parse/extended/64kib",
+            "value": 2295.277290553202,
+            "unit": "ns"
+          },
+          {
+            "name": "notify_parse/full/64kib",
+            "value": 2374.476584929693,
+            "unit": "ns"
+          },
+          {
+            "name": "notify_parse/plain/64kib",
+            "value": 4289.535410115304,
+            "unit": "ns"
+          },
+          {
+            "name": "perf/counters_event",
+            "value": 0.27515772213670486,
+            "unit": "ns"
+          },
+          {
+            "name": "perf/milestone_record",
+            "value": 4.7736648349771205,
+            "unit": "ns"
+          },
+          {
+            "name": "reparse/classify_8",
+            "value": 17.73352415083739,
+            "unit": "ns"
+          },
+          {
+            "name": "store/batch_insert_1000",
+            "value": 3047912.0052083335,
+            "unit": "ns"
+          },
+          {
+            "name": "store/intern_hit_1000",
+            "value": 47854.91974494283,
+            "unit": "ns"
+          },
+          {
+            "name": "store/intern_miss_1000",
+            "value": 3374582.5,
             "unit": "ns"
           }
         ]
