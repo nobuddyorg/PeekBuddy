@@ -47,7 +47,7 @@ egui_table = "=0.11.0"
 embed-manifest = "1.5.1"
 # OpenGL bindings of eframe's glow renderer (#252), for the one `unsafe` query
 # in `peekbuddy-win`. The version is the one eframe 0.37.0 builds.
-glow = { version = "=0.17.0", default-features = false }
+glow = { version = "=0.18.0", default-features = false }
 insta = "1.49.0"
 # Validates --perf-probe output against perf/probe.schema.json (#161); test-only.
 jsonschema = { version = "0.60.1", default-features = false }
