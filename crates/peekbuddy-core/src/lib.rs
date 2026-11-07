@@ -25,6 +25,7 @@ pub mod reconcile;
 pub mod reparse;
 pub mod rules;
 pub mod settings;
+pub mod sketch;
 pub mod usn;
 
 /// Crate version, shared by every PeekBuddy crate.
