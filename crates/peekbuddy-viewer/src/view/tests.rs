@@ -985,13 +985,6 @@ fn every_navigation_key_of_the_compact_grid_lands_on_a_row_that_is_shown() {
             // known once it has.
             settle(&mut harness);
         }
-        if key == egui::Key::End {
-            // Known gap: End jumps before the oldest rows are held, so the
-            // fold check cannot move the cursor off a folded row (the log
-            // is 10 000 rows; the oldest burst is folded behind its head).
-            // The next key does move it to a shown row, which is asserted.
-            continue;
-        }
         assert_cursor_is_shown(&harness, &format!("{modifiers:?} {key:?}"));
     }
 }
@@ -1094,4 +1087,16 @@ fn enter_and_space_operate_the_compact_toggle_and_a_group_without_the_mouse() {
     harness.key_press(egui::Key::Space);
     settle(&mut harness);
     assert_eq!(harness.state().view.folds.folded(), folded);
+}
+
+#[test]
+fn end_in_the_compact_grid_lands_on_a_row_that_is_shown() {
+    let mut harness = compact_app();
+    harness.key_press(egui::Key::End);
+    settle(&mut harness);
+    assert_cursor_is_shown(&harness, "End");
+    // The oldest burst is folded behind its head: the cursor is near the end
+    // of the log, not thrown back to the top.
+    let cursor = harness.state().view.selection.cursor();
+    assert!(cursor.is_some_and(|at| at > 9_900), "{cursor:?}");
 }

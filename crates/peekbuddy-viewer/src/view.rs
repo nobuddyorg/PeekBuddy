@@ -314,6 +314,10 @@ pub struct LogView {
     /// The order changed and the new view has not started yet: it starts at
     /// the newest rows whatever the old position was.
     reorder: bool,
+    /// A key moved the cursor and the folds around it may not be known yet
+    /// (End jumps before the far rows are held): once they are, a cursor on
+    /// a folded row moves to a row that is shown.
+    settle_cursor: bool,
     /// The widths the user chose for the columns (#347).
     widths: Widths,
 }
@@ -414,6 +418,7 @@ impl LogView {
             order: Order::default(),
             pin_follow: false,
             reorder: false,
+            settle_cursor: false,
             widths: Widths::default(),
         };
         view.worker.send(Job::Extent { generation: 1 });
@@ -978,6 +983,7 @@ impl LogView {
                 }
             }
         }
+        self.settle_cursor = self.compact;
         if cursor < self.visible.start {
             self.scroll_to = Some((cursor, egui::Align::TOP));
         } else if cursor + 1 >= self.visible.end {
@@ -1352,6 +1358,7 @@ impl LogView {
     fn refresh_folds(&mut self) {
         let key = (self.timeline.revision(), self.compact, self.expanded_gen);
         if self.folds_key == Some(key) {
+            self.settle_cursor();
             return;
         }
         self.folds = if self.compact {
@@ -1368,6 +1375,41 @@ impl LogView {
         let folds = &self.folds;
         self.expanded.retain(|id| folds.is_head(*id));
         self.folds_key = Some(key);
+        self.settle_cursor();
+    }
+
+    /// Once the row under the cursor is held, moves a cursor that a key left
+    /// on a folded row to the nearest row that is shown.
+    fn settle_cursor(&mut self) {
+        if !self.settle_cursor || !self.compact {
+            self.settle_cursor = false;
+            return;
+        }
+        let Some(cursor) = self.selection.cursor() else {
+            self.settle_cursor = false;
+            return;
+        };
+        if self.timeline.row_at(cursor).is_none() {
+            return;
+        }
+        self.settle_cursor = false;
+        if !self.folds.is_folded(cursor) {
+            return;
+        }
+        let total = self.timeline.total();
+        let shown = (1..total).find_map(|distance| {
+            let before = cursor.checked_sub(distance);
+            let after = cursor.checked_add(distance).filter(|at| *at < total);
+            [before, after]
+                .into_iter()
+                .flatten()
+                .find(|at| !self.folds.is_folded(*at))
+        });
+        if let Some(at) = shown {
+            // The anchor stays, so a Shift selection keeps its start.
+            self.selection.click(at, true);
+            self.scroll_to = Some((at, egui::Align::Center));
+        }
     }
 
     fn table(&mut self, ui: &mut egui::Ui, events: &mut Vec<ViewEvent>) {
