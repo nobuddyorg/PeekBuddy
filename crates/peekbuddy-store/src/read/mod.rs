@@ -39,6 +39,8 @@
 //! Rows come in chunks of at most [`CHUNK`]; the path cache holds at most
 //! [`PATH_CACHE_NODES`] nodes and is dropped when it is full.
 
+pub mod changes;
+
 use std::collections::HashMap;
 use std::fmt::Write as _;
 use std::path::{Path, PathBuf};

@@ -35,6 +35,8 @@
 use std::collections::HashMap;
 use std::hash::Hash;
 
+use crate::event::Kind;
+
 /// One raw row, reduced to what the fold needs.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Op<K> {
@@ -68,6 +70,36 @@ pub enum Op<K> {
         /// The reconciled root.
         root: u32,
     },
+}
+
+/// The fold's view of a stored row, or `None` for rows that say nothing about
+/// a path: system rows, markers, watch states and the reconcile bookkeeping.
+///
+/// Metadata changes of a directory (every child change touches its parent)
+/// are left out, as is a directory's modified row; created, deleted and
+/// renamed directories stay. `root` is only used by gaps and reconciles.
+#[must_use]
+pub fn op_for<K>(kind: Kind, is_dir: bool, key: K, file_id: u128, root: u32) -> Option<Op<K>> {
+    Some(match kind {
+        Kind::Created | Kind::ReconciledCreated | Kind::ReconciledRenamed => Op::Created(key),
+        Kind::Deleted | Kind::ReconciledDeleted => Op::Deleted(key),
+        Kind::Modified
+        | Kind::AttributesChanged
+        | Kind::SecurityChanged
+        | Kind::StreamChanged
+        | Kind::LinkChanged
+        | Kind::ReconciledModified => {
+            if is_dir {
+                return None;
+            }
+            Op::Modified(key)
+        }
+        Kind::RenamedFrom => Op::RenamedFrom { key, file_id },
+        Kind::RenamedTo => Op::RenamedTo { key, file_id },
+        Kind::Overflow(_) => Op::Gap { root },
+        Kind::ReconcileFinished => Op::Reconciled { root },
+        _ => return None,
+    })
 }
 
 /// What a range did to one file.
