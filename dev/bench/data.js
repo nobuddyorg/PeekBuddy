@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1794041858964,
+  "lastUpdate": 1794042028314,
   "repoUrl": "https://github.com/nobuddyorg/PeekBuddy",
   "entries": {
     "benches (windows-2025)": [
@@ -1151,6 +1151,53 @@ window.BENCHMARK_DATA = {
           {
             "name": "query.subtree_resolve_10m",
             "value": 9532334.210526317,
+            "unit": "ns"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "name": "Matthias Eggert",
+            "username": "besessener",
+            "email": "8039350+besessener@users.noreply.github.com"
+          },
+          "committer": {
+            "name": "GitHub",
+            "username": "web-flow",
+            "email": "noreply@github.com"
+          },
+          "id": "c7872b7274bf760a92cf0cbc229a8042fc2fd794",
+          "message": "fix: keep beta quiet about the unused mimalloc (#391)\n\nCo-authored-by: Matthias Eggert <dem.matze@gmail.com>\nCo-authored-by: Claude Sonnet 5.5 <noreply@anthropic.com>",
+          "timestamp": "2026-11-06T23:56:21Z",
+          "url": "https://github.com/nobuddyorg/PeekBuddy/commit/c7872b7274bf760a92cf0cbc229a8042fc2fd794"
+        },
+        "date": 1794042026068,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "query.filtered_first_1m",
+            "value": 6679149.149659865,
+            "unit": "ns"
+          },
+          {
+            "name": "query.fts_lookup_10m",
+            "value": 32043315.128205128,
+            "unit": "ns"
+          },
+          {
+            "name": "query.page_keyset_10m",
+            "value": 2362695.757575758,
+            "unit": "ns"
+          },
+          {
+            "name": "query.regex_post_filter_1m",
+            "value": 3525181200,
+            "unit": "ns"
+          },
+          {
+            "name": "query.subtree_resolve_10m",
+            "value": 9223110.016835017,
             "unit": "ns"
           }
         ]
