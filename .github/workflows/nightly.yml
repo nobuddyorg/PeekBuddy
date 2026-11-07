@@ -447,18 +447,19 @@ jobs:
       - name: Mutants of core
         env:
           INCREMENTAL: ${{ needs.mutants-scope.outputs.incremental }}
+          SHARD: ${{ matrix.shard }}
         run: |
           scope=()
           [ "${INCREMENTAL}" = true ] && scope=(--in-diff git.diff)
           code=0
-          cargo mutants --no-shuffle "${scope[@]}" -p peekbuddy-core --test-tool nextest --shard ${{ matrix.shard }}/4 || code=$?
+          cargo mutants --no-shuffle "${scope[@]}" -p peekbuddy-core --test-tool nextest --shard "${SHARD}/4" || code=$?
           # Exit 2 (missed) and 3 (timeouts) are judged by the 80 % score.
           if [ "${code}" -ne 0 ] && [ "${code}" -ne 2 ] && [ "${code}" -ne 3 ]; then exit "${code}"; fi
           count() { [ -f "mutants.out/$1.txt" ] && wc -l < "mutants.out/$1.txt" || echo 0; }
           caught="$(count caught)"; total=$((caught + $(count missed) + $(count timeout)))
           [ "${total}" -gt 0 ] || { echo "core: no mutants"; exit 0; }
           score=$((100 * caught / total))
-          echo "core ${{ matrix.shard }}/4: ${caught} of ${total} caught, ${score} %"
+          echo "core ${SHARD}/4: ${caught} of ${total} caught, ${score} %"
           [ "${INCREMENTAL}" = true ] || [ "${score}" -ge 80 ]
 
   bench-trend:
