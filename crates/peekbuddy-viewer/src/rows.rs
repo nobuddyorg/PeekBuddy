@@ -416,6 +416,37 @@ mod tests {
         insta::assert_snapshot!(text);
     }
 
+    #[test]
+    fn a_cloud_placeholder_is_copied_as_stored_and_with_its_recall_attributes() {
+        use super::{TSV_HEADER, tsv};
+
+        // OFFLINE, RECALL_ON_DATA_ACCESS and the cloud reparse tag: a file
+        // that is not on the disk. Copying is a read of the log only.
+        let mut dehydrated = row(Kind::Modified, &units("C:\\x\\cloud\\big.iso"));
+        dehydrated.attrs = Some(0x1000 | 0x0040_0000);
+        dehydrated.reparse_tag = 0x9000_001A;
+        dehydrated.size = Some(8 * 1024 * 1024 * 1024);
+        // RECALL_ON_OPEN, a pinned and a tab-bearing sibling in one copy.
+        let mut on_open = row(Kind::Created, &units("C:\\x\\cloud\\a\tb.doc"));
+        on_open.attrs = Some(0x20 | 0x0004_0000 | 0x0008_0000);
+        on_open.reparse_tag = 0x9000_101A;
+        let rows: Vec<GridRow> = [dehydrated, on_open]
+            .into_iter()
+            .map(|raw| GridRow::new(raw, &|_| 0))
+            .collect();
+        let text = tsv(&rows);
+        for line in text.lines() {
+            assert_eq!(
+                line.matches('\t').count(),
+                TSV_HEADER.matches('\t').count(),
+                "{line}"
+            );
+        }
+        assert!(text.contains("0x00401000"), "{text}");
+        assert!(text.contains("0x000c0020"), "{text}");
+        insta::assert_snapshot!(text);
+    }
+
     proptest::proptest! {
         #[test]
         fn any_name_gives_a_row_with_exactly_the_columns(

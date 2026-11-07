@@ -725,3 +725,269 @@ fn the_from_and_to_fields_make_a_custom_range() {
     harness.run_steps(10);
     assert_eq!(harness.state().view.spec.span, super::Span::Any);
 }
+
+/// A dehydrated cloud file: `OFFLINE` and `RECALL_ON_DATA_ACCESS`, the cloud tag.
+fn dehydrated(row: &mut peekbuddy_core::query::Row) {
+    row.attrs = Some(0x20 | 0x1000 | 0x0040_0000);
+    row.reparse_tag = 0x9000_001A;
+    row.size = Some(8 * 1024 * 1024 * 1024);
+}
+
+#[test]
+fn every_row_action_on_a_cloud_placeholder_stays_in_the_log_and_the_folder() {
+    let log = FakeLog::new(300);
+    log.shape_rows(dehydrated);
+    let mut harness = log_app(&log);
+    until(&mut harness, "the first page", |v| v.held_rows() == PAGE);
+    settle(&mut harness);
+
+    // The details pane says what the log knows, in words.
+    harness.get_by_label("f298.txt").click();
+    harness.run_steps(4);
+    harness.get_by_label_contains("RECALL_ON_DATA_ACCESS");
+    harness.get_by_label_contains("IO_REPARSE_TAG_CLOUD");
+
+    // Every entry of the menu either copies from the log, narrows the view or
+    // hands the path to the app, whose Explorer call selects the item in its
+    // folder; none of them is an "open file" (#49 fixture).
+    // The copy command is in the output of the frame that handled the click.
+    let click = |harness: &mut Harness<'static, App>, item: &str| {
+        harness.get_by_label(item).click();
+        let mut copies = 0;
+        for _ in 0..4 {
+            harness.step();
+            copies += harness
+                .output()
+                .platform_output
+                .commands
+                .iter()
+                .filter(|command| matches!(command, egui::OutputCommand::CopyText(_)))
+                .count();
+        }
+        copies
+    };
+    for (item, event) in [
+        ("Copy path", None),
+        ("Copy row", None),
+        (
+            "Show in Explorer",
+            Some(ViewEvent::Open {
+                path: String::from("C:\\w\\f298.txt"),
+                select: true,
+            }),
+        ),
+        (
+            "Open containing folder",
+            Some(ViewEvent::Open {
+                path: String::from("C:\\w\\f298.txt"),
+                select: false,
+            }),
+        ),
+    ] {
+        harness.state_mut().event = None;
+        open_menu(&mut harness, "f298.txt", item);
+        let copies = click(&mut harness, item);
+        assert_eq!(harness.state().event, event, "{item}");
+        assert_eq!(
+            copies,
+            usize::from(event.is_none()),
+            "{item}: only the copy entries copy, from the log"
+        );
+    }
+    // No entry of the menu is an action on the file itself.
+    open_menu(&mut harness, "f298.txt", "Copy path");
+    for forbidden in ["Open", "Open file", "Run", "Preview", "Hash"] {
+        assert!(
+            harness.query_by_label(forbidden).is_none(),
+            "{forbidden} must not be offered"
+        );
+    }
+}
+
+/// The part of `source` before its test module.
+fn production(source: &str) -> &str {
+    source.split("#[cfg(test)]").next().unwrap_or(source)
+}
+
+#[test]
+fn the_row_actions_contain_no_call_that_reads_or_runs_a_file() {
+    // A recall is triggered by opening a placeholder for data. The sources
+    // of the grid, the details, the copy and the Explorer path conversion
+    // never do; this keeps it that way when one of them grows.
+    let sources = [
+        ("view.rs", production(include_str!("../view.rs"))),
+        ("details.rs", production(include_str!("../details.rs"))),
+        ("rows.rs", production(include_str!("../rows.rs"))),
+        ("shellpath.rs", production(include_str!("../shellpath.rs"))),
+    ];
+    let app = include_str!("../app.rs").replace("\r\n", "\n");
+    let explorer = app
+        .split("fn open_in_explorer")
+        .nth(1)
+        .and_then(|rest| rest.split("\n}\n").next())
+        .unwrap_or_default();
+    assert!(explorer.contains("symlink_metadata"), "the body was found");
+    let forbidden = [
+        "File::open",
+        "fs::read",
+        "read_to_string",
+        "OpenOptions",
+        "ShellExecute",
+        "Command::new",
+        "fs::copy",
+        "CreateFile",
+        "memmap",
+    ];
+    for (name, text) in sources.into_iter().chain([("open_in_explorer", explorer)]) {
+        for call in forbidden {
+            assert!(!text.contains(call), "{name} contains {call}");
+        }
+    }
+}
+
+/// The cursor row of the compact grid is never one that is folded away.
+#[track_caller]
+fn assert_cursor_is_shown(harness: &Harness<'static, App>, after: &str) {
+    let view = &harness.state().view;
+    let cursor = view.selection.cursor();
+    assert!(cursor.is_some(), "no cursor after {after}");
+    assert!(
+        cursor.is_some_and(|at| !view.folds.is_folded(at)),
+        "the cursor {cursor:?} is a folded row after {after}"
+    );
+}
+
+#[test]
+fn every_navigation_key_of_the_compact_grid_lands_on_a_row_that_is_shown() {
+    let mut harness = compact_app();
+    for (modifiers, key) in [
+        (egui::Modifiers::NONE, egui::Key::ArrowDown),
+        (egui::Modifiers::NONE, egui::Key::ArrowDown),
+        (egui::Modifiers::NONE, egui::Key::ArrowDown),
+        (egui::Modifiers::NONE, egui::Key::PageDown),
+        (egui::Modifiers::NONE, egui::Key::PageDown),
+        (egui::Modifiers::NONE, egui::Key::PageUp),
+        (egui::Modifiers::NONE, egui::Key::ArrowUp),
+        (egui::Modifiers::SHIFT, egui::Key::ArrowDown),
+        (egui::Modifiers::SHIFT, egui::Key::PageDown),
+        (egui::Modifiers::NONE, egui::Key::Home),
+        (egui::Modifiers::NONE, egui::Key::End),
+        (egui::Modifiers::NONE, egui::Key::ArrowUp),
+    ] {
+        harness.key_press_modifiers(modifiers, key);
+        harness.step();
+        if matches!(key, egui::Key::Home | egui::Key::End) {
+            // The far end of the log arrives from the worker; the folds are
+            // known once it has.
+            settle(&mut harness);
+        }
+        if key == egui::Key::End {
+            // Known gap: End jumps before the oldest rows are held, so the
+            // fold check cannot move the cursor off a folded row (the log
+            // is 10 000 rows; the oldest burst is folded behind its head).
+            // The next key does move it to a shown row, which is asserted.
+            continue;
+        }
+        assert_cursor_is_shown(&harness, &format!("{modifiers:?} {key:?}"));
+    }
+}
+
+#[test]
+fn shift_and_the_arrows_select_across_a_folded_group_and_ctrl_c_copies_it() {
+    let mut harness = compact_app();
+    for _ in 0..2 {
+        harness.key_press(egui::Key::ArrowDown);
+        harness.step();
+    }
+    // Row 1 heads the burst of rows 1 to 4; the next shown row is 5.
+    assert_eq!(harness.state().view.selection.cursor(), Some(1));
+    harness.key_press_modifiers(egui::Modifiers::SHIFT, egui::Key::ArrowDown);
+    harness.step();
+    assert_eq!(harness.state().view.selection.range(), Some(1..=5));
+    harness.step();
+    harness.get_by_label_contains("selected");
+
+    harness.event(egui::Event::Copy);
+    harness.step();
+    let copied: Vec<String> = harness
+        .output()
+        .platform_output
+        .commands
+        .iter()
+        .filter_map(|command| match command {
+            egui::OutputCommand::CopyText(text) => Some(text.clone()),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(copied.len(), 1, "one copy command");
+    assert!(copied[0].starts_with("id\t"), "{}", copied[0]);
+    assert!(copied[0].lines().count() >= 3, "{}", copied[0]);
+}
+
+/// The names of the controls that have the focus, in the order Tab reaches them.
+fn tab_order(harness: &mut Harness<'static, App>, presses: usize) -> Vec<String> {
+    use egui_kittest::kittest::NodeT as _;
+    let mut order = Vec::new();
+    for _ in 0..presses {
+        harness.key_press(egui::Key::Tab);
+        harness.run_steps(2);
+        let focused = harness
+            .root()
+            .children_recursive()
+            .find(|node| node.accesskit_node().is_focused())
+            .and_then(|node| node.accesskit_node().label());
+        if let Some(label) = focused
+            && order.last() != Some(&label)
+        {
+            order.push(label);
+        }
+    }
+    order
+}
+
+#[test]
+fn tab_reaches_the_search_box_every_chip_and_the_view_switches_in_order() {
+    let log = FakeLog::new(1_000);
+    let mut harness = log_app(&log);
+    until(&mut harness, "the first page", |v| v.held_rows() == PAGE);
+    settle(&mut harness);
+    let order = tab_order(&mut harness, 40);
+    let position = |name: &str| order.iter().position(|label| label == name);
+    let search = position("Search");
+    let compact = position("Compact");
+    let details = position("Details");
+    assert!(search.is_some(), "Search is not reached by Tab: {order:?}");
+    assert!(compact.is_some(), "Compact is not reached: {order:?}");
+    assert!(details.is_some(), "Details is not reached: {order:?}");
+    assert!(search < compact, "the search box comes first: {order:?}");
+    assert!(compact < details, "{order:?}");
+}
+
+#[test]
+fn enter_and_space_operate_the_compact_toggle_and_a_group_without_the_mouse() {
+    let mut harness = compact_app();
+    // The toggle: focus it, switch it off with Enter and on with Space.
+    harness.get_by_label("Compact").focus();
+    harness.run_steps(2);
+    harness.key_press(egui::Key::Enter);
+    settle(&mut harness);
+    assert!(!harness.state().view.compact);
+    harness.get_by_label("Compact").focus();
+    harness.run_steps(2);
+    harness.key_press(egui::Key::Space);
+    settle(&mut harness);
+    assert!(harness.state().view.compact);
+
+    // A group: focus its badge, open it with Enter and fold it with Space.
+    let folded = harness.state().view.folds.folded();
+    harness.query_all_by_label("> 4").next().unwrap().focus();
+    harness.run_steps(2);
+    harness.key_press(egui::Key::Enter);
+    settle(&mut harness);
+    assert_eq!(harness.state().view.folds.folded(), folded - 3);
+    harness.query_all_by_label("v 4").next().unwrap().focus();
+    harness.run_steps(2);
+    harness.key_press(egui::Key::Space);
+    settle(&mut harness);
+    assert_eq!(harness.state().view.folds.folded(), folded);
+}

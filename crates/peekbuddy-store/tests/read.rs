@@ -667,6 +667,119 @@ fn name_searches_have_the_documented_results() {
     assert_eq!(page.rows.first().map(|row| row.name.clone()), Some(lone));
 }
 
+/// The names of `names` that contain `needle`, folding ASCII case only: the
+/// model of both paths for an ASCII name.
+fn model(names: &[&str], needle: &str) -> Vec<String> {
+    let needle = needle.to_ascii_lowercase();
+    let mut found: Vec<String> = names
+        .iter()
+        .filter(|name| name.to_ascii_lowercase().contains(&needle))
+        .map(|name| (*name).to_owned())
+        .collect();
+    found.sort();
+    found
+}
+
+/// Every substring of one or two characters of `names`, in both cases, plus
+/// a few that match nothing and the characters LIKE treats as wildcards.
+fn short_needles(names: &[&str]) -> Vec<String> {
+    let mut needles = std::collections::BTreeSet::new();
+    for name in names {
+        let chars: Vec<char> = name.chars().collect();
+        for len in 1..=2 {
+            for window in chars.windows(len) {
+                let text: String = window.iter().collect();
+                needles.insert(text.to_ascii_uppercase());
+                needles.insert(text.to_ascii_lowercase());
+                needles.insert(text);
+            }
+        }
+    }
+    for extra in ["q", "zz", "%", "_", "\\", "%_", "_%", "'", "\"", "*", "?"] {
+        needles.insert(extra.to_owned());
+    }
+    needles.into_iter().collect()
+}
+
+#[test]
+fn one_and_two_character_queries_find_what_the_index_finds_for_ascii_names() {
+    let names = [
+        "Report.TXT",
+        "report_final.docx",
+        "a_b%c.txt",
+        "aXbYc.txt",
+        "x.y",
+        "Readme.MD",
+        "main.rs",
+        "My Documents",
+        "100%.log",
+        "back-slash",
+        "it's.txt",
+        "Z",
+        "zz.bin",
+        "[bracket].ini",
+    ];
+    let dir = Dir::new("shortascii");
+    let owned: Vec<Vec<u16>> = names.iter().map(|name| units(name)).collect();
+    named(&dir, &owned);
+    let reader = Reader::new(dir.path());
+
+    // The short path (LIKE) against the model, for every one and two
+    // character needle there is.
+    let needles = short_needles(&names);
+    assert!(needles.len() > 100, "{}", needles.len());
+    for needle in &needles {
+        assert_eq!(
+            found(&reader, needle),
+            model(&names, needle),
+            "needle {needle:?}"
+        );
+    }
+
+    // The index path (three characters or more) against the same model, so
+    // the two paths agree with each other on these names.
+    for needle in [
+        "rep", "REP", "txt", "_b%", "100", "%.l", "k-s", "[br", "'s.", "zz.",
+    ] {
+        assert_eq!(
+            found(&reader, needle),
+            model(&names, needle),
+            "needle {needle:?}"
+        );
+    }
+
+    // And directly against the FTS table of the segment: its own answer for
+    // a needle the index can take is a name the short path also finds for any
+    // two-character part of it.
+    let segment = segment_files(dir.path()).into_iter().next().unwrap();
+    let conn =
+        Connection::open_with_flags(dir.path().join(segment), OpenFlags::SQLITE_OPEN_READ_ONLY)
+            .unwrap();
+    let mut statement = conn
+        .prepare(
+            "SELECT n.name FROM node_fts f JOIN node n ON n.id = f.rowid \
+             WHERE node_fts MATCH ?1 ORDER BY n.name",
+        )
+        .unwrap();
+    for trigram in ["rep", "txt", "doc", "mai"] {
+        let phrase = format!("\"{trigram}\"");
+        let indexed: Vec<String> = statement
+            .query_map([phrase], |row| row.get::<_, String>(0))
+            .unwrap()
+            .map(Result::unwrap)
+            .collect();
+        assert!(!indexed.is_empty(), "the index finds {trigram}");
+        for name in &indexed {
+            for part in [&trigram[..1], &trigram[..2], &trigram[1..]] {
+                assert!(
+                    found(&reader, part).contains(name),
+                    "{part:?} must find {name:?}, which the index finds for {trigram:?}"
+                );
+            }
+        }
+    }
+}
+
 /// Calls a request again with the resume cursor until the scan is through;
 /// returns every row found and the number of calls.
 fn resumed(reader: &Reader, filter: &Filter) -> (Vec<String>, usize) {

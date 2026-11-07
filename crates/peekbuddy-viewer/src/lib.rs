@@ -42,6 +42,11 @@ pub mod view;
 pub mod watches;
 pub mod worker;
 
+#[cfg(test)]
+mod layout_snapshots;
+#[cfg(test)]
+mod paint_dump;
+
 #[cfg(windows)]
 mod app;
 #[cfg(windows)]
