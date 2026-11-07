@@ -21,6 +21,7 @@ use std::sync::Arc;
 use peekbuddy_core::perf::MilestoneTable;
 
 pub mod brand;
+pub mod colwidth;
 pub mod compact;
 pub mod debounce;
 pub mod details;
