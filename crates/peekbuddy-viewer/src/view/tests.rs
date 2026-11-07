@@ -750,6 +750,86 @@ fn the_from_and_to_fields_make_a_custom_range() {
     assert_eq!(harness.state().view.spec.span, super::Span::Any);
 }
 
+#[test]
+fn a_click_on_the_time_header_flips_the_order_and_the_view_follows_at_the_bottom() {
+    use crate::order::Order;
+
+    let log = FakeLog::new(1_000);
+    let mut harness = log_app(&log);
+    until(&mut harness, "the first page", |v| v.held_rows() == PAGE);
+    harness.get_by_label("Time").click();
+    until(&mut harness, "the oldest-first view", |v| {
+        v.order() == Order::Ascending && v.held_rows() == PAGE && v.first_page_ready()
+    });
+    // Following sits at the last row, which is the newest.
+    until(&mut harness, "the bottom", |v| {
+        v.timeline.row_at(999).is_some_and(|row| row.id == 1_000)
+    });
+    harness.run_steps(4);
+    harness.get_by_label("f1000.txt");
+    assert!(harness.state().view.follow.is_following());
+    assert!(harness.state().view.timeline.row_at(0).is_none());
+
+    // A row that arrives goes below, and the view goes along.
+    log.grow(2);
+    until(&mut harness, "the tail", |v| {
+        v.timeline.row_at(1_001).is_some_and(|row| row.id == 1_002)
+    });
+    harness.run_steps(4);
+    harness.get_by_label("f1002.txt");
+    assert!(harness.state().view.follow.is_following());
+    assert!(harness.query_by_label_contains("new event").is_none());
+
+    harness.get_by_label("Time").click();
+    until(&mut harness, "the newest-first view", |v| {
+        v.order() == Order::Descending && v.timeline.row_at(0).is_some_and(|row| row.id == 1_002)
+    });
+}
+
+#[test]
+fn oldest_first_scrolled_away_the_grid_counts_and_the_pill_goes_back_down() {
+    use crate::order::Order;
+
+    let log = FakeLog::new(5_000);
+    let mut harness = log_app(&log);
+    until(&mut harness, "the first page", |v| v.held_rows() == PAGE);
+    harness.state_mut().view.set_order(Order::Ascending);
+    until(&mut harness, "the bottom", |v| {
+        v.timeline.row_at(4_999).is_some_and(|row| row.id == 5_000)
+    });
+    // The page that landed still scrolls the grid to the bottom: let it.
+    settle(&mut harness);
+    harness.state_mut().view.scroll_to = Some((2_500, egui::Align::TOP));
+    until(&mut harness, "the pause", |v| !v.follow.is_following());
+    until(&mut harness, "the island at the target", |v| {
+        v.timeline.row_at(2_500).is_some()
+    });
+    let id_at = |harness: &Harness<'static, App>| {
+        harness
+            .state()
+            .view
+            .timeline
+            .row_at(2_500)
+            .map(|row| row.id)
+    };
+    let before = id_at(&harness);
+    assert_eq!(before, Some(2_501));
+    log.grow(5);
+    until(&mut harness, "five counted rows", |v| {
+        v.follow.new_rows() == 5
+    });
+    harness.step();
+    harness.get_by_label("5 new events");
+    assert_eq!(id_at(&harness), before, "the rows did not move");
+    assert_eq!(harness.state().view.timeline.total(), 5_000);
+
+    harness.get_by_label("5 new events").click();
+    until(&mut harness, "following again", |v| {
+        v.follow.is_following() && v.timeline.row_at(5_004).is_some_and(|r| r.id == 5_005)
+    });
+    assert!(harness.query_by_label_contains("new event").is_none());
+}
+
 /// A dehydrated cloud file: `OFFLINE` and `RECALL_ON_DATA_ACCESS`, the cloud tag.
 fn dehydrated(row: &mut peekbuddy_core::query::Row) {
     row.attrs = Some(0x20 | 0x1000 | 0x0040_0000);

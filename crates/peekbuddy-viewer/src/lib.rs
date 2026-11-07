@@ -31,6 +31,7 @@ pub mod follow;
 pub mod geometry;
 pub mod link;
 pub mod onboarding;
+pub mod order;
 pub mod rows;
 pub mod selection;
 pub mod settings_ui;

@@ -213,3 +213,36 @@ proptest! {
         }
     }
 }
+
+#[test]
+fn oldest_first_the_head_sits_below_the_rows_folded_into_it() {
+    use crate::order::Order;
+
+    let rows = rows();
+    // Shown oldest first, ids 1..=5 sit at 100..=104; 2 and 3 are folded, and
+    // 4 (the newest of the group) is the head below them.
+    let folds = Folds::build_ordered(rows.iter(), 100, &BTreeSet::new(), Order::Ascending);
+    assert_eq!(folds.folded(), 2);
+    assert_eq!(
+        folds.of(4),
+        Folds::build(rows.iter(), 0, &BTreeSet::new()).of(4)
+    );
+    for (row, folded) in [
+        (100, false),
+        (101, true),
+        (102, true),
+        (103, false),
+        (104, false),
+    ] {
+        assert_eq!(folds.is_folded(row), folded, "row {row}");
+    }
+    assert_eq!(folds.hidden_before(101), 0);
+    assert_eq!(folds.hidden_before(102), 1);
+    assert_eq!(folds.hidden_before(103), 2);
+    assert_eq!(folds.shown_before(103), 101);
+    assert_eq!(folds.shown_before(10_000), 9_998);
+    // Opened, nothing is folded.
+    let open = BTreeSet::from([4]);
+    let opened = Folds::build_ordered(rows.iter(), 100, &open, Order::Ascending);
+    assert_eq!(opened.folded(), 0);
+}
