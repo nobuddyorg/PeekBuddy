@@ -161,21 +161,21 @@ fn only_a_marker_of_the_open_segment_can_be_renamed() {
     writer.wait_background();
     let found = markers::list(dir.path()).unwrap();
     let (old, new) = (found[0].event_id, found[1].event_id);
-    assert!(!writer.rename_marker(old, "renamed").unwrap());
-    assert!(writer.rename_marker(new, "  after the build ").unwrap());
-    assert!(!writer.rename_marker(new, "  ").unwrap());
-    assert_eq!(
-        writer.marker_name(new).unwrap().as_deref(),
-        Some("after the build")
-    );
-    assert_eq!(writer.marker_name(old).unwrap(), None);
+    assert!(!markers::rename(dir.path(), old, "renamed").unwrap());
+    assert!(markers::rename(dir.path(), new, "  after the build ").unwrap());
+    assert!(!markers::rename(dir.path(), new, "  ").unwrap());
+    assert!(!markers::rename(dir.path(), 9999, "nobody").unwrap());
     let names: Vec<_> = markers::list(dir.path())
         .unwrap()
         .into_iter()
         .map(|m| m.name)
         .collect();
     assert_eq!(names, ["old day", "after the build"]);
-    assert!(!writer.rename_marker(9999, "nobody").unwrap());
+    // The writer goes on after a rename.
+    writer
+        .write(&[marker_batch(&[(DAY + 5, "later")])], &[])
+        .unwrap();
+    assert_eq!(markers::list(dir.path()).unwrap().len(), 3);
 }
 
 #[test]

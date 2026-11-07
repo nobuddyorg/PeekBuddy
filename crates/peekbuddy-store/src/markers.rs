@@ -11,11 +11,11 @@
 //! the segment goes.
 
 use std::path::Path;
+use std::time::Duration;
 
-use rusqlite::{Connection, OpenFlags, OptionalExtension, params};
+use rusqlite::{Connection, OpenFlags, params};
 
 use crate::catalog::{Catalog, CatalogError};
-use crate::writer::{WriteError, Writer};
 
 /// The longest marker name, in characters.
 pub const MAX_NAME_CHARS: usize = 120;
@@ -102,40 +102,35 @@ pub fn list(dir: &Path) -> Result<Vec<Marker>, CatalogError> {
     Ok(out)
 }
 
-impl Writer {
-    /// Renames the marker whose event is `event_id` in the open segment.
-    /// `false` when there is no such marker here (it is in a sealed segment,
-    /// or the name is empty after cleaning).
-    ///
-    /// # Errors
-    ///
-    /// SQLite's error.
-    pub fn rename_marker(&self, event_id: i64, name: &str) -> Result<bool, WriteError> {
-        let Some(name) = clean_name(name) else {
-            return Ok(false);
+/// Renames the marker whose event is `event_id`, in the segment still being
+/// written. `false` when there is no such marker there (it is in a sealed
+/// segment, or the name is empty after cleaning).
+///
+/// This opens its own connection for one short statement and waits briefly
+/// for the writer's lock; it never touches event rows.
+///
+/// # Errors
+///
+/// The catalog's error, or SQLite's.
+pub fn rename(dir: &Path, event_id: i64, name: &str) -> Result<bool, CatalogError> {
+    let Some(name) = clean_name(name) else {
+        return Ok(false);
+    };
+    let catalog = Catalog::open_for_reading(&dir.join("catalog.db"))?;
+    for segment in catalog.list()?.into_iter().filter(|s| !s.sealed) {
+        let Ok(conn) = Connection::open(dir.join(&segment.file)) else {
+            continue;
         };
-        let changed = self.connection().execute(
+        conn.busy_timeout(Duration::from_secs(5))?;
+        let changed = conn.execute(
             "UPDATE marker SET name = ?2 WHERE event_id = ?1",
             params![event_id, name],
         )?;
-        Ok(changed > 0)
+        if changed > 0 {
+            return Ok(true);
+        }
     }
-
-    /// The marker with this event id in the open segment.
-    ///
-    /// # Errors
-    ///
-    /// SQLite's error.
-    pub fn marker_name(&self, event_id: i64) -> Result<Option<String>, WriteError> {
-        Ok(self
-            .connection()
-            .query_row(
-                "SELECT name FROM marker WHERE event_id = ?1",
-                [event_id],
-                |row| row.get(0),
-            )
-            .optional()?)
-    }
+    Ok(false)
 }
 
 #[cfg(test)]
