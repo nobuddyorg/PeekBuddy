@@ -24,6 +24,7 @@ use crate::gpu::{self, Adapter};
 use crate::link::{Link, LinkEvent, LinkState, Timing};
 use crate::link_win::PipeConnector;
 use crate::onboarding::{Onboarding, OnboardingAction};
+use crate::order::Order;
 use crate::settings_ui::{SettingsAction, SettingsScreen};
 use crate::shell::{Shell, ShellAction};
 use crate::shellpath;
@@ -93,6 +94,11 @@ fn log_view(
     )?;
     view.set_details(!settings.viewer.details_hidden);
     view.set_compact(settings.viewer.compact);
+    view.set_order(if settings.viewer.oldest_first {
+        Order::Ascending
+    } else {
+        Order::Descending
+    });
     view.set_column_widths(&settings.viewer.column_widths);
     view.set_export_dirs(options.segments.clone(), options.data_dir.join("exports"));
     Ok(view)
@@ -661,6 +667,11 @@ impl ViewerApp {
             ViewEvent::CompactToggled(on) => {
                 self.update_settings("the compact view", |settings| {
                     settings.viewer.compact = on;
+                });
+            }
+            ViewEvent::OrderChanged(order) => {
+                self.update_settings("the sort order", |settings| {
+                    settings.viewer.oldest_first = order == Order::Ascending;
                 });
             }
             ViewEvent::ColumnWidthsChanged(widths) => {

@@ -242,6 +242,7 @@ fn arb_settings() -> impl Strategy<Value = Settings> {
                 24u32..=4096,
                 0..4,
             ),
+            any::<bool>(),
         ),
     )
         .prop_map(|(general, store, view, filters, watches, viewer)| {
@@ -269,6 +270,7 @@ fn arb_settings() -> impl Strategy<Value = Settings> {
                 raw: viewer.4,
                 details_hidden: !viewer.4,
                 compact: viewer.4,
+                oldest_first: viewer.6,
                 column_widths: viewer
                     .5
                     .into_iter()
@@ -441,6 +443,7 @@ height = 600
     match load(old, &ctx()) {
         Loaded::Ok { settings, .. } => {
             assert!(!settings.viewer.compact);
+            assert!(!settings.viewer.oldest_first);
             assert!(settings.viewer.column_widths.is_empty());
         }
         other => panic!("{other:?}"),
@@ -448,6 +451,7 @@ height = 600
     let new = "version = 1
 [viewer]
 compact = true
+oldest_first = true
 [viewer.column_widths]
 path = 700
 time = 140
@@ -455,6 +459,7 @@ time = 140
     match load(new, &ctx()) {
         Loaded::Ok { settings, .. } => {
             assert!(settings.viewer.compact);
+            assert!(settings.viewer.oldest_first);
             assert_eq!(settings.viewer.column_widths.get("path"), Some(&700));
             assert_eq!(settings.viewer.column_widths.len(), 2);
         }
