@@ -321,7 +321,7 @@ builds with a deliberate regression (`--features inject`, chosen by
 `PEEKBUDDY_INJECT`, compiled into no release: `check-release` looks for the
 variable's name in the exe): `timer` (a thread that wakes every second) must
 fail `engine.idle.wakes`, `handle-leak` (a handle per pause or resume) must
-fail `engine.handles.stable`, and `drop-row` (every 1,000th event dropped
+fail `engine.handles.stable`, and `drop-row` (every 50th event dropped
 without a gap) must fail `ingest.undetected_loss`. `--expect-fail <row>` turns
 the run into that check. The nightly `idle 60 minutes` job runs the idle
 scenario for an hour under the `PeekBuddy.Light` WPR profile and uploads the
