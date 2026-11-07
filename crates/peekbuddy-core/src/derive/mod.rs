@@ -250,7 +250,8 @@ fn role(kind: Kind) -> Role {
         | Kind::EngineStopped
         | Kind::SegmentRotated
         | Kind::RetentionPurged
-        | Kind::SettingsChanged => Role::Pass,
+        | Kind::SettingsChanged
+        | Kind::Marker => Role::Pass,
         _ => Role::Path,
     }
 }
