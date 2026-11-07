@@ -69,6 +69,10 @@ same-runner A/B timing from CI or the allocation counts (#23, #26). Budgets
 and gate policy: [ADR 0007](docs/adr/0007-performance-gate-policy.md).
 Tools and recipes: [Profile PeekBuddy](docs/how-to/profile.md).
 
+## Dependencies
+
+Upgrades that need a decision are tracked in [the dependency watchlist](docs/dependencies.md).
+
 ## Lint policy
 
 Warnings are errors in CI (`CARGO_BUILD_WARNINGS=deny`). `unwrap`, `expect`,
