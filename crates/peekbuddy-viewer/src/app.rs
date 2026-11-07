@@ -110,6 +110,15 @@ fn first_screens(options: &Options, settings: &Settings) -> (SettingsScreen, Opt
     (screen, onboarding)
 }
 
+/// What leaving the first-run screens, by finishing or skipping, writes into
+/// the settings: the screens never come back (`first_run`), and autostart is
+/// whatever the user chose, which is off unless they ticked it.
+fn finish_onboarding(settings: &mut Settings, autostart: bool, presets: Vec<String>) {
+    settings.general.first_run = false;
+    settings.general.autostart = autostart;
+    settings.filters.presets = presets;
+}
+
 /// The name in messages. The window title itself is `Options::title`;
 /// Windows draws it, so it cannot carry the wordmark colours (#88).
 const TITLE: &str = "PeekBuddy";
@@ -517,11 +526,7 @@ impl ViewerApp {
         match action {
             OnboardingAction::Watch(action) => self.watch_action(action, Origin::Onboarding),
             OnboardingAction::Finish { autostart, presets } => {
-                self.save_settings(|settings| {
-                    settings.general.first_run = false;
-                    settings.general.autostart = autostart;
-                    settings.filters.presets = presets;
-                });
+                self.save_settings(|settings| finish_onboarding(settings, autostart, presets));
                 self.onboarding = None;
                 self.tab = Tab::Log;
             }
@@ -1069,8 +1074,17 @@ fn creator(
 mod tests {
     use std::collections::BTreeMap;
 
-    use super::{ProbeReport, json_string};
+    use std::sync::Arc;
+
+    use peekbuddy_core::autostart::{Autostart, MemoryRegistry, Status};
+    use peekbuddy_core::perf::MilestoneTable;
+    use peekbuddy_core::settings::{self, Context, Loaded, Settings, Watch};
+
+    use super::{ProbeReport, finish_onboarding, first_screens, json_string};
     use crate::gpu::Adapter;
+    use crate::onboarding::Onboarding;
+    use crate::settings_ui::About;
+    use crate::{Options, Probe};
 
     #[test]
     fn a_probe_report_is_one_json_line() {
@@ -1106,5 +1120,100 @@ mod tests {
         assert!(json.contains("\"adapter\":null"), "{json}");
         assert!(json.contains("\"causes\":{}"), "{json}");
         assert_eq!(json_string("a\tb\\"), "\"a\\u0009b\\\\\"");
+    }
+
+    fn options(probe: Option<Probe>) -> Options {
+        Options {
+            data_dir: std::path::PathBuf::from(r"C:\data"),
+            segments: std::path::PathBuf::from(r"C:\data\segments"),
+            pipe_name: String::from("pipe"),
+            exe: std::path::PathBuf::from(r"C:\x\peekbuddy.exe"),
+            engine_args: Vec::new(),
+            show_event: String::from("show"),
+            title: String::from("PeekBuddy"),
+            table: Arc::new(MilestoneTable::new()),
+            probe,
+            about: About::default(),
+        }
+    }
+
+    fn watch() -> Watch {
+        Watch {
+            id: String::from("docs-1"),
+            path: String::from(r"C:\docs"),
+            ..Watch::default()
+        }
+    }
+
+    #[test]
+    fn the_first_run_screens_open_only_on_a_fresh_install() {
+        let fresh = Settings::default();
+        assert!(fresh.watches.is_empty() && fresh.general.first_run);
+        assert!(first_screens(&options(None), &fresh).1.is_some());
+
+        // Someone who is set up already, with or without the flag, never sees them.
+        let mut watching = Settings::default();
+        watching.watches.push(watch());
+        assert!(first_screens(&options(None), &watching).1.is_none());
+        let mut done = Settings::default();
+        done.general.first_run = false;
+        assert!(first_screens(&options(None), &done).1.is_none());
+
+        // A measuring run goes straight to the log.
+        let probe = Probe {
+            seconds: 1,
+            out: None,
+        };
+        assert!(first_screens(&options(Some(probe)), &fresh).1.is_none());
+    }
+
+    #[test]
+    fn finishing_or_skipping_once_means_the_screens_never_come_back() {
+        let context = Context {
+            data_dir: String::from(r"C:\data"),
+            export_dir: None,
+        };
+        let mut settings = Settings::default();
+        finish_onboarding(&mut settings, false, Vec::new());
+        // The next start reads what was saved.
+        let saved = settings::to_toml(&settings).unwrap();
+        let loaded = settings::load(&saved, &context);
+        assert!(matches!(loaded, Loaded::Ok { .. }), "{saved}");
+        let Loaded::Ok { settings: read, .. } = loaded else {
+            return;
+        };
+        assert!(!read.general.first_run);
+        assert!(first_screens(&options(None), &read).1.is_none());
+        // Even when the user removes every watch later.
+        assert_eq!(read.watches.len(), 0);
+    }
+
+    #[test]
+    fn no_run_value_exists_after_the_onboarding_with_the_default_choices() {
+        let exe = r"C:\x\peekbuddy.exe";
+        // The screens' defaults: nothing ticked.
+        let defaults = Onboarding::default();
+        assert!(!defaults.autostart);
+        let mut settings = Settings::default();
+        finish_onboarding(&mut settings, defaults.autostart, Vec::new());
+        assert!(!settings.general.autostart);
+
+        // The engine applies the saved intent to the registry at start and
+        // when settings change; with the defaults it writes nothing.
+        let mut auto = Autostart::new(MemoryRegistry::default(), exe);
+        assert_eq!(auto.on_start(settings.general.autostart), Ok(Status::Off));
+        assert_eq!(auto.registry().run, None);
+        assert_eq!(auto.registry().approved, None);
+        assert_eq!(auto.registry().writes, 0);
+
+        // The control: the same path with the box ticked does write it.
+        let mut ticked = Settings::default();
+        finish_onboarding(&mut ticked, true, Vec::new());
+        let mut auto = Autostart::new(MemoryRegistry::default(), exe);
+        assert_eq!(auto.on_start(ticked.general.autostart), Ok(Status::On));
+        assert_eq!(
+            auto.registry().run.as_deref(),
+            Some(r#""C:\x\peekbuddy.exe""#)
+        );
     }
 }

@@ -147,6 +147,8 @@ pub mod fake {
         hidden: u64,
         /// Rows per file: `1` gives every row its own path.
         burst: i64,
+        /// Changes every row after it was made (names, attributes).
+        shape: Option<fn(&mut Row)>,
     }
 
     impl FakeLog {
@@ -163,6 +165,7 @@ pub mod fake {
                     extents: 0,
                     hidden: 0,
                     burst: 1,
+                    shape: None,
                 }),
             })
         }
@@ -185,6 +188,12 @@ pub mod fake {
         /// milliseconds of changes to one file fold into a group.
         pub fn bursts(&self, rows: i64) {
             self.with(|s| s.burst = rows.max(1));
+        }
+
+        /// Lets `shape` change every row before it is served, for the tests
+        /// that need a spoofed name or a cloud placeholder.
+        pub fn shape_rows(&self, shape: fn(&mut Row)) {
+            self.with(|s| s.shape = Some(shape));
         }
 
         /// What the log says the filter hides.
@@ -211,6 +220,14 @@ pub mod fake {
         #[must_use]
         pub fn row(id: i64) -> Row {
             Self::row_in(id, 1)
+        }
+
+        fn made(state: &State, id: i64) -> Row {
+            let mut row = Self::row_in(id, state.burst);
+            if let Some(shape) = state.shape {
+                shape(&mut row);
+            }
+            row
         }
 
         fn row_in(id: i64, burst: i64) -> Row {
@@ -256,7 +273,7 @@ pub mod fake {
                     Direction::Older => {
                         let mut id = request.cursor.map_or(s.last, |c| (c - 1).min(s.last));
                         while id >= s.first && rows.len() < limit {
-                            rows.push(Self::row_in(id, s.burst));
+                            rows.push(Self::made(s, id));
                             id -= 1;
                         }
                         more = id >= s.first;
@@ -267,7 +284,7 @@ pub mod fake {
                     Direction::Newer => {
                         let mut id = request.cursor.map_or(s.first, |c| c + 1).max(s.first);
                         while id <= s.last && rows.len() < limit {
-                            rows.push(Self::row_in(id, s.burst));
+                            rows.push(Self::made(s, id));
                             id += 1;
                         }
                         more = id <= s.last;
