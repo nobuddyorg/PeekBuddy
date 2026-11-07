@@ -51,7 +51,7 @@ stream cannot be resynchronised.
 | 7 | `Counters` | engine to viewer | six `u64`: events received, rows persisted, overflows, gaps, ring high-water, last batch size |
 | 8 | `WatchState` | engine to viewer | `u32 index`, `u8 state` (0 live, 1 paused, 2 gap, 3 lost) |
 | 9 | `Resync` | engine to viewer | `u64 from_id`: live-tail frames were dropped, re-query from this row |
-| 10 | `Command` | viewer to engine | `u8 kind` then fields: 0 pause all, 1 resume all, 2 set watch paused (string id, `u8`), 3 add watch (string path), 4 remove watch (string id), 5 apply settings (string TOML) |
+| 10 | `Command` | viewer to engine | `u8 kind` then fields: 0 pause all, 1 resume all, 2 set watch paused (string id, `u8`), 3 add watch (string path), 4 remove watch (string id), 5 apply settings (string TOML), 6 mark now (string name), 7 rename marker (`u64` event id, string name) |
 | 11 | `CommandResult` | engine to viewer | `u8 ok`, string message |
 
 Types 12 and up are reserved: the live tail (committed rows, at most 30
@@ -108,3 +108,4 @@ after 5 s and drops the client.
 | --- | --- |
 | 1 | First version: the messages above. |
 | 1 (still, unreleased) | #68 adds `ListWatches`, `WatchList` and the `confirmed` flag of `AddWatch`. The first release is the first shipped protocol version. |
+| 1 (still, unreleased) | #82 adds `MarkNow` and `RenameMarker` commands. |

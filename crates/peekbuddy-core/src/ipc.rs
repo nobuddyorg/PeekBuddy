@@ -120,6 +120,18 @@ pub enum Command {
         /// The whole file.
         toml: String,
     },
+    /// Write a marker row now (#82). The answer says the event id.
+    MarkNow {
+        /// The name; the engine cleans it and falls back to the time.
+        name: String,
+    },
+    /// Rename a marker of the open segment.
+    RenameMarker {
+        /// The id of the marker's event row.
+        event_id: u64,
+        /// The new name.
+        name: String,
+    },
 }
 
 /// One watch as the engine reports it for the viewer's list (#68).
@@ -304,6 +316,30 @@ fn command_kind(command: &Command) -> u8 {
         Command::AddWatch { .. } => 3,
         Command::RemoveWatch { .. } => 4,
         Command::ApplySettings { .. } => 5,
+        Command::MarkNow { .. } => 6,
+        Command::RenameMarker { .. } => 7,
+    }
+}
+
+fn encode_command(w: &mut Writer<'_>, command: &Command) {
+    w.u8(command_kind(command));
+    match command {
+        Command::PauseAll | Command::ResumeAll => {}
+        Command::SetWatchPaused { id, paused } => {
+            w.text(id);
+            w.u8(u8::from(*paused));
+        }
+        Command::AddWatch { path, confirmed } => {
+            w.text(path);
+            w.u8(u8::from(*confirmed));
+        }
+        Command::RemoveWatch { id } => w.text(id),
+        Command::ApplySettings { toml } => w.text(toml),
+        Command::MarkNow { name } => w.text(name),
+        Command::RenameMarker { event_id, name } => {
+            w.u64(*event_id);
+            w.text(name);
+        }
     }
 }
 
@@ -359,20 +395,7 @@ pub fn encode(message: &Message, out: &mut Vec<u8>) -> bool {
                 kind::RESYNC
             }
             Message::Command(command) => {
-                w.u8(command_kind(command));
-                match command {
-                    Command::PauseAll | Command::ResumeAll => {}
-                    Command::SetWatchPaused { id, paused } => {
-                        w.text(id);
-                        w.u8(u8::from(*paused));
-                    }
-                    Command::AddWatch { path, confirmed } => {
-                        w.text(path);
-                        w.u8(u8::from(*confirmed));
-                    }
-                    Command::RemoveWatch { id } => w.text(id),
-                    Command::ApplySettings { toml } => w.text(toml),
-                }
+                encode_command(&mut w, command);
                 kind::COMMAND
             }
             Message::CommandResult { ok, message } => {
@@ -468,6 +491,11 @@ fn decode_command(r: &mut Reader<'_>) -> Result<Command, DecodeError> {
         },
         4 => Command::RemoveWatch { id: r.text()? },
         5 => Command::ApplySettings { toml: r.text()? },
+        6 => Command::MarkNow { name: r.text()? },
+        7 => Command::RenameMarker {
+            event_id: r.u64()?,
+            name: r.text()?,
+        },
         _ => return Err(DecodeError::BadValue("command")),
     })
 }
@@ -605,6 +633,9 @@ mod tests {
                 .prop_map(|(path, confirmed)| Command::AddWatch { path, confirmed }),
             text().prop_map(|id| Command::RemoveWatch { id }),
             text().prop_map(|toml| Command::ApplySettings { toml }),
+            text().prop_map(|name| Command::MarkNow { name }),
+            (any::<u64>(), text())
+                .prop_map(|(event_id, name)| Command::RenameMarker { event_id, name }),
         ]
     }
 

@@ -9,6 +9,7 @@
 
 pub mod crash;
 pub mod diagnostics;
+pub mod marker_ctl;
 pub mod portable;
 pub mod probe;
 pub mod shutdown;
@@ -256,15 +257,7 @@ mod run {
         let shutdown = Rc::new(RefCell::new(Shutdown::new()));
         let store = start_store(&data, &loaded_settings, &counters, &commits, &shutdown)?;
         mark(milestones, Milestone::StoreOpened);
-        if let Some(log) = &abnormal_termination {
-            record_abnormal_exit(&store, log);
-        }
-        // Queued before the window exists, so a test that sees the window
-        // knows the events are pending.
-        #[cfg(feature = "test-panic")]
-        if options.synthetic_events > 0 {
-            push_synthetic(&store, &counters, options.synthetic_events);
-        }
+        queue_startup_rows(&store, &counters, options, abnormal_termination.as_deref());
         // F7: ready is "tray attempt done AND every watch armed (or failed)
         // AND setup done"; the last of them records `EngineReady`.
         let tray_wanted = !options.headless || options.tray;
@@ -300,7 +293,13 @@ mod run {
         if options.headless || options.probe.is_some() {
             close_window_on_ctrl_c(hidden.handle())?;
         }
-        start_ipc(options, &data, &hidden, &shutdown, (&pause, autostart))?;
+        start_ipc(
+            options,
+            &data,
+            &hidden,
+            &shutdown,
+            (&pause, autostart, &store),
+        )?;
 
         if tray_wanted {
             start_tray(
@@ -487,6 +486,28 @@ mod run {
             },
         );
         Ok((data, abnormal))
+    }
+
+    /// The rows that belong before the first capture: the abnormal exit of
+    /// the last run, and a test's synthetic events. Queued before the window
+    /// exists, so a test that sees the window knows the events are pending.
+    #[cfg_attr(
+        not(feature = "test-panic"),
+        expect(unused_variables, reason = "only the test build pushes events")
+    )]
+    fn queue_startup_rows(
+        store: &peekbuddy_store::pipeline::Producer,
+        counters: &Arc<peekbuddy_core::perf::Counters>,
+        options: &Options,
+        abnormal: Option<&str>,
+    ) {
+        if let Some(log) = abnormal {
+            record_abnormal_exit(store, log);
+        }
+        #[cfg(feature = "test-panic")]
+        if options.synthetic_events > 0 {
+            push_synthetic(store, counters, options.synthetic_events);
+        }
     }
 
     /// Writes the one row that says the previous run ended abnormally; its
@@ -708,7 +729,11 @@ mod run {
         data: &DataDir,
         hidden: &HiddenWindow,
         shutdown: &Rc<RefCell<Shutdown>>,
-        (pause, autostart): (&Arc<crate::pause_ctl::PauseCtl>, Option<SharedAutostart>),
+        (pause, autostart, store): (
+            &Arc<crate::pause_ctl::PauseCtl>,
+            Option<SharedAutostart>,
+            &peekbuddy_store::pipeline::Producer,
+        ),
     ) -> std::io::Result<()> {
         let name = crate::ipc_server::pipe_name(options.data_dir.as_deref())?;
         let shared = crate::ipc_server::Shared {
@@ -718,6 +743,11 @@ mod run {
             settings_path: data.settings.clone(),
             data_dir: data.root.to_string_lossy().into_owned(),
             pause: Arc::clone(pause),
+            markers: Arc::new(crate::marker_ctl::MarkerCtl::new(
+                store.clone(),
+                data.segments.clone(),
+                crate::pause_ctl::now_ticks,
+            )),
             autostart,
         };
         let server = match crate::ipc_server::start(&name, shared) {
