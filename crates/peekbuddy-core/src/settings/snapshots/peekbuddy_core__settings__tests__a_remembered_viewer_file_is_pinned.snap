@@ -23,6 +23,7 @@ columns = [
 width = 1280
 height = 800
 compact = true
+oldest_first = true
 
 [viewer.column_widths]
 path = 640

@@ -192,6 +192,9 @@ pub enum ViewEvent {
     DetailsToggled(bool),
     /// The compact view was switched (`true`: on).
     CompactToggled(bool),
+    /// The time column was clicked: the rows are now in this order, for
+    /// `[viewer] oldest_first`.
+    OrderChanged(Order),
     /// The user resized columns and let go: these are the widths by column
     /// name for `[viewer] column_widths`.
     ColumnWidthsChanged(BTreeMap<String, u32>),
@@ -1473,6 +1476,7 @@ impl LogView {
         table.show(ui, &mut grid);
         if flip_order {
             self.set_order(self.order.flipped());
+            events.push(ViewEvent::OrderChanged(self.order));
         }
         self.note_widths(ui, table_id, events);
         if let Some(head) = toggle

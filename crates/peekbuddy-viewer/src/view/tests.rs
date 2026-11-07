@@ -665,6 +665,20 @@ fn restored_settings_apply_without_a_write_until_the_user_resizes() {
 }
 
 #[test]
+fn a_restored_order_applies_without_a_write() {
+    use crate::order::Order;
+
+    let log = FakeLog::new(100);
+    let mut harness = log_app(&log);
+    harness.state_mut().view.set_order(Order::Ascending);
+    until(&mut harness, "the oldest-first view", |v| {
+        v.order() == Order::Ascending && v.first_page_ready()
+    });
+    harness.run_steps(40);
+    assert_eq!(harness.state().event, None);
+}
+
+#[test]
 fn opening_a_group_shows_its_members_and_closing_folds_them_again() {
     let mut harness = compact_app();
     let folded = harness.state().view.folds.folded();
@@ -758,6 +772,12 @@ fn a_click_on_the_time_header_flips_the_order_and_the_view_follows_at_the_bottom
     let mut harness = log_app(&log);
     until(&mut harness, "the first page", |v| v.held_rows() == PAGE);
     harness.get_by_label("Time").click();
+    harness.step();
+    // The flip is reported, so the app can save it.
+    assert_eq!(
+        harness.state().event,
+        Some(ViewEvent::OrderChanged(Order::Ascending))
+    );
     until(&mut harness, "the oldest-first view", |v| {
         v.order() == Order::Ascending && v.held_rows() == PAGE && v.first_page_ready()
     });
@@ -781,6 +801,11 @@ fn a_click_on_the_time_header_flips_the_order_and_the_view_follows_at_the_bottom
     assert!(harness.query_by_label_contains("new event").is_none());
 
     harness.get_by_label("Time").click();
+    harness.step();
+    assert_eq!(
+        harness.state().event,
+        Some(ViewEvent::OrderChanged(Order::Descending))
+    );
     until(&mut harness, "the newest-first view", |v| {
         v.order() == Order::Descending && v.timeline.row_at(0).is_some_and(|row| row.id == 1_002)
     });

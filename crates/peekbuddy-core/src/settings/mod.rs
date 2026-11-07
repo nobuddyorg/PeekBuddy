@@ -157,7 +157,7 @@ pub const MAX_FILTER_TEXT: usize = 4096;
 #[serde(default)]
 #[expect(
     clippy::struct_excessive_bools,
-    reason = "independent remembered switches of the file format: maximized, raw, details, compact"
+    reason = "independent remembered switches of the file format: maximized, raw, details, compact, order"
 )]
 pub struct Viewer {
     /// Left edge of the window.
@@ -187,6 +187,10 @@ pub struct Viewer {
     /// The compact view is on (#347). Off is the default.
     #[serde(skip_serializing_if = "is_false")]
     pub compact: bool,
+    /// The grid shows the oldest rows first (#347). Newest first is the
+    /// default.
+    #[serde(skip_serializing_if = "is_false")]
+    pub oldest_first: bool,
     /// Widths of the grid columns the user resized, in pixels, by column
     /// name (#347). A column without an entry gets its natural width. The
     /// table comes last: TOML wants plain values before tables.
@@ -279,6 +283,7 @@ pub(crate) const VIEWER_KEYS: &[&str] = &[
     "raw",
     "details_hidden",
     "compact",
+    "oldest_first",
     "column_widths",
 ];
 pub(crate) const FILTER_KEYS: &[&str] = &["exclude_globs", "exclude_regex", "presets"];
@@ -338,6 +343,7 @@ mod tests {
         settings.viewer.width = Some(1280);
         settings.viewer.height = Some(800);
         settings.viewer.compact = true;
+        settings.viewer.oldest_first = true;
         settings.viewer.column_widths.insert("path".into(), 640);
         settings.viewer.column_widths.insert("time".into(), 150);
         insta::assert_snapshot!(to_toml(&settings).unwrap());
