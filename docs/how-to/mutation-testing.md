@@ -6,16 +6,13 @@ mutant that survives is code no test really checks.
 
 ## Where it runs
 
-- **PR** (`mutants in diff (advisory)` in `ci.yml`): only mutants in lines the
-  PR changes, on `windows-2025`, after `test (windows x64)`. Missed mutants
-  show as annotations on the diff. Advisory for four weeks, then required
-  for `peekbuddy-core` and `peekbuddy-store`.
-- **Nightly** (#17): the whole workspace in 8 shards on Windows, plus
-  `peekbuddy-core` on Linux.
+- **Nightly** (#17): the whole workspace in 32 shards on Windows, plus
+  `peekbuddy-core` in 4 shards on Linux, 360 minutes each. Never part of the
+  PR flow.
 
 What is examined is set in `.cargo/mutants.toml` (`examine_re`,
-`exclude_re`). There is no score threshold: any missed mutant in examined
-code fails.
+`exclude_re`). The nightly gate is a score of 80 %
+(caught / caught + missed + timeout).
 
 ## Running locally
 

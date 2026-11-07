@@ -295,7 +295,7 @@ jobs:
     name: mutants (shard ${{ matrix.shard }}/32)
     runs-on: windows-2025
     # Eight shards ran into 120 minutes and sixteen into 180; thirty-two.
-    timeout-minutes: 180
+    timeout-minutes: 360
     permissions:
       contents: read
     strategy:
@@ -379,8 +379,8 @@ jobs:
   mutants-core-linux:
     name: mutants (core, linux, ${{ matrix.shard }}/4)
     runs-on: ubuntu-latest
-    # One job ran into 180 minutes; four shards.
-    timeout-minutes: 120
+    # One job ran into 180 minutes; four shards, GitHub's 360 maximum.
+    timeout-minutes: 360
     permissions:
       contents: read
     strategy:
