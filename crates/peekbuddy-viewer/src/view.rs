@@ -36,6 +36,7 @@ use crate::filterspec::{
     Chip, Field, FilterSpec, PatternKind, Span, SpecError, format_local_time, parse_local_time,
 };
 use crate::follow::Follow;
+use crate::order::Order;
 use crate::rows::{GridRow, OffsetFn, RowClass};
 use crate::selection::{Selection, Step};
 use crate::source::PageSource;
@@ -292,6 +293,15 @@ pub struct LogView {
     folds: Folds,
     /// What `folds` was made from: timeline revision, mode, `expanded_gen`.
     folds_key: Option<(u64, bool, u64)>,
+    /// Which end of the log the grid starts at (F5).
+    order: Order,
+    /// Rows came in while following oldest first and the grid is about to
+    /// scroll to them: the next frame must not take the old position for
+    /// "the user scrolled away".
+    pin_follow: bool,
+    /// The order changed and the new view has not started yet: it starts at
+    /// the newest rows whatever the old position was.
+    reorder: bool,
 }
 
 /// The status line, rebuilt only when what it says changes.
@@ -387,6 +397,9 @@ impl LogView {
             expanded_gen: 0,
             folds: Folds::default(),
             folds_key: None,
+            order: Order::default(),
+            pin_follow: false,
+            reorder: false,
         };
         view.worker.send(Job::Extent { generation: 1 });
         Ok(view)
@@ -424,6 +437,34 @@ impl LogView {
             .into_iter()
             .flatten()
             .filter_map(|index| self.timeline.row_at(index))
+    }
+
+    /// The order the grid shows its rows in.
+    #[must_use]
+    pub const fn order(&self) -> Order {
+        self.order
+    }
+
+    /// Shows the rows in `order`, starting over at the newest rows (the
+    /// time column header does this). The filter stays.
+    pub fn set_order(&mut self, order: Order) {
+        if order == self.order {
+            return;
+        }
+        self.order = order;
+        self.expanded_gen += 1;
+        self.pin_follow = false;
+        self.reorder = true;
+        self.set_filter(self.filter.clone());
+    }
+
+    /// Scrolls so that the newest row is in sight: the top when newest
+    /// first, the bottom when oldest first.
+    fn scroll_to_newest(&mut self) {
+        self.scroll_to = Some(match self.order {
+            Order::Descending => (0, egui::Align::TOP),
+            Order::Ascending => (self.timeline.newest_row(), egui::Align::BOTTOM),
+        });
     }
 
     /// Starts over with another filter: the old reads are cancelled and the
@@ -691,6 +732,7 @@ impl LogView {
                     if matches!(fetch, Fetch::Seek { .. }) {
                         self.first_page = true;
                         self.watch_tail();
+                        self.stay_at_newest();
                     }
                 }
                 Err(error) => {
@@ -714,7 +756,12 @@ impl LogView {
                 generation,
                 fetched,
             } if generation == self.generation => match self.timeline.ingest_tail(fetched) {
-                Tail::Merged(count) => self.selection.shift_down(count),
+                Tail::Merged(count) => match self.order {
+                    // Above the old rows: they all move down.
+                    Order::Descending => self.selection.shift_down(count),
+                    // Below them: nothing moves, and following goes along.
+                    Order::Ascending => self.stay_at_newest(),
+                },
                 Tail::Counted(count) => self.follow.arrived(count),
                 Tail::Hole => self.watching = false,
                 Tail::Nothing => {}
@@ -731,6 +778,16 @@ impl LogView {
         }
     }
 
+    /// Oldest first, following means sitting at the last row: when the end
+    /// of the view moves (a page landed, rows came in) the grid goes along.
+    /// Newest first the new rows push in above the view, which stays at 0.
+    fn stay_at_newest(&mut self) {
+        if self.order == Order::Ascending && self.follow.is_following() {
+            self.scroll_to_newest();
+            self.pin_follow = true;
+        }
+    }
+
     fn on_extent(&mut self, result: Result<Option<Extent>, String>) {
         let extent = match result {
             Ok(extent) => extent,
@@ -741,9 +798,20 @@ impl LogView {
             }
         };
         let seekable = is_seekable(&self.filter);
-        self.timeline = Timeline::new(extent, seekable, self.filter.is_empty());
+        self.timeline =
+            Timeline::new(extent, seekable, self.filter.is_empty()).with_order(self.order);
         self.phase = Phase::Ready;
         self.reloading = false;
+        if self.order == Order::Ascending || self.reorder {
+            // A new view starts where following sits: at the newest rows.
+            let rows = self.visible.end.saturating_sub(self.visible.start).max(1);
+            self.visible = self.timeline.newest_view(rows);
+            if self.reorder {
+                self.scroll_to_newest();
+            }
+            self.stay_at_newest();
+        }
+        self.reorder = false;
         if extent.is_none() {
             // Nothing recorded yet: the empty view is the first page, and
             // the tail brings the first rows.
@@ -1254,7 +1322,12 @@ impl LogView {
             return;
         }
         self.folds = if self.compact {
-            Folds::build(self.timeline.iter(), self.timeline.top(), &self.expanded)
+            Folds::build_ordered(
+                self.timeline.iter(),
+                self.timeline.display_top(),
+                &self.expanded,
+                self.timeline.order(),
+            )
         } else {
             Folds::default()
         };
@@ -1286,6 +1359,7 @@ impl LogView {
             table = table.scroll_to_row(row, Some(align));
         }
         let mut toggle = None;
+        let mut flip_order = false;
         let mut grid = Grid {
             timeline: &mut self.timeline,
             worker: &self.worker,
@@ -1300,8 +1374,14 @@ impl LogView {
             action: &mut self.action,
             folds: &self.folds,
             toggle: &mut toggle,
+            order: self.order,
+            flip_order: &mut flip_order,
+            pinned: std::mem::take(&mut self.pin_follow),
         };
         table.show(ui, &mut grid);
+        if flip_order {
+            self.set_order(self.order.flipped());
+        }
         if let Some(head) = toggle
             && !self.expanded.remove(&head)
         {
@@ -1343,7 +1423,8 @@ impl LogView {
         self.selection.clear();
         let fetch = self.timeline.jump_to_newest();
         self.send_page(fetch);
-        self.scroll_to = Some((0, egui::Align::TOP));
+        self.scroll_to_newest();
+        self.pin_follow = self.order == Order::Ascending;
     }
 
     fn send_page(&self, fetch: Fetch) {
@@ -1405,6 +1486,13 @@ struct Grid<'a> {
     folds: &'a Folds,
     /// The head whose group the user opened or closed.
     toggle: &'a mut Option<i64>,
+    /// The order of the rows, for the mark in the time column's title.
+    order: Order,
+    /// Set when the time column's title was clicked.
+    flip_order: &'a mut bool,
+    /// The grid is being scrolled to the newest row this frame: do not read
+    /// the position before the scroll as the user leaving it.
+    pinned: bool,
 }
 
 fn row_tint(ui: &egui::Ui, class: RowClass) -> Option<egui::Color32> {
@@ -1432,14 +1520,35 @@ impl TableDelegate for Grid<'_> {
                 cancel: self.cancel.clone(),
             });
         }
-        if !self.timeline.is_empty() {
-            let at_top = info.visible_rows.start == 0 && self.timeline.at_newest();
-            self.follow.moved(at_top);
+        if !self.timeline.is_empty() && !self.pinned {
+            let at_edge = self.timeline.at_follow_edge(&info.visible_rows);
+            self.follow.moved(at_edge);
         }
     }
 
     fn header_cell_ui(&mut self, ui: &mut egui::Ui, cell: &HeaderCellInfo) {
-        if let Some(col) = self.columns.get(cell.col_range.start) {
+        let Some(col) = self.columns.get(cell.col_range.start) else {
+            return;
+        };
+        if *col == Col::Time {
+            // The time column is the id order (F5): a click flips it.
+            let clicked = ui
+                .horizontal(|ui| {
+                    let title = egui::Label::new(egui::RichText::new(col.title()).strong());
+                    let title = ui.add(title.sense(egui::Sense::click()));
+                    let mark = egui::Label::new(self.order.mark());
+                    let mark = ui.add(mark.sense(egui::Sense::click()));
+                    title
+                        .union(mark)
+                        .on_hover_text(self.order.tip())
+                        .on_hover_cursor(egui::CursorIcon::PointingHand)
+                        .clicked()
+                })
+                .inner;
+            if clicked {
+                *self.flip_order = true;
+            }
+        } else {
             ui.strong(col.title()).on_hover_text(col.tip());
         }
     }
