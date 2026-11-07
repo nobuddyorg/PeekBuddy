@@ -751,6 +751,34 @@ how = "criterion bench query/filtered_first_1m in the nightly query bench job (s
 arch = ["x86_64"]
 
 [[budget]]
+id = "bench.viewer.scroll_frame_p95"
+metric = "95th percentile of the frame time of the log grid under a scripted scroll"
+unit = "ns"
+bound = "max"
+class = "timing"
+gate = "pr-ab"
+scenario = "bench-ab"
+status = "provisional"
+source = "#347, F9"
+workload = "criterion bench viewer/scroll_frame_p95: 10M-row fake log, three wheel lines per frame, UI pass only"
+how = "cargo xtask bench-ab (same-runner A/B, warn +15 %, fail +50 %)"
+arch = ["x86_64"]
+
+[[budget]]
+id = "bench.viewer.scroll_frame_p99"
+metric = "99th percentile of the frame time of the log grid under a scripted scroll"
+unit = "ns"
+bound = "max"
+class = "timing"
+gate = "nightly-trend"
+scenario = "bench-ab"
+status = "provisional"
+source = "#347, F9; trended, not gated on a PR: the 99th percentile of a thousand frames is the tenth worst, which a hosted runner moves by more than 50 % between two identical builds"
+workload = "criterion bench viewer/scroll_frame_p99: 10M-row fake log, three wheel lines per frame, UI pass only"
+how = "cargo xtask bench-ab reports it on a PR; cargo xtask bench-trend alerts at +25 % against the rolling median"
+arch = ["x86_64"]
+
+[[budget]]
 id = "bench.store.intern_hit_1000"
 metric = "1,000 interner lookups that hit in memory"
 unit = "ns"

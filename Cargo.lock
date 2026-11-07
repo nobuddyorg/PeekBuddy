@@ -390,8 +390,10 @@ name = "benches"
 version = "0.1.0-rc.1"
 dependencies = [
  "criterion",
+ "egui",
  "peekbuddy-core",
  "peekbuddy-store",
+ "peekbuddy-viewer",
  "peekbuddy-win",
  "rusqlite",
 ]
