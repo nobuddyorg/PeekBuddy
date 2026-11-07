@@ -13,7 +13,8 @@ monthly and whenever Dependabot opens a manual-only PR.
 | windows / windows-sys | windows-sys =0.61.2 | 0.100 | tray-icon, muda, eframe, windows-service and tauri-winrt-notification have moved | open |
 | winit | via eframe | 0.31 | eframe depends on a stable 0.31 | open |
 | egui, eframe, egui_table | =0.37.0, =0.11.0 | next egui release | about every 6 weeks, manual | open |
-| rusqlite / SQLite | 0.40.2, SQLite 3.53.2 | 0.41.x, SQLite 3.54.x | Dependabot PR #352 | open |
+| rusqlite / SQLite | 0.41.1 | next minor | Dependabot, manual | done in #410 |
+| glow | via eframe (0.17) | follows eframe | eframe re-exports glow; Dependabot ignores it | no change |
 | Tracy | tracy-client-sys =0.30.1 (Tracy 0.14.1) | next protocol | Tracy GUI of the playbook moves | open |
 | notify 9 | not used (F20) | reference only | none | no change |
 
