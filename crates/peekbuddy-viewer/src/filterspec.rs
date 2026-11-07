@@ -136,6 +136,7 @@ impl Chip {
                 Kind::SegmentRotated,
                 Kind::RetentionPurged,
                 Kind::SettingsChanged,
+                Kind::Marker,
             ],
         }
     }

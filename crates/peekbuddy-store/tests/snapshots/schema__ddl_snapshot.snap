@@ -37,6 +37,15 @@ CREATE INDEX event_node ON event(node_id, id);
 
 CREATE INDEX event_root ON event(root_id, id);
 
+CREATE TABLE marker (
+  id INTEGER PRIMARY KEY,
+  event_id INTEGER NOT NULL,
+  name TEXT NOT NULL,
+  created_ts INTEGER NOT NULL
+) STRICT;
+
+CREATE UNIQUE INDEX marker_event ON marker(event_id);
+
 CREATE TABLE meta (
   key TEXT PRIMARY KEY,
   value ANY

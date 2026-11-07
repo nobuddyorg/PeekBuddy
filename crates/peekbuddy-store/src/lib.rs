@@ -10,6 +10,7 @@ pub mod catalog;
 pub mod export;
 pub mod ids;
 pub mod interner;
+pub mod markers;
 pub mod names;
 pub mod pipeline;
 pub mod policy;
