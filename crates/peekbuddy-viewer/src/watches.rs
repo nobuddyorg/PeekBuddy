@@ -538,4 +538,7 @@ fn paint_icon(ui: &mut egui::Ui, icon: Icon, size: f32) -> egui::Response {
 }
 
 #[cfg(test)]
+mod mapping_tests;
+
+#[cfg(test)]
 mod tests;
