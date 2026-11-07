@@ -14,7 +14,7 @@ pub enum Mode {
     Timer,
     /// Every pause or resume leaks a handle: handle stability fails.
     HandleLeak,
-    /// Every 1,000th event is dropped without a gap: undetected loss fails.
+    /// Every 50th event is dropped without a gap: undetected loss fails.
     DropRow,
 }
 
@@ -56,5 +56,5 @@ pub fn leak_handle() {
 #[must_use]
 pub fn drop_this_event() -> bool {
     static SEEN: AtomicU64 = AtomicU64::new(0);
-    mode() == Some(Mode::DropRow) && SEEN.fetch_add(1, Ordering::Relaxed) % 1_000 == 999
+    mode() == Some(Mode::DropRow) && SEEN.fetch_add(1, Ordering::Relaxed) % 50 == 49
 }
