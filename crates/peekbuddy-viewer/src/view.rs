@@ -17,15 +17,17 @@
 //! A page that has not arrived is drawn as an ellipsis row; the UI thread
 //! never waits for the database.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Write as _;
 use std::io;
 use std::ops::Range;
 use std::sync::Arc;
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
+use crate::colwidth::Widths;
 use egui_table::{
     AutoSizeMode, CellInfo, Column, HeaderCellInfo, HeaderRow, PrefetchInfo, Table, TableDelegate,
+    TableState,
 };
 use peekbuddy_core::event::Flags;
 use peekbuddy_core::query::{CancelFlag, Filter};
@@ -137,6 +139,11 @@ impl Col {
         }
     }
 
+    /// The id `egui_table` keeps the width of this column under.
+    fn id(self) -> egui::Id {
+        egui::Id::unique(("viewer_column", self.name()))
+    }
+
     const fn width(self) -> f32 {
         match self {
             Self::Time => 180.0,
@@ -183,6 +190,11 @@ pub enum ViewEvent {
     ColumnsChanged(Vec<String>),
     /// The details pane was opened or closed (`true`: open).
     DetailsToggled(bool),
+    /// The compact view was switched (`true`: on).
+    CompactToggled(bool),
+    /// The user resized columns and let go: these are the widths by column
+    /// name for `[viewer] column_widths`.
+    ColumnWidthsChanged(BTreeMap<String, u32>),
     /// Show a path in Explorer: select the item (`select`), or open the
     /// folder it is in. The app does it off the UI thread.
     Open {
@@ -302,6 +314,8 @@ pub struct LogView {
     /// The order changed and the new view has not started yet: it starts at
     /// the newest rows whatever the old position was.
     reorder: bool,
+    /// The widths the user chose for the columns (#347).
+    widths: Widths,
 }
 
 /// The status line, rebuilt only when what it says changes.
@@ -400,6 +414,7 @@ impl LogView {
             order: Order::default(),
             pin_follow: false,
             reorder: false,
+            widths: Widths::default(),
         };
         view.worker.send(Job::Extent { generation: 1 });
         Ok(view)
@@ -671,6 +686,25 @@ impl LogView {
     /// Opens or closes the details pane (from `[viewer] details_hidden`).
     pub const fn set_details(&mut self, open: bool) {
         self.details = open;
+    }
+
+    /// Switches the compact view (from `[viewer] compact`).
+    pub fn set_compact(&mut self, on: bool) {
+        self.compact = on;
+        self.expanded.clear();
+        self.expanded_gen += 1;
+    }
+
+    /// Whether the compact view is on.
+    #[must_use]
+    pub const fn compact(&self) -> bool {
+        self.compact
+    }
+
+    /// The widths to restore (from `[viewer] column_widths`); they apply the
+    /// first time the grid is drawn.
+    pub fn set_column_widths(&mut self, saved: &BTreeMap<String, u32>) {
+        self.widths = Widths::new(saved);
     }
 
     /// Whether the details pane is open.
@@ -1005,7 +1039,7 @@ impl LogView {
                     }
                 });
         }
-        self.table(ui);
+        self.table(ui, &mut events);
         self.pill(&ctx);
         if let Some(action) = self.action.take() {
             self.act(&ctx, action, &mut events);
@@ -1094,9 +1128,8 @@ impl LogView {
                 )
                 .clicked()
             {
-                self.compact = !self.compact;
-                self.expanded.clear();
-                self.expanded_gen += 1;
+                self.set_compact(!self.compact);
+                events.push(ViewEvent::CompactToggled(self.compact));
             }
             if ui.selectable_label(self.details, "Details").clicked() {
                 self.details = !self.details;
@@ -1337,7 +1370,7 @@ impl LogView {
         self.folds_key = Some(key);
     }
 
-    fn table(&mut self, ui: &mut egui::Ui) {
+    fn table(&mut self, ui: &mut egui::Ui, events: &mut Vec<ViewEvent>) {
         ui.style_mut().interaction.selectable_labels = false;
         self.refresh_folds();
         let columns: Vec<Column> = self
@@ -1345,6 +1378,7 @@ impl LogView {
             .iter()
             .map(|col| {
                 Column::new(col.width())
+                    .id(col.id())
                     .resizable(true)
                     .range(48.0..=col.max_width())
             })
@@ -1357,6 +1391,22 @@ impl LogView {
             .auto_size_mode(AutoSizeMode::Always);
         if let Some((row, align)) = self.scroll_to.take() {
             table = table.scroll_to_row(row, Some(align));
+        }
+        let table_id = table.get_id(ui);
+        if !self.widths.is_empty() && TableState::load(ui.ctx(), table_id).is_none() {
+            // First draw: start from the widths the user chose. The state is
+            // keyed by column, so a column keeps its width when others come
+            // and go.
+            let col_widths = self
+                .columns
+                .iter()
+                .filter_map(|col| Some((col.id(), self.widths.get(col.name())?)))
+                .collect();
+            TableState {
+                col_widths,
+                parent_width: None,
+            }
+            .store(ui.ctx(), table_id);
         }
         let mut toggle = None;
         let mut flip_order = false;
@@ -1382,6 +1432,7 @@ impl LogView {
         if flip_order {
             self.set_order(self.order.flipped());
         }
+        self.note_widths(ui, table_id, events);
         if let Some(head) = toggle
             && !self.expanded.remove(&head)
         {
@@ -1397,6 +1448,31 @@ impl LogView {
             // The grid moved the island while drawing: draw again with folds
             // made for the rows it holds now.
             ui.ctx().request_repaint();
+        }
+    }
+
+    /// Takes over the widths the user dragged to and reports them once they
+    /// have been still for a moment (#347).
+    fn note_widths(&mut self, ui: &egui::Ui, table_id: egui::Id, events: &mut Vec<ViewEvent>) {
+        let now = Instant::now();
+        // Only a drag of a column edge (or a double click that fits it) is
+        // the user's doing; egui_table also moves widths with the window.
+        let user = self.columns.iter().any(|col| {
+            ui.read_response(table_id.with(col.id()).with("resize"))
+                .is_some_and(|r| r.dragged() || r.drag_stopped() || r.double_clicked())
+        });
+        if user && let Some(state) = TableState::load(ui.ctx(), table_id) {
+            let current = self
+                .columns
+                .iter()
+                .filter_map(|col| Some((col.name(), *state.col_widths.get(&col.id())?)));
+            self.widths.observe(current, true, now);
+        }
+        if let Some(widths) = self.widths.take_due(now) {
+            events.push(ViewEvent::ColumnWidthsChanged(widths));
+        }
+        if let Some(left) = self.widths.remaining(now) {
+            ui.ctx().request_repaint_after(left);
         }
     }
 
@@ -1536,11 +1612,12 @@ impl TableDelegate for Grid<'_> {
                 .horizontal(|ui| {
                     let title = egui::Label::new(egui::RichText::new(col.title()).strong());
                     let title = ui.add(title.sense(egui::Sense::click()));
-                    let mark = egui::Label::new(self.order.mark());
-                    let mark = ui.add(mark.sense(egui::Sense::click()));
-                    title
-                        .union(mark)
-                        .on_hover_text(self.order.tip())
+                    let mut hit = title;
+                    if !self.order.mark().is_empty() {
+                        let mark = egui::Label::new(self.order.mark());
+                        hit = hit.union(ui.add(mark.sense(egui::Sense::click())));
+                    }
+                    hit.on_hover_text(self.order.tip())
                         .on_hover_cursor(egui::CursorIcon::PointingHand)
                         .clicked()
                 })

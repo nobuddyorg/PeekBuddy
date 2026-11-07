@@ -1,0 +1,191 @@
+---
+source: crates/peekbuddy-viewer/src/layout_snapshots.rs
+expression: text
+---
+scene: spoofed name
+look: dark_1.0ppp
+region: 0.0,0.0 1100.0x520.0
+
+[accessible tree]
+Button "Log" 16.0,46.0 37.5x20.0
+Button "Watches (1)" 61.5,46.0 83.8x20.0
+Button "Settings" 153.3,46.0 63.4x20.0
+TextInput "Search" 62.7,78.0 200.0x20.0
+Button "Created" 270.7,78.0 62.3x20.0
+Button "Modified" 340.9,78.0 68.2x20.0
+Button "Deleted" 417.1,78.0 62.4x20.0
+Button "Renamed" 487.5,78.0 71.1x20.0
+Button "Attributes" 566.6,78.0 75.0x20.0
+Button "Gaps" 649.7,78.0 44.3x20.0
+Button "Engine" 702.0,78.0 55.7x20.0
+ComboBox "When" 765.6,78.0 100.0x20.0
+Button "More" 915.5,78.0 46.8x20.0
+Button "Compact" 970.3,78.0 67.9x20.0
+Button "Details" 16.0,101.0 55.8x20.0
+Button "Columns" 16.0,124.0 66.4x20.0
+Splitter "Resize panel" 798.0,147.0 6.0x332.0
+
+[painted, back to front]
+rect 8.0,8.0 1084.0x504.0 fill #1b1b1b
+rect 8.0,8.0 1084.0x29.0 fill #1b1b1b
+text 16.0,10.0 110.0x25.0 #8c8c8c/#e0954f "PeekBuddy"
+linesegment 7.5,37.0 1085.0x1.0
+rect 8.0,488.0 1084.0x24.0 fill #1b1b1b
+linesegment 17.5,499.9 5.1x5.1
+linesegment 21.1,495.1 7.5x9.9
+text 38.0,492.5 87.6x15.0 #8c8c8c "Engine running"
+linesegment 7.5,487.0 1085.0x1.0
+rect 8.0,38.0 1084.0x449.0 fill #1b1b1b
+rect 16.0,46.0 37.5x20.0 fill #005c80
+text 24.0,48.5 21.5x15.0 #c0deff "Log"
+rect 61.5,46.0 83.8x20.0
+text 69.5,48.5 67.8x15.0 #d7d7d7 "Watches (1)"
+rect 153.3,46.0 63.4x20.0
+text 161.3,48.5 47.4x15.0 #d7d7d7 "Settings"
+linesegment 15.5,71.5 1069.0x1.0
+text 16.0,78.0 38.7x20.0 #8c8c8c "Search"
+rect 62.7,78.0 200.0x20.0 fill #0a0a0a
+text 70.7,80.0 93.6x15.0 #8c8c8c99 "name contains..."
+text 70.7,80.0 0.0x15.0 #d7d7d7 ""
+rect 270.7,78.0 62.3x20.0
+text 278.7,80.5 46.3x15.0 #d7d7d7 "Created"
+rect 340.9,78.0 68.2x20.0
+text 348.9,80.5 52.2x15.0 #d7d7d7 "Modified"
+rect 417.1,78.0 62.4x20.0
+text 425.1,80.5 46.4x15.0 #d7d7d7 "Deleted"
+rect 487.5,78.0 71.1x20.0
+text 495.5,80.5 55.1x15.0 #d7d7d7 "Renamed"
+rect 566.6,78.0 75.0x20.0
+text 574.6,80.5 59.0x15.0 #d7d7d7 "Attributes"
+rect 649.7,78.0 44.3x20.0
+text 657.7,80.5 28.3x15.0 #d7d7d7 "Gaps"
+rect 702.0,78.0 55.7x20.0
+text 710.0,80.5 39.7x15.0 #d7d7d7 "Engine"
+rect 765.6,78.0 141.9x20.0
+rect 765.6,78.0 100.0x20.0 fill #323232
+text 773.6,80.5 51.2x15.0 #d7d7d7 "Any time"
+path 845.7,84.9 9.8x6.3
+text 873.6,80.5 33.9x15.0 #8c8c8c "When"
+rect 915.5,78.0 46.8x20.0
+text 923.5,80.5 30.8x15.0 #d7d7d7 "More"
+rect 970.3,78.0 67.9x20.0
+text 978.3,80.5 51.9x15.0 #d7d7d7 "Compact"
+rect 16.0,101.0 55.8x20.0 fill #005c80
+text 24.0,103.5 39.8x15.0 #c0deff "Details"
+rect 16.0,124.0 66.4x20.0 fill #323232
+text 24.0,126.5 50.4x15.0 #d7d7d7 "Columns"
+text 16.0,124.0 232.9x20.0 #8c8c8c "about 20 events, 1 selected"
+rect 802.0,147.0 282.0x332.0 fill #1b1b1b
+rect 810.0,149.0 257.1x431.0
+text 810.0,151.5 10.8x15.0 #ffffff "Id"
+text 914.1,151.5 14.7x15.0 #8c8c8c "20"
+text 810.0,175.5 66.4x15.0 #ffffff "Time (local)"
+text 914.1,175.5 144.5x15.0 #8c8c8c "2026-10-26 12:00:00.020"
+text 810.0,204.5 63.3x15.0 #ffffff "Time (UTC)"
+text 914.1,197.0 134.3x30.0 #8c8c8c "2026-10-26T12:00:00.0200000Z"
+text 810.0,233.5 92.1x15.0 #ffffff "Time (FILETIME)"
+text 914.1,233.5 132.0x15.0 #8c8c8c "134374896000200000"
+text 810.0,257.5 25.8x15.0 #ffffff "Kind"
+text 914.1,257.5 52.2x15.0 #8c8c8c "Modified"
+text 810.0,281.5 39.7x15.0 #ffffff "Source"
+text 914.1,281.5 37.1x15.0 #8c8c8c "RDCW"
+text 810.0,310.5 26.6x15.0 #ffffff "Path"
+text 914.1,303.0 143.2x30.0 #8c8c8c "C:\\w\\invoice\\u{202E}fdp.exe"
+text 810.0,339.5 27.8x15.0 #ffffff "Type"
+text 914.1,339.5 90.4x15.0 #8c8c8c "file or unknown"
+text 810.0,363.5 22.8x15.0 #ffffff "Size"
+text 914.1,363.5 100.4x15.0 #8c8c8c "100 bytes (100 B)"
+text 810.0,387.5 59.0x15.0 #ffffff "Attributes"
+text 914.1,387.5 74.7x15.0 #8c8c8c "not reported"
+text 810.0,416.5 58.4x15.0 #ffffff "Raw value"
+text 914.1,409.0 142.1x30.0 #8c8c8c "0x00000003  FILE_ACTION_MODIFIED"
+text 810.0,445.5 29.7x15.0 #ffffff "Flags"
+text 914.1,445.5 29.5x15.0 #8c8c8c "none"
+text 914.1,467.0 153.0x90.0 #8c8c8c "The name has characters that cannot be drawn safely (invisib..."
+mesh 810.0,457.0 266.0x20.0
+rect 1074.0,149.0 2.0x328.0
+rect 1074.0,149.0 2.0x249.6
+linesegment 801.0,146.5 1.0x333.0
+rect 16.0,147.0 785.0x466.0
+rect 16.0,173.0 225.0x22.0 fill #005c80
+text 16.0,176.5 144.5x15.0 #8c8c8c "2026-10-26 12:00:00.020"
+rect 241.0,173.0 212.5x22.0 fill #005c80
+text 241.0,176.5 62.4x15.0 #8c8c8c "~ Modified"
+rect 453.5,173.0 347.5x22.0 fill #005c80
+text 453.5,176.5 6.5x15.0 #ff8f00 "! "
+text 460.0,177.5 75.8x15.0 #8c8c8c "C:\\w\\invoice\\"
+text 535.8,177.5 88.6x15.0 #8c8c8c "u{202E}fdp.exe"
+text 16.0,198.5 144.5x15.0 #8c8c8c "2026-10-26 12:00:00.019"
+text 241.0,198.5 62.4x15.0 #8c8c8c "~ Modified"
+text 453.5,198.5 6.5x15.0 #ff8f00 "! "
+text 460.0,199.5 75.8x15.0 #8c8c8c "C:\\w\\invoice\\"
+text 535.8,199.5 88.6x15.0 #8c8c8c "u{202E}fdp.exe"
+text 16.0,220.5 144.5x15.0 #8c8c8c "2026-10-26 12:00:00.018"
+text 241.0,220.5 62.4x15.0 #8c8c8c "~ Modified"
+text 453.5,220.5 6.5x15.0 #ff8f00 "! "
+text 460.0,221.5 75.8x15.0 #8c8c8c "C:\\w\\invoice\\"
+text 535.8,221.5 88.6x15.0 #8c8c8c "u{202E}fdp.exe"
+text 16.0,242.5 144.5x15.0 #8c8c8c "2026-10-26 12:00:00.017"
+text 241.0,242.5 62.4x15.0 #8c8c8c "~ Modified"
+text 453.5,242.5 6.5x15.0 #ff8f00 "! "
+text 460.0,243.5 75.8x15.0 #8c8c8c "C:\\w\\invoice\\"
+text 535.8,243.5 88.6x15.0 #8c8c8c "u{202E}fdp.exe"
+text 16.0,264.5 144.5x15.0 #8c8c8c "2026-10-26 12:00:00.016"
+text 241.0,264.5 62.4x15.0 #8c8c8c "~ Modified"
+text 453.5,264.5 6.5x15.0 #ff8f00 "! "
+text 460.0,265.5 75.8x15.0 #8c8c8c "C:\\w\\invoice\\"
+text 535.8,265.5 88.6x15.0 #8c8c8c "u{202E}fdp.exe"
+text 16.0,286.5 144.5x15.0 #8c8c8c "2026-10-26 12:00:00.015"
+text 241.0,286.5 62.4x15.0 #8c8c8c "~ Modified"
+text 453.5,286.5 6.5x15.0 #ff8f00 "! "
+text 460.0,287.5 75.8x15.0 #8c8c8c "C:\\w\\invoice\\"
+text 535.8,287.5 88.6x15.0 #8c8c8c "u{202E}fdp.exe"
+text 16.0,308.5 144.5x15.0 #8c8c8c "2026-10-26 12:00:00.014"
+text 241.0,308.5 62.4x15.0 #8c8c8c "~ Modified"
+text 453.5,308.5 6.5x15.0 #ff8f00 "! "
+text 460.0,309.5 75.8x15.0 #8c8c8c "C:\\w\\invoice\\"
+text 535.8,309.5 88.6x15.0 #8c8c8c "u{202E}fdp.exe"
+text 16.0,330.5 144.5x15.0 #8c8c8c "2026-10-26 12:00:00.013"
+text 241.0,330.5 62.4x15.0 #8c8c8c "~ Modified"
+text 453.5,330.5 6.5x15.0 #ff8f00 "! "
+text 460.0,331.5 75.8x15.0 #8c8c8c "C:\\w\\invoice\\"
+text 535.8,331.5 88.6x15.0 #8c8c8c "u{202E}fdp.exe"
+text 16.0,352.5 144.5x15.0 #8c8c8c "2026-10-26 12:00:00.012"
+text 241.0,352.5 62.4x15.0 #8c8c8c "~ Modified"
+text 453.5,352.5 6.5x15.0 #ff8f00 "! "
+text 460.0,353.5 75.8x15.0 #8c8c8c "C:\\w\\invoice\\"
+text 535.8,353.5 88.6x15.0 #8c8c8c "u{202E}fdp.exe"
+text 16.0,374.5 144.5x15.0 #8c8c8c "2026-10-26 12:00:00.011"
+text 241.0,374.5 62.4x15.0 #8c8c8c "~ Modified"
+text 453.5,374.5 6.5x15.0 #ff8f00 "! "
+text 460.0,375.5 75.8x15.0 #8c8c8c "C:\\w\\invoice\\"
+text 535.8,375.5 88.6x15.0 #8c8c8c "u{202E}fdp.exe"
+text 16.0,396.5 144.5x15.0 #8c8c8c "2026-10-26 12:00:00.010"
+text 241.0,396.5 62.4x15.0 #8c8c8c "~ Modified"
+text 453.5,396.5 6.5x15.0 #ff8f00 "! "
+text 460.0,397.5 75.8x15.0 #8c8c8c "C:\\w\\invoice\\"
+text 535.8,397.5 88.6x15.0 #8c8c8c "u{202E}fdp.exe"
+text 16.0,418.5 144.5x15.0 #8c8c8c "2026-10-26 12:00:00.009"
+text 241.0,418.5 62.4x15.0 #8c8c8c "~ Modified"
+text 453.5,418.5 6.5x15.0 #ff8f00 "! "
+text 460.0,419.5 75.8x15.0 #8c8c8c "C:\\w\\invoice\\"
+text 535.8,419.5 88.6x15.0 #8c8c8c "u{202E}fdp.exe"
+text 16.0,440.5 144.5x15.0 #8c8c8c "2026-10-26 12:00:00.008"
+text 241.0,440.5 62.4x15.0 #8c8c8c "~ Modified"
+text 453.5,440.5 6.5x15.0 #ff8f00 "! "
+text 460.0,441.5 75.8x15.0 #8c8c8c "C:\\w\\invoice\\"
+text 535.8,441.5 88.6x15.0 #8c8c8c "u{202E}fdp.exe"
+text 16.0,462.5 144.5x15.0 #8c8c8c "2026-10-26 12:00:00.007"
+text 241.0,462.5 62.4x15.0 #8c8c8c "~ Modified"
+text 453.5,462.5 6.5x15.0 #ff8f00 "! "
+text 460.0,463.5 75.8x15.0 #8c8c8c "C:\\w\\invoice\\"
+text 535.8,463.5 88.6x15.0 #8c8c8c "u{202E}fdp.exe"
+mesh 16.0,459.0 785.0x20.0
+rect 799.0,173.0 2.0x306.0
+rect 799.0,173.0 2.0x218.0
+text 16.0,152.5 28.6x15.0 #ffffff "Time"
+text 241.0,152.5 25.8x15.0 #ffffff "Kind"
+text 453.5,152.5 26.6x15.0 #ffffff "Path"
+linesegment 240.5,146.5 1.0x333.0
+linesegment 453.0,146.5 1.0x333.0
+linesegment 800.5,146.5 1.0x333.0

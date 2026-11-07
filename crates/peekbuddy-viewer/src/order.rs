@@ -25,11 +25,12 @@ impl Order {
         }
     }
 
-    /// The mark in the title of the time column.
+    /// The mark after the title of the time column: none for the default
+    /// order, so the usual header stays as it was.
     #[must_use]
     pub const fn mark(self) -> &'static str {
         match self {
-            Self::Descending => "v",
+            Self::Descending => "",
             Self::Ascending => "^",
         }
     }
