@@ -192,6 +192,8 @@ struct Shared {
     error: Option<String>,
     progress: Option<Progress>,
     running: bool,
+    /// Which request the state belongs to; a newer one replaces it.
+    generation: u64,
     result: Option<(Since, ChangeSet)>,
 }
 
@@ -300,12 +302,14 @@ impl ChangesPanel {
     pub fn compute(&mut self, since: Since) {
         self.cancel.cancel();
         self.cancel = CancelFlag::new();
-        {
+        let generation = {
             let mut shared = self.lock();
             shared.running = true;
             shared.progress = None;
             shared.error = None;
-        }
+            shared.generation += 1;
+            shared.generation
+        };
         let (dir, shared, waker, cancel, now) = (
             self.segments.clone(),
             Arc::clone(&self.shared),
@@ -328,14 +332,14 @@ impl ChangesPanel {
                 })
             });
             let mut shared = shared.lock().unwrap_or_else(PoisonError::into_inner);
-            // A newer request replaced this one: leave its state alone.
-            if !cancel.is_cancelled() || outcome.as_ref().is_ok_and(|set| set.cancelled) {
+            // A newer request replaced this one: leave its state alone. A
+            // stopped one keeps what it found, marked as partial.
+            if shared.generation == generation {
                 shared.running = false;
-            }
-            match outcome {
-                Ok(set) if !cancel.is_cancelled() => shared.result = Some((since, set)),
-                Ok(_) => {}
-                Err(error) => shared.error = Some(format!("changes: {error}")),
+                match outcome {
+                    Ok(set) => shared.result = Some((since, set)),
+                    Err(error) => shared.error = Some(format!("changes: {error}")),
+                }
             }
             drop(shared);
             waker();
@@ -354,7 +358,6 @@ impl ChangesPanel {
     /// Stops the diff that runs.
     pub fn stop(&self) {
         self.cancel.cancel();
-        self.lock().running = false;
     }
 
     /// The finished diff, if any.

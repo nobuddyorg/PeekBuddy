@@ -411,3 +411,26 @@ fn an_empty_log_says_how_to_start() {
     harness.get_by_label("No markers yet. Mark a moment, do something, then ask what changed.");
     harness.get_by_label("Pick a marker, or a time span, to see what changed.");
 }
+
+#[test]
+fn a_newer_request_replaces_an_older_one_whatever_order_they_finish_in() {
+    let dir = Dir::new("replace");
+    let _writer = log(dir.path());
+    let mut harness = harness(dir.path());
+    harness.run();
+    for minutes in [15, 60, 1_440] {
+        harness.state_mut().0.compute(Since::Minutes(minutes));
+    }
+    wait_for(&mut harness, "the last result", |(panel, _)| {
+        panel
+            .result()
+            .is_some_and(|(since, _)| since == Since::Minutes(1_440))
+            && !panel.lock().running
+    });
+    // Nothing older arrives later and takes its place.
+    std::thread::sleep(Duration::from_millis(200));
+    assert_eq!(
+        harness.state().0.result().map(|(s, _)| s),
+        Some(Since::Minutes(1_440))
+    );
+}
