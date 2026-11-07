@@ -39,6 +39,7 @@ pub mod settings_ui;
 pub mod shell;
 pub mod shellpath;
 pub mod source;
+pub mod stats;
 pub mod theme;
 pub mod timeline;
 pub mod view;

@@ -30,6 +30,7 @@ use crate::settings_ui::{SettingsAction, SettingsScreen};
 use crate::shell::{Shell, ShellAction};
 use crate::shellpath;
 use crate::source::StoreSource;
+use crate::stats::StatsPanel;
 use crate::view::{LogView, ViewEvent};
 use crate::watches::{Tab, WatchAction, WatchPanel};
 use crate::{Options, Probe, theme};
@@ -259,6 +260,7 @@ struct ViewerApp {
     tab: Tab,
     panel: WatchPanel,
     changes: ChangesPanel,
+    stats: StatsPanel,
     /// Tags of the marker commands, whose answer belongs on the Changes tab.
     marker_tags: std::collections::HashSet<u64>,
     settings_screen: SettingsScreen,
@@ -413,6 +415,12 @@ impl ViewerApp {
         };
         let tag = self.link.send(command);
         self.watch_tags.insert(tag, origin);
+    }
+
+    /// Ctrl+M: mark the moment, from any screen but the first-run ones.
+    fn mark_shortcut(&self, ui: &egui::Ui) -> bool {
+        self.onboarding.is_none()
+            && ui.input_mut(|input| input.consume_key(egui::Modifiers::COMMAND, egui::Key::M))
     }
 
     /// Carries out what the user asked for on the Changes tab.
@@ -831,6 +839,7 @@ impl eframe::App for ViewerApp {
                 Tab::Log => view_events = self.view.show(ui),
                 Tab::Watches => watch_actions = self.panel.show(ui),
                 Tab::Changes => changes_actions = self.changes.show(ui),
+                Tab::Stats => self.stats.show(ui),
                 Tab::Settings => settings_actions = self.settings_screen.show(ui),
             }
         });
@@ -845,9 +854,7 @@ impl eframe::App for ViewerApp {
             }
             ui.ctx().request_repaint_after(WATCH_REFRESH);
         }
-        if self.onboarding.is_none()
-            && ui.input_mut(|input| input.consume_key(egui::Modifiers::COMMAND, egui::Key::M))
-        {
+        if self.mark_shortcut(ui) {
             changes_actions.push(ChangesAction::MarkNow);
         }
         for action in changes_actions {
@@ -1111,6 +1118,12 @@ fn creator(
             (today, crate::view::filetime_now),
         );
         changes.set_max_age_days(settings.store.max_age_days);
+        let stats = StatsPanel::new(
+            options.segments.clone(),
+            Arc::clone(&app_waker),
+            Arc::new(peekbuddy_win::localtime::utc_offset_seconds),
+            crate::view::filetime_now,
+        );
         let link = Link::start(
             PipeConnector {
                 name: options.pipe_name.clone(),
@@ -1128,6 +1141,7 @@ fn creator(
             tab: Tab::default(),
             panel: WatchPanel::default(),
             changes,
+            stats,
             marker_tags: std::collections::HashSet::new(),
             settings_screen,
             onboarding,

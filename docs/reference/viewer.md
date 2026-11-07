@@ -139,6 +139,21 @@ over the day files after the marker's event id, folded per file by
 are drawn with `ScrollArea::show_rows`, so a diff of any size costs one
 screenful of widgets per frame.
 
+## Stats
+
+The **Stats** tab shows where the churn comes from (#82): events per hour for
+the last 24 hours as one sparkline per watch root (drawn with the egui
+painter, with a text summary that is also its accessible name), and the
+busiest paths and file types of an hour, with **Earlier hour** and **Later
+hour**. The numbers come from two small tables the writer keeps as it commits:
+`stats` (a count per hour, root and kind) and `churn` (Space-Saving sketches of
+the busiest 100 paths and 100 extensions per hour and root, written once a
+minute of event time and when the hour ends). The panel never counts the log,
+so it costs the same on a 10-million-row log as on an empty one. The sketch
+counts are approximate, and each row says how much it may be too high. Per
+minute series wait for the live tail (#52, #65) and top processes for the
+process column (#80).
+
 ## Watches
 
 The **Watches** tab next to **Log** lists every watch the engine reports, one
