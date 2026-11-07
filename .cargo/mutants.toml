@@ -17,8 +17,9 @@ examine_re = [
 # kittest suite (#71), whose mutants cannot be caught by a unit test. The
 # modules that hold its logic and data (the follow state machine, the
 # debounce, the selection, the filter text form, the rows, the details, the
-# Explorer path conversion and the window geometry) are examined. The
-# timeline, the worker, the link and the brand module are not yet (#310).
+# Explorer path conversion, the window geometry and the watch list with its
+# state mapping, #68) are examined. The timeline, the worker, the link and
+# the brand module are not yet (#310).
 exclude_globs = [
   "crates/peekbuddy-viewer/src/app.rs",
   "crates/peekbuddy-viewer/src/brand.rs",
@@ -34,7 +35,6 @@ exclude_globs = [
   "crates/peekbuddy-viewer/src/theme.rs",
   "crates/peekbuddy-viewer/src/timeline.rs",
   "crates/peekbuddy-viewer/src/view.rs",
-  "crates/peekbuddy-viewer/src/watches.rs",
   "crates/peekbuddy-viewer/src/worker.rs",
 ]
 # UI glue, the tray message pump and logging are tested by e2e and UI
@@ -121,6 +121,10 @@ exclude_re = [
   # `by_id` only holds non-zero file ids, so a created entry with file id 0
   # never finds a partner and the match guard is always true when it matters.
   "crates/peekbuddy-core/src/reconcile/walk.rs:.*replace match guard entry.meta.file_id != 0 with true in settle",
+  # The painted state icons (#68): the arms and the coordinates of a few
+  # strokes decide how a shape looks, which only an image snapshot can see
+  # (#71). What each state shows (label, icon kind, tooltip) is tested.
+  "crates/peekbuddy-viewer/src/watches.rs:.*paint_icon",
   # Equivalent mutants: the bits of `DATA_ACCESS` are disjoint, so `|` and
   # `^` build the same mask.
   "crates/peekbuddy-win/src/io/open.rs:.*replace \\| with \\^",
