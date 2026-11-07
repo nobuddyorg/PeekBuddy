@@ -650,6 +650,8 @@ jobs:
           cargo build --release --locked -p peekbuddy --features inject --target-dir target/inject
       - name: The whole harness
         run: cargo xtask perf --scenario all --profile edge-mix --exe target/release/peekbuddy.exe --out target/perf/all.json
+      - name: The engine drains a 10k events/s burst on a hosted runner (#293)
+        run: cargo xtask perf --scenario ingest --profile latency-10k --exe target/release/peekbuddy.exe --out target/perf/latency-10k.json
       - name: The harness does not fail an exe against itself
         run: cargo xtask perf --scenario startup --exe target/release/peekbuddy.exe --ab target/release/peekbuddy.exe --out target/perf/self-ab.json
       - name: A timer that wakes every second fails the idle wake gate
