@@ -14,8 +14,10 @@ bench = false
 
 [dev-dependencies]
 criterion = { workspace = true }
+egui = { workspace = true }
 peekbuddy-core = { workspace = true }
 peekbuddy-store = { workspace = true }
+peekbuddy-viewer = { workspace = true, features = ["test-support"] }
 peekbuddy-win = { workspace = true }
 rusqlite = { workspace = true }
 
@@ -27,6 +29,17 @@ harness = false
 # PEEKBUDDY_QUERY_ROWS is set.
 [[bench]]
 name = "query"
+harness = false
+
+# Private bytes of the viewer with 1M and with 10M rows (#347); does nothing
+# unless PEEKBUDDY_QUERY_ROWS and PEEKBUDDY_PERF_OUT are set.
+[[bench]]
+name = "viewer_memory"
+harness = false
+
+# The scripted scroll of the log grid (#347): frame p95 and p99.
+[[bench]]
+name = "viewer"
 harness = false
 
 [lints]

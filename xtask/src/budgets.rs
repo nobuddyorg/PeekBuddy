@@ -20,6 +20,7 @@ const SCENARIOS: &[&str] = &[
     "idle",
     "ingest",
     "handles",
+    "viewer-memory",
     "kill-soak",
     "test",
     "query-bench",
@@ -32,6 +33,7 @@ const SCENARIOS: &[&str] = &[
 const GATES: &[&str] = &[
     "pr-strict",
     "pr-ab",
+    "nightly-strict",
     "nightly-ab",
     "nightly-trend",
     "report-only",

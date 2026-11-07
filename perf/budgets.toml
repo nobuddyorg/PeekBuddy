@@ -189,6 +189,21 @@ how = "PeakPagefileUsage after the burst (#24)"
 arch = ["x86_64", "aarch64"]
 
 [[budget]]
+id = "viewer.private_bytes.growth"
+metric = "growth of the viewer's private bytes from a 1M-row to a 10M-row log"
+unit = "MB"
+bound = "max"
+limit = 5
+class = "resource"
+gate = "nightly-strict"
+scenario = "viewer-memory"
+status = "provisional"
+source = "#347, F8; what the viewer holds is the screen and the cache limits, never the length of the log"
+workload = "1M-row and 10M-row stores, scripted wheel down and back up twice, UI pass only"
+how = "cargo xtask perf --scenario viewer-memory: PROCESS_MEMORY_COUNTERS_EX2.PrivateUsage (#24) of benches/viewer_memory after the second sweep"
+arch = ["x86_64", "aarch64"]
+
+[[budget]]
 id = "viewer.private_bytes.10m_rows"
 metric = "viewer private bytes with a 10M-row log open"
 unit = "MB"
@@ -748,6 +763,34 @@ status = "provisional"
 source = "#267, #55"
 workload = "1M-row store, glob filter that one row in a thousand matches"
 how = "criterion bench query/filtered_first_1m in the nightly query bench job (series `query benches` on gh-pages, alert at +25 %)"
+arch = ["x86_64"]
+
+[[budget]]
+id = "bench.viewer.scroll_frame_p95"
+metric = "95th percentile of the frame time of the log grid under a scripted scroll"
+unit = "ns"
+bound = "max"
+class = "timing"
+gate = "pr-ab"
+scenario = "bench-ab"
+status = "provisional"
+source = "#347, F9"
+workload = "criterion bench viewer/scroll_frame_p95: 10M-row fake log, three wheel lines per frame, UI pass only"
+how = "cargo xtask bench-ab (same-runner A/B, warn +15 %, fail +50 %)"
+arch = ["x86_64"]
+
+[[budget]]
+id = "bench.viewer.scroll_frame_p99"
+metric = "99th percentile of the frame time of the log grid under a scripted scroll"
+unit = "ns"
+bound = "max"
+class = "timing"
+gate = "nightly-trend"
+scenario = "bench-ab"
+status = "provisional"
+source = "#347, F9; trended, not gated on a PR: the 99th percentile of a thousand frames is the tenth worst, which a hosted runner moves by more than 50 % between two identical builds"
+workload = "criterion bench viewer/scroll_frame_p99: 10M-row fake log, three wheel lines per frame, UI pass only"
+how = "cargo xtask bench-ab reports it on a PR; cargo xtask bench-trend alerts at +25 % against the rolling median"
 arch = ["x86_64"]
 
 [[budget]]

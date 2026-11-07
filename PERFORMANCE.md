@@ -39,6 +39,7 @@ Gate values in `budgets.toml`:
 | --- | --- |
 | `pr-strict` | every PR; any violation fails `ci-ok` |
 | `pr-ab` | every PR; same-runner A/B, warn +15 %, fail +50 % |
+| `nightly-strict` | nightly; any violation fails the nightly job (a bound that holds by construction, measured once per run) |
 | `nightly-ab` | nightly A/B against the previous main |
 | `nightly-trend` | nightly; alert at +25 % against the rolling median |
 | `report-only` | measured and reported, never gated (owner-PC runs, targets) |
@@ -61,6 +62,7 @@ Gate values in `budgets.toml`:
 | `engine.private_bytes.idle` | <= 15 MB | resource | nightly-trend | `idle` | provisional | 10 roots, 100k watched directories | PROCESS_MEMORY_COUNTERS_EX2.PrivateUsage minus buffer bytes (#24) | F8, R5 |
 | `engine.notify_buffers.total` | <= 64 MiB | deterministic | pr-strict | `idle` | provisional | any | buffer pool accounting in --perf-probe JSON | R5, sized by #32 (1 MiB per local NTFS root, 64 KiB per UNC root; report 0002) |
 | `engine.private_bytes.burst` | <= 40 MB | resource | nightly-trend | `ingest` | provisional | churn profile burst-100k (#25) | PeakPagefileUsage after the burst (#24) | F8 |
+| `viewer.private_bytes.growth` | <= 5 MB | resource | nightly-strict | `viewer-memory` | provisional | 1M-row and 10M-row stores, scripted wheel down and back up twice, UI pass only | cargo xtask perf --scenario viewer-memory: PROCESS_MEMORY_COUNTERS_EX2.PrivateUsage (#24) of benches/viewer_memory after the second sweep | #347, F8; what the viewer holds is the screen and the cache limits, never the length of the log |
 | `viewer.private_bytes.10m_rows` | <= 64 MB | resource | nightly-trend | `owner-run` | provisional | 10M-row log, scrolled top to bottom | PROCESS_MEMORY_COUNTERS_EX2.PrivateUsage (#24) | F8; #252 (owner PC, Intel N150, 2026-11-05, 10M-row log, idle and after scripted End/Home/PageDown/PageUp): glow 46-62 MB, wgpu 301-303 MB; x64 ships glow; arm64 limit pending (wgpu) |
 | `event.latency.p50` | <= 10 ms | timing | pr-ab | `ingest` | provisional | churn profile latency-10k (#25) | ledger timestamp vs commit timestamp (#27) | R1, checked by #35 (commit path alone: p50 3.2 ms, p99 6.3 ms at 10k events/s, linger 5 ms from the first pending event) |
 | `event.latency.p99` | <= 50 ms | timing | pr-ab | `ingest` | provisional | churn profile latency-10k (#25) | ledger timestamp vs commit timestamp (#27) | R1, checked by #35 (commit path alone: p50 3.2 ms, p99 6.3 ms at 10k events/s, linger 5 ms from the first pending event) |
@@ -99,6 +101,8 @@ Gate values in `budgets.toml`:
 | `bench.query.subtree_resolve_10m` | to be set | timing | nightly-trend | `query-bench` | provisional | 10M-row store, one directory of ten thousand | criterion bench query/subtree_resolve_10m in the nightly query bench job (series `query benches` on gh-pages, alert at +25 %) | #267, #55 |
 | `bench.query.regex_post_filter_1m` | to be set | timing | nightly-trend | `query-bench` | provisional | 1M-row store, a regex that ten rows match | criterion bench query/regex_post_filter_1m in the nightly query bench job (series `query benches` on gh-pages, alert at +25 %) | #267, #55 |
 | `bench.query.filtered_first_1m` | <= 100000000 ns | timing | nightly-trend | `query-bench` | provisional | 1M-row store, glob filter that one row in a thousand matches | criterion bench query/filtered_first_1m in the nightly query bench job (series `query benches` on gh-pages, alert at +25 %) | #267, #55 |
+| `bench.viewer.scroll_frame_p95` | to be set | timing | pr-ab | `bench-ab` | provisional | criterion bench viewer/scroll_frame_p95: 10M-row fake log, three wheel lines per frame, UI pass only | cargo xtask bench-ab (same-runner A/B, warn +15 %, fail +50 %) | #347, F9 |
+| `bench.viewer.scroll_frame_p99` | to be set | timing | nightly-trend | `bench-ab` | provisional | criterion bench viewer/scroll_frame_p99: 10M-row fake log, three wheel lines per frame, UI pass only | cargo xtask bench-ab reports it on a PR; cargo xtask bench-trend alerts at +25 % against the rolling median | #347, F9; trended, not gated on a PR: the 99th percentile of a thousand frames is the tenth worst, which a hosted runner moves by more than 50 % between two identical builds |
 | `bench.store.intern_hit_1000` | to be set | timing | pr-ab | `bench-ab` | provisional | criterion bench store/intern_hit_1000 | cargo xtask bench-ab (same-runner A/B, warn +15 %, fail +50 %) | #26, #53 |
 | `bench.store.intern_miss_1000` | to be set | timing | pr-ab | `bench-ab` | provisional | criterion bench store/intern_miss_1000 | cargo xtask bench-ab (same-runner A/B, warn +15 %, fail +50 %) | #26, #53 |
 | `bench.store.batch_insert_1000` | to be set | timing | pr-ab | `bench-ab` | provisional | criterion bench store/batch_insert_1000 | cargo xtask bench-ab (same-runner A/B, warn +15 %, fail +50 %) | #26, #52 |
