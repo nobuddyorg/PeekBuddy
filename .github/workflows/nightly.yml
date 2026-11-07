@@ -291,11 +291,45 @@ jobs:
       # nextest, not cargo test: the fs-serial group only exists under nextest.
       - run: cargo nextest run --workspace --profile ci --no-tests=pass
 
+  mutants-scope:
+    # Incremental: on weekdays only the mutants in lines changed since the
+    # last 26 hours are examined; Sundays and manual runs examine everything.
+    name: mutants scope
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    outputs:
+      incremental: ${{ steps.scope.outputs.incremental }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Scope
+        id: scope
+        env:
+          EVENT: ${{ github.event_name }}
+        run: |
+          base="$(git rev-list -1 --before='26 hours ago' HEAD || true)"
+          if [ "${EVENT}" = schedule ] && [ "$(date -u +%u)" != 7 ] && [ -n "${base}" ]; then
+            git diff "${base}" HEAD > git.diff
+            echo "incremental=true" >> "${GITHUB_OUTPUT}"
+          else
+            : > git.diff
+            echo "incremental=false" >> "${GITHUB_OUTPUT}"
+          fi
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: mutants-diff
+          path: git.diff
+
   mutants:
     name: mutants (shard ${{ matrix.shard }}/32)
+    needs: mutants-scope
     runs-on: windows-2025
     # Eight shards ran into 120 minutes and sixteen into 180; thirty-two.
-    timeout-minutes: 180
+    timeout-minutes: 360
     permissions:
       contents: read
     strategy:
@@ -311,15 +345,21 @@ jobs:
       - uses: taiki-e/install-action@86f7a0ffb25f40114606501a311ebcfaf882ea32 # v2.88.0
         with:
           tool: cargo-nextest@0.9.149,cargo-mutants@27.1.0
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: mutants-diff
       - name: Mutants shard
         shell: pwsh
         env:
           SHARD: ${{ matrix.shard }}
+          INCREMENTAL: ${{ needs.mutants-scope.outputs.incremental }}
         run: |
+          $scope = @()
+          if ($env:INCREMENTAL -eq 'true') { $scope = @('--in-diff', 'git.diff') }
           New-Item -ItemType Directory -Force -Path C:\t | Out-Null
           $env:TMP = 'C:\t'
           $env:TEMP = 'C:\t'
-          cargo mutants --no-shuffle --shard "$env:SHARD/32" --test-tool nextest --in-place --timeout-multiplier 2 --minimum-test-timeout 150
+          cargo mutants --no-shuffle $scope --shard "$env:SHARD/32" --test-tool nextest --in-place --timeout-multiplier 2 --minimum-test-timeout 150
           # Exit 2 (missed) and 3 (timeouts) are judged by the mutation-score
           # job over all shards; anything else (a failing baseline, a broken
           # build) fails the shard.
@@ -349,7 +389,7 @@ jobs:
     # The score over all shards must stay at 80 % (caught of caught, missed
     # and timed out; unviable mutants do not count).
     name: mutation score
-    needs: mutants
+    needs: [mutants-scope, mutants]
     if: always() && needs.mutants.result != 'skipped'
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -362,10 +402,13 @@ jobs:
           path: shards
       - name: Score
         shell: bash
+        env:
+          INCREMENTAL: ${{ needs.mutants-scope.outputs.incremental }}
         run: |
           count() { cat shards/*/"$1.txt" 2>/dev/null | wc -l; }
           caught="$(count caught)"; missed="$(count missed)"; timeout="$(count timeout)"
           total=$((caught + missed + timeout))
+          if [ "${INCREMENTAL}" = true ] && [ "${total}" -eq 0 ]; then echo "no mutants in the diff"; exit 0; fi
           [ "${total}" -gt 0 ] || { echo "no mutants found"; exit 1; }
           score=$((100 * caught / total))
           {
@@ -374,14 +417,21 @@ jobs:
             echo "| --- | --- | --- | --- |"
             echo "| ${caught} | ${missed} | ${timeout} | ${score} % |"
           } >> "${GITHUB_STEP_SUMMARY}"
-          [ "${score}" -ge 80 ] || { echo "mutation score ${score} % is below 80 %"; exit 1; }
+          # A day's diff is too small for a percentage: only full runs gate.
+          [ "${INCREMENTAL}" = true ] || [ "${score}" -ge 80 ] || { echo "mutation score ${score} % is below 80 %"; exit 1; }
 
   mutants-core-linux:
-    name: mutants (core, linux)
+    name: mutants (core, linux, ${{ matrix.shard }}/4)
+    needs: mutants-scope
     runs-on: ubuntu-latest
-    timeout-minutes: 180
+    # One job ran into 180 minutes; four shards, GitHub's 360 maximum.
+    timeout-minutes: 360
     permissions:
       contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1, 2, 3]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -391,17 +441,26 @@ jobs:
       - uses: taiki-e/install-action@86f7a0ffb25f40114606501a311ebcfaf882ea32 # v2.88.0
         with:
           tool: cargo-nextest@0.9.149,cargo-mutants@27.1.0
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: mutants-diff
       - name: Mutants of core
+        env:
+          INCREMENTAL: ${{ needs.mutants-scope.outputs.incremental }}
+          SHARD: ${{ matrix.shard }}
         run: |
+          scope=()
+          [ "${INCREMENTAL}" = true ] && scope=(--in-diff git.diff)
           code=0
-          cargo mutants --no-shuffle -p peekbuddy-core --test-tool nextest || code=$?
+          cargo mutants --no-shuffle "${scope[@]}" -p peekbuddy-core --test-tool nextest --shard "${SHARD}/4" || code=$?
           # Exit 2 (missed) and 3 (timeouts) are judged by the 80 % score.
           if [ "${code}" -ne 0 ] && [ "${code}" -ne 2 ] && [ "${code}" -ne 3 ]; then exit "${code}"; fi
           count() { [ -f "mutants.out/$1.txt" ] && wc -l < "mutants.out/$1.txt" || echo 0; }
           caught="$(count caught)"; total=$((caught + $(count missed) + $(count timeout)))
+          [ "${total}" -gt 0 ] || { echo "core: no mutants"; exit 0; }
           score=$((100 * caught / total))
-          echo "core: ${caught} of ${total} caught, ${score} %"
-          [ "${score}" -ge 80 ]
+          echo "core ${SHARD}/4: ${caught} of ${total} caught, ${score} %"
+          [ "${INCREMENTAL}" = true ] || [ "${score}" -ge 80 ]
 
   bench-trend:
     # Full criterion suite on main (#26): medians to gh-pages through
@@ -653,7 +712,7 @@ jobs:
   report:
     name: report
     if: always() && github.event_name == 'schedule'
-    needs: [miri, fuzz, proptest-long, stress, soak, vhd, beta, fresh-deps, mutants, mutation-score, mutants-core-linux, bench-trend, query-bench, zero-loss, perf-selfcheck, idle-60]
+    needs: [miri, fuzz, proptest-long, stress, soak, vhd, beta, fresh-deps, mutants-scope, mutants, mutation-score, mutants-core-linux, bench-trend, query-bench, zero-loss, perf-selfcheck, idle-60]
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
