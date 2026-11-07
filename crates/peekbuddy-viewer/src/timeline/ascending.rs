@@ -340,6 +340,16 @@ fn run(ops: Vec<Op>, exact: bool) -> Result<(), TestCaseError> {
     Ok(())
 }
 
+#[test]
+fn counted_rows_after_reaching_the_oldest_do_not_shift_a_later_seek() {
+    // Found by the property test.
+    run(
+        vec![Op::Scroll(0), Op::Grow(6), Op::Grow(38), Op::Scroll(49_761)],
+        true,
+    )
+    .unwrap();
+}
+
 proptest! {
     /// With no filter every id is a row, so oldest first the row at display
     /// index `d` has id `d + 1`: whatever the pages, the tail, the pill and

@@ -627,6 +627,15 @@ impl<R: Identified> Timeline<R> {
             self.rows.push_front(row);
             added += 1;
         }
+        if added > self.top {
+            // The island grew into rows that were only counted: they have
+            // a place in it now, so they are no longer unseen. (The index
+            // of every row it already held stays the same.)
+            let over = added - self.top;
+            let taken = over.min(self.unseen);
+            self.unseen -= taken;
+            self.grown = self.grown.saturating_add(taken);
+        }
         self.top = self.top.saturating_sub(added);
         if !fetched.more || added == 0 {
             // The estimate put the island too low: it starts at the top.
