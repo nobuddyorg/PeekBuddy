@@ -178,12 +178,12 @@ thread_local! {
     clippy::unnecessary_wraps,
     reason = "the signature of SQLite's log hook"
 )]
-fn note_log_frames(_: &rusqlite::hooks::Wal, frames: c_int) -> rusqlite::Result<()> {
+fn note_log_frames(_: &mut rusqlite::hooks::Wal, frames: c_int) -> rusqlite::Result<()> {
     LOG_FRAMES.set(u32::try_from(frames).unwrap_or(0));
     Ok(())
 }
 
-fn pragmas(conn: &Connection) -> rusqlite::Result<()> {
+fn pragmas(conn: &mut Connection) -> rusqlite::Result<()> {
     // journal_mode answers with a row, so it goes through a query.
     let _mode: String = conn.query_row("PRAGMA journal_mode = WAL", [], |row| row.get(0))?;
     conn.execute_batch(&format!(
@@ -197,7 +197,7 @@ fn pragmas(conn: &Connection) -> rusqlite::Result<()> {
          PRAGMA cache_size = -{CACHE_KIB};"
     ))?;
     // After the pragmas: `wal_autocheckpoint` replaces the hook.
-    conn.wal_hook(Some(note_log_frames));
+    conn.wal_hook(Some(note_log_frames))?;
     Ok(())
 }
 
@@ -220,8 +220,8 @@ impl Writer {
     /// # Errors
     ///
     /// SQLite failures while setting the pragmas or reading the last id.
-    pub fn from_connection(conn: Connection) -> Result<Self, WriteError> {
-        pragmas(&conn)?;
+    pub fn from_connection(mut conn: Connection) -> Result<Self, WriteError> {
+        pragmas(&mut conn)?;
         let next_id: i64 =
             conn.query_row("SELECT coalesce(max(id), 0) + 1 FROM event", [], |row| {
                 row.get(0)
@@ -780,8 +780,8 @@ impl Writer {
         };
         let new_file = next_file(&seg.file, day, &catalog_rows);
         let new_path = dir.join(&new_file);
-        let new_conn = schema::open(&new_path)?;
-        pragmas(&new_conn)?;
+        let mut new_conn = schema::open(&new_path)?;
+        pragmas(&mut new_conn)?;
         let carried = carry_over(&self.conn)?;
         let old_roots = self.roots.clone();
         // Swap: from here on the writer is in the new file.
