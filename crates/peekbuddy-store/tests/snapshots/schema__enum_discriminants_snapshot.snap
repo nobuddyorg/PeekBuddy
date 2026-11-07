@@ -36,6 +36,7 @@ kind AccessDenied = 6144
 kind EngineAbnormalExit = 6400
 kind StoreDegraded = 6656
 kind StoreRecovered = 6912
+kind Marker = 7168
 kind Overflow(BufferOverflow) = 2304
 kind Overflow(NotifyEnumDir) = 2305
 kind Overflow(JournalEntryDeleted) = 2306

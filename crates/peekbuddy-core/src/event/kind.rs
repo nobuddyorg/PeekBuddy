@@ -184,6 +184,9 @@ pub enum Kind {
     RetentionPurged,
     /// Settings changed.
     SettingsChanged,
+    /// The user marked a point in time (#82). The row's name is the marker's
+    /// name; the `marker` table keeps it for renaming.
+    Marker,
 }
 
 impl Kind {
@@ -219,6 +222,7 @@ impl Kind {
             Self::EngineAbnormalExit => (25, 0),
             Self::StoreDegraded => (26, 0),
             Self::StoreRecovered => (27, 0),
+            Self::Marker => (28, 0),
         }
     }
 
@@ -264,6 +268,7 @@ impl Kind {
             25 => Self::EngineAbnormalExit,
             26 => Self::StoreDegraded,
             27 => Self::StoreRecovered,
+            28 => Self::Marker,
             _ => return None,
         };
         // Kinds without a payload must carry 0 so every value has one encoding.
@@ -356,6 +361,7 @@ impl Kind {
             Self::SegmentRotated => "segment_rotated",
             Self::RetentionPurged => "retention_purged",
             Self::SettingsChanged => "settings_changed",
+            Self::Marker => "marker",
         }
     }
 
@@ -424,6 +430,7 @@ pub(crate) mod tests {
             Kind::EngineAbnormalExit,
             Kind::StoreDegraded,
             Kind::StoreRecovered,
+            Kind::Marker,
         ];
         v.extend(GapReason::ALL.map(Kind::Overflow));
         v.extend(WatchState::ALL.map(Kind::WatchStateChanged));

@@ -24,7 +24,7 @@ use std::path::Path;
 use rusqlite::{Connection, OptionalExtension, Transaction};
 
 /// The schema version this build writes.
-pub const SCHEMA_VERSION: u32 = 1;
+pub const SCHEMA_VERSION: u32 = 2;
 
 /// `PRAGMA application_id` of a PeekBuddy segment: ASCII `PBK1`.
 pub const APPLICATION_ID: i32 = 0x5042_4B31;
@@ -128,6 +128,23 @@ CREATE TABLE meta (
 ) STRICT, WITHOUT ROWID;
 ";
 
+/// Schema v2 (#82): the markers of a segment. A marker is an ordinary event
+/// row of kind `marker` plus one row here that keeps the name, so the name can
+/// change without touching the event. Markers live in the day segment of their
+/// event and disappear with it.
+pub const MARKER_DDL: &str = "CREATE TABLE marker (
+  id INTEGER PRIMARY KEY,
+  event_id INTEGER NOT NULL,
+  name TEXT NOT NULL,
+  created_ts INTEGER NOT NULL
+) STRICT;
+CREATE UNIQUE INDEX marker_event ON marker(event_id);
+";
+
+/// Adds a marker for the event just inserted.
+pub const INSERT_MARKER: &str =
+    "INSERT INTO marker (event_id, name, created_ts) VALUES (?1, ?2, ?3)";
+
 /// Inserts one event; the writer assigns `id` inside the commit transaction.
 pub const INSERT_EVENT: &str = "\
 INSERT INTO event (id, ts, kind, source, raw_mask, node_id, old_node_id, is_dir, size, attrs, \
@@ -217,11 +234,15 @@ impl From<rusqlite::Error> for StoreError {
 pub type Step = fn(&Transaction<'_>) -> rusqlite::Result<()>;
 
 /// The migration steps; step `i` upgrades schema `i` to `i + 1`.
-pub const STEPS: [Step; 1] = [v1];
+pub const STEPS: [Step; 2] = [v1, v2];
 
 fn v1(tx: &Transaction<'_>) -> rusqlite::Result<()> {
     tx.execute_batch(DICTIONARY_DDL)?;
     tx.execute_batch(SEGMENT_DDL)
+}
+
+fn v2(tx: &Transaction<'_>) -> rusqlite::Result<()> {
+    tx.execute_batch(MARKER_DDL)
 }
 
 /// Opens (creating if needed) the segment at `path` and migrates it.

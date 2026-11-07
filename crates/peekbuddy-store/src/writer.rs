@@ -14,7 +14,7 @@ use std::fmt;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
-use peekbuddy_core::event::{Event, NameKind, RootIdx};
+use peekbuddy_core::event::{Event, Kind, NameKind, RootIdx};
 use peekbuddy_core::name::WideStr;
 use rusqlite::{Connection, OptionalExtension, params};
 
@@ -24,7 +24,9 @@ use crate::ids;
 use crate::interner::{Interner, NodeKey, TOP_LEVEL};
 use crate::names::to_columns;
 use crate::retention::{Caps, Retire};
-use crate::schema::{self, INSERT_EVENT, SCHEMA_VERSION, StoreError, UPSERT_STATS, hour_bucket};
+use crate::schema::{
+    self, INSERT_EVENT, INSERT_MARKER, SCHEMA_VERSION, StoreError, UPSERT_STATS, hour_bucket,
+};
 use crate::segment::{self, Rotation, needs_rotation, next_file, parse_name};
 use crate::segments::{SealContext, SegmentState, SystemRows, rotated_row, seal_and_enforce};
 
@@ -434,6 +436,13 @@ impl Writer {
                     };
                     let node_id = intern_path(interner, &tx, root, event, name)?;
                     insert_event(&mut insert, id, event, root, node_id)?;
+                    if event.kind == Kind::Marker {
+                        tx.prepare_cached(INSERT_MARKER)?.execute(params![
+                            id,
+                            String::from_utf16_lossy(name),
+                            event.ts.cast_signed()
+                        ])?;
+                    }
                     let kind = kind_column(event);
                     let entry = stats
                         .entry((hour_bucket(event.ts.cast_signed()), root.root, kind))

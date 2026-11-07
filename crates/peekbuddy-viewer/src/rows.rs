@@ -162,6 +162,7 @@ pub fn describe(kind: Kind) -> (&'static str, &'static str, RowClass) {
         Kind::SegmentRotated => ("*", "Day segment started", System),
         Kind::RetentionPurged => ("*", "Old data removed", System),
         Kind::SettingsChanged => ("*", "Settings changed", System),
+        Kind::Marker => ("#", "Marker", System),
     }
 }
 
