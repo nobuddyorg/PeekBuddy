@@ -8,7 +8,9 @@ mutant that survives is code no test really checks.
 
 - **Nightly** (#17): the whole workspace in 32 shards on Windows, plus
   `peekbuddy-core` in 4 shards on Linux, 360 minutes each. Never part of the
-  PR flow.
+  PR flow. Incremental on Monday to Saturday: only mutants in lines changed
+  in the last 26 hours (`--in-diff`), without a score gate; Sundays and
+  manual runs examine everything and gate on the score.
 
 What is examined is set in `.cargo/mutants.toml` (`examine_re`,
 `exclude_re`). The nightly gate is a score of 80 %
