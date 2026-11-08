@@ -695,7 +695,7 @@ how = "cargo xtask bench-ab (same-runner A/B, warn +15 %, fail +50 %)"
 arch = ["x86_64"]
 
 [[budget]]
-id = "bench.rules.eval_50_rules"
+id = "bench.rules.eval_6_events_50_rules"
 metric = "six events through 50 rules (globs, kinds, watch lists, counters)"
 unit = "ns"
 bound = "max"
