@@ -244,3 +244,13 @@ proptest! {
         prop_assert_eq!(got, want);
     }
 }
+
+#[test]
+fn the_evaluator_knows_how_many_rules_it_holds() {
+    let none = Evaluator::compile(&[], &[]).unwrap();
+    assert!(none.is_empty());
+    assert_eq!(none.len(), 0);
+    let two = Evaluator::compile(&[rule(1, 1, 0), rule(2, 1, 0)], &[]).unwrap();
+    assert!(!two.is_empty());
+    assert_eq!(two.len(), 2);
+}

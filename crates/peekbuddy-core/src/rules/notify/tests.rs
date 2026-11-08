@@ -251,3 +251,52 @@ impl WithTs for Event {
         self
     }
 }
+
+#[test]
+fn the_toast_after_a_quiet_spell_says_how_many_came_meanwhile() {
+    let rule = Rule {
+        threshold: 1,
+        cooldown_s: 10,
+        ..rule(None, true)
+    };
+    let recorder = Recorder::default();
+    let (mut tap, worker) = start(&[rule], &[], &roots(), Box::new(recorder.clone())).unwrap();
+    for t in [1, 2, 3, 20] {
+        feed(&mut tap, t, "a");
+    }
+    drop(tap);
+    worker.join();
+    let bodies: Vec<String> = recorder
+        .0
+        .lock()
+        .unwrap()
+        .iter()
+        .filter_map(|action| match action {
+            Action::Toast { body, .. } => Some(body.clone()),
+            Action::Run { .. } => None,
+        })
+        .collect();
+    assert_eq!(bodies, ["1 match", "1 match (2 more while quiet)"]);
+}
+
+#[test]
+fn the_seventh_toast_is_allowed_exactly_a_minute_after_the_first() {
+    let rules: Vec<Rule> = (0..=super::TOASTS_PER_MINUTE)
+        .map(|i| Rule {
+            name: format!("r{i}"),
+            threshold: 1,
+            cooldown_s: 0,
+            ..rule(None, true)
+        })
+        .collect();
+    let recorder = Recorder::default();
+    let (mut tap, worker) = start(&rules, &[], &roots(), Box::new(recorder.clone())).unwrap();
+    // All seven fire at 1 s: six go out. At 61 s the first is exactly a
+    // minute old and its slot is free again.
+    feed(&mut tap, 1, "a");
+    assert_eq!(tap.capped(), 1);
+    feed(&mut tap, 61, "a");
+    assert_eq!(tap.capped(), 2, "six out of seven again, not zero");
+    drop(tap);
+    worker.join();
+}

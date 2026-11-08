@@ -188,3 +188,9 @@ proptest! {
         prop_assert_eq!(parse(&line), args);
     }
 }
+
+#[test]
+fn arguments_are_joined_by_single_spaces_with_none_in_front() {
+    let args = vec![units("a"), units("b c"), units("")];
+    assert_eq!(command_line(&args), units(r#"a "b c" """#));
+}
