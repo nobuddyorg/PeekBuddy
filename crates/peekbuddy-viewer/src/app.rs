@@ -18,6 +18,7 @@ use peekbuddy_win::perf::{record, since_process_create_us};
 use peekbuddy_win::signal::Signal;
 use raw_window_handle::{HasWindowHandle as _, RawWindowHandle};
 
+use crate::changes::{ChangesAction, ChangesPanel};
 use crate::filterspec::FilterSpec;
 use crate::geometry::{self, PxRect};
 use crate::gpu::{self, Adapter};
@@ -29,6 +30,7 @@ use crate::settings_ui::{SettingsAction, SettingsScreen};
 use crate::shell::{Shell, ShellAction};
 use crate::shellpath;
 use crate::source::StoreSource;
+use crate::stats::StatsPanel;
 use crate::view::{LogView, ViewEvent};
 use crate::watches::{Tab, WatchAction, WatchPanel};
 use crate::{Options, Probe, theme};
@@ -49,6 +51,13 @@ const RESTART_DELAY: Duration = Duration::from_millis(1500);
 enum Origin {
     Tab,
     Onboarding,
+}
+
+/// Today in the user's time zone, for the warning before retention removes a
+/// day with markers in it.
+fn today() -> peekbuddy_store::segment::DayKey {
+    let (year, month, day) = peekbuddy_win::localtime::local_day(crate::view::filetime_now());
+    peekbuddy_store::segment::DayKey { year, month, day }
 }
 
 /// The size of the files in `dir`, not looking further down.
@@ -250,6 +259,10 @@ struct ViewerApp {
     view: LogView,
     tab: Tab,
     panel: WatchPanel,
+    changes: ChangesPanel,
+    stats: StatsPanel,
+    /// Tags of the marker commands, whose answer belongs on the Changes tab.
+    marker_tags: std::collections::HashSet<u64>,
     settings_screen: SettingsScreen,
     /// The first-run screens, while they are shown.
     onboarding: Option<Onboarding>,
@@ -357,7 +370,9 @@ impl ViewerApp {
                 self.shell.link = state;
             }
             LinkEvent::Result { tag, ok, message } => {
-                if let Some(origin) = self.watch_tags.remove(&tag) {
+                if self.marker_tags.remove(&tag) {
+                    self.changes.on_result(ok, &message);
+                } else if let Some(origin) = self.watch_tags.remove(&tag) {
                     match origin {
                         Origin::Tab => self.panel.on_result(ok, &message),
                         Origin::Onboarding => {
@@ -400,6 +415,30 @@ impl ViewerApp {
         };
         let tag = self.link.send(command);
         self.watch_tags.insert(tag, origin);
+    }
+
+    /// Ctrl+M: mark the moment, from any screen but the first-run ones.
+    fn mark_shortcut(&self, ui: &egui::Ui) -> bool {
+        self.onboarding.is_none()
+            && ui.input_mut(|input| input.consume_key(egui::Modifiers::COMMAND, egui::Key::M))
+    }
+
+    /// Carries out what the user asked for on the Changes tab.
+    fn changes_action(&mut self, action: ChangesAction) {
+        let command = match action {
+            // The engine names it with the time.
+            ChangesAction::MarkNow => Command::MarkNow {
+                name: String::new(),
+            },
+            ChangesAction::Rename { event_id, name } => Command::RenameMarker { event_id, name },
+            ChangesAction::ShowRows { dir, name } => {
+                self.view.show_path(&dir, &name);
+                self.tab = Tab::Log;
+                return;
+            }
+        };
+        let tag = self.link.send(command);
+        self.marker_tags.insert(tag);
     }
 
     /// Opens the folder picker on a thread of its own.
@@ -775,6 +814,7 @@ impl eframe::App for ViewerApp {
         }
         let mut view_events = Vec::new();
         let mut watch_actions = Vec::new();
+        let mut changes_actions = Vec::new();
         let mut settings_actions = Vec::new();
         let mut onboarding_actions = Vec::new();
         let before = self.tab;
@@ -792,6 +832,8 @@ impl eframe::App for ViewerApp {
             match self.tab {
                 Tab::Log => view_events = self.view.show(ui),
                 Tab::Watches => watch_actions = self.panel.show(ui),
+                Tab::Changes => changes_actions = self.changes.show(ui),
+                Tab::Stats => self.stats.show(ui),
                 Tab::Settings => settings_actions = self.settings_screen.show(ui),
             }
         });
@@ -805,6 +847,12 @@ impl eframe::App for ViewerApp {
                 self.link.request_watches();
             }
             ui.ctx().request_repaint_after(WATCH_REFRESH);
+        }
+        if self.mark_shortcut(ui) {
+            changes_actions.push(ChangesAction::MarkNow);
+        }
+        for action in changes_actions {
+            self.changes_action(action);
         }
         for action in watch_actions {
             self.watch_action(action, Origin::Tab);
@@ -1057,6 +1105,19 @@ fn creator(
         let app_waker = Arc::clone(&waker);
         let view = log_view(&options, &settings, &waker)?;
         let (settings_screen, onboarding) = first_screens(&options, &settings);
+        let mut changes = ChangesPanel::new(
+            options.segments.clone(),
+            Arc::clone(&app_waker),
+            Arc::new(peekbuddy_win::localtime::utc_offset_seconds),
+            (today, crate::view::filetime_now),
+        );
+        changes.set_max_age_days(settings.store.max_age_days);
+        let stats = StatsPanel::new(
+            options.segments.clone(),
+            Arc::clone(&app_waker),
+            Arc::new(peekbuddy_win::localtime::utc_offset_seconds),
+            crate::view::filetime_now,
+        );
         let link = Link::start(
             PipeConnector {
                 name: options.pipe_name.clone(),
@@ -1073,6 +1134,9 @@ fn creator(
             view,
             tab: Tab::default(),
             panel: WatchPanel::default(),
+            changes,
+            stats,
+            marker_tags: std::collections::HashSet::new(),
             settings_screen,
             onboarding,
             settings_tag: None,

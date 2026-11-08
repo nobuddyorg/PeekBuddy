@@ -156,6 +156,8 @@ pub enum Command {
     OpenDataFolder,
     /// Open the viewer on the settings page.
     OpenSettings,
+    /// Write a marker row now (#82).
+    MarkNow,
     /// Shut the engine down.
     Quit,
 }
@@ -166,6 +168,7 @@ const ID_RESUME_ALL: u32 = 3;
 const ID_DATA: u32 = 4;
 const ID_SETTINGS: u32 = 5;
 const ID_QUIT: u32 = 6;
+const ID_MARK: u32 = 7;
 const ID_WATCH_BASE: u32 = 100;
 const ID_WATCH_END: u32 = ID_WATCH_BASE + 100;
 /// Most watches the submenu lists.
@@ -182,6 +185,7 @@ impl Command {
             Self::OpenDataFolder => ID_DATA,
             Self::OpenSettings => ID_SETTINGS,
             Self::Quit => ID_QUIT,
+            Self::MarkNow => ID_MARK,
             Self::ToggleWatch(index) => {
                 ID_WATCH_BASE + u32::try_from(index.min(MAX_MENU_WATCHES)).unwrap_or(0)
             }
@@ -198,6 +202,7 @@ impl Command {
             ID_DATA => Some(Self::OpenDataFolder),
             ID_SETTINGS => Some(Self::OpenSettings),
             ID_QUIT => Some(Self::Quit),
+            ID_MARK => Some(Self::MarkNow),
             other if (ID_WATCH_BASE..ID_WATCH_END).contains(&other) => {
                 Some(Self::ToggleWatch((other - ID_WATCH_BASE) as usize))
             }
@@ -280,6 +285,7 @@ pub fn menu(state: &TrayState) -> Vec<MenuItem> {
             enabled: !watches.is_empty(),
             items: watches,
         },
+        item(Command::MarkNow, "Mark now"),
         MenuItem::Separator,
         item(Command::OpenDataFolder, "Open data folder"),
         item(Command::OpenSettings, "Settings"),
@@ -297,6 +303,8 @@ pub trait Actions {
     fn open_data_folder(&mut self);
     /// Shut the engine down.
     fn quit(&mut self);
+    /// Write a marker row now.
+    fn mark_now(&mut self);
     /// The pause state of watch `index` changed.
     fn watch_paused(&mut self, index: usize, paused: bool);
     /// Every watch was paused or resumed at once (not persisted).
@@ -323,6 +331,10 @@ pub fn dispatch(state: &mut TrayState, command: Command, actions: &mut dyn Actio
         }
         Command::Quit => {
             actions.quit();
+            false
+        }
+        Command::MarkNow => {
+            actions.mark_now();
             false
         }
         Command::PauseAll | Command::ResumeAll => {
@@ -545,6 +557,7 @@ mod tests {
                 "-",
                 "Pause all",
                 "Watches >",
+                "Mark now",
                 "-",
                 "Open data folder",
                 "Settings",
@@ -600,6 +613,7 @@ mod tests {
             Command::ResumeAll,
             Command::OpenDataFolder,
             Command::OpenSettings,
+            Command::MarkNow,
             Command::Quit,
             Command::ToggleWatch(0),
             Command::ToggleWatch(7),
@@ -614,7 +628,7 @@ mod tests {
         let big = state(Health::Live, &[("w", false); 3]);
         let mut found = Vec::new();
         ids(&menu(&big), &mut found);
-        assert_eq!(found.len(), 8);
+        assert_eq!(found.len(), 9);
         assert!(found.iter().all(|id| Command::from_id(*id).is_some()));
     }
 
@@ -666,6 +680,9 @@ mod tests {
         fn quit(&mut self) {
             self.calls.push(String::from("quit"));
         }
+        fn mark_now(&mut self) {
+            self.calls.push(String::from("mark"));
+        }
         fn watch_paused(&mut self, index: usize, paused: bool) {
             self.calls.push(format!("watch {index} paused={paused}"));
         }
@@ -682,11 +699,15 @@ mod tests {
             (Command::OpenViewer, false),
             (Command::OpenSettings, false),
             (Command::OpenDataFolder, false),
+            (Command::MarkNow, false),
             (Command::Quit, false),
         ] {
             assert_eq!(super::dispatch(&mut state, command, &mut actions), refresh);
         }
-        assert_eq!(actions.calls, ["viewer", "viewer", "folder", "quit"]);
+        assert_eq!(
+            actions.calls,
+            ["viewer", "viewer", "folder", "mark", "quit"]
+        );
     }
 
     #[test]

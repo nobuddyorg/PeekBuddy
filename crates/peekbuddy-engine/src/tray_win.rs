@@ -6,6 +6,7 @@ use std::sync::Arc;
 use peekbuddy_win::tray::{Entry, Icon, Menu, Tray, taskbar_uses_light_theme};
 use peekbuddy_win::window::{WindowEvent, WindowHandle};
 
+use crate::marker_ctl::MarkerCtl;
 use crate::pause_ctl::PauseCtl;
 use crate::tray_model::{
     Actions, Command, FIRST_RUN_TEXT, FIRST_RUN_TITLE, ICON_SIZES, IconId, MenuItem, Theme,
@@ -19,6 +20,7 @@ struct RealActions {
     viewer_args: Vec<std::ffi::OsString>,
     data_root: PathBuf,
     pause: Arc<PauseCtl>,
+    markers: Arc<MarkerCtl>,
 }
 
 /// Explorer does not take `\\?\` paths.
@@ -45,6 +47,11 @@ impl Actions for RealActions {
 
     fn quit(&mut self) {
         let _ = self.window.post_close();
+    }
+
+    fn mark_now(&mut self) {
+        // A full batch is the only failure; the next click tries again.
+        let _ = self.markers.mark("");
     }
 
     fn watch_paused(&mut self, index: usize, paused: bool) {
@@ -124,6 +131,7 @@ impl TrayController {
         viewer_args: Vec<std::ffi::OsString>,
         data_root: PathBuf,
         pause: Arc<PauseCtl>,
+        markers: Arc<MarkerCtl>,
         state: TrayState,
     ) -> Self {
         Self {
@@ -134,6 +142,7 @@ impl TrayController {
                 viewer_args,
                 data_root,
                 pause,
+                markers,
             },
             state,
             theme: current_theme(),

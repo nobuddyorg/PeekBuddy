@@ -15,6 +15,7 @@
 //! | `query/subtree_resolve_10m` | 10M | `bench.query.subtree_resolve_10m` |
 //! | `query/regex_post_filter_1m` | 1M | `bench.query.regex_post_filter_1m` |
 //! | `query/filtered_first_1m` | 1M | `bench.query.filtered_first_1m` (<= 100 ms) |
+//! | `query/changes_since_1m` | 1M | `bench.query.changes_since_1m` (<= 2 s) |
 
 use std::sync::Arc;
 
@@ -47,6 +48,29 @@ fn page_request(cursor: Option<i64>, filter: Filter) -> PageRequest {
     }
 }
 
+/// "What changed since": one pass over every row, folded per file (#82). A
+/// million raw rows over a million distinct paths is the worst case for the
+/// fold's memory.
+fn changes_since(
+    group: &mut criterion::BenchmarkGroup<'_, criterion::measurement::WallTime>,
+    reader: &Reader,
+    cancel: &CancelFlag,
+    rows: u64,
+) {
+    group.throughput(Throughput::Elements(rows));
+    group.bench_function("changes_since_1m", |b| {
+        b.iter(|| {
+            reader
+                .changes_since(0, cancel, &mut |_| {})
+                .map(|set| set.summary.rows.len())
+        });
+    });
+}
+
+#[expect(
+    clippy::too_many_lines,
+    reason = "a list of benches, one after the other"
+)]
 fn main() {
     let Some(rows) = std::env::var("PEEKBUDDY_QUERY_ROWS")
         .ok()
@@ -125,6 +149,7 @@ fn main() {
                     }
                 });
             });
+            changes_since(&mut group, &reader, &cancel, rows);
             // Time to the first filtered rows with a glob that one row in a
             // thousand matches: calls until one has a row.
             let glob =

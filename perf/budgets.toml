@@ -398,6 +398,21 @@ how = "criterion bench query/filtered_first_1m (nightly query bench job)"
 arch = ["x86_64", "aarch64"]
 
 [[budget]]
+id = "bench.query.changes_since_1m"
+metric = "the net change over every row of the log: one pass, folded per file (what changed since a marker)"
+unit = "ns"
+bound = "max"
+limit = 2000000000
+class = "timing"
+gate = "nightly-trend"
+scenario = "query-bench"
+status = "provisional"
+source = "#82"
+workload = "1M-row store, a million distinct files"
+how = "criterion bench query/changes_since_1m in the nightly query bench job (series `query benches` on gh-pages, alert at +25 %)"
+arch = ["x86_64"]
+
+[[budget]]
 id = "export.1m_rows"
 metric = "streaming export of 1M rows to CSV and to JSON Lines, each"
 unit = "s"

@@ -16,6 +16,7 @@ use std::time::Duration;
 use rusqlite::{Connection, OpenFlags, params};
 
 use crate::catalog::{Catalog, CatalogError};
+use crate::segment::{DayKey, parse_name};
 
 /// The longest marker name, in characters.
 pub const MAX_NAME_CHARS: usize = 120;
@@ -64,6 +65,38 @@ pub fn clean_name(name: &str) -> Option<String> {
     let cleaned = cleaned.trim_end().to_owned();
     (!cleaned.is_empty()).then_some(cleaned)
 }
+
+/// Days since 1970-01-01 of a civil date (Howard Hinnant's algorithm).
+fn day_number(day: DayKey) -> i64 {
+    let year = i64::from(day.year) - i64::from(day.month <= 2);
+    let era = year.div_euclid(400);
+    let year_of_era = year.rem_euclid(400);
+    let month = i64::from(day.month);
+    let day_of_year =
+        (153 * (month + if month > 2 { -3 } else { 9 }) + 2) / 5 + i64::from(day.day) - 1;
+    let day_of_era = year_of_era * 365 + year_of_era / 4 - year_of_era / 100 + day_of_year;
+    era * 146_097 + day_of_era - 719_468
+}
+
+/// How many days are left before retention removes `segment` (a file name),
+/// given today and the age limit; `None` when there is no age limit or the
+/// name is not a segment. Zero or less means it is due.
+#[must_use]
+pub fn days_left(segment: &str, today: DayKey, max_age_days: Option<u32>) -> Option<i64> {
+    let limit = i64::from(max_age_days?);
+    let (day, _) = parse_name(segment)?;
+    Some(limit - (day_number(today) - day_number(day)))
+}
+
+/// Whether the viewer should warn that a marker is about to go: its segment
+/// has at most [`WARN_DAYS`] days left.
+#[must_use]
+pub fn expires_soon(segment: &str, today: DayKey, max_age_days: Option<u32>) -> bool {
+    days_left(segment, today, max_age_days).is_some_and(|left| left <= WARN_DAYS)
+}
+
+/// The warning starts this many days before a segment is due.
+pub const WARN_DAYS: i64 = 2;
 
 /// Every marker in the segments of `dir`, oldest first.
 ///
@@ -135,7 +168,37 @@ pub fn rename(dir: &Path, event_id: i64, name: &str) -> Result<bool, CatalogErro
 
 #[cfg(test)]
 mod tests {
-    use super::clean_name;
+    use super::{clean_name, days_left, expires_soon};
+    use crate::segment::DayKey;
+
+    fn day(year: i32, month: u8, day: u8) -> DayKey {
+        DayKey { year, month, day }
+    }
+
+    #[test]
+    fn days_left_counts_calendar_days_across_months_and_leap_years() {
+        let file = "events-2026-02-27.db";
+        assert_eq!(days_left(file, day(2026, 2, 27), Some(30)), Some(30));
+        assert_eq!(days_left(file, day(2026, 3, 1), Some(30)), Some(28));
+        assert_eq!(days_left(file, day(2026, 3, 29), Some(30)), Some(0));
+        // 2028 is a leap year: February has 29 days.
+        assert_eq!(
+            days_left("events-2028-02-27.db", day(2028, 3, 1), Some(30)),
+            Some(27)
+        );
+        assert_eq!(days_left(file, day(2025, 12, 31), Some(30)), Some(30 + 58));
+        assert_eq!(days_left(file, day(2026, 3, 1), None), None);
+        assert_eq!(days_left("catalog.db", day(2026, 3, 1), Some(30)), None);
+    }
+
+    #[test]
+    fn the_warning_starts_two_days_before_the_segment_is_due() {
+        let file = "events-2026-10-01.db";
+        assert!(!expires_soon(file, day(2026, 10, 28), Some(30)));
+        assert!(expires_soon(file, day(2026, 10, 29), Some(30)));
+        assert!(expires_soon(file, day(2026, 11, 5), Some(30)));
+        assert!(!expires_soon(file, day(2026, 11, 5), None));
+    }
 
     #[test]
     fn names_are_trimmed_and_cannot_split_a_path() {
