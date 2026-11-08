@@ -1,0 +1,302 @@
+{
+  "script": "perf-baremetal.ps1",
+  "schemaVersion": 1,
+  "startedUtc": "2026-11-08T17:21:16.5884201Z",
+  "exeVersion": "unknown",
+  "exeSha256": "98aaf9d676bfd4d2f3c10fb4460ebf0a9da7e2263d3a298577c540c2b52f1e21",
+  "preflight": {
+    "os": {
+      "caption": "Microsoft Windows 11 Pro",
+      "version": "10.0.26300",
+      "build": "26300"
+    },
+    "architecture": "AMD64",
+    "cpu": "Intel(R) N150",
+    "logicalCpus": 4,
+    "memoryGiB": 15.8,
+    "elevated": false,
+    "onAcPower": true,
+    "powerPlan": "Ausbalanciert",
+    "gpus": [
+      {
+        "name": "Intel(R) Graphics",
+        "driver": "32.0.101.7088"
+      }
+    ],
+    "defender": "real-time-on",
+    "smartAppControl": "off",
+    "busiestProcesses": [
+      {
+        "name": "claude",
+        "cpuPercentOfOneCore": 124.2
+      },
+      {
+        "name": "claude",
+        "cpuPercentOfOneCore": 32.8
+      },
+      {
+        "name": "claude",
+        "cpuPercentOfOneCore": 6.2
+      },
+      {
+        "name": "claude",
+        "cpuPercentOfOneCore": 5.5
+      },
+      {
+        "name": "powershell",
+        "cpuPercentOfOneCore": 4.7
+      }
+    ],
+    "warnings": [
+      "'claude' uses 124.2 % of a core; close it for cleaner numbers.",
+      "'claude' uses 32.8 % of a core; close it for cleaner numbers."
+    ]
+  },
+  "runs": 3,
+  "harness": {
+    "exitCode": 0,
+    "scenarios": {
+      "startup": {
+        "detail": {
+          "startup": {
+            "cpuMs": [
+              31.25,
+              62.5,
+              78.125
+            ],
+            "diskReadMb": [
+              0.01648,
+              0.01648,
+              0.01648
+            ],
+            "readyMs": [
+              127.799,
+              170.261,
+              257.746
+            ],
+            "runs": 3
+          }
+        },
+        "exe": "C:\\repos\\PeekBuddy\\target\\x86_64-pc-windows-msvc\\release\\peekbuddy.exe",
+        "rows": [
+          {
+            "id": "engine.ready.warm",
+            "limit": 100.0,
+            "note": "median of 3 warm runs; skeleton: ready = window up (#60, #45) (above the provisional limit; timing rows are gated by A/B)",
+            "unit": "ms",
+            "value": 170.261,
+            "verdict": "report"
+          },
+          {
+            "id": "engine.startup.cpu",
+            "limit": 300.0,
+            "note": "median of 3 warm runs; skeleton: ready = window up (#60, #45)",
+            "unit": "ms",
+            "value": 62.5,
+            "verdict": "report"
+          },
+          {
+            "id": "engine.startup.disk_read",
+            "limit": 1.0,
+            "note": "median of 3 warm runs; skeleton: ready = window up (#60, #45)",
+            "unit": "MB",
+            "value": 0.01648,
+            "verdict": "report"
+          },
+          {
+            "id": "engine.ready.cold",
+            "limit": null,
+            "note": "needs a reboot or standby-list flush; owner-PC run (#84)",
+            "unit": "",
+            "value": null,
+            "verdict": "not exercised"
+          }
+        ],
+        "runner": {
+          "arch": "x86_64",
+          "defenderRealtime": true,
+          "image": null,
+          "label": "local",
+          "os": "10.0.26300",
+          "ubr": 9818,
+          "vcpu": 4
+        },
+        "schemaVersion": 1
+      },
+      "idle": {
+        "detail": {
+          "idle": {
+            "cpuPercent": 0.0,
+            "handles": 233.0,
+            "privateMb": 2.9296875,
+            "seconds": 55.0083265,
+            "wakesPerMin": 0.0,
+            "workingSetMb": 14.0
+          }
+        },
+        "exe": "C:\\repos\\PeekBuddy\\target\\x86_64-pc-windows-msvc\\release\\peekbuddy.exe",
+        "rows": [
+          {
+            "id": "engine.idle.cpu",
+            "limit": 0.05,
+            "note": "55 s idle, no roots yet (#45)",
+            "unit": "%",
+            "value": 0.0,
+            "verdict": "report"
+          },
+          {
+            "id": "engine.idle.wakes",
+            "limit": 2.0,
+            "note": "55 s idle, no roots yet (#45)",
+            "unit": "per min",
+            "value": 0.0,
+            "verdict": "pass"
+          },
+          {
+            "id": "engine.idle.periodic_timers",
+            "limit": null,
+            "note": "no timer registry in the probe yet; the window offers no periodic timer API",
+            "unit": "",
+            "value": null,
+            "verdict": "not exercised"
+          },
+          {
+            "id": "engine.private_bytes.idle",
+            "limit": 15.0,
+            "note": "55 s idle, no roots yet (#45)",
+            "unit": "MB",
+            "value": 2.9296875,
+            "verdict": "report"
+          }
+        ],
+        "runner": {
+          "arch": "x86_64",
+          "defenderRealtime": true,
+          "image": null,
+          "label": "local",
+          "os": "10.0.26300",
+          "ubr": 9818,
+          "vcpu": 4
+        },
+        "schemaVersion": 1
+      },
+      "memory": {
+        "detail": {
+          "idle": {
+            "cpuPercent": 0.0,
+            "handles": 233.0,
+            "privateMb": 2.921875,
+            "seconds": 55.0155414,
+            "wakesPerMin": 0.0,
+            "workingSetMb": 14.01171875
+          }
+        },
+        "exe": "C:\\repos\\PeekBuddy\\target\\x86_64-pc-windows-msvc\\release\\peekbuddy.exe",
+        "rows": [
+          {
+            "id": "engine.idle.cpu",
+            "limit": 0.05,
+            "note": "55 s idle, no roots yet (#45)",
+            "unit": "%",
+            "value": 0.0,
+            "verdict": "report"
+          },
+          {
+            "id": "engine.idle.wakes",
+            "limit": 2.0,
+            "note": "55 s idle, no roots yet (#45)",
+            "unit": "per min",
+            "value": 0.0,
+            "verdict": "pass"
+          },
+          {
+            "id": "engine.idle.periodic_timers",
+            "limit": null,
+            "note": "no timer registry in the probe yet; the window offers no periodic timer API",
+            "unit": "",
+            "value": null,
+            "verdict": "not exercised"
+          },
+          {
+            "id": "engine.private_bytes.idle",
+            "limit": 15.0,
+            "note": "55 s idle, no roots yet (#45)",
+            "unit": "MB",
+            "value": 2.921875,
+            "verdict": "report"
+          }
+        ],
+        "runner": {
+          "arch": "x86_64",
+          "defenderRealtime": true,
+          "image": null,
+          "label": "local",
+          "os": "10.0.26300",
+          "ubr": 9818,
+          "vcpu": 4
+        },
+        "schemaVersion": 1
+      }
+    },
+    "log": "== startup\n| Budget row | Value | Limit | Verdict | Note |\r\n| --- | --- | --- | --- | --- |\r\n| `engine.ready.warm` | 170.26 ms | 100 ms | report | median of 3 warm runs; skeleton: ready = window up (#60, #45) (above the provisional limit; timing rows are gated by A/B) |\r\n| `engine.startup.cpu` | 62.50 ms | 300 ms | report | median of 3 warm runs; skeleton: ready = window up (#60, #45) |\r\n| `engine.startup.disk_read` | 0.02 MB | 1 MB | report | median of 3 warm runs; skeleton: ready = window up (#60, #45) |\r\n| `engine.ready.cold` | - | - | not exercised | needs a reboot or standby-list flush; owner-PC run (#84) |\r\n\r\nperf: ok (results in C:\\Users\\Matthias Eggert\\AppData\\Local\\Temp\\perf-baremetal-c1f4bde3-ebe4-4984-a19b-951939ab4679\\harness-startup.json)\r\n== idle\n| Budget row | Value | Limit | Verdict | Note |\r\n| --- | --- | --- | --- | --- |\r\n| `engine.idle.cpu` | 0.00 % | 0.05 % | report | 55 s idle, no roots yet (#45) |\r\n| `engine.idle.wakes` | 0.00 per min | 2 per min | pass | 55 s idle, no roots yet (#45) |\r\n| `engine.idle.periodic_timers` | - | - | not exercised | no timer registry in the probe yet; the window offers no periodic timer API |\r\n| `engine.private_bytes.idle` | 2.93 MB | 15 MB | report | 55 s idle, no roots yet (#45) |\r\n\r\nperf: ok (results in C:\\Users\\Matthias Eggert\\AppData\\Local\\Temp\\perf-baremetal-c1f4bde3-ebe4-4984-a19b-951939ab4679\\harness-idle.json)\r\n== memory\n| Budget row | Value | Limit | Verdict | Note |\r\n| --- | --- | --- | --- | --- |\r\n| `engine.idle.cpu` | 0.00 % | 0.05 % | report | 55 s idle, no roots yet (#45) |\r\n| `engine.idle.wakes` | 0.00 per min | 2 per min | pass | 55 s idle, no roots yet (#45) |\r\n| `engine.idle.periodic_timers` | - | - | not exercised | no timer registry in the probe yet; the window offers no periodic timer API |\r\n| `engine.private_bytes.idle` | 2.92 MB | 15 MB | report | 55 s idle, no roots yet (#45) |\r\n\r\nperf: ok (results in C:\\Users\\Matthias Eggert\\AppData\\Local\\Temp\\perf-baremetal-c1f4bde3-ebe4-4984-a19b-951939ab4679\\harness-memory.json)\r\n"
+  },
+  "viewer": {
+    "runs": [
+      {
+        "role": "viewer",
+        "frames": 8,
+        "first_frame_us": 169204,
+        "idle_seconds": 5,
+        "idle_frames": 0,
+        "adapter": "Intel(R) Graphics",
+        "backend": "OpenGL",
+        "device_type": "Gpu",
+        "causes": {}
+      },
+      {
+        "role": "viewer",
+        "frames": 8,
+        "first_frame_us": 163568,
+        "idle_seconds": 5,
+        "idle_frames": 0,
+        "adapter": "Intel(R) Graphics",
+        "backend": "OpenGL",
+        "device_type": "Gpu",
+        "causes": {}
+      },
+      {
+        "role": "viewer",
+        "frames": 8,
+        "first_frame_us": 180539,
+        "idle_seconds": 5,
+        "idle_frames": 0,
+        "adapter": "Intel(R) Graphics",
+        "backend": "OpenGL",
+        "device_type": "Gpu",
+        "causes": {}
+      }
+    ],
+    "firstFrameMedianUs": 169204,
+    "firstFrameMinUs": 163568,
+    "firstFrameMaxUs": 180539
+  },
+  "notMeasured": [
+    {
+      "what": "engine ready, cold",
+      "why": "needs a standby-list flush (elevated) and is only an approximation of a reboot"
+    },
+    {
+      "what": "ingest at 20k events/s, event latency p50/p99",
+      "why": "the harness builds its synthetic-events exe with cargo; a harness artifact that carries it is a follow-up"
+    },
+    {
+      "what": "viewer frame times p95/p99 scrolling and filtering 1M rows",
+      "why": "no harness scenario drives the viewer under load yet"
+    },
+    {
+      "what": "export of 1M rows",
+      "why": "no harness scenario yet"
+    }
+  ],
+  "durationSec": 147.4
+}

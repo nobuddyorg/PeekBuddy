@@ -1,0 +1,102 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/nobuddyorg/PeekBuddy/blob/main/perf/owner-report.schema.json",
+  "title": "scripts/owner/perf-baremetal.ps1 report",
+  "description": "One bare-metal run on the owner's PC (#84). Absolute numbers with the preflight next to them; compare only with earlier runs on the same machine. Bump schemaVersion with every change.",
+  "type": "object",
+  "required": [
+    "script",
+    "schemaVersion",
+    "startedUtc",
+    "exeVersion",
+    "exeSha256",
+    "preflight",
+    "runs",
+    "harness",
+    "viewer",
+    "notMeasured",
+    "durationSec"
+  ],
+  "properties": {
+    "script": { "const": "perf-baremetal.ps1" },
+    "schemaVersion": { "const": 1 },
+    "startedUtc": { "type": "string", "format": "date-time" },
+    "exeVersion": { "type": "string" },
+    "exeSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "runs": { "type": "integer", "minimum": 1 },
+    "durationSec": { "type": "number", "minimum": 0 },
+    "preflight": {
+      "type": "object",
+      "required": [
+        "os",
+        "architecture",
+        "cpu",
+        "logicalCpus",
+        "memoryGiB",
+        "elevated",
+        "onAcPower",
+        "powerPlan",
+        "gpus",
+        "defender",
+        "smartAppControl",
+        "busiestProcesses",
+        "warnings"
+      ],
+      "properties": {
+        "os": {
+          "type": "object",
+          "required": ["caption", "version", "build"]
+        },
+        "architecture": { "type": "string" },
+        "cpu": { "type": "string" },
+        "logicalCpus": { "type": "integer", "minimum": 1 },
+        "memoryGiB": { "type": "number", "minimum": 0 },
+        "elevated": { "type": "boolean" },
+        "onAcPower": { "type": "boolean" },
+        "powerPlan": { "type": "string" },
+        "gpus": {
+          "type": "array",
+          "items": { "type": "object", "required": ["name", "driver"] }
+        },
+        "defender": { "enum": ["real-time-on", "real-time-off", "unknown"] },
+        "smartAppControl": { "type": "string" },
+        "busiestProcesses": {
+          "type": "array",
+          "maxItems": 5,
+          "items": { "type": "object", "required": ["name", "cpuPercentOfOneCore"] }
+        },
+        "warnings": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "harness": {
+      "type": "object",
+      "required": ["exitCode", "scenarios", "log"],
+      "properties": {
+        "exitCode": { "type": "integer" },
+        "scenarios": { "type": "object" },
+        "log": { "type": "string" }
+      }
+    },
+    "viewer": {
+      "type": "object",
+      "required": ["runs", "firstFrameMedianUs", "firstFrameMinUs", "firstFrameMaxUs"],
+      "properties": {
+        "runs": { "type": "array", "items": { "type": "object" } },
+        "firstFrameMedianUs": { "type": ["number", "null"] },
+        "firstFrameMinUs": { "type": ["number", "null"] },
+        "firstFrameMaxUs": { "type": ["number", "null"] }
+      }
+    },
+    "notMeasured": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["what", "why"],
+        "properties": {
+          "what": { "type": "string" },
+          "why": { "type": "string" }
+        }
+      }
+    }
+  }
+}

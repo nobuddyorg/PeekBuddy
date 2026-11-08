@@ -38,3 +38,24 @@ Runs are batched: at most one owner run per week unless a release is due.
 | [`rdcw-bench.ps1`](../../scripts/owner/rdcw-bench.ps1) | ReadDirectoryChangesExW class and buffer matrix, root lifecycle, throughput with 5 repetitions, burst and pool cost on the owner's local NTFS disk, plus file-name length aggregates (about 15 minutes, unelevated; needs the `rdcw-bench-exe-windows-2025` artifact of the rdcw-bench workflow) | #32 |
 | [`store-bench.ps1`](../../scripts/owner/store-bench.ps1) | Commit policy, checkpoint, readers, memory, size and 2M-row query numbers of the SQLite store on the owner's disk (about 15 minutes; needs the `store-bench-exes-windows-2025` artifact of the store-bench workflow) | #35 |
 | [`autostart-check.ps1`](../../scripts/owner/autostart-check.ps1) | In three phases around a real sign-in: the Run value and Task Manager's StartupApproved flag, whether the autostarted engine runs with no viewer child, its CPU time and bytes read, and the Startup impact you read from Task Manager (about 10 minutes plus the sign-out; the only persistent change is the Run value, removed by `-Phase cleanup`) | #63 |
+| [`perf-baremetal.ps1`](../../scripts/owner/perf-baremetal.ps1) | The absolute numbers of a release build on real hardware: a preflight (AC power, power plan, GPU and driver, Defender, busiest processes), then the perf harness (engine ready warm, startup CPU and disk read, idle CPU and wakeups, Private Bytes) and the viewer's first frame, 3 runs each, medians and spread (about 12 minutes, unelevated; takes `-Exe` and `-Harness`, see below) | #84 |
+
+### Running `perf-baremetal.ps1`
+
+1. Download the release `peekbuddy.exe` and the perf harness `xtask.exe` and
+   check both ([verify a download](verify-download.md)).
+2. Close other programs, plug the PC in, and run:
+
+   ```powershell
+   powershell -ExecutionPolicy Bypass -File scripts\owner\perf-baremetal.ps1 -Exe .\peekbuddy.exe -Harness .\xtask.exe
+   ```
+
+3. The script writes `perf-baremetal-<version>-<date>.json`. Attach it to the
+   release checklist issue (#77), or commit it to `perf/owner-runs/`: the
+   tests validate every file there against
+   [`perf/owner-report.schema.json`](../../perf/owner-report.schema.json).
+
+An everyday PC is noisy. Compare a run only with earlier runs on the same
+machine; the preflight sits next to every number and its warnings (battery,
+a busy process, power saver) say when a run is not comparable. What the
+script does not measure yet is listed under `notMeasured` in the report.
