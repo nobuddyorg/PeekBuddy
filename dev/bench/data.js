@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1794129015894,
+  "lastUpdate": 1794129081203,
   "repoUrl": "https://github.com/nobuddyorg/PeekBuddy",
   "entries": {
     "benches (windows-2025)": [
@@ -1262,6 +1262,53 @@ window.BENCHMARK_DATA = {
           {
             "name": "query.subtree_resolve_10m",
             "value": 9223110.016835017,
+            "unit": "ns"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "name": "Matthias Eggert",
+            "username": "besessener",
+            "email": "8039350+besessener@users.noreply.github.com"
+          },
+          "committer": {
+            "name": "GitHub",
+            "username": "web-flow",
+            "email": "noreply@github.com"
+          },
+          "id": "210dc68a8c850a46ffb2738b228407b4215d0b5a",
+          "message": "feat(core): rule model and evaluator (#81) (#416)\n\n* feat(core): rule model and evaluator (#81)\n\n[[rule]] in settings.toml with validation, a zero-allocation evaluator\n(threshold in a window, cooldown, clock injected) and the placeholder\nsubstitution of the run-a-command action, one argument per placeholder.\n\nCo-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>\n\n* fix(bench): name the rules budget like its bench\n\nbench-ab looks the budget row up by the bench name.\n\nCo-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>\n\n---------\n\nCo-authored-by: Matthias Eggert <dem.matze@gmail.com>\nCo-authored-by: Claude Sonnet 5.5 <noreply@anthropic.com>",
+          "timestamp": "2026-11-08T01:07:50Z",
+          "url": "https://github.com/nobuddyorg/PeekBuddy/commit/210dc68a8c850a46ffb2738b228407b4215d0b5a"
+        },
+        "date": 1794129079344,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "query.filtered_first_1m",
+            "value": 6028164.047619048,
+            "unit": "ns"
+          },
+          {
+            "name": "query.fts_lookup_10m",
+            "value": 20218992.112299465,
+            "unit": "ns"
+          },
+          {
+            "name": "query.page_keyset_10m",
+            "value": 1285963.7626262626,
+            "unit": "ns"
+          },
+          {
+            "name": "query.regex_post_filter_1m",
+            "value": 2128864900,
+            "unit": "ns"
+          },
+          {
+            "name": "query.subtree_resolve_10m",
+            "value": 6026490.333333334,
             "unit": "ns"
           }
         ]
