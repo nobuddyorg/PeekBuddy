@@ -6,8 +6,8 @@ PC: a toast, a tray balloon, or a program you chose. There is no email, no
 webhook and no network action.
 
 **Status.** Rules are evaluated while the engine runs. The notification is
-a tray balloon for now; a native toast and the settings editor arrive with
-the next parts of #81. A program you chose runs as described below.
+a tray balloon for now; a native toast arrives with the next part of #81.
+Edit rules in Settings, under Notifications, or in `settings.toml`.
 
 Rules live in `settings.toml` as `[[rule]]` tables (all keys are in the
 [settings reference](../reference/settings.md)).
