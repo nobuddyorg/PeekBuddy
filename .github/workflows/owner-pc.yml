@@ -1,0 +1,59 @@
+# Publishes the reports of scripts/owner/perf-baremetal.ps1 (#84): a report
+# committed to perf/owner-runs/ on main becomes one point per budget row in
+# the "owner-pc" series on gh-pages. The schema test (peekbuddy tests/
+# owner_report.rs) has already validated the file in the pull request.
+name: owner-pc
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "perf/owner-runs/*.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: owner-pc
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: publish the owner-pc series
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: write # github-action-benchmark pushes the data to gh-pages
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Newest report as benchmark points
+        run: |
+          report=$(ls perf/owner-runs/*.json | sort | tail -n 1)
+          echo "report: $report" >> "$GITHUB_STEP_SUMMARY"
+          mkdir -p target/owner-pc
+          # PowerShell writes a byte order mark; the first scenario that has
+          # a row wins when startup, idle and memory repeat one.
+          sed '1s/^\xEF\xBB\xBF//' "$report" | jq '
+            [ (.harness.scenarios | to_entries[] | .value.rows[]?
+                | select(.value != null)
+                | {name: .id, unit: .unit, value: .value}),
+              (.viewer | select(.firstFrameMedianUs != null)
+                | {name: "viewer.first_frame.median", unit: "ms",
+                   value: (.firstFrameMedianUs / 1000)})
+            ] | unique_by(.name)' > target/owner-pc/output.json
+          jq length target/owner-pc/output.json >> "$GITHUB_STEP_SUMMARY"
+      - name: Publish to gh-pages
+        uses: benchmark-action/github-action-benchmark@4322e5726e6334590d251fc4f92bec0efafc45dc # v1.22.2
+        with:
+          name: owner PC
+          tool: customSmallerIsBetter
+          output-file-path: target/owner-pc/output.json
+          gh-pages-branch: gh-pages
+          benchmark-data-dir-path: owner-pc
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          auto-push: true
+          comment-on-alert: false
+          fail-on-alert: false
