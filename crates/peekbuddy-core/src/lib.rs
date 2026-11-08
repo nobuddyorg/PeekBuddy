@@ -8,6 +8,7 @@
 
 pub mod autostart;
 pub mod capture;
+pub mod changes;
 pub mod decode;
 pub mod derive;
 pub mod event;
