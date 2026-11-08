@@ -57,6 +57,8 @@ pub mod signal;
 #[cfg(windows)]
 pub mod single_instance;
 #[cfg(windows)]
+pub mod spawn;
+#[cfg(windows)]
 pub mod suspend;
 #[cfg(windows)]
 pub mod timer;
