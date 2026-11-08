@@ -55,6 +55,8 @@ pub struct Shared {
     pub data_dir: String,
     /// Pause, resume and the watch list (#63, #68).
     pub pause: Arc<crate::pause_ctl::PauseCtl>,
+    /// Markers (#82).
+    pub markers: Arc<crate::marker_ctl::MarkerCtl>,
     /// Autostart at logon (#63); none for a test engine.
     pub autostart:
         Option<Arc<crate::autostart_ctl::AutostartCtl<peekbuddy_win::autostart::RunKeys>>>,
@@ -224,6 +226,18 @@ pub fn handle(ctx: &Shared, message: &Message, reply: &mut Reply) {
         Message::Command(Command::ApplySettings { toml }) => {
             reply.send(&apply_settings(ctx, toml));
         }
+        Message::Command(Command::MarkNow { name }) => {
+            reply.send(&match ctx.markers.mark(name) {
+                Ok(name) => command_result(true, format!("marked `{name}`")),
+                Err(message) => command_result(false, message),
+            });
+        }
+        Message::Command(Command::RenameMarker { event_id, name }) => {
+            reply.send(&match ctx.markers.rename(*event_id, name) {
+                Ok(name) => command_result(true, format!("renamed to `{name}`")),
+                Err(message) => command_result(false, message),
+            });
+        }
         Message::Command(Command::PauseAll) => {
             #[cfg(feature = "inject")]
             crate::inject::leak_handle();
@@ -331,6 +345,7 @@ mod tests {
             settings_path: dir.join("settings.toml"),
             data_dir: dir.to_string_lossy().into_owned(),
             autostart: None,
+            markers: markers(dir),
             pause: crate::pause_ctl::PauseCtl::new(
                 peekbuddy_core::settings::Settings {
                     watches: vec![peekbuddy_core::settings::Watch {
@@ -346,6 +361,23 @@ mod tests {
                 crate::pause_ctl::now_ticks,
             ),
         }
+    }
+
+    /// A controller on a real pipeline over a scratch segment, in a folder
+    /// next to `dir` (the pipeline keeps its files open for the process).
+    fn markers(dir: &std::path::Path) -> std::sync::Arc<crate::marker_ctl::MarkerCtl> {
+        let store = dir.with_extension("store");
+        std::fs::create_dir_all(&store).unwrap();
+        let writer = peekbuddy_store::writer::Writer::open(&store.join("events.db")).unwrap();
+        let config = peekbuddy_store::pipeline::Config::new(store.join("spill"));
+        let pipeline = peekbuddy_store::pipeline::Pipeline::start(writer, config).unwrap();
+        let producer = pipeline.producer();
+        std::mem::forget(pipeline);
+        std::sync::Arc::new(crate::marker_ctl::MarkerCtl::new(
+            producer,
+            store,
+            (crate::pause_ctl::now_ticks, |_| 0),
+        ))
     }
 
     struct Rows;
@@ -403,6 +435,51 @@ mod tests {
                 engine_version: PROTOCOL_VERSION
             }]
         );
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn marking_answers_with_the_cleaned_name_and_renaming_a_stranger_fails() {
+        let dir = dir("marker");
+        let ctx = ctx(&dir);
+        let marked = answer(
+            &ctx,
+            &Message::Command(Command::MarkNow {
+                name: String::from("  before install "),
+            }),
+        );
+        assert_eq!(
+            marked,
+            [Message::CommandResult {
+                ok: true,
+                message: String::from("marked `before install`")
+            }]
+        );
+        let blank = answer(
+            &ctx,
+            &Message::Command(Command::MarkNow {
+                name: String::new(),
+            }),
+        );
+        assert!(
+            matches!(
+                blank.as_slice(),
+                [Message::CommandResult { ok: true, message }]
+                    if message.starts_with("marked `Marker ")
+            ),
+            "{blank:?}"
+        );
+        let renamed = answer(
+            &ctx,
+            &Message::Command(Command::RenameMarker {
+                event_id: 12345,
+                name: String::from("x"),
+            }),
+        );
+        assert!(matches!(
+            renamed.as_slice(),
+            [Message::CommandResult { ok: false, .. }]
+        ));
         std::fs::remove_dir_all(&dir).unwrap();
     }
 

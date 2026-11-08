@@ -18,6 +18,10 @@ pub enum Tab {
     Log,
     /// The watches.
     Watches,
+    /// The markers and what changed since one (#82).
+    Changes,
+    /// Where the churn comes from (#82).
+    Stats,
     /// The settings and About.
     Settings,
 }
@@ -463,6 +467,8 @@ pub fn tabs(ui: &mut egui::Ui, current: &mut Tab, watches: usize, attention: usi
             format!("Watches ({watches})")
         };
         ui.selectable_value(current, Tab::Watches, label);
+        ui.selectable_value(current, Tab::Changes, "Changes");
+        ui.selectable_value(current, Tab::Stats, "Stats");
         ui.selectable_value(current, Tab::Settings, "Settings");
     });
     ui.separator();

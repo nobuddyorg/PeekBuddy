@@ -2,6 +2,17 @@
 source: crates/peekbuddy-store/tests/schema.rs
 expression: "ddl.join(\";\\n\\n\")"
 ---
+CREATE TABLE churn (
+  hour_ts INTEGER NOT NULL,
+  root_id INTEGER NOT NULL,
+  dim INTEGER NOT NULL,
+  key INTEGER NOT NULL,
+  label TEXT,
+  n INTEGER NOT NULL,
+  err INTEGER NOT NULL,
+  PRIMARY KEY (hour_ts, root_id, dim, key)
+) STRICT, WITHOUT ROWID;
+
 CREATE TABLE cursor (
   root_id INTEGER NOT NULL,
   vol_id INTEGER NOT NULL,
