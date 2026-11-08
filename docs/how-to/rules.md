@@ -32,6 +32,10 @@ matches". A rule never changes or hides the events it looks at, and a slow
 notifier never slows capture: when the queue to it is full the notification is
 dropped and counted as suppressed.
 
+Over all rules at most six notifications a minute are shown; the rest are
+counted and not shown. Programs are not affected by this cap, only by each
+rule's cooldown.
+
 ## Run a program
 
 ```toml
