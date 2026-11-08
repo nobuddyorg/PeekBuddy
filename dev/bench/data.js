@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1794129100218,
+  "lastUpdate": 1794129189624,
   "repoUrl": "https://github.com/nobuddyorg/PeekBuddy",
   "entries": {
     "benches (windows-2025)": [
@@ -605,6 +605,98 @@ window.BENCHMARK_DATA = {
           {
             "name": "store/intern_miss_1000",
             "value": 3374582.5,
+            "unit": "ns"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "name": "Matthias Eggert",
+            "username": "besessener",
+            "email": "8039350+besessener@users.noreply.github.com"
+          },
+          "committer": {
+            "name": "GitHub",
+            "username": "web-flow",
+            "email": "noreply@github.com"
+          },
+          "id": "210dc68a8c850a46ffb2738b228407b4215d0b5a",
+          "message": "feat(core): rule model and evaluator (#81) (#416)\n\n* feat(core): rule model and evaluator (#81)\n\n[[rule]] in settings.toml with validation, a zero-allocation evaluator\n(threshold in a window, cooldown, clock injected) and the placeholder\nsubstitution of the run-a-command action, one argument per placeholder.\n\nCo-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>\n\n* fix(bench): name the rules budget like its bench\n\nbench-ab looks the budget row up by the bench name.\n\nCo-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>\n\n---------\n\nCo-authored-by: Matthias Eggert <dem.matze@gmail.com>\nCo-authored-by: Claude Sonnet 5.5 <noreply@anthropic.com>",
+          "timestamp": "2026-11-08T01:07:50Z",
+          "url": "https://github.com/nobuddyorg/PeekBuddy/commit/210dc68a8c850a46ffb2738b228407b4215d0b5a"
+        },
+        "date": 1794129186382,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "filter/eval_6_names",
+            "value": 1394.2788171262396,
+            "unit": "ns"
+          },
+          {
+            "name": "metrics/process_list_300",
+            "value": 419.9889183989619,
+            "unit": "ns"
+          },
+          {
+            "name": "notify_parse/extended/64kib",
+            "value": 1170.010782302999,
+            "unit": "ns"
+          },
+          {
+            "name": "notify_parse/full/64kib",
+            "value": 1197.1751833693331,
+            "unit": "ns"
+          },
+          {
+            "name": "notify_parse/plain/64kib",
+            "value": 2061.5583317098562,
+            "unit": "ns"
+          },
+          {
+            "name": "perf/counters_event",
+            "value": 0.22436945503643846,
+            "unit": "ns"
+          },
+          {
+            "name": "perf/milestone_record",
+            "value": 9.626490954177669,
+            "unit": "ns"
+          },
+          {
+            "name": "reparse/classify_8",
+            "value": 11.3921241567318,
+            "unit": "ns"
+          },
+          {
+            "name": "rules/eval_6_events_50_rules",
+            "value": 26156.867324064333,
+            "unit": "ns"
+          },
+          {
+            "name": "store/batch_insert_1000",
+            "value": 2001664.230769231,
+            "unit": "ns"
+          },
+          {
+            "name": "store/intern_hit_1000",
+            "value": 33447.4150462772,
+            "unit": "ns"
+          },
+          {
+            "name": "store/intern_miss_1000",
+            "value": 2289125,
+            "unit": "ns"
+          },
+          {
+            "name": "viewer/scroll_frame_p95",
+            "value": 299525,
+            "unit": "ns"
+          },
+          {
+            "name": "viewer/scroll_frame_p99",
+            "value": 339550,
             "unit": "ns"
           }
         ]
