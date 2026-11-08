@@ -5,9 +5,9 @@ config file changed, a folder saw a burst of deletes. Everything stays on this
 PC: a toast, a tray balloon, or a program you chose. There is no email, no
 webhook and no network action.
 
-**Status.** This version reads, validates and evaluates rules. The actions
-(toast, tray balloon, program) arrive with the next parts of #81, and this
-page already describes how they behave.
+**Status.** Rules are evaluated while the engine runs. The notification is
+a tray balloon for now; a native toast and the settings editor arrive with
+the next parts of #81. A program you chose runs as described below.
 
 Rules live in `settings.toml` as `[[rule]]` tables (all keys are in the
 [settings reference](../reference/settings.md)).

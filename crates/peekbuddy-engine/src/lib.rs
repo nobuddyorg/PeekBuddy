@@ -37,6 +37,8 @@ pub mod pause_ctl;
 #[cfg(windows)]
 pub mod reconciler;
 #[cfg(windows)]
+pub mod rules_win;
+#[cfg(windows)]
 mod sample;
 #[cfg(windows)]
 pub mod settings;
@@ -613,11 +615,14 @@ mod run {
         if watches.is_empty() {
             return Ok(None);
         }
-        let sink = Box::new(StoreSink::new(
-            producer.clone(),
-            filters_from_settings(&loaded.settings),
-            Arc::clone(counters),
-        ));
+        let sink = Box::new(
+            StoreSink::new(
+                producer.clone(),
+                filters_from_settings(&loaded.settings),
+                Arc::clone(counters),
+            )
+            .with_rules(crate::rules_win::start(&loaded.settings, &watches)),
+        );
         let specs: Vec<RootSpec> = watches
             .iter()
             .map(|watch| RootSpec {
@@ -710,6 +715,8 @@ mod run {
         shutdown: &Rc<RefCell<Shutdown>>,
         (pause, autostart): (&Arc<crate::pause_ctl::PauseCtl>, Option<SharedAutostart>),
     ) -> std::io::Result<()> {
+        // Balloons of the rules go through the tray icon of this window.
+        crate::rules_win::bind_window(hidden.handle());
         let name = crate::ipc_server::pipe_name(options.data_dir.as_deref())?;
         let shared = crate::ipc_server::Shared {
             window: hidden.handle(),

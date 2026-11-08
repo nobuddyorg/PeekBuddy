@@ -79,7 +79,7 @@ pub struct Worker {
 pub fn start(
     rules: &[Rule],
     watch_ids: &[String],
-    roots: Vec<Vec<u16>>,
+    roots: &[Vec<u16>],
     notifier: Box<dyn Notifier>,
 ) -> Result<(Tap, Worker), String> {
     let evaluator = Evaluator::compile(rules, watch_ids)?;
@@ -102,7 +102,7 @@ pub fn start(
     let tap = Tap {
         evaluator,
         meta,
-        roots,
+        roots: roots.iter().map(|root| user_path(root)).collect(),
         tx,
         dropped: Arc::new(AtomicU64::new(0)),
     };
@@ -112,6 +112,22 @@ pub fn start(
             handle: Some(handle),
         },
     ))
+}
+
+/// A root as the user knows it: without the `\\?\` prefix of the long form
+/// (`\\?\UNC\server\share` is `\\server\share`).
+fn user_path(root: &[u16]) -> Vec<u16> {
+    let long: Vec<u16> = r"\\?\".encode_utf16().collect();
+    let unc: Vec<u16> = r"\\?\UNC\".encode_utf16().collect();
+    if let Some(rest) = root.strip_prefix(unc.as_slice()) {
+        let mut out: Vec<u16> = r"\\".encode_utf16().collect();
+        out.extend_from_slice(rest);
+        out
+    } else if let Some(rest) = root.strip_prefix(long.as_slice()) {
+        rest.to_vec()
+    } else {
+        root.to_vec()
+    }
 }
 
 fn work(rx: &Receiver<Action>, mut notifier: Box<dyn Notifier>) {

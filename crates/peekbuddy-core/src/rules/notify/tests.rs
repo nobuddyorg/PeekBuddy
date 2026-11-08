@@ -79,7 +79,7 @@ fn a_firing_becomes_a_toast_and_a_command_with_the_event_filled_in() {
     let (mut tap, worker) = start(
         &[rule(Some(command), true)],
         &[String::from("w")],
-        roots(),
+        &roots(),
         Box::new(recorder.clone()),
     )
     .unwrap();
@@ -115,7 +115,7 @@ fn the_cooldown_keeps_a_busy_stream_to_one_notification() {
     let (mut tap, worker) = start(
         &[rule(None, true)],
         &[],
-        roots(),
+        &roots(),
         Box::new(recorder.clone()),
     )
     .unwrap();
@@ -137,7 +137,7 @@ fn a_full_queue_drops_and_counts_instead_of_waiting() {
         cooldown_s: 0,
         ..rule(None, true)
     };
-    let (mut tap, worker) = start(&[rule], &[], roots(), Box::new(Gated(held))).unwrap();
+    let (mut tap, worker) = start(&[rule], &[], &roots(), Box::new(Gated(held))).unwrap();
     // The worker takes one action and blocks; the queue holds QUEUE_LEN more.
     let total = QUEUE_LEN + 40;
     for t in 0..total {
@@ -159,8 +159,19 @@ fn a_bad_rule_is_reported_with_its_index() {
         watches: vec![String::from("ghost")],
         ..rule(None, true)
     }];
-    let why = start(&rules, &[], roots(), Box::new(Recorder::default()))
+    let why = start(&rules, &[], &roots(), Box::new(Recorder::default()))
         .err()
         .unwrap_or_default();
     assert!(why.starts_with("rule[0]"), "{why}");
+}
+
+#[test]
+fn the_user_sees_the_path_without_the_long_prefix() {
+    for (root, shown) in [
+        (r"\\?\C:\data", r"C:\data"),
+        (r"\\?\UNC\srv\share\d", r"\\srv\share\d"),
+        (r"D:\plain", r"D:\plain"),
+    ] {
+        assert_eq!(super::user_path(&units(root)), units(shown), "{root}");
+    }
 }

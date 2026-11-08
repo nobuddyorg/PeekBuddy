@@ -404,6 +404,8 @@ pub struct StoreSink {
     filters: Option<FilterSet>,
     scratch: Scratch,
     counters: Arc<Counters>,
+    /// The rules of the settings (#81), on the events that are recorded.
+    rules: Option<peekbuddy_core::rules::notify::Tap>,
 }
 
 impl StoreSink {
@@ -416,7 +418,15 @@ impl StoreSink {
             filters,
             scratch: Scratch::new(),
             counters,
+            rules: None,
         }
+    }
+
+    /// Evaluates the rules of the settings on every recorded event.
+    #[must_use]
+    pub fn with_rules(mut self, rules: Option<peekbuddy_core::rules::notify::Tap>) -> Self {
+        self.rules = rules;
+        self
     }
 
     fn send(&mut self) {
@@ -444,6 +454,9 @@ impl EventSink for StoreSink {
         self.counters
             .events_received
             .fetch_add(1, Ordering::Relaxed);
+        if let Some(rules) = &mut self.rules {
+            rules.on_event(event, WideStr::new(name));
+        }
         let mut batch = self
             .batch
             .take()
