@@ -1,0 +1,76 @@
+# The perf harness for the owner PC (#84): xtask.exe plus the driver test of
+# the ingest and handles scenarios, built in release mode and attested, so
+# `scripts/owner/perf-baremetal.ps1` runs them without a Rust toolchain. Built
+# on every push to main; a pull request that changes this file or the driver
+# builds it without attesting.
+name: perf-harness
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/perf-harness.yml"
+      - "xtask/**"
+      - "crates/peekbuddy/tests/perf_driver.rs"
+      - "crates/peekbuddy/tests/support/**"
+      - "perf/**"
+      - "Cargo.lock"
+  pull_request:
+    paths:
+      - ".github/workflows/perf-harness.yml"
+      - "xtask/src/perf.rs"
+      - "crates/peekbuddy/tests/perf_driver.rs"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: perf-harness-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: build and attest the harness
+    runs-on: windows-2025
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      id-token: write # sign the attestation with the identity of this workflow
+      attestations: write # store the attestation
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Rust toolchain
+        run: rustup toolchain install && rustup show
+      - name: Build the release exe, xtask and the driver
+        shell: pwsh
+        run: |
+          cargo build --release --locked -p peekbuddy
+          cargo build --release --locked -p xtask
+          $messages = cargo test --release --locked -p peekbuddy --test perf_driver --no-run --message-format json
+          if ($LASTEXITCODE -ne 0) { throw "building the driver failed" }
+          $driver = $messages | ForEach-Object { $_ | ConvertFrom-Json } |
+            Where-Object { $_.reason -eq 'compiler-artifact' -and $_.target.name -eq 'perf_driver' -and $_.executable } |
+            Select-Object -First 1 -ExpandProperty executable
+          if (-not $driver) { throw "no perf_driver executable in the cargo messages" }
+          New-Item -ItemType Directory -Force out | Out-Null
+          Copy-Item target/release/xtask.exe out/xtask.exe
+          Copy-Item $driver out/perf-driver.exe
+          Get-ChildItem out | Format-Table Name, Length
+      - name: Attest
+        if: github.event_name != 'pull_request'
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4
+        with:
+          subject-path: out/*
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: peekbuddy-perf-harness
+          path: out/
+          if-no-files-found: error
+      - name: The prebuilt driver runs the handles scenario
+        shell: pwsh
+        env:
+          PEEKBUDDY_PERF_DRIVER: ${{ github.workspace }}/out/perf-driver.exe
+        run: out/xtask.exe perf --scenario handles --exe target/release/peekbuddy.exe --out target/perf/handles.json

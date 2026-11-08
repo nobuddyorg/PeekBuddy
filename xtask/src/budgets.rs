@@ -111,9 +111,18 @@ pub fn run(mode: Option<&str>) -> Result<String, String> {
     }
 }
 
-/// Reads and validates `perf/budgets.toml`.
+/// The table as of this build, for a harness that runs away from the
+/// repository (the owner PC, #84).
+const EMBEDDED: &str = include_str!("../../perf/budgets.toml");
+
+/// Reads and validates `perf/budgets.toml`; outside a checkout (no such file
+/// in the working directory) the copy compiled into this build.
 pub fn load() -> Result<Vec<Budget>, String> {
-    let text = std::fs::read_to_string(BUDGETS).map_err(|e| format!("{BUDGETS}: {e}"))?;
+    let text = match std::fs::read_to_string(BUDGETS) {
+        Ok(text) => text,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => EMBEDDED.to_owned(),
+        Err(error) => return Err(format!("{BUDGETS}: {error}")),
+    };
     Ok(parse(&text)?.budget)
 }
 

@@ -1,0 +1,447 @@
+{
+  "script": "perf-baremetal.ps1",
+  "schemaVersion": 1,
+  "startedUtc": "2026-11-08T20:16:22.8416484Z",
+  "exeVersion": "unknown",
+  "exeSha256": "d32ac3654def57f834f53d4c7e38f4ac3900e5020ee781c19c7a5e66ab2aaaeb",
+  "preflight": {
+    "os": {
+      "caption": "Microsoft Windows 11 Pro",
+      "version": "10.0.26300",
+      "build": "26300"
+    },
+    "architecture": "AMD64",
+    "cpu": "Intel(R) N150",
+    "logicalCpus": 4,
+    "memoryGiB": 15.8,
+    "elevated": false,
+    "onAcPower": true,
+    "powerPlan": "Ausbalanciert",
+    "gpus": [
+      {
+        "name": "Intel(R) Graphics",
+        "driver": "32.0.101.7088"
+      }
+    ],
+    "defender": "real-time-on",
+    "smartAppControl": "off",
+    "busiestProcesses": [
+      {
+        "name": "claude",
+        "cpuPercentOfOneCore": 41.4
+      },
+      {
+        "name": "claude",
+        "cpuPercentOfOneCore": 32.8
+      },
+      {
+        "name": "powershell",
+        "cpuPercentOfOneCore": 5.5
+      },
+      {
+        "name": "claude",
+        "cpuPercentOfOneCore": 4.7
+      },
+      {
+        "name": "claude",
+        "cpuPercentOfOneCore": 2.3
+      }
+    ],
+    "warnings": [
+      "'claude' uses 41.4 % of a core; close it for cleaner numbers.",
+      "'claude' uses 32.8 % of a core; close it for cleaner numbers."
+    ]
+  },
+  "runs": 2,
+  "harness": {
+    "exitCode": 1,
+    "scenarios": {
+      "startup": {
+        "detail": {
+          "startup": {
+            "cpuMs": [
+              62.5,
+              70.3125,
+              78.125
+            ],
+            "diskReadMb": [
+              0.01648,
+              0.01648,
+              0.01648
+            ],
+            "readyMs": [
+              110.785,
+              157.474,
+              204.163
+            ],
+            "runs": 2
+          }
+        },
+        "exe": "C:\\Users\\Matthias Eggert\\AppData\\Local\\Temp\\pbharness\\peekbuddy.exe",
+        "rows": [
+          {
+            "id": "engine.ready.warm",
+            "limit": 100.0,
+            "note": "median of 2 warm runs; skeleton: ready = window up (#60, #45) (above the provisional limit; timing rows are gated by A/B)",
+            "unit": "ms",
+            "value": 157.474,
+            "verdict": "report"
+          },
+          {
+            "id": "engine.startup.cpu",
+            "limit": 300.0,
+            "note": "median of 2 warm runs; skeleton: ready = window up (#60, #45)",
+            "unit": "ms",
+            "value": 70.3125,
+            "verdict": "report"
+          },
+          {
+            "id": "engine.startup.disk_read",
+            "limit": 1.0,
+            "note": "median of 2 warm runs; skeleton: ready = window up (#60, #45)",
+            "unit": "MB",
+            "value": 0.01648,
+            "verdict": "report"
+          },
+          {
+            "id": "engine.ready.cold",
+            "limit": null,
+            "note": "needs a reboot or standby-list flush; owner-PC run (#84)",
+            "unit": "",
+            "value": null,
+            "verdict": "not exercised"
+          }
+        ],
+        "runner": {
+          "arch": "x86_64",
+          "defenderRealtime": true,
+          "image": null,
+          "label": "local",
+          "os": "10.0.26300",
+          "ubr": 9818,
+          "vcpu": 4
+        },
+        "schemaVersion": 1
+      },
+      "idle": {
+        "detail": {
+          "idle": {
+            "cpuPercent": 0.0,
+            "handles": 237.0,
+            "privateMb": 2.953125,
+            "seconds": 15.0099875,
+            "wakesPerMin": 7.994676877645634,
+            "workingSetMb": 13.98046875
+          }
+        },
+        "exe": "C:\\Users\\Matthias Eggert\\AppData\\Local\\Temp\\pbharness\\peekbuddy.exe",
+        "rows": [
+          {
+            "id": "engine.idle.cpu",
+            "limit": 0.05,
+            "note": "15 s idle, no roots yet (#45)",
+            "unit": "%",
+            "value": 0.0,
+            "verdict": "report"
+          },
+          {
+            "id": "engine.idle.wakes",
+            "limit": 2.0,
+            "note": "15 s idle, no roots yet (#45)",
+            "unit": "per min",
+            "value": 7.994676877645634,
+            "verdict": "fail"
+          },
+          {
+            "id": "engine.idle.periodic_timers",
+            "limit": null,
+            "note": "no timer registry in the probe yet; the window offers no periodic timer API",
+            "unit": "",
+            "value": null,
+            "verdict": "not exercised"
+          },
+          {
+            "id": "engine.private_bytes.idle",
+            "limit": 15.0,
+            "note": "15 s idle, no roots yet (#45)",
+            "unit": "MB",
+            "value": 2.953125,
+            "verdict": "report"
+          }
+        ],
+        "runner": {
+          "arch": "x86_64",
+          "defenderRealtime": true,
+          "image": null,
+          "label": "local",
+          "os": "10.0.26300",
+          "ubr": 9818,
+          "vcpu": 4
+        },
+        "schemaVersion": 1
+      },
+      "memory": {
+        "detail": {
+          "idle": {
+            "cpuPercent": 0.0,
+            "handles": 237.0,
+            "privateMb": 2.94140625,
+            "seconds": 15.0116605,
+            "wakesPerMin": 3.9968929486514835,
+            "workingSetMb": 13.9609375
+          }
+        },
+        "exe": "C:\\Users\\Matthias Eggert\\AppData\\Local\\Temp\\pbharness\\peekbuddy.exe",
+        "rows": [
+          {
+            "id": "engine.idle.cpu",
+            "limit": 0.05,
+            "note": "15 s idle, no roots yet (#45)",
+            "unit": "%",
+            "value": 0.0,
+            "verdict": "report"
+          },
+          {
+            "id": "engine.idle.wakes",
+            "limit": 2.0,
+            "note": "15 s idle, no roots yet (#45)",
+            "unit": "per min",
+            "value": 3.9968929486514835,
+            "verdict": "fail"
+          },
+          {
+            "id": "engine.idle.periodic_timers",
+            "limit": null,
+            "note": "no timer registry in the probe yet; the window offers no periodic timer API",
+            "unit": "",
+            "value": null,
+            "verdict": "not exercised"
+          },
+          {
+            "id": "engine.private_bytes.idle",
+            "limit": 15.0,
+            "note": "15 s idle, no roots yet (#45)",
+            "unit": "MB",
+            "value": 2.94140625,
+            "verdict": "report"
+          }
+        ],
+        "runner": {
+          "arch": "x86_64",
+          "defenderRealtime": true,
+          "image": null,
+          "label": "local",
+          "os": "10.0.26300",
+          "ubr": 9818,
+          "vcpu": 4
+        },
+        "schemaVersion": 1
+      },
+      "ingest": {
+        "detail": {
+          "ingest": [
+            {
+              "achievedPerSecond": 3112,
+              "churnSeconds": 668.2409283,
+              "exercised": false,
+              "gapRows": 0,
+              "latencyP50Ms": 104000.4329,
+              "latencyP99Ms": 189499.5687,
+              "latencySamples": 1000260,
+              "ledgerEvents": 1000000,
+              "peakPrivateMb": 221.71875,
+              "profile": "burst-100k",
+              "scenario": "ingest",
+              "shutdownSeconds": 0.1445008,
+              "summary": "ops 909447 matched 909447 covered by a gap 0 undetected 0 gap rows 0 rows 1315263; other rows {\"baseline_established\": 1, \"watch_state:live\": 1}",
+              "undetected": 0,
+              "unfinishedGaps": 0
+            },
+            {
+              "achievedPerSecond": 2902,
+              "churnSeconds": 893.9928789,
+              "exercised": false,
+              "gapRows": 0,
+              "latencyP50Ms": 134670.7981,
+              "latencyP99Ms": 226992.508,
+              "latencySamples": 1200260,
+              "ledgerEvents": 1200000,
+              "peakPrivateMb": 200.9296875,
+              "profile": "sustained-20k",
+              "scenario": "ingest",
+              "shutdownSeconds": 0.2646237,
+              "summary": "ops 1091366 matched 1091366 covered by a gap 0 undetected 0 gap rows 0 rows 1582166; other rows {\"baseline_established\": 1, \"watch_state:live\": 1}",
+              "undetected": 0,
+              "unfinishedGaps": 0
+            },
+            {
+              "achievedPerSecond": 3758,
+              "churnSeconds": 96.5480486,
+              "exercised": false,
+              "gapRows": 0,
+              "latencyP50Ms": 446.526,
+              "latencyP99Ms": 8852.9524,
+              "latencySamples": 300261,
+              "ledgerEvents": 300001,
+              "peakPrivateMb": 168.45703125,
+              "profile": "latency-10k",
+              "scenario": "ingest",
+              "shutdownSeconds": 0.0811418,
+              "summary": "ops 272790 matched 272790 covered by a gap 0 undetected 0 gap rows 0 rows 396631; other rows {\"baseline_established\": 1, \"watch_state:live\": 1}",
+              "undetected": 0,
+              "unfinishedGaps": 0
+            }
+          ]
+        },
+        "exe": "C:\\Users\\Matthias Eggert\\AppData\\Local\\Temp\\pbharness\\peekbuddy.exe",
+        "rows": [
+          {
+            "id": "ingest.burst",
+            "limit": null,
+            "note": "the generator reached 3112 events/s, below the target (burst-100k: 1000000 ledger events in 668.2 s)",
+            "unit": "",
+            "value": null,
+            "verdict": "not exercised"
+          },
+          {
+            "id": "engine.private_bytes.burst",
+            "limit": 40.0,
+            "note": "burst-100k: 1000000 ledger events in 668.2 s (above the provisional limit; timing rows are gated by A/B)",
+            "unit": "MB",
+            "value": 221.71875,
+            "verdict": "report"
+          },
+          {
+            "id": "ingest.sustained",
+            "limit": null,
+            "note": "the generator reached 2902 events/s, below the target (sustained-20k: 1200000 ledger events in 894.0 s)",
+            "unit": "",
+            "value": null,
+            "verdict": "not exercised"
+          },
+          {
+            "id": "event.latency.p50",
+            "limit": 10.0,
+            "note": "latency-10k: 300001 ledger events in 96.5 s; 300261 rows seen by a 5 ms poller of the log (above the provisional limit; timing rows are gated by A/B)",
+            "unit": "ms",
+            "value": 446.526,
+            "verdict": "report"
+          },
+          {
+            "id": "event.latency.p99",
+            "limit": 50.0,
+            "note": "latency-10k: 300001 ledger events in 96.5 s; 300261 rows seen by a 5 ms poller of the log (above the provisional limit; timing rows are gated by A/B)",
+            "unit": "ms",
+            "value": 8852.9524,
+            "verdict": "report"
+          },
+          {
+            "id": "ingest.undetected_loss",
+            "limit": 0.0,
+            "note": "3 profiles, every operation logged or covered by a reconciled gap",
+            "unit": "count",
+            "value": 0.0,
+            "verdict": "pass"
+          },
+          {
+            "id": "capture.rearm_latency",
+            "limit": null,
+            "note": "the span of the capture thread is not visible from outside the engine (#21)",
+            "unit": "",
+            "value": null,
+            "verdict": "not exercised"
+          }
+        ],
+        "runner": {
+          "arch": "x86_64",
+          "defenderRealtime": true,
+          "image": null,
+          "label": "local",
+          "os": "10.0.26300",
+          "ubr": 9818,
+          "vcpu": 4
+        },
+        "schemaVersion": 1
+      },
+      "handles": {
+        "detail": {
+          "handles": {
+            "delta": 0,
+            "handlesAfterCycle": [
+              267,
+              267,
+              267
+            ],
+            "scenario": "handles"
+          }
+        },
+        "exe": "C:\\Users\\Matthias Eggert\\AppData\\Local\\Temp\\pbharness\\peekbuddy.exe",
+        "rows": [
+          {
+            "id": "engine.handles.stable",
+            "limit": 0.0,
+            "note": "pause and resume over the pipe, three cycles; handles after each: [267,267,267]",
+            "unit": "count",
+            "value": 0.0,
+            "verdict": "pass"
+          }
+        ],
+        "runner": {
+          "arch": "x86_64",
+          "defenderRealtime": true,
+          "image": null,
+          "label": "local",
+          "os": "10.0.26300",
+          "ubr": 9818,
+          "vcpu": 4
+        },
+        "schemaVersion": 1
+      }
+    },
+    "log": "== startup\n| Budget row | Value | Limit | Verdict | Note |\r\n| --- | --- | --- | --- | --- |\r\n| `engine.ready.warm` | 157.47 ms | 100 ms | report | median of 2 warm runs; skeleton: ready = window up (#60, #45) (above the provisional limit; timing rows are gated by A/B) |\r\n| `engine.startup.cpu` | 70.31 ms | 300 ms | report | median of 2 warm runs; skeleton: ready = window up (#60, #45) |\r\n| `engine.startup.disk_read` | 0.02 MB | 1 MB | report | median of 2 warm runs; skeleton: ready = window up (#60, #45) |\r\n| `engine.ready.cold` | - | - | not exercised | needs a reboot or standby-list flush; owner-PC run (#84) |\r\n\r\nperf: ok (results in C:\\Users\\Matthias Eggert\\AppData\\Local\\Temp\\perf-baremetal-17124739-90ef-4e2e-b407-ece3e41b8d30\\harness-startup.json)\r\n== idle\nxtask.exe : | Budget row | Value | Limit | Verdict | Note |\r\nIn C:\\repos\\PeekBuddy\\scripts\\owner\\perf-baremetal.ps1:145 Zeichen:12\r\n+     $log = & $Harness perf --scenario $scenario --exe $Exe --runs $Ru ...\r\n+            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\r\n    + CategoryInfo          : NotSpecified: (| Budget row | ...erdict | Note |:String) [], RemoteException\r\n    + FullyQualifiedErrorId : NativeCommandError\r\n \r\n| --- | --- | --- | --- | --- |\r\n| `engine.idle.cpu` | 0.00 % | 0.05 % | report | 15 s idle, no roots yet (#45) |\r\n| `engine.idle.wakes` | 7.99 per min | 2 per min | fail | 15 s idle, no roots yet (#45) |\r\n| `engine.idle.periodic_timers` | - | - | not exercised | no timer registry in the probe yet; the window offers no \r\nperiodic timer API |\r\n| `engine.private_bytes.idle` | 2.95 MB | 15 MB | report | 15 s idle, no roots yet (#45) |\r\n\r\nperf: failed rows: engine.idle.wakes\r\n== memory\nxtask.exe : | Budget row | Value | Limit | Verdict | Note |\r\nIn C:\\repos\\PeekBuddy\\scripts\\owner\\perf-baremetal.ps1:145 Zeichen:12\r\n+     $log = & $Harness perf --scenario $scenario --exe $Exe --runs $Ru ...\r\n+            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\r\n    + CategoryInfo          : NotSpecified: (| Budget row | ...erdict | Note |:String) [], RemoteException\r\n    + FullyQualifiedErrorId : NativeCommandError\r\n \r\n| --- | --- | --- | --- | --- |\r\n| `engine.idle.cpu` | 0.00 % | 0.05 % | report | 15 s idle, no roots yet (#45) |\r\n| `engine.idle.wakes` | 4.00 per min | 2 per min | fail | 15 s idle, no roots yet (#45) |\r\n| `engine.idle.periodic_timers` | - | - | not exercised | no timer registry in the probe yet; the window offers no \r\nperiodic timer API |\r\n| `engine.private_bytes.idle` | 2.94 MB | 15 MB | report | 15 s idle, no roots yet (#45) |\r\n\r\nperf: failed rows: engine.idle.wakes\r\n== ingest\n| Budget row | Value | Limit | Verdict | Note |\r\n| --- | --- | --- | --- | --- |\r\n| `ingest.burst` | - | - | not exercised | the generator reached 3112 events/s, below the target (burst-100k: 1000000 ledger events in 668.2 s) |\r\n| `engine.private_bytes.burst` | 221.72 MB | 40 MB | report | burst-100k: 1000000 ledger events in 668.2 s (above the provisional limit; timing rows are gated by A/B) |\r\n| `ingest.sustained` | - | - | not exercised | the generator reached 2902 events/s, below the target (sustained-20k: 1200000 ledger events in 894.0 s) |\r\n| `event.latency.p50` | 446.53 ms | 10 ms | report | latency-10k: 300001 ledger events in 96.5 s; 300261 rows seen by a 5 ms poller of the log (above the provisional limit; timing rows are gated by A/B) |\r\n| `event.latency.p99` | 8852.95 ms | 50 ms | report | latency-10k: 300001 ledger events in 96.5 s; 300261 rows seen by a 5 ms poller of the log (above the provisional limit; timing rows are gated by A/B) |\r\n| `ingest.undetected_loss` | 0.00 count | 0 count | pass | 3 profiles, every operation logged or covered by a reconciled gap |\r\n| `capture.rearm_latency` | - | - | not exercised | the span of the capture thread is not visible from outside the engine (#21) |\r\n\r\nperf: ok (results in C:\\Users\\Matthias Eggert\\AppData\\Local\\Temp\\perf-baremetal-17124739-90ef-4e2e-b407-ece3e41b8d30\\harness-ingest.json)\r\n== handles\n| Budget row | Value | Limit | Verdict | Note |\r\n| --- | --- | --- | --- | --- |\r\n| `engine.handles.stable` | 0.00 count | 0 count | pass | pause and resume over the pipe, three cycles; handles after each: [267,267,267] |\r\n\r\nperf: ok (results in C:\\Users\\Matthias Eggert\\AppData\\Local\\Temp\\perf-baremetal-17124739-90ef-4e2e-b407-ece3e41b8d30\\harness-handles.json)\r\n"
+  },
+  "viewer": {
+    "runs": [
+      {
+        "role": "viewer",
+        "frames": 8,
+        "first_frame_us": 483497,
+        "idle_seconds": 5,
+        "idle_frames": 0,
+        "adapter": "Intel(R) Graphics",
+        "backend": "OpenGL",
+        "device_type": "Gpu",
+        "causes": {}
+      },
+      {
+        "role": "viewer",
+        "frames": 8,
+        "first_frame_us": 260946,
+        "idle_seconds": 5,
+        "idle_frames": 0,
+        "adapter": "Intel(R) Graphics",
+        "backend": "OpenGL",
+        "device_type": "Gpu",
+        "causes": {}
+      }
+    ],
+    "firstFrameMedianUs": 372221.5,
+    "firstFrameMinUs": 260946,
+    "firstFrameMaxUs": 483497
+  },
+  "notMeasured": [
+    {
+      "what": "engine ready, cold",
+      "why": "needs a standby-list flush (elevated) and is only an approximation of a reboot"
+    },
+    {
+      "what": "viewer frame times p95/p99 scrolling and filtering 1M rows",
+      "why": "no harness scenario drives the viewer under load yet"
+    },
+    {
+      "what": "export of 1M rows",
+      "why": "no harness scenario yet"
+    }
+  ],
+  "durationSec": 2192.2
+}
