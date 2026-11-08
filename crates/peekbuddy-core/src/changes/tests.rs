@@ -438,3 +438,42 @@ proptest! {
         }
     }
 }
+
+#[test]
+fn rows_map_to_ops_and_noise_maps_to_nothing() {
+    use crate::event::{GapReason, Kind, WatchState};
+    let op = |kind, is_dir| op_for(kind, is_dir, 7_u32, 9, 3);
+    assert_eq!(op(Kind::Created, false), Some(Op::Created(7)));
+    assert_eq!(op(Kind::Created, true), Some(Op::Created(7)));
+    assert_eq!(op(Kind::Deleted, true), Some(Op::Deleted(7)));
+    assert_eq!(op(Kind::ReconciledRenamed, false), Some(Op::Created(7)));
+    assert_eq!(op(Kind::Modified, false), Some(Op::Modified(7)));
+    assert_eq!(op(Kind::AttributesChanged, false), Some(Op::Modified(7)));
+    assert_eq!(op(Kind::Modified, true), None);
+    assert_eq!(op(Kind::LinkChanged, true), None);
+    assert_eq!(
+        op(Kind::RenamedFrom, false),
+        Some(Op::RenamedFrom { key: 7, file_id: 9 })
+    );
+    assert_eq!(
+        op(Kind::RenamedTo, true),
+        Some(Op::RenamedTo { key: 7, file_id: 9 })
+    );
+    assert_eq!(
+        op(Kind::Overflow(GapReason::RingFull), false),
+        Some(Op::Gap { root: 3 })
+    );
+    assert_eq!(
+        op(Kind::ReconcileFinished, false),
+        Some(Op::Reconciled { root: 3 })
+    );
+    for quiet in [
+        Kind::ReconcileStarted,
+        Kind::Marker,
+        Kind::EngineStarted,
+        Kind::WatchStateChanged(WatchState::Live),
+        Kind::Other,
+    ] {
+        assert_eq!(op(quiet, false), None, "{quiet:?}");
+    }
+}

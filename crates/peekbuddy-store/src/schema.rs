@@ -24,7 +24,7 @@ use std::path::Path;
 use rusqlite::{Connection, OptionalExtension, Transaction};
 
 /// The schema version this build writes.
-pub const SCHEMA_VERSION: u32 = 2;
+pub const SCHEMA_VERSION: u32 = 3;
 
 /// `PRAGMA application_id` of a PeekBuddy segment: ASCII `PBK1`.
 pub const APPLICATION_ID: i32 = 0x5042_4B31;
@@ -141,6 +141,22 @@ pub const MARKER_DDL: &str = "CREATE TABLE marker (
 CREATE UNIQUE INDEX marker_event ON marker(event_id);
 ";
 
+/// Schema v3 (#82): the churn sketches, one set per hour and root as the
+/// writer keeps them. `dim` 0 follows paths (`key` is the node id),
+/// `dim` 1 file extensions (`key` is a hash, `label` the extension). Counts
+/// are approximate; `err` is how much of `n` may belong to other items.
+pub const CHURN_DDL: &str = "CREATE TABLE churn (
+  hour_ts INTEGER NOT NULL,
+  root_id INTEGER NOT NULL,
+  dim INTEGER NOT NULL,
+  key INTEGER NOT NULL,
+  label TEXT,
+  n INTEGER NOT NULL,
+  err INTEGER NOT NULL,
+  PRIMARY KEY (hour_ts, root_id, dim, key)
+) STRICT, WITHOUT ROWID;
+";
+
 /// Adds a marker for the event just inserted.
 pub const INSERT_MARKER: &str =
     "INSERT INTO marker (event_id, name, created_ts) VALUES (?1, ?2, ?3)";
@@ -234,7 +250,7 @@ impl From<rusqlite::Error> for StoreError {
 pub type Step = fn(&Transaction<'_>) -> rusqlite::Result<()>;
 
 /// The migration steps; step `i` upgrades schema `i` to `i + 1`.
-pub const STEPS: [Step; 2] = [v1, v2];
+pub const STEPS: [Step; 3] = [v1, v2, v3];
 
 fn v1(tx: &Transaction<'_>) -> rusqlite::Result<()> {
     tx.execute_batch(DICTIONARY_DDL)?;
@@ -243,6 +259,10 @@ fn v1(tx: &Transaction<'_>) -> rusqlite::Result<()> {
 
 fn v2(tx: &Transaction<'_>) -> rusqlite::Result<()> {
     tx.execute_batch(MARKER_DDL)
+}
+
+fn v3(tx: &Transaction<'_>) -> rusqlite::Result<()> {
+    tx.execute_batch(CHURN_DDL)
 }
 
 /// Opens (creating if needed) the segment at `path` and migrates it.

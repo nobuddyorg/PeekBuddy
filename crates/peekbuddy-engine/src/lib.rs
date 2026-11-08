@@ -9,6 +9,7 @@
 
 pub mod crash;
 pub mod diagnostics;
+pub mod marker_ctl;
 pub mod portable;
 pub mod probe;
 pub mod shutdown;
@@ -258,15 +259,7 @@ mod run {
         let shutdown = Rc::new(RefCell::new(Shutdown::new()));
         let store = start_store(&data, &loaded_settings, &counters, &commits, &shutdown)?;
         mark(milestones, Milestone::StoreOpened);
-        if let Some(log) = &abnormal_termination {
-            record_abnormal_exit(&store, log);
-        }
-        // Queued before the window exists, so a test that sees the window
-        // knows the events are pending.
-        #[cfg(feature = "test-panic")]
-        if options.synthetic_events > 0 {
-            push_synthetic(&store, &counters, options.synthetic_events);
-        }
+        queue_startup_rows(&store, &counters, options, abnormal_termination.as_deref());
         // F7: ready is "tray attempt done AND every watch armed (or failed)
         // AND setup done"; the last of them records `EngineReady`.
         let tray_wanted = !options.headless || options.tray;
@@ -275,7 +268,7 @@ mod run {
             loaded_settings.settings.watches.len() + usize::from(tray_wanted) + 1,
         );
         let gate = Arc::clone(&instruments.gate);
-        let (pause, capture) = start_pause_and_capture(
+        let (pause, capture, markers) = start_pause_and_capture(
             &data,
             &loaded_settings,
             &store,
@@ -302,7 +295,13 @@ mod run {
         if options.headless || options.probe.is_some() {
             close_window_on_ctrl_c(hidden.handle())?;
         }
-        start_ipc(options, &data, &hidden, &shutdown, (&pause, autostart))?;
+        start_ipc(
+            options,
+            &data,
+            &hidden,
+            &shutdown,
+            (&pause, autostart, &markers),
+        )?;
 
         if tray_wanted {
             start_tray(
@@ -310,7 +309,7 @@ mod run {
                 &tray_cell,
                 &shutdown,
                 &data,
-                (&loaded_settings, &pause),
+                (&loaded_settings, &pause, &markers),
                 (abnormal_termination.is_some(), options),
                 milestones,
             )?;
@@ -491,6 +490,28 @@ mod run {
         Ok((data, abnormal))
     }
 
+    /// The rows that belong before the first capture: the abnormal exit of
+    /// the last run, and a test's synthetic events. Queued before the window
+    /// exists, so a test that sees the window knows the events are pending.
+    #[cfg_attr(
+        not(feature = "test-panic"),
+        expect(unused_variables, reason = "only the test build pushes events")
+    )]
+    fn queue_startup_rows(
+        store: &peekbuddy_store::pipeline::Producer,
+        counters: &Arc<peekbuddy_core::perf::Counters>,
+        options: &Options,
+        abnormal: Option<&str>,
+    ) {
+        if let Some(log) = abnormal {
+            record_abnormal_exit(store, log);
+        }
+        #[cfg(feature = "test-panic")]
+        if options.synthetic_events > 0 {
+            push_synthetic(store, counters, options.synthetic_events);
+        }
+    }
+
     /// Writes the one row that says the previous run ended abnormally; its
     /// name is the crash log. The tray problem state and the start reconcile
     /// follow from the same marker and from the normal start.
@@ -564,7 +585,11 @@ mod run {
         counters: &Arc<peekbuddy_core::perf::Counters>,
         shutdown: &Rc<RefCell<Shutdown>>,
         instruments: &Instruments,
-    ) -> std::io::Result<(Arc<crate::pause_ctl::PauseCtl>, Option<SharedHost>)> {
+    ) -> std::io::Result<(
+        Arc<crate::pause_ctl::PauseCtl>,
+        Option<SharedHost>,
+        Arc<crate::marker_ctl::MarkerCtl>,
+    )> {
         let (pause_rows, bind) = crate::capture_host::PauseSignals::new();
         let pause = crate::pause_ctl::PauseCtl::new(
             loaded.settings.clone(),
@@ -585,7 +610,15 @@ mod run {
             (shutdown, instruments),
         )?;
         pause.announce_start();
-        Ok((pause, capture))
+        let markers = Arc::new(crate::marker_ctl::MarkerCtl::new(
+            producer.clone(),
+            data.segments.clone(),
+            (
+                crate::pause_ctl::now_ticks,
+                peekbuddy_win::localtime::utc_offset_seconds,
+            ),
+        ));
+        Ok((pause, capture, markers))
     }
 
     /// Starts capture: the watches of the settings, their lifecycle and the
@@ -713,7 +746,11 @@ mod run {
         data: &DataDir,
         hidden: &HiddenWindow,
         shutdown: &Rc<RefCell<Shutdown>>,
-        (pause, autostart): (&Arc<crate::pause_ctl::PauseCtl>, Option<SharedAutostart>),
+        (pause, autostart, markers): (
+            &Arc<crate::pause_ctl::PauseCtl>,
+            Option<SharedAutostart>,
+            &Arc<crate::marker_ctl::MarkerCtl>,
+        ),
     ) -> std::io::Result<()> {
         // Balloons of the rules go through the tray icon of this window.
         crate::rules_win::bind_window(hidden.handle());
@@ -725,6 +762,7 @@ mod run {
             settings_path: data.settings.clone(),
             data_dir: data.root.to_string_lossy().into_owned(),
             pause: Arc::clone(pause),
+            markers: Arc::clone(markers),
             autostart,
         };
         let server = match crate::ipc_server::start(&name, shared) {
@@ -754,9 +792,10 @@ Another PeekBuddy engine of this user owns it, or another program created it fir
         cell: &SharedTray,
         shutdown: &Rc<RefCell<Shutdown>>,
         data: &DataDir,
-        (loaded, pause): (
+        (loaded, pause, markers): (
             &crate::settings::LoadedSettings,
             &Arc<crate::pause_ctl::PauseCtl>,
+            &Arc<crate::marker_ctl::MarkerCtl>,
         ),
         (crashed, options): (bool, &Options),
         milestones: &MilestoneTable,
@@ -781,6 +820,7 @@ Another PeekBuddy engine of this user owns it, or another program created it fir
             crate::instrument::viewer_args(options.data_dir.as_deref()),
             data.root.clone(),
             Arc::clone(pause),
+            Arc::clone(markers),
             TrayState {
                 health,
                 rate: 0.0,

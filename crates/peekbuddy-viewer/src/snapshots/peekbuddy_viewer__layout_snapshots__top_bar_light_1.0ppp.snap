@@ -9,7 +9,9 @@ region: 0.0,0.0 1100.0x160.0
 [accessible tree]
 Button "Log" 16.0,46.0 37.5x20.0
 Button "Watches (1)" 61.5,46.0 83.8x20.0
-Button "Settings" 153.3,46.0 63.4x20.0
+Button "Changes" 153.3,46.0 65.5x20.0
+Button "Stats" 226.8,46.0 45.0x20.0
+Button "Settings" 279.8,46.0 63.4x20.0
 TextInput "Search" 62.7,78.0 200.0x20.0
 Button "Created" 270.7,78.0 62.3x20.0
 Button "Modified" 340.9,78.0 68.2x20.0
@@ -35,8 +37,12 @@ rect 16.0,46.0 37.5x20.0 fill #90d1ff
 text 24.0,48.5 21.5x15.0 #00537d "Log"
 rect 61.5,46.0 83.8x20.0
 text 69.5,48.5 67.8x15.0 #3c3c3c "Watches (1)"
-rect 153.3,46.0 63.4x20.0
-text 161.3,48.5 47.4x15.0 #3c3c3c "Settings"
+rect 153.3,46.0 65.5x20.0
+text 161.3,48.5 49.5x15.0 #3c3c3c "Changes"
+rect 226.8,46.0 45.0x20.0
+text 234.8,48.5 29.0x15.0 #3c3c3c "Stats"
+rect 279.8,46.0 63.4x20.0
+text 287.8,48.5 47.4x15.0 #3c3c3c "Settings"
 linesegment 15.5,71.5 1069.0x1.0
 text 16.0,78.0 38.7x20.0 #505050 "Search"
 rect 62.7,78.0 200.0x20.0 fill #ffffff

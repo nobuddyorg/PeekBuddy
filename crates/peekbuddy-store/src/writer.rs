@@ -20,6 +20,7 @@ use rusqlite::{Connection, OptionalExtension, params};
 
 use crate::batch::Batch;
 use crate::catalog::{Catalog, SegmentRow, Skipped};
+use crate::churn::Churn;
 use crate::ids;
 use crate::interner::{Interner, NodeKey, TOP_LEVEL};
 use crate::names::to_columns;
@@ -143,6 +144,8 @@ pub struct Writer {
     next_id: i64,
     roots: Vec<Option<RootRow>>,
     stats: HashMap<(i64, i64, i64), (i64, i64, i64)>,
+    /// The churn sketches of the current hours (#82).
+    churn: Churn,
     path: Option<PathBuf>,
     /// The roots as registered, to register them again in the next segment.
     registered: Vec<RootInfo>,
@@ -234,6 +237,7 @@ impl Writer {
             next_id,
             roots: Vec::new(),
             stats: HashMap::new(),
+            churn: Churn::default(),
             path: None,
             registered: Vec::new(),
             segments: None,
@@ -413,6 +417,7 @@ impl Writer {
             next_id,
             roots,
             stats,
+            churn,
             ..
         } = self;
         stats.clear();
@@ -436,6 +441,7 @@ impl Writer {
                     };
                     let node_id = intern_path(interner, &tx, root, event, name)?;
                     insert_event(&mut insert, id, event, root, node_id)?;
+                    churn.observe(root.root, node_id, event, name);
                     if event.kind == Kind::Marker {
                         tx.prepare_cached(INSERT_MARKER)?.execute(params![
                             id,
@@ -461,6 +467,7 @@ impl Writer {
             tx.prepare_cached(UPSERT_STATS)?
                 .execute(params![hour, root_id, kind, count, min_id, max_id])?;
         }
+        churn.flush(&tx, last_ts.cast_signed(), false)?;
         write_cursors(&tx, roots, cursors, id - 1, last_ts)?;
         if let Some((generation, offset)) = spill {
             for (key, value) in [
@@ -689,6 +696,7 @@ impl Writer {
     ///
     /// [`WriteError`].
     pub fn flush_system_rows(&mut self) -> Result<(), WriteError> {
+        self.flush_churn()?;
         let waiting = self
             .segments
             .as_ref()
@@ -696,6 +704,19 @@ impl Writer {
         if waiting {
             self.write(&[], &[])?;
         }
+        Ok(())
+    }
+
+    /// Writes every churn sketch now (at rotation and at close).
+    ///
+    /// # Errors
+    ///
+    /// [`WriteError`].
+    pub fn flush_churn(&mut self) -> Result<(), WriteError> {
+        let now = self.last_commit_ts;
+        let tx = self.conn.transaction()?;
+        self.churn.flush(&tx, now, true)?;
+        tx.commit()?;
         Ok(())
     }
 
@@ -766,6 +787,8 @@ impl Writer {
         day: segment::DayKey,
     ) -> Result<(), WriteError> {
         let dir = seg.rotation.dir.clone();
+        // The sketches belong to the file they were counted in.
+        let _ = self.flush_churn();
         let _ = self.checkpoint_truncate();
         let empty = self.next_id == seg.first_id;
         let old_path = dir.join(&seg.file);
