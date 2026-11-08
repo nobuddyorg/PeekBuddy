@@ -20,6 +20,12 @@ use crate::name::WideStr;
 /// Actions waiting for the worker.
 pub const QUEUE_LEN: usize = 64;
 
+/// Most toasts a minute, over all rules; the rest are counted, not shown.
+pub const TOASTS_PER_MINUTE: usize = 6;
+
+/// FILETIME ticks in a minute.
+const MINUTE: u64 = 600_000_000;
+
 /// What a firing asks for.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Action {
@@ -64,6 +70,11 @@ pub struct Tap {
     roots: Vec<Vec<u16>>,
     tx: SyncSender<Action>,
     dropped: Arc<AtomicU64>,
+    /// Event times of the last toasts that went out.
+    toasts: [u64; TOASTS_PER_MINUTE],
+    toast_head: usize,
+    /// Toasts held back by the cap.
+    capped: u64,
 }
 
 /// The worker that owns the notifier.
@@ -105,6 +116,9 @@ pub fn start(
         roots: roots.iter().map(|root| user_path(root)).collect(),
         tx,
         dropped: Arc::new(AtomicU64::new(0)),
+        toasts: [0; TOASTS_PER_MINUTE],
+        toast_head: 0,
+        capped: 0,
     };
     Ok((
         tap,
@@ -154,22 +168,41 @@ impl Tap {
         self.dropped.load(Ordering::Relaxed)
     }
 
+    /// Toasts held back by the per-minute cap.
+    #[must_use]
+    pub const fn capped(&self) -> u64 {
+        self.capped
+    }
+
+    /// Whether a toast at event time `ts` is within the cap; records it.
+    fn toast_allowed(&mut self, ts: u64) -> bool {
+        // The slot at `toast_head` holds the oldest of the last toasts.
+        let oldest = self.toasts.get(self.toast_head).copied().unwrap_or(0);
+        if oldest != 0 && ts.saturating_sub(oldest) < MINUTE {
+            self.capped += 1;
+            return false;
+        }
+        if let Some(slot) = self.toasts.get_mut(self.toast_head) {
+            *slot = ts.max(1);
+        }
+        self.toast_head = (self.toast_head + 1) % TOASTS_PER_MINUTE;
+        true
+    }
+
     /// Evaluates one event of the stream; allocates only when a rule fires.
     pub fn on_event(&mut self, ev: &Event, name: WideStr<'_>) {
-        let Self {
-            evaluator,
-            meta,
-            roots,
-            tx,
-            dropped,
-        } = self;
-        evaluator.on_event(ev, name, |fired| {
-            for action in actions(meta, roots, ev, name, &fired) {
-                if tx.try_send(action).is_err() {
-                    dropped.fetch_add(1, Ordering::Relaxed);
+        let mut fired = Vec::new();
+        self.evaluator.on_event(ev, name, |f| fired.push(f));
+        for f in fired {
+            for action in actions(&self.meta, &self.roots, ev, name, &f) {
+                if matches!(action, Action::Toast { .. }) && !self.toast_allowed(ev.ts) {
+                    continue;
+                }
+                if self.tx.try_send(action).is_err() {
+                    self.dropped.fetch_add(1, Ordering::Relaxed);
                 }
             }
-        });
+        }
     }
 }
 

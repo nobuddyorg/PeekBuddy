@@ -60,6 +60,14 @@ fn feed(tap: &mut Tap, ts_s: u64, name: &str) {
     tap.on_event(&event(ts_s, Kind::Created), WideStr::new(&name));
 }
 
+fn command() -> Command {
+    Command {
+        argv: vec![String::from(r"C:	ools\h.exe")],
+        confirmed: true,
+        ..Command::default()
+    }
+}
+
 fn roots() -> Vec<Vec<u16>> {
     vec![units(r"C:\data")]
 }
@@ -135,7 +143,7 @@ fn a_full_queue_drops_and_counts_instead_of_waiting() {
     let rule = Rule {
         threshold: 1,
         cooldown_s: 0,
-        ..rule(None, true)
+        ..rule(Some(command()), false)
     };
     let (mut tap, worker) = start(&[rule], &[], &roots(), Box::new(Gated(held))).unwrap();
     // The worker takes one action and blocks; the queue holds QUEUE_LEN more.
@@ -173,5 +181,73 @@ fn the_user_sees_the_path_without_the_long_prefix() {
         (r"D:\plain", r"D:\plain"),
     ] {
         assert_eq!(super::user_path(&units(root)), units(shown), "{root}");
+    }
+}
+
+#[test]
+fn toasts_are_capped_per_minute_over_all_rules_and_counted() {
+    // Every event fires its own rule at once: ten rules, ten toasts wanted.
+    let rules: Vec<Rule> = (0..10)
+        .map(|i| Rule {
+            name: format!("r{i}"),
+            threshold: 1,
+            cooldown_s: 0,
+            ..rule(None, true)
+        })
+        .collect();
+    let recorder = Recorder::default();
+    let (mut tap, worker) = start(&rules, &[], &roots(), Box::new(recorder.clone())).unwrap();
+    feed(&mut tap, 1, "a");
+    assert_eq!(tap.capped(), 4);
+    // A minute later the next ones go out again.
+    feed(&mut tap, 70, "a");
+    assert_eq!(tap.capped(), 8);
+    drop(tap);
+    worker.join();
+    assert_eq!(
+        recorder.0.lock().unwrap().len(),
+        2 * super::TOASTS_PER_MINUTE
+    );
+}
+
+/// A rule whose command writes into the watched folder: every run produces
+/// the next event. The cooldown lets one run per cooldown through, so a
+/// day of this is a few hundred runs and not a runaway.
+#[test]
+fn a_command_that_triggers_its_own_rule_is_throttled_by_the_cooldown() {
+    let command = Command {
+        argv: vec![String::from(r"C:\tools\writes.exe")],
+        confirmed: true,
+        ..Command::default()
+    };
+    let rule = Rule {
+        threshold: 1,
+        cooldown_s: 60,
+        ..rule(Some(command), false)
+    };
+    let recorder = Recorder::default();
+    let (mut tap, worker) = start(&[rule], &[], &roots(), Box::new(recorder.clone())).unwrap();
+    // Each run's output file arrives 100 ms after the run starts, for ten
+    // simulated minutes: 6,000 events.
+    let mut ts = 0_u64;
+    for _ in 0..6_000 {
+        ts += SECOND / 10;
+        let name = units("out.log");
+        tap.on_event(&event(0, Kind::Created).with_ts(ts), WideStr::new(&name));
+    }
+    drop(tap);
+    worker.join();
+    let runs = recorder.0.lock().unwrap().len();
+    assert!((10..=11).contains(&runs), "{runs}");
+}
+
+trait WithTs {
+    fn with_ts(self, ts: u64) -> Self;
+}
+
+impl WithTs for Event {
+    fn with_ts(mut self, ts: u64) -> Self {
+        self.ts = ts;
+        self
     }
 }
