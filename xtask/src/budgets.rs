@@ -80,6 +80,9 @@ pub struct Budget {
     pub how: String,
     /// Architectures the row applies to.
     pub arch: Vec<String>,
+    /// The first owner-PC run (#84): reference only, never a gate. Compare
+    /// only with later runs on the same machine.
+    pub owner_pc: Option<f64>,
 }
 
 pub fn run(mode: Option<&str>) -> Result<String, String> {
@@ -180,7 +183,7 @@ pub fn parse(text: &str) -> Result<Budgets, String> {
 /// Renders the Markdown table.
 pub fn render(budgets: &Budgets) -> String {
     let mut out = String::from(
-        "| id | budget | class | gate | scenario | status | workload | how | source |\n| --- | --- | --- | --- | --- | --- | --- | --- | --- |\n",
+        "| id | budget | class | gate | scenario | status | owner PC | workload | how | source |\n| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |\n",
     );
     for row in &budgets.budget {
         let op = if row.bound == "min" { ">=" } else { "<=" };
@@ -188,9 +191,12 @@ pub fn render(budgets: &Budgets) -> String {
             || "to be set".to_owned(),
             |limit| format!("{op} {limit} {}", row.unit),
         );
+        let owner = row
+            .owner_pc
+            .map_or_else(|| "-".to_owned(), |value| format!("{value} {}", row.unit));
         let _ = writeln!(
             out,
-            "| `{}` | {budget} | {} | {} | `{}` | {} | {} | {} | {} |",
+            "| `{}` | {budget} | {} | {} | `{}` | {} | {owner} | {} | {} | {} |",
             row.id,
             row.class,
             row.gate,

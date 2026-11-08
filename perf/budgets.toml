@@ -22,6 +22,7 @@ source = "F7"
 workload = "10 roots, idle"
 how = "TraceLogging milestone + --perf-probe JSON (#21, #24)"
 arch = ["x86_64", "aarch64"]
+owner_pc = 170.261
 
 [[budget]]
 id = "engine.ready.cold"
@@ -52,6 +53,7 @@ source = "F7"
 workload = "10 roots, idle"
 how = "GetProcessTimes at the ready milestone (#24)"
 arch = ["x86_64", "aarch64"]
+owner_pc = 62.5
 
 [[budget]]
 id = "engine.startup.disk_read"
@@ -67,6 +69,7 @@ source = "F7"
 workload = "10 roots, idle"
 how = "GetProcessIoCounters at the ready milestone (#24)"
 arch = ["x86_64", "aarch64"]
+owner_pc = 0.0165
 
 [[budget]]
 id = "viewer.first_frame.warm"
@@ -82,6 +85,7 @@ source = "F7; #33 measured 90 ms x64 and 160 ms ARM64 on WARP, owner PC pending"
 workload = "1M-row log"
 how = "TraceLogging milestone + --perf-probe JSON"
 arch = ["x86_64", "aarch64"]
+owner_pc = 169.2
 
 [[budget]]
 id = "viewer.first_frame.cold"
@@ -112,6 +116,7 @@ source = "F6"
 workload = "10 roots, no events for 60 s"
 how = "GetProcessTimes delta over 60 s (#27)"
 arch = ["x86_64", "aarch64"]
+owner_pc = 0.0
 
 [[budget]]
 id = "engine.idle.wakes"
@@ -127,6 +132,7 @@ source = "F6"
 workload = "10 roots, no events for 60 s"
 how = "context switches from a 60 s WPR CPU trace (#27)"
 arch = ["x86_64", "aarch64"]
+owner_pc = 0.0
 
 [[budget]]
 id = "engine.idle.periodic_timers"
@@ -157,6 +163,7 @@ source = "F8, R5"
 workload = "10 roots, 100k watched directories"
 how = "PROCESS_MEMORY_COUNTERS_EX2.PrivateUsage minus buffer bytes (#24)"
 arch = ["x86_64", "aarch64"]
+owner_pc = 2.93
 
 [[budget]]
 id = "engine.notify_buffers.total"
@@ -610,6 +617,7 @@ arch = ["x86_64", "aarch64"]
 # Micro-benchmarks (#26): one row per criterion id in benches/benches/,
 # `bench.` + the id with `/` as `.`. `cargo xtask bench-ab` compares base and
 # head on the same runner; there is no absolute limit (F11).
+owner_pc = 0.0
 
 [[budget]]
 id = "bench.perf.milestone_record"
