@@ -65,3 +65,9 @@ An everyday PC is noisy. Compare a run only with earlier runs on the same
 machine; the preflight sits next to every number and its warnings (battery,
 a busy process, power saver) say when a run is not comparable. What the
 script does not measure yet is listed under `notMeasured` in the report.
+
+A report committed to `perf/owner-runs/` on main is published by the
+`owner-pc` workflow as the "owner-pc" series on gh-pages, one point per
+budget row. Keep the default `-IdleSecs 60` for such a report: with a shorter
+idle window a single timer wake rounds up to several wakes per minute and
+fails `engine.idle.wakes`.
