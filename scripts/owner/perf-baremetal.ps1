@@ -8,10 +8,12 @@
     persistent changes. It takes about 12 minutes; leave the PC alone while
     it runs.
 
-    Inputs: the release peekbuddy.exe and the perf harness (xtask.exe, from
-    the `peekbuddy-perf-harness` artifact of the CI run that built it). Check
-    both against the attestation or SHA256SUMS of the release before use
-    (docs/how-to/verify-download.md).
+    Inputs: the release peekbuddy.exe and the perf harness (xtask.exe and
+    perf-driver.exe, from the `peekbuddy-perf-harness` artifact of the CI run
+    that built them). Check them against the attestation (`gh attestation
+    verify`) or SHA256SUMS of the release before use
+    (docs/how-to/verify-download.md). Without -Driver the ingest and handles
+    scenarios are skipped and listed under `notMeasured`.
 
     What it does:
       1. Preflight, recorded and warned about, never refused: AC power, power
@@ -19,14 +21,13 @@
          the five busiest processes.
       2. The harness (`xtask perf`, scenarios startup, idle and memory, 3
          runs each): engine ready warm, startup CPU and disk read, idle CPU
-         and wakeups, Private Bytes.
+         and wakeups, Private Bytes; with -Driver also ingest (the churn
+         profiles, event latency) and handle stability.
       3. The viewer's first frame and idle repaints, 3 runs, on the real GPU.
 
     What it does not measure yet is listed in `notMeasured` of the report with
-    the reason (cold start needs a standby-list flush; ingest and event
-    latency need a harness build with the synthetic-events exe, which the
-    harness compiles with a Rust toolchain; frame times over 1M rows and the
-    1M-row export need harness scenarios that do not exist).
+    the reason (cold start needs a standby-list flush; frame times over 1M
+    rows and the 1M-row export need harness scenarios that do not exist).
 
     Writes perf-baremetal-<version>-<date>.json next to the script unless
     -OutFile is given. Compare numbers only with earlier runs on the same
@@ -37,6 +38,7 @@
 param(
     [Parameter(Mandatory)][string]$Exe,
     [Parameter(Mandatory)][string]$Harness,
+    [string]$Driver,
     [string]$OutFile,
     [int]$Runs = 3,
     [int]$IdleSecs = 60
@@ -47,6 +49,7 @@ $ErrorActionPreference = 'Stop'
 $started = Get-Date
 $Exe = (Resolve-Path $Exe).Path
 $Harness = (Resolve-Path $Harness).Path
+if ($Driver) { $Driver = (Resolve-Path $Driver).Path }
 $work = Join-Path ([IO.Path]::GetTempPath()) "perf-baremetal-$([guid]::NewGuid())"
 New-Item -ItemType Directory $work | Out-Null
 
@@ -132,7 +135,12 @@ Write-Output "Harness ($Runs runs, idle $IdleSecs s; several minutes)..."
 $hr = [ordered]@{ exitCode = 0; scenarios = [ordered]@{}; log = '' }
 # Native stderr must not stop the script: the harness reports through its exit code.
 $ErrorActionPreference = 'Continue'
-foreach ($scenario in @('startup', 'idle', 'memory')) {
+$scenarios = @('startup', 'idle', 'memory')
+if ($Driver) {
+    $scenarios += @('ingest', 'handles')
+    $env:PEEKBUDDY_PERF_DRIVER = $Driver
+}
+foreach ($scenario in $scenarios) {
     $out = Join-Path $work "harness-$scenario.json"
     $log = & $Harness perf --scenario $scenario --exe $Exe --runs $Runs --idle-secs $IdleSecs --out $out 2>&1 | Out-String
     if ($LASTEXITCODE -ne 0) { $hr.exitCode = $LASTEXITCODE }
@@ -140,6 +148,7 @@ foreach ($scenario in @('startup', 'idle', 'memory')) {
     $hr.scenarios[$scenario] = if (Test-Path $out) { Get-Content $out -Raw | ConvertFrom-Json } else { $null }
 }
 $ErrorActionPreference = 'Stop'
+Remove-Item Env:PEEKBUDDY_PERF_DRIVER -ErrorAction SilentlyContinue
 
 Write-Output "Viewer first frame ($Runs runs)..."
 $viewerRuns = @()
@@ -161,6 +170,15 @@ if (-not $version) { $version = 'unknown' }
 $date = $started.ToString('yyyy-MM-dd')
 if (-not $OutFile) { $OutFile = Join-Path $PSScriptRoot "perf-baremetal-$version-$date.json" }
 
+$notMeasured = @(
+    [ordered]@{ what = 'engine ready, cold'; why = 'needs a standby-list flush (elevated) and is only an approximation of a reboot' },
+    [ordered]@{ what = 'viewer frame times p95/p99 scrolling and filtering 1M rows'; why = 'no harness scenario drives the viewer under load yet' },
+    [ordered]@{ what = 'export of 1M rows'; why = 'no harness scenario yet' }
+)
+if (-not $Driver) {
+    $notMeasured += [ordered]@{ what = 'ingest, event latency p50/p99, handle stability'; why = 'run without -Driver (perf-driver.exe of the peekbuddy-perf-harness artifact)' }
+}
+
 $report = [ordered]@{
     script        = 'perf-baremetal.ps1'
     schemaVersion = 1
@@ -176,12 +194,7 @@ $report = [ordered]@{
         firstFrameMinUs     = if ($firstFrames.Count) { ($firstFrames | Measure-Object -Minimum).Minimum } else { $null }
         firstFrameMaxUs     = if ($firstFrames.Count) { ($firstFrames | Measure-Object -Maximum).Maximum } else { $null }
     }
-    notMeasured   = @(
-        [ordered]@{ what = 'engine ready, cold'; why = 'needs a standby-list flush (elevated) and is only an approximation of a reboot' },
-        [ordered]@{ what = 'ingest at 20k events/s, event latency p50/p99'; why = 'the harness builds its synthetic-events exe with cargo; a harness artifact that carries it is a follow-up' },
-        [ordered]@{ what = 'viewer frame times p95/p99 scrolling and filtering 1M rows'; why = 'no harness scenario drives the viewer under load yet' },
-        [ordered]@{ what = 'export of 1M rows'; why = 'no harness scenario yet' }
-    )
+    notMeasured   = $notMeasured
     durationSec   = [math]::Round(((Get-Date) - $started).TotalSeconds, 1)
 }
 $report | ConvertTo-Json -Depth 12 | Set-Content -Path $OutFile -Encoding utf8

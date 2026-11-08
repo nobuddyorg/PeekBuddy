@@ -520,8 +520,15 @@ mod launch {
         let out = dir.join("driver.json");
         let absolute =
             std::fs::canonicalize(exe).map_err(|error| format!("{}: {error}", exe.display()))?;
-        let output = Command::new("cargo")
-            .args([
+        // A prebuilt driver (the `peekbuddy-perf-harness` artifact, #84) needs
+        // no Rust toolchain; without one the test is built and run by cargo.
+        let mut command = if let Some(driver) = std::env::var_os("PEEKBUDDY_PERF_DRIVER") {
+            let mut command = Command::new(driver);
+            command.args(["--ignored", "--exact", test]);
+            command
+        } else {
+            let mut command = Command::new("cargo");
+            command.args([
                 "test",
                 "--release",
                 "--locked",
@@ -533,7 +540,10 @@ mod launch {
                 "--ignored",
                 "--exact",
                 test,
-            ])
+            ]);
+            command
+        };
+        let output = command
             .env("PEEKBUDDY_PERF_EXE", &absolute)
             .env("PEEKBUDDY_PERF_OUT", &out)
             .env("PEEKBUDDY_PERF_PROFILE", profile)
