@@ -80,6 +80,9 @@ pub struct Budget {
     pub how: String,
     /// Architectures the row applies to.
     pub arch: Vec<String>,
+    /// The first owner-PC run (#84): reference only, never a gate. Compare
+    /// only with later runs on the same machine.
+    pub owner_pc: Option<f64>,
 }
 
 pub fn run(mode: Option<&str>) -> Result<String, String> {
@@ -188,9 +191,12 @@ pub fn render(budgets: &Budgets) -> String {
             || "to be set".to_owned(),
             |limit| format!("{op} {limit} {}", row.unit),
         );
+        let owner = row
+            .owner_pc
+            .map_or_else(String::new, |value| format!("{value} {}", row.unit));
         let _ = writeln!(
             out,
-            "| `{}` | {budget} | {} | {} | `{}` | {} | {} | {} | {} |",
+            "| `{}` | {budget} | {} | {} | `{}` | {} | {owner} | {} | {} | {} |",
             row.id,
             row.class,
             row.gate,

@@ -1141,6 +1141,7 @@ mod tests {
             workload: String::new(),
             how: String::new(),
             arch: Vec::new(),
+            owner_pc: None,
         };
         vec![
             row("engine.idle.wakes", "pr-strict", 2.0),
