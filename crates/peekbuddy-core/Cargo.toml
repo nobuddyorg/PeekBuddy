@@ -29,6 +29,10 @@ name = "filter_alloc"
 harness = false
 
 [[test]]
+name = "rules_alloc"
+harness = false
+
+[[test]]
 name = "notify_alloc"
 harness = false
 

@@ -458,6 +458,21 @@ how = "counting global allocator (#23)"
 arch = ["x86_64", "aarch64"]
 
 [[budget]]
+id = "alloc.rules_per_event"
+metric = "heap allocations per event in rule evaluation after warm-up"
+unit = "count"
+bound = "max"
+limit = 0
+class = "deterministic"
+gate = "pr-strict"
+scenario = "alloc"
+status = "calibrated"
+source = "F10, #81"
+workload = "50 rules with globs, kinds, watch lists, firings and cooldowns, six names (#23)"
+how = "counting global allocator (#23)"
+arch = ["x86_64", "aarch64"]
+
+[[budget]]
 id = "alloc.reparse_per_change"
 metric = "heap allocations per cloud-churn classification"
 unit = "count"
@@ -676,6 +691,20 @@ scenario = "bench-ab"
 status = "provisional"
 source = "#26, #40"
 workload = "criterion bench filter/eval_6_names"
+how = "cargo xtask bench-ab (same-runner A/B, warn +15 %, fail +50 %)"
+arch = ["x86_64"]
+
+[[budget]]
+id = "bench.rules.eval_6_events_50_rules"
+metric = "six events through 50 rules (globs, kinds, watch lists, counters)"
+unit = "ns"
+bound = "max"
+class = "timing"
+gate = "pr-ab"
+scenario = "bench-ab"
+status = "provisional"
+source = "#26, #81"
+workload = "criterion bench rules/eval_6_events_50_rules"
 how = "cargo xtask bench-ab (same-runner A/B, warn +15 %, fail +50 %)"
 arch = ["x86_64"]
 

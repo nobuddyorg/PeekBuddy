@@ -54,6 +54,18 @@ take effect on the next start: nothing watches the file.
 | `[[watch]] exclude_globs`, `presets` | lists | empty | this watch only |
 | `[[watch]] buffer_kib` | integer 4-1024 (4-64 on UNC) | none | notification buffer override |
 | `[[watch]] follow_link_target` | bool | false | opt-in (F18) |
+| `[[rule]] name` | text, 1-80 characters | required | shown in the notification; unique ignoring case |
+| `[[rule]] enabled` | bool | true | |
+| `[[rule]] watches` | list of watch ids | empty | empty means every watch |
+| `[[rule]] glob` | gitignore-style glob | empty | on the path; empty matches every path |
+| `[[rule]] kinds` | list of export kind names (`created`, `modified`, `deleted`, `renamed_to`, ...) | empty | file changes only; empty means all of them |
+| `[[rule]] threshold` | integer 1-1000 | 1 | matches needed within the window |
+| `[[rule]] window_s` | integer 1-3600 | 10 | |
+| `[[rule]] cooldown_s` | integer 0-86400 | 60 | quiet time after a firing; matches meanwhile are counted ("N more") |
+| `[[rule]] toast` | bool | true | a toast, or a tray balloon when toasts are not available |
+| `[rule.command] argv` | list, 1-32 entries | none | the program (a full path), then arguments; an argument that is exactly `%path%`, `%kind%`, `%root%` or `%ts%` is replaced by that value |
+| `[rule.command] timeout_s` | integer 1-3600 | 30 | the program is killed after this |
+| `[rule.command] confirmed` | bool | false | must be true: the explicit opt-in to run a program (see [rules](../how-to/rules.md)) |
 
 The `[viewer]` table is written by the viewer when its window closes (through
 the engine, which owns the file; directly when no engine runs) and is left out

@@ -195,6 +195,23 @@ fn unknown_issues(table: &toml::Table) -> Vec<Issue> {
             unknown_keys(section, keys, name, &mut out);
         }
     }
+    if let Some(toml::Value::Array(items)) = table.get("rule") {
+        for (index, item) in items.iter().enumerate() {
+            let toml::Value::Table(rule) = item else {
+                continue;
+            };
+            let at = format!("rule[{index}]");
+            unknown_keys(rule, crate::rules::RULE_KEYS, &at, &mut out);
+            if let Some(toml::Value::Table(command)) = rule.get("command") {
+                unknown_keys(
+                    command,
+                    crate::rules::COMMAND_KEYS,
+                    &format!("{at}.command"),
+                    &mut out,
+                );
+            }
+        }
+    }
     if let Some(toml::Value::Array(items)) = table.get("watch") {
         for (index, item) in items.iter().enumerate() {
             if let toml::Value::Table(watch) = item {
