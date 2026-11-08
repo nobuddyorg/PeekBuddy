@@ -160,7 +160,7 @@ fn leaf_key(prefix: u64, has_prefix: bool, text: &str, wide: Option<&[u8]>) -> O
 impl Reader {
     /// The net change of every row with an id greater than `since_id`.
     ///
-    /// `progress` is called about every [`STEP`] rows and when a segment
+    /// `progress` is called about every `STEP` rows and when a segment
     /// finishes.
     ///
     /// # Errors
