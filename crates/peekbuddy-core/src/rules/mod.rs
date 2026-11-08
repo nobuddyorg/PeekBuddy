@@ -15,6 +15,7 @@
 //!   only ever a whole argument, so a hostile file name cannot add arguments.
 
 pub mod eval;
+pub mod notify;
 pub mod subst;
 
 use serde::{Deserialize, Serialize};
