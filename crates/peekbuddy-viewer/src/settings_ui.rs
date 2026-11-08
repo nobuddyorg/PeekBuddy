@@ -36,6 +36,8 @@ pub struct SettingsEdit {
     pub autostart: bool,
     /// The theme.
     pub theme: Theme,
+    /// Rule notifications as Windows toasts.
+    pub desktop_notifications: bool,
     /// The coalescing window of the compact view.
     pub coalesce_ms: u32,
     /// Retention by age.
@@ -55,6 +57,7 @@ impl SettingsEdit {
     pub fn apply_to(&self, settings: &mut Settings) {
         settings.general.autostart = self.autostart;
         settings.general.theme = self.theme;
+        settings.general.desktop_notifications = self.desktop_notifications;
         settings.view.coalesce_ms = self.coalesce_ms;
         settings.store.max_age_days = self.max_age_days;
         settings.store.max_total_mb = self.max_total_mb;
@@ -113,6 +116,7 @@ struct Form {
     coalesce: String,
     theme: Theme,
     autostart: bool,
+    desktop: bool,
     presets: BTreeSet<String>,
     rules: Vec<RuleForm>,
 }
@@ -184,6 +188,7 @@ impl SettingsScreen {
             coalesce: settings.view.coalesce_ms.to_string(),
             theme: settings.general.theme,
             autostart: settings.general.autostart,
+            desktop: settings.general.desktop_notifications,
             presets: settings.filters.presets.iter().cloned().collect(),
             rules: settings.rules.iter().map(RuleForm::from_rule).collect(),
         };
@@ -264,6 +269,7 @@ impl SettingsScreen {
         Some(SettingsEdit {
             autostart: self.form.autostart,
             theme: self.form.theme,
+            desktop_notifications: self.form.desktop,
             coalesce_ms: coalesce.ok().flatten()?,
             max_age_days: age.ok()?,
             max_total_mb: total.ok()?,
@@ -420,6 +426,13 @@ impl SettingsScreen {
     fn notifications(&mut self, ui: &mut egui::Ui) {
         ui.add_space(8.0);
         ui.heading("Notifications");
+        ui.checkbox(
+            &mut self.form.desktop,
+            "Show notifications as Windows toasts (otherwise a tray balloon)",
+        );
+        ui.label(
+            "This adds a PeekBuddy shortcut to your Start menu, which Windows needs to show              toasts for a program that is not installed. Switching it off removes the              shortcut. It takes effect the next time PeekBuddy's engine starts.",
+        );
         ui.label(
             "A rule tells you when a pattern shows up in the changes, for example three              deleted files in a folder within ten seconds. It shows a notification on this              PC and can start a program you choose. Nothing is sent anywhere.",
         );

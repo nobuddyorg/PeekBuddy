@@ -80,6 +80,9 @@ rstest = { version = "0.28.0", default-features = false }
 rusqlite = { version = "=0.41.1", features = ["bundled", "hooks"] }
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.154"
+# Toasts of the rules (#81). It brings `windows-version` and `thiserror` and
+# builds on the same `windows` as the picker, so there is no second copy.
+tauri-winrt-notification = "=0.8.1"
 # Filter presets (#40) parse; settings (#62) also write (`display`).
 toml = { version = "1.1.8", default-features = false, features = [
   "display",

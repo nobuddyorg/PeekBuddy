@@ -18,6 +18,8 @@ pub mod perf;
 pub mod atomic;
 #[cfg(windows)]
 pub mod attrs;
+#[cfg(all(windows, feature = "aumid"))]
+pub mod aumid;
 #[cfg(windows)]
 pub mod autostart;
 #[cfg(windows)]

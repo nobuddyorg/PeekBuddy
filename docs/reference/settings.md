@@ -30,6 +30,7 @@ take effect on the next start: nothing watches the file.
 | `[general] autostart` | bool | false | the intent; the Run key is #63 |
 | `[general] theme` | `system`, `light`, `dark` | `system` | |
 | `[general] first_run` | bool | true | cleared by onboarding (#70) |
+| `[general] desktop_notifications` | bool | false | rule notifications as Windows toasts; creates the Start-menu shortcut `PeekBuddy.lnk` that toasts need, and removes it when turned off (#81). Takes effect when the engine starts |
 | `[store] max_age_days` | integer 1-36500 | 30 in a new file | no cap when absent; a segment whose newest event is older goes |
 | `[store] max_total_mb` | integer >= 1 | 2048 in a new file | no cap when absent; the oldest segments go while the total is over |
 | `[store] max_rows` | integer >= 1 | none | no cap when absent; counted over all segments |

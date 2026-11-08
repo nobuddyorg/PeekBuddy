@@ -8,6 +8,7 @@ version = 1
 autostart = true
 theme = "light"
 first_run = true
+desktop_notifications = true
 
 [store]
 max_age_days = 90

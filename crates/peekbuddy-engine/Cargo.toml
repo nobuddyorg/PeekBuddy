@@ -27,7 +27,8 @@ tracy-client = { workspace = true, optional = true }
 [target.'cfg(windows)'.dependencies]
 known-folders = { workspace = true }
 peekbuddy-store = { workspace = true }
-peekbuddy-win = { workspace = true }
+peekbuddy-win = { workspace = true, features = ["aumid"] }
+tauri-winrt-notification = { workspace = true }
 
 [dev-dependencies]
 insta = { workspace = true, features = ["json"] }

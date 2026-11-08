@@ -5,9 +5,14 @@ config file changed, a folder saw a burst of deletes. Everything stays on this
 PC: a toast, a tray balloon, or a program you chose. There is no email, no
 webhook and no network action.
 
-**Status.** Rules are evaluated while the engine runs. The notification is
-a tray balloon for now; a native toast arrives with the next part of #81.
-Edit rules in Settings, under Notifications, or in `settings.toml`.
+**Notifications.** By default a rule shows a tray balloon. Tick "Show
+notifications as Windows toasts" in Settings (or set
+`[general] desktop_notifications = true`) to get toasts instead. That adds a
+`PeekBuddy` shortcut to your Start menu, which Windows needs to show toasts
+for a program that is not installed; switching it off removes the shortcut.
+The change takes effect the next time the engine starts. If a toast cannot be
+shown, the balloon is used. Edit rules in Settings, under Notifications, or
+in `settings.toml`.
 
 Rules live in `settings.toml` as `[[rule]]` tables (all keys are in the
 [settings reference](../reference/settings.md)).

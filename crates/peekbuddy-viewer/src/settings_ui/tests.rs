@@ -76,6 +76,7 @@ fn every_setting_round_trips_into_the_file() {
     let edit = SettingsEdit {
         autostart: true,
         theme: Theme::Light,
+        desktop_notifications: true,
         coalesce_ms: 300,
         max_age_days: Some(90),
         max_total_mb: None,
@@ -95,6 +96,7 @@ fn every_setting_round_trips_into_the_file() {
     };
     assert!(back.general.autostart);
     assert_eq!(back.general.theme, Theme::Light);
+    assert!(back.general.desktop_notifications);
     assert_eq!(back.view.coalesce_ms, 300);
     assert_eq!(back.store.max_age_days, Some(90));
     assert_eq!(back.store.max_total_mb, None);
