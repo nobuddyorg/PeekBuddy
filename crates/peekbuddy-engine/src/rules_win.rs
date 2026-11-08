@@ -18,6 +18,37 @@ use peekbuddy_win::window::WindowHandle;
 
 use crate::capture_host::WatchSpec;
 
+/// The identity of PeekBuddy's toasts: the id on the Start-menu shortcut.
+pub const AUMID: &str = "nobuddy.PeekBuddy";
+
+/// Where the shortcut lives: the current user's Start menu.
+fn shortcut_path() -> Option<std::path::PathBuf> {
+    known_folders::get_known_folder_path(known_folders::KnownFolder::Programs)
+        .map(|programs| programs.join("PeekBuddy.lnk"))
+}
+
+/// Makes the Start-menu shortcut match the setting: present with our id when
+/// desktop notifications are on, gone when they are off. A file of that name
+/// that carries another id is not ours and is left alone.
+pub fn sync_shortcut(enabled: bool) {
+    let Some(link) = shortcut_path() else {
+        return;
+    };
+    let ours = peekbuddy_win::aumid::shortcut_id(&link)
+        .ok()
+        .flatten()
+        .is_some_and(|id| id == AUMID);
+    if enabled && !ours {
+        let made = std::env::current_exe()
+            .and_then(|exe| peekbuddy_win::aumid::create_shortcut(&link, &exe, AUMID));
+        if let Err(error) = made {
+            crate::instrument::log(&format!("rules: the Start-menu shortcut failed: {error}"));
+        }
+    } else if !enabled && ours {
+        let _ = std::fs::remove_file(&link);
+    }
+}
+
 /// The engine's hidden window, which owns the tray icon; the capture starts
 /// before the window exists, so the notifier looks it up when it needs it.
 static WINDOW: OnceLock<WindowHandle> = OnceLock::new();
@@ -35,6 +66,7 @@ pub fn start(
     settings: &Settings,
     watches: &[WatchSpec],
 ) -> Option<peekbuddy_core::rules::notify::Tap> {
+    sync_shortcut(settings.general.desktop_notifications);
     if !settings.rules.iter().any(|rule| rule.enabled) {
         return None;
     }
@@ -44,7 +76,7 @@ pub fn start(
         &settings.rules,
         &ids,
         &roots,
-        Box::new(WinNotifier::new()),
+        Box::new(WinNotifier::new(settings.general.desktop_notifications)),
     ) {
         // The worker ends when the tap is dropped with the sink.
         Ok((tap, _worker)) => Some(tap),
@@ -57,22 +89,19 @@ pub fn start(
 
 /// Delivers rule actions on Windows.
 pub struct WinNotifier {
+    desktop: bool,
     running: Arc<Mutex<HashSet<String>>>,
 }
 
 impl WinNotifier {
-    /// A notifier whose balloons go through the tray icon of the engine.
+    /// A notifier whose notifications are toasts when `desktop` is set and
+    /// balloons of the tray icon otherwise, or when a toast fails.
     #[must_use]
-    pub fn new() -> Self {
+    pub fn new(desktop: bool) -> Self {
         Self {
+            desktop,
             running: Arc::new(Mutex::new(HashSet::new())),
         }
-    }
-}
-
-impl Default for WinNotifier {
-    fn default() -> Self {
-        Self::new()
     }
 }
 
@@ -80,6 +109,18 @@ impl Notifier for WinNotifier {
     fn deliver(&mut self, action: Action) {
         match action {
             Action::Toast { title, body } => {
+                if self.desktop {
+                    let shown = tauri_winrt_notification::Toast::new(AUMID)
+                        .title(&title)
+                        .text1(&body)
+                        .show();
+                    match shown {
+                        Ok(()) => return,
+                        Err(error) => crate::instrument::log(&format!(
+                            "rules: the toast failed, using a balloon: {error}"
+                        )),
+                    }
+                }
                 let Some(window) = WINDOW.get() else {
                     return;
                 };

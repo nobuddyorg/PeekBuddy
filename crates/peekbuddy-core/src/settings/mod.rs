@@ -89,6 +89,10 @@ pub struct General {
     pub theme: Theme,
     /// Nothing has been configured yet; the tray and the viewer onboard.
     pub first_run: bool,
+    /// Show rule notifications as Windows toasts (#81). Off: a tray balloon.
+    /// Turning it on creates the Start-menu shortcut toasts need.
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub desktop_notifications: bool,
 }
 
 impl Default for General {
@@ -97,6 +101,7 @@ impl Default for General {
             autostart: false,
             theme: Theme::System,
             first_run: true,
+            desktop_notifications: false,
         }
     }
 }
@@ -274,7 +279,8 @@ impl Default for Watch {
 pub(crate) const TOP_KEYS: &[&str] = &[
     "version", "general", "store", "view", "viewer", "filters", "watch", "rule",
 ];
-pub(crate) const GENERAL_KEYS: &[&str] = &["autostart", "theme", "first_run"];
+pub(crate) const GENERAL_KEYS: &[&str] =
+    &["autostart", "theme", "first_run", "desktop_notifications"];
 pub(crate) const STORE_KEYS: &[&str] = &["max_age_days", "max_total_mb", "max_rows"];
 pub(crate) const VIEW_KEYS: &[&str] = &["coalesce_ms", "columns"];
 pub(crate) const VIEWER_KEYS: &[&str] = &[
