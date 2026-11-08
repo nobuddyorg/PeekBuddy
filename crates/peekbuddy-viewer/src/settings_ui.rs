@@ -9,7 +9,12 @@
 
 use std::collections::BTreeSet;
 
+use peekbuddy_core::rules::Rule;
 use peekbuddy_core::settings::{COALESCE_MS, Settings, Theme};
+
+use self::rules::{RuleForm, show_rule};
+
+mod rules;
 
 /// What the About section shows besides the version.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -41,6 +46,8 @@ pub struct SettingsEdit {
     pub max_rows: Option<u64>,
     /// The view presets in use.
     pub presets: Vec<String>,
+    /// The rules that notify (#81).
+    pub rules: Vec<Rule>,
 }
 
 impl SettingsEdit {
@@ -53,6 +60,7 @@ impl SettingsEdit {
         settings.store.max_total_mb = self.max_total_mb;
         settings.store.max_rows = self.max_rows;
         settings.filters.presets.clone_from(&self.presets);
+        settings.rules.clone_from(&self.rules);
     }
 }
 
@@ -106,6 +114,7 @@ struct Form {
     theme: Theme,
     autostart: bool,
     presets: BTreeSet<String>,
+    rules: Vec<RuleForm>,
 }
 
 /// The settings screen.
@@ -116,6 +125,8 @@ pub struct SettingsScreen {
     errors: Vec<String>,
     /// Problems found before asking the engine.
     local: Vec<(&'static str, String)>,
+    /// Number fields of rules that are not numbers, by `rule[i].key`.
+    local_rule: Vec<(String, String)>,
     status: Option<(bool, String)>,
     usage: Option<u64>,
     data_dir: String,
@@ -174,9 +185,11 @@ impl SettingsScreen {
             theme: settings.general.theme,
             autostart: settings.general.autostart,
             presets: settings.filters.presets.iter().cloned().collect(),
+            rules: settings.rules.iter().map(RuleForm::from_rule).collect(),
         };
         self.errors.clear();
         self.local.clear();
+        self.local_rule.clear();
     }
 
     /// The disk the segments use now, from the app.
@@ -213,6 +226,7 @@ impl SettingsScreen {
     /// The values typed, or what is wrong with them.
     fn edit(&mut self) -> Option<SettingsEdit> {
         self.local.clear();
+        self.local_rule.clear();
         let age = number::<u32>(&self.form.age);
         let total = number::<u64>(&self.form.total);
         let rows = number::<u64>(&self.form.rows);
@@ -230,7 +244,21 @@ impl SettingsScreen {
                 self.local.push((key, String::from("enter a whole number")));
             }
         }
-        if !self.local.is_empty() {
+        let mut rules = Vec::new();
+        for (index, form) in self.form.rules.iter().enumerate() {
+            match form.to_rule() {
+                Ok(rule) => rules.push(rule),
+                Err(keys) => {
+                    for key in keys {
+                        self.local_rule.push((
+                            format!("rule[{index}].{key}"),
+                            String::from("enter a whole number"),
+                        ));
+                    }
+                }
+            }
+        }
+        if !self.local.is_empty() || !self.local_rule.is_empty() {
             return None;
         }
         Some(SettingsEdit {
@@ -241,6 +269,7 @@ impl SettingsScreen {
             max_total_mb: total.ok()?,
             max_rows: rows.ok()?,
             presets: self.form.presets.iter().cloned().collect(),
+            rules,
         })
     }
 
@@ -288,6 +317,7 @@ impl SettingsScreen {
             .show(ui, |ui| {
                 self.retention(ui);
                 self.viewing(ui);
+                self.notifications(ui);
                 self.general(ui);
                 if ui.button("Save").clicked() {
                     if let Some(edit) = self.edit() {
@@ -371,6 +401,50 @@ impl SettingsScreen {
         }
     }
 
+    /// What is wrong with rule `index`, from the form or the engine.
+    fn rule_problems(&self, index: usize) -> Vec<&str> {
+        let prefix = format!("rule[{index}]");
+        self.local_rule
+            .iter()
+            .filter(|(key, _)| key.starts_with(&prefix))
+            .map(|(_, text)| text.as_str())
+            .chain(
+                self.errors
+                    .iter()
+                    .filter(|line| line.contains(&prefix))
+                    .map(String::as_str),
+            )
+            .collect()
+    }
+
+    fn notifications(&mut self, ui: &mut egui::Ui) {
+        ui.add_space(8.0);
+        ui.heading("Notifications");
+        ui.label(
+            "A rule tells you when a pattern shows up in the changes, for example three              deleted files in a folder within ten seconds. It shows a notification on this              PC and can start a program you choose. Nothing is sent anywhere.",
+        );
+        let mut remove = None;
+        for index in 0..self.form.rules.len() {
+            let problems: Vec<String> = self
+                .rule_problems(index)
+                .into_iter()
+                .map(str::to_owned)
+                .collect();
+            let problems: Vec<&str> = problems.iter().map(String::as_str).collect();
+            if let Some(form) = self.form.rules.get_mut(index)
+                && show_rule(ui, index, form, &problems)
+            {
+                remove = Some(index);
+            }
+        }
+        if let Some(index) = remove {
+            self.form.rules.remove(index);
+        }
+        if ui.button("Add a rule").clicked() {
+            self.form.rules.push(RuleForm::blank());
+        }
+    }
+
     fn general(&mut self, ui: &mut egui::Ui) {
         ui.add_space(8.0);
         ui.heading("General");
@@ -406,11 +480,9 @@ impl SettingsScreen {
             ui.label(text);
         }
         // Problems that name a field of the form are shown next to it.
-        for line in self
-            .errors
-            .iter()
-            .filter(|line| !FIELD_KEYS.iter().any(|key| line.contains(key)))
-        {
+        for line in self.errors.iter().filter(|line| {
+            !FIELD_KEYS.iter().any(|key| line.contains(key)) && !line.contains("rule[")
+        }) {
             ui.colored_label(ui.visuals().error_fg_color, line);
         }
     }

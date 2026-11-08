@@ -81,6 +81,7 @@ fn every_setting_round_trips_into_the_file() {
         max_total_mb: None,
         max_rows: Some(5_000_000),
         presets: vec![String::from("build-dirs"), String::from("temp-lock-swap")],
+        rules: Vec::new(),
     };
     let mut settings = Settings::default();
     edit.apply_to(&mut settings);
@@ -264,6 +265,123 @@ fn every_control_of_the_settings_screen_and_the_diagnostics_preview_has_a_name()
         .state_mut()
         .0
         .set_diagnostics(Some(String::from("text")));
+    harness.run();
+    crate::a11y::assert_every_control_is_named(&harness);
+}
+
+fn one_rule() -> Settings {
+    let mut settings = Settings::default();
+    settings.rules.push(peekbuddy_core::rules::Rule {
+        name: String::from("Config changed"),
+        glob: String::from("*.toml"),
+        kinds: vec![String::from("modified")],
+        ..peekbuddy_core::rules::Rule::default()
+    });
+    settings
+}
+
+fn sent(harness: &Harness<'static, State>) -> SettingsEdit {
+    let [SettingsAction::Apply(edit)] = harness.state().1.as_slice() else {
+        unreachable!("one apply is sent, got {:?}", harness.state().1);
+    };
+    edit.clone()
+}
+
+#[test]
+fn an_untouched_rule_is_sent_back_unchanged() {
+    let settings = one_rule();
+    let mut harness = harness(&settings);
+    harness.run();
+    harness.get_by_label("Save").click();
+    harness.run();
+    let mut back = Settings::default();
+    sent(&harness).apply_to(&mut back);
+    assert_eq!(back.rules, settings.rules);
+}
+
+#[test]
+fn a_rule_is_added_edited_and_removed() {
+    let mut harness = harness(&Settings::default());
+    harness.run();
+    harness.get_by_label("Add a rule").click();
+    harness.run();
+    harness.get_by_label("Rule 1: tell me");
+    focus_and_type(
+        &mut harness,
+        "Rule 1: path pattern (empty: every path)",
+        "*.log",
+    );
+    harness.get_by_label("Save").click();
+    harness.run();
+    let mut back = Settings::default();
+    sent(&harness).apply_to(&mut back);
+    assert_eq!(back.rules.len(), 1);
+    assert_eq!(back.rules[0].glob, "*.log");
+    harness.state_mut().1.clear();
+    harness.get_by_label("Remove rule 1").click();
+    harness.run();
+    assert!(harness.query_by_label("Rule 1: name").is_none());
+}
+
+#[test]
+fn a_command_needs_the_box_ticked_and_shows_the_risk() {
+    let mut harness = harness(&one_rule());
+    harness.run();
+    assert!(
+        harness
+            .query_by_label("Rule 1: program (full path)")
+            .is_none()
+    );
+    harness.get_by_label("Rule 1: start a program").click();
+    harness.run();
+    harness.get_by_label_contains("chosen by whoever creates the files");
+    focus_and_type(
+        &mut harness,
+        "Rule 1: program (full path)",
+        r"C:\tools\hook.exe",
+    );
+    harness
+        .get_by_label("Rule 1: I accept the risk above")
+        .click();
+    harness.get_by_label("Save").click();
+    harness.run();
+    let mut back = Settings::default();
+    sent(&harness).apply_to(&mut back);
+    let command = back.rules[0].command.clone().unwrap();
+    assert_eq!(command.argv, [r"C:\tools\hook.exe"]);
+    assert!(command.confirmed);
+}
+
+#[test]
+fn a_number_that_is_not_a_number_is_refused_at_its_rule() {
+    let mut harness = harness(&one_rule());
+    harness.run();
+    focus_and_type(&mut harness, "Rule 1: within (s)", "x");
+    harness.get_by_label("Save").click();
+    harness.run();
+    harness.get_by_label("enter a whole number");
+    assert_eq!(harness.state().1, []);
+}
+
+#[test]
+fn the_engines_refusal_of_a_rule_is_shown_in_that_rule() {
+    let mut harness = harness(&one_rule());
+    harness.run();
+    harness.state_mut().0.on_result(
+        false,
+        "rule[0].glob: the pattern does not compile: unclosed `[`",
+        None,
+    );
+    harness.run();
+    harness.get_by_label_contains("rule[0].glob: the pattern does not compile");
+    harness.get_by_label("Nothing was changed.");
+}
+
+#[test]
+fn every_control_of_the_rule_editor_has_a_name() {
+    let mut settings = one_rule();
+    settings.rules[0].command = Some(peekbuddy_core::rules::Command::default());
+    let mut harness = harness(&settings);
     harness.run();
     crate::a11y::assert_every_control_is_named(&harness);
 }
