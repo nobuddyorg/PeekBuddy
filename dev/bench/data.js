@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1794218499112,
+  "lastUpdate": 1794218544363,
   "repoUrl": "https://github.com/nobuddyorg/PeekBuddy",
   "entries": {
     "benches (windows-2025)": [
@@ -1589,6 +1589,58 @@ window.BENCHMARK_DATA = {
           {
             "name": "query.subtree_resolve_10m",
             "value": 6026490.333333334,
+            "unit": "ns"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "name": "Matthias Eggert",
+            "username": "besessener",
+            "email": "8039350+besessener@users.noreply.github.com"
+          },
+          "committer": {
+            "name": "GitHub",
+            "username": "web-flow",
+            "email": "noreply@github.com"
+          },
+          "id": "cab1b6e58335300faf3b81bf0c297d4cbb03fb54",
+          "message": "feat: viewer frame times over 1M rows (#84) (#431)\n\nAdd --viewer-probe-scroll: the viewer wheels its log in a real window\nand reports the app time per frame and the gaps between frames. The\nperf_driver test viewer_frames builds a 1M-row store and runs it,\nxtask perf --scenario viewer-frames turns it into the viewer.frame\nrows, and perf-baremetal.ps1 -Driver runs it on the owner PC.\n\nCo-authored-by: Matthias Eggert <dem.matze@gmail.com>\nCo-authored-by: Claude Sonnet 5.5 <noreply@anthropic.com>",
+          "timestamp": "2026-11-09T08:25:15Z",
+          "url": "https://github.com/nobuddyorg/PeekBuddy/commit/cab1b6e58335300faf3b81bf0c297d4cbb03fb54"
+        },
+        "date": 1794218541948,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "query.changes_since_1m",
+            "value": 1586226150,
+            "unit": "ns"
+          },
+          {
+            "name": "query.filtered_first_1m",
+            "value": 6636786.30952381,
+            "unit": "ns"
+          },
+          {
+            "name": "query.fts_lookup_10m",
+            "value": 31177619.11764706,
+            "unit": "ns"
+          },
+          {
+            "name": "query.page_keyset_10m",
+            "value": 2316786.9444444445,
+            "unit": "ns"
+          },
+          {
+            "name": "query.regex_post_filter_1m",
+            "value": 3468794900,
+            "unit": "ns"
+          },
+          {
+            "name": "query.subtree_resolve_10m",
+            "value": 9170511.666666668,
             "unit": "ns"
           }
         ]
