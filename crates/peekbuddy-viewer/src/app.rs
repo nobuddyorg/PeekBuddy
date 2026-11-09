@@ -140,6 +140,12 @@ fn finish_onboarding(settings: &mut Settings, autostart: bool, presets: Vec<Stri
 /// Windows draws it, so it cannot carry the wordmark colours (#88).
 const TITLE: &str = "PeekBuddy";
 
+/// Lines of wheel per frame while the probe scrolls (the viewer-memory bench
+/// uses the same): a page every frame or two.
+const SCROLL_LINES: f32 = 40.0;
+/// How long the probe scrolls one way before it turns round.
+const SCROLL_SWEEP: Duration = Duration::from_millis(1500);
+
 /// What the probe measures; filled by the probe thread and the app, written
 /// when the window closes.
 #[derive(Debug, Default)]
@@ -152,6 +158,18 @@ struct ProbeReport {
     /// (`file:line reason`): when a frame is painted that should not be, this
     /// says which call to look at.
     causes: BTreeMap<String, u32>,
+    /// Seconds the log was scrolled (`--viewer-probe-scroll`), 0 when idle.
+    scroll_seconds: u64,
+    /// Microseconds between the starts of consecutive frames while scrolling.
+    scroll_gaps_us: Vec<u64>,
+    /// Microseconds the app spent in `ui` for each of those frames.
+    scroll_work_us: Vec<u64>,
+}
+
+/// The `percent`-th percentile (nearest rank) of sorted `values`.
+fn percentile(sorted: &[u64], percent: usize) -> Option<u64> {
+    let rank = (sorted.len() * percent).div_ceil(100).max(1);
+    sorted.get(rank - 1).copied()
 }
 
 fn json_string(text: &str) -> String {
@@ -198,10 +216,30 @@ impl ProbeReport {
                 )
             },
         );
+        let mut gaps = self.scroll_gaps_us.clone();
+        gaps.sort_unstable();
+        let mut work = self.scroll_work_us.clone();
+        work.sort_unstable();
+        let scroll = format!(
+            "{{\"seconds\":{},\"frames\":{},\"frame_us_p50\":{},\"frame_us_p95\":{},\
+             \"frame_us_p99\":{},\"frame_us_max\":{},\"ui_us_p50\":{},\"ui_us_p95\":{},\
+             \"ui_us_p99\":{},\"ui_us_max\":{}}}",
+            self.scroll_seconds,
+            gaps.len(),
+            number(percentile(&gaps, 50)),
+            number(percentile(&gaps, 95)),
+            number(percentile(&gaps, 99)),
+            number(gaps.last().copied()),
+            number(percentile(&work, 50)),
+            number(percentile(&work, 95)),
+            number(percentile(&work, 99)),
+            number(work.last().copied()),
+        );
         format!(
             "{{\"role\":\"viewer\",\"frames\":{frames},\"first_frame_us\":{},\
              \"idle_seconds\":{},\"idle_frames\":{},\"adapter\":{name},\
-             \"backend\":{backend},\"device_type\":{device},\"causes\":{causes}}}\n",
+             \"backend\":{backend},\"device_type\":{device},\"causes\":{causes},\
+             \"scroll\":{scroll}}}\n",
             number(self.first_frame_us),
             self.idle_seconds,
             self.idle_frames
@@ -289,6 +327,12 @@ struct ViewerApp {
     frames: Arc<AtomicU64>,
     /// True while the probe counts idle frames.
     idle_window: Arc<AtomicBool>,
+    /// True while the probe scrolls the log and times the frames.
+    scroll_window: Arc<AtomicBool>,
+    /// When the scroll window began, and when the last frame of it started.
+    scroll_clock: Option<(Instant, Instant)>,
+    /// When the `ui` of the frame being timed began.
+    ui_began: Option<Instant>,
     hwnd: Option<isize>,
     placed: bool,
     /// The last rectangle the window had while neither maximized nor
@@ -756,6 +800,52 @@ impl ViewerApp {
         });
     }
 
+    /// What the probe notes when a frame begins: who asked for it while the
+    /// window is idle, and the timing of it while the log is scrolled.
+    fn probe_frame_start(&mut self, ctx: &egui::Context) {
+        if self.idle_window.load(Ordering::Relaxed) {
+            self.note_causes(ctx);
+        }
+        self.time_scroll_frame(ctx);
+    }
+
+    /// While the probe scrolls: records the time since the previous frame
+    /// and asks for the next one at once, so the gaps are what the renderer
+    /// and the presentation need, not what the app waits for.
+    fn time_scroll_frame(&mut self, ctx: &egui::Context) {
+        if !self.scroll_window.load(Ordering::Relaxed) {
+            self.scroll_clock = None;
+            return;
+        }
+        let now = Instant::now();
+        self.ui_began = Some(now);
+        let (began, last) = self.scroll_clock.unwrap_or((now, now));
+        self.scroll_clock = Some((began, now));
+        if last != now {
+            let gap = u64::try_from(now.duration_since(last).as_micros()).unwrap_or(u64::MAX);
+            self.report
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .scroll_gaps_us
+                .push(gap);
+        }
+        ctx.request_repaint();
+    }
+
+    /// The end of a timed frame: what the app itself spent in `ui`, which is
+    /// the frame time of the budget; the gaps between frames also hold the
+    /// wait for the display.
+    fn note_ui_work(&mut self) {
+        if let Some(began) = self.ui_began.take() {
+            let work = u64::try_from(began.elapsed().as_micros()).unwrap_or(u64::MAX);
+            self.report
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .scroll_work_us
+                .push(work);
+        }
+    }
+
     fn write_report(&self) {
         let Some(probe) = &self.options.probe else {
             return;
@@ -775,6 +865,36 @@ impl ViewerApp {
 }
 
 impl eframe::App for ViewerApp {
+    /// While the probe scrolls: the pointer over the middle of the window and
+    /// a wheel of [`SCROLL_LINES`] lines a frame, down and back up in
+    /// [`SCROLL_SWEEP`] long sweeps, as a user's hand would.
+    fn raw_input_hook(&mut self, _ctx: &egui::Context, raw_input: &mut egui::RawInput) {
+        if !self.scroll_window.load(Ordering::Relaxed) {
+            return;
+        }
+        let began = self
+            .scroll_clock
+            .map_or_else(Instant::now, |(began, _)| began);
+        let sweep = (began.elapsed().as_millis() / SCROLL_SWEEP.as_millis()) % 2;
+        let lines = if sweep == 0 {
+            -SCROLL_LINES
+        } else {
+            SCROLL_LINES
+        };
+        if let Some(rect) = raw_input.screen_rect {
+            raw_input
+                .events
+                .push(egui::Event::PointerMoved(rect.center()));
+        }
+        raw_input.events.push(egui::Event::MouseWheel {
+            unit: egui::MouseWheelUnit::Line,
+            delta: egui::vec2(0.0, lines),
+            phase: egui::TouchPhase::Move,
+            source: egui::MouseWheelSource::Wheel,
+            modifiers: egui::Modifiers::NONE,
+        });
+    }
+
     fn logic(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
         if self.hwnd.is_none() {
             self.hwnd = window_handle(frame);
@@ -809,9 +929,7 @@ impl eframe::App for ViewerApp {
         if let Some(client) = tracy_client::Client::running() {
             client.frame_mark();
         }
-        if self.idle_window.load(Ordering::Relaxed) {
-            self.note_causes(ui.ctx());
-        }
+        self.probe_frame_start(ui.ctx());
         let mut view_events = Vec::new();
         let mut watch_actions = Vec::new();
         let mut changes_actions = Vec::new();
@@ -905,6 +1023,7 @@ impl eframe::App for ViewerApp {
             report.first_frame_us = Some(since);
             report.adapter = adapter;
         }
+        self.note_ui_work();
     }
 
     fn on_exit(&mut self, #[cfg(target_arch = "x86_64")] _gl: Option<&eframe::glow::Context>) {
@@ -945,10 +1064,11 @@ fn open_in_explorer(path: String, select: bool) {
 fn spawn_probe(
     ctx: egui::Context,
     probe: &Probe,
-    (frames, idle_window): (Arc<AtomicU64>, Arc<AtomicBool>),
+    (frames, idle_window, scroll_window): (Arc<AtomicU64>, Arc<AtomicBool>, Arc<AtomicBool>),
     report: Arc<Mutex<ProbeReport>>,
 ) {
     let seconds = probe.seconds;
+    let scroll = probe.scroll;
     std::thread::spawn(move || {
         let give_up = Instant::now() + Duration::from_secs(seconds + 60);
         while frames.load(Ordering::Relaxed) == 0 {
@@ -959,8 +1079,23 @@ fn spawn_probe(
             std::thread::sleep(Duration::from_millis(20));
         }
         // The first frames run layout, AccessKit start-up and the first
-        // page of whatever there is; the idle window starts after them.
-        std::thread::sleep(Duration::from_millis(1500));
+        // page of whatever there is; the idle window starts after them. A
+        // log of a million rows needs longer before its first page is in.
+        std::thread::sleep(Duration::from_millis(if scroll { 5000 } else { 1500 }));
+        if scroll {
+            scroll_window.store(true, Ordering::Relaxed);
+            // An idle window sleeps: the first frame of the scroll is asked
+            // for, every later one by the frame before it.
+            ctx.request_repaint();
+            std::thread::sleep(Duration::from_secs(seconds));
+            scroll_window.store(false, Ordering::Relaxed);
+            report
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .scroll_seconds = seconds;
+            ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+            return;
+        }
         let before = frames.load(Ordering::Relaxed);
         idle_window.store(true, Ordering::Relaxed);
         std::thread::sleep(Duration::from_secs(seconds));
@@ -1080,6 +1215,7 @@ fn creator(
             .set_theme(theme::preference(settings.general.theme));
         let frames = Arc::new(AtomicU64::new(0));
         let idle_window = Arc::new(AtomicBool::new(false));
+        let scroll_window = Arc::new(AtomicBool::new(false));
         let report = Arc::new(Mutex::new(ProbeReport {
             idle_seconds: 0,
             ..ProbeReport::default()
@@ -1094,7 +1230,11 @@ fn creator(
             spawn_probe(
                 cc.egui_ctx.clone(),
                 probe,
-                (Arc::clone(&frames), Arc::clone(&idle_window)),
+                (
+                    Arc::clone(&frames),
+                    Arc::clone(&idle_window),
+                    Arc::clone(&scroll_window),
+                ),
                 Arc::clone(&report),
             );
         }
@@ -1152,6 +1292,9 @@ fn creator(
             show_requested,
             frames,
             idle_window,
+            scroll_window,
+            scroll_clock: None,
+            ui_began: None,
             hwnd: None,
             placed: false,
             normal: None,
@@ -1190,6 +1333,9 @@ mod tests {
                 device_type: String::from("Cpu"),
             }),
             causes: BTreeMap::from([(String::from("a.rs:1 \"x\""), 2)]),
+            scroll_seconds: 0,
+            scroll_gaps_us: Vec::new(),
+            scroll_work_us: Vec::new(),
         };
         let json = report.to_json(7);
         assert!(json.ends_with("}\n"));
@@ -1203,6 +1349,30 @@ mod tests {
             "{json}"
         );
         assert_eq!(json.lines().count(), 1);
+    }
+
+    #[test]
+    fn the_scroll_report_has_the_percentiles_of_the_frame_gaps() {
+        let report = ProbeReport {
+            scroll_seconds: 20,
+            scroll_gaps_us: (1..=100).rev().collect(),
+            scroll_work_us: (1..=100).map(|us| us * 10).collect(),
+            ..ProbeReport::default()
+        };
+        let json = report.to_json(0);
+        assert!(
+            json.contains(
+                "\"scroll\":{\"seconds\":20,\"frames\":100,\"frame_us_p50\":50,\"frame_us_p95\":95,\"frame_us_p99\":99,\"frame_us_max\":100,\"ui_us_p50\":500,\"ui_us_p95\":950,\"ui_us_p99\":990,\"ui_us_max\":1000}"
+            ),
+            "{json}"
+        );
+        let none = ProbeReport::default().to_json(0);
+        assert!(
+            none.contains("\"frames\":0,\"frame_us_p50\":null"),
+            "{none}"
+        );
+        assert_eq!(super::percentile(&[7], 99), Some(7));
+        assert_eq!(super::percentile(&[], 50), None);
     }
 
     #[test]
@@ -1254,6 +1424,7 @@ mod tests {
         // A measuring run goes straight to the log.
         let probe = Probe {
             seconds: 1,
+            scroll: false,
             out: None,
         };
         assert!(first_screens(&options(Some(probe)), &fresh).1.is_none());

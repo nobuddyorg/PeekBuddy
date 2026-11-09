@@ -22,12 +22,13 @@
       2. The harness (`xtask perf`, scenarios startup, idle and memory, 3
          runs each): engine ready warm, startup CPU and disk read, idle CPU
          and wakeups, Private Bytes; with -Driver also ingest (the churn
-         profiles, event latency) and handle stability.
+         profiles, event latency), handle stability and the viewer's frame
+         times while the log of 1M rows is scrolled in a real window (20 s).
       3. The viewer's first frame and idle repaints, 3 runs, on the real GPU.
 
     What it does not measure yet is listed in `notMeasured` of the report with
-    the reason (cold start needs a standby-list flush; frame times over 1M
-    rows and the 1M-row export need harness scenarios that do not exist).
+    the reason (cold start needs a standby-list flush; the 1M-row export
+    needs a harness scenario that does not exist).
 
     Writes perf-baremetal-<version>-<date>.json next to the script unless
     -OutFile is given. Compare numbers only with earlier runs on the same
@@ -137,7 +138,7 @@ $hr = [ordered]@{ exitCode = 0; scenarios = [ordered]@{}; log = '' }
 $ErrorActionPreference = 'Continue'
 $scenarios = @('startup', 'idle', 'memory')
 if ($Driver) {
-    $scenarios += @('ingest', 'handles')
+    $scenarios += @('ingest', 'handles', 'viewer-frames')
     $env:PEEKBUDDY_PERF_DRIVER = $Driver
 }
 foreach ($scenario in $scenarios) {
@@ -172,11 +173,10 @@ if (-not $OutFile) { $OutFile = Join-Path $PSScriptRoot "perf-baremetal-$version
 
 $notMeasured = @(
     [ordered]@{ what = 'engine ready, cold'; why = 'needs a standby-list flush (elevated) and is only an approximation of a reboot' },
-    [ordered]@{ what = 'viewer frame times p95/p99 scrolling and filtering 1M rows'; why = 'no harness scenario drives the viewer under load yet' },
     [ordered]@{ what = 'export of 1M rows'; why = 'no harness scenario yet' }
 )
 if (-not $Driver) {
-    $notMeasured += [ordered]@{ what = 'ingest, event latency p50/p99, handle stability'; why = 'run without -Driver (perf-driver.exe of the peekbuddy-perf-harness artifact)' }
+    $notMeasured += [ordered]@{ what = 'ingest, event latency p50/p99, handle stability, viewer frame times p95/p99/max scrolling 1M rows'; why = 'run without -Driver (perf-driver.exe of the peekbuddy-perf-harness artifact)' }
 }
 
 $report = [ordered]@{
