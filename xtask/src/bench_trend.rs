@@ -131,9 +131,14 @@ fn format_ns(value: f64) -> String {
 #[must_use]
 pub fn render(rows: &[Row], rounds: usize, shape: &str) -> String {
     let mut out = String::from("## Bench trend (nightly)\n\n");
+    let taken = if rounds == 0 {
+        String::from("medians as the bench job reported them")
+    } else {
+        format!("{rounds} rounds, median of per-round medians")
+    };
     let _ = writeln!(
         out,
-        "{rounds} rounds, median of per-round medians; alert above +25 % of the \
+        "{taken}; alert above +25 % of the \
          rolling median of the last {WINDOW} nightly points. Runner: {shape}.\n"
     );
     out.push_str("| bench | tonight | rolling median | change | trend |\n");
@@ -170,6 +175,9 @@ pub struct Options {
     pub history: Option<PathBuf>,
     /// Entry name in `data.js`.
     pub entry: String,
+    /// Compare the points of this `customSmallerIsBetter` file instead of
+    /// running the benches (the query bench job, #433).
+    pub points: Option<PathBuf>,
 }
 
 /// Parses `[--rounds <n>] [--history <data.js>] [--entry <name>]`.
@@ -182,6 +190,7 @@ pub fn parse(args: &[String]) -> Result<Options, String> {
         rounds: 10,
         history: None,
         entry: "benches (windows-2025)".to_owned(),
+        points: None,
     };
     let mut args = args.iter();
     while let Some(arg) = args.next() {
@@ -196,10 +205,11 @@ pub fn parse(args: &[String]) -> Result<Options, String> {
             }
             "--history" => options.history = Some(PathBuf::from(value()?)),
             "--entry" => options.entry = value()?,
+            "--points" => options.points = Some(PathBuf::from(value()?)),
             other => {
                 return Err(format!(
                     "unknown option {other}; usage: cargo xtask bench-trend [--rounds <n>] \
-                     [--history <data.js>] [--entry <name>]"
+                     [--history <data.js>] [--entry <name>] [--points <output.json>]"
                 ));
             }
         }
@@ -210,23 +220,32 @@ pub fn parse(args: &[String]) -> Result<Options, String> {
     Ok(options)
 }
 
-/// `cargo xtask bench-trend`: writes `target/bench-trend/output.json` and
-/// `report.md`.
-///
-/// # Errors
-///
-/// Returns the report as the error when a bench alerts, after the output
-/// is written, or the error of a failed step.
-pub fn run(args: &[String]) -> Result<String, String> {
-    let options = parse(args)?;
-    let here = std::env::current_dir().map_err(|e| e.to_string())?;
-    let out = here.join("target").join("bench-trend");
-    let exes = bench_ab::build(&here, &out.join("target"))?;
+/// The values of a `customSmallerIsBetter` file by name.
+fn read_points(path: &std::path::Path) -> Result<BTreeMap<String, f64>, String> {
+    let text = std::fs::read_to_string(path).map_err(|e| format!("{}: {e}", path.display()))?;
+    let value: serde_json::Value =
+        serde_json::from_str(&text).map_err(|e| format!("{}: {e}", path.display()))?;
+    Ok(value
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(|point| Some((point["name"].as_str()?.to_owned(), point["value"].as_f64()?)))
+        .collect())
+}
+
+/// Runs the benches `options.rounds` times and writes `output.json`: the
+/// median of the per-round medians of each.
+fn measure(
+    options: &Options,
+    here: &std::path::Path,
+    out: &std::path::Path,
+) -> Result<BTreeMap<String, f64>, String> {
+    let exes = bench_ab::build(here, &out.join("target"))?;
     let mut samples: BTreeMap<String, Vec<f64>> = BTreeMap::new();
     for index in 0..options.rounds {
         let home = out.join("rounds").join(index.to_string());
         let _ = std::fs::remove_dir_all(&home);
-        for (id, median) in bench_ab::round(&exes, &here, &home, None)? {
+        for (id, median) in bench_ab::round(&exes, here, &home, None)? {
             samples.entry(id).or_default().push(median);
         }
     }
@@ -244,6 +263,26 @@ pub fn run(args: &[String]) -> Result<String, String> {
         .collect();
     let json = serde_json::to_string_pretty(&points).map_err(|e| e.to_string())?;
     std::fs::write(out.join("output.json"), json).map_err(|e| e.to_string())?;
+    Ok(tonight)
+}
+
+/// `cargo xtask bench-trend`: writes `target/bench-trend/output.json` and
+/// `report.md`.
+///
+/// # Errors
+///
+/// Returns the report as the error when a bench alerts, after the output
+/// is written, or the error of a failed step.
+pub fn run(args: &[String]) -> Result<String, String> {
+    let options = parse(args)?;
+    let here = std::env::current_dir().map_err(|e| e.to_string())?;
+    let out = here.join("target").join("bench-trend");
+    let tonight = if let Some(path) = &options.points {
+        std::fs::create_dir_all(&out).map_err(|e| e.to_string())?;
+        read_points(path)?
+    } else {
+        measure(&options, &here, &out)?
+    };
 
     let earlier = match &options.history {
         Some(path) if path.is_file() => history(
@@ -259,7 +298,12 @@ pub fn run(args: &[String]) -> Result<String, String> {
         std::env::consts::ARCH,
         std::thread::available_parallelism().map_or(0, std::num::NonZero::get)
     );
-    let report = render(&rows, options.rounds, &shape);
+    let rounds = if options.points.is_some() {
+        0
+    } else {
+        options.rounds
+    };
+    let report = render(&rows, rounds, &shape);
     std::fs::write(out.join("report.md"), &report).map_err(|e| e.to_string())?;
     if let Some(summary) = std::env::var_os("GITHUB_STEP_SUMMARY") {
         let mut text = std::fs::read_to_string(&summary).unwrap_or_default();
@@ -372,6 +416,35 @@ mod tests {
     }
 
     #[test]
+    fn points_come_from_a_custom_smaller_is_better_file() {
+        let dir = std::env::temp_dir().join(format!("pb-trend-points-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let file = dir.join("output.json");
+        std::fs::write(
+            &file,
+            r#"[{"name":"q/a","unit":"ns","value":5.5},{"name":"q/b","unit":"ns","value":7},{"unit":"ns"}]"#,
+        )
+        .unwrap();
+        let read = super::read_points(&file).unwrap();
+        let missing = super::read_points(&dir.join("missing.json"));
+        let _ = std::fs::remove_dir_all(&dir);
+        assert_eq!(read.len(), 2);
+        assert_eq!(read["q/a"], 5.5);
+        assert_eq!(read["q/b"], 7.0);
+        assert!(missing.is_err());
+    }
+
+    #[test]
+    fn a_report_without_rounds_names_the_source() {
+        let text = render(&[], 0, "shape");
+        assert!(
+            text.contains("medians as the bench job reported them"),
+            "{text}"
+        );
+        assert!(render(&[], 10, "shape").contains("10 rounds"));
+    }
+
+    #[test]
     fn options() {
         let args = |list: &[&str]| list.iter().map(ToString::to_string).collect::<Vec<_>>();
         let defaults = parse(&[]).unwrap();
@@ -389,6 +462,9 @@ mod tests {
         assert_eq!(set.rounds, 3);
         assert_eq!(set.history.unwrap().to_str(), Some("d.js"));
         assert_eq!(set.entry, "e");
+        assert_eq!(set.points, None);
+        let points = parse(&args(&["--points", "o.json"])).unwrap();
+        assert_eq!(points.points.unwrap().to_str(), Some("o.json"));
         for bad in [&["--rounds", "0"][..], &["--rounds"], &["--x"]] {
             assert!(parse(&args(bad)).is_err(), "{bad:?}");
         }

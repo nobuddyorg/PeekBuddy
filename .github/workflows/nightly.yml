@@ -556,8 +556,25 @@ jobs:
       - name: Medians and budget warnings
         shell: pwsh
         run: ./scripts/ci/query-bench-report.ps1
+      - name: Earlier points from gh-pages
+        id: history
+        shell: bash
+        env:
+          REPO_URL: ${{ github.server_url }}/${{ github.repository }}
+        run: |
+          mkdir -p target/bench-trend
+          if git fetch --depth 1 "${REPO_URL}" gh-pages; then
+            git show FETCH_HEAD:dev/bench/data.js > target/bench-trend/history.js || true
+          fi
+      # The hosted runners come in two speeds (a nightly lands on the fast one
+      # about every third time), so the previous point alone, which the action
+      # compares with, alerts whenever it was a fast run (#433). The alert is
+      # +25 % over the rolling median of the last 7 points, as for the benches.
+      - name: Trend against the rolling median
+        id: trend
+        run: cargo xtask bench-trend --points target/query-bench/output.json --entry "query benches (windows-2025)" --history target/bench-trend/history.js
       - name: Publish to gh-pages
-        if: github.event_name == 'schedule'
+        if: always() && github.event_name == 'schedule' && hashFiles('target/query-bench/output.json') != ''
         uses: benchmark-action/github-action-benchmark@4322e5726e6334590d251fc4f92bec0efafc45dc # v1.22.2
         with:
           name: query benches (windows-2025)
@@ -567,9 +584,10 @@ jobs:
           benchmark-data-dir-path: dev/bench
           github-token: ${{ secrets.GITHUB_TOKEN }}
           auto-push: true
-          alert-threshold: "125%"
+          # The rolling-median alert is xtask's; the action's own alert
+          # (previous point only) stays off.
           comment-on-alert: false
-          fail-on-alert: true
+          fail-on-alert: false
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
