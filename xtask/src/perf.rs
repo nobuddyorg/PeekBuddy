@@ -29,7 +29,7 @@ const AB_FAIL: f64 = 0.50;
 /// nothing. A difference below two ticks is not a change.
 const CPU_RESOLUTION_MS: f64 = 31.25;
 
-const USAGE: &str = "usage: cargo xtask perf [--scenario startup|idle|memory|ingest|handles|viewer-memory|pr|all] \
+const USAGE: &str = "usage: cargo xtask perf [--scenario startup|idle|memory|ingest|handles|viewer-memory|viewer-frames|pr|all] \
 [--exe path] [--runs n] [--warmup n] [--idle-secs n] [--profile name]... [--ab <base-exe>] \
 [--expect-fail <row id>] [--out file]";
 
@@ -49,6 +49,9 @@ enum Scenario {
     /// The viewer with a 1M-row and a 10M-row log (#347): minutes to build
     /// the stores, so only the nightly asks for it, never `all`.
     ViewerMemory,
+    /// The viewer scrolled in a real window over a 1M-row log: frame times
+    /// on this machine's GPU (#84). Minutes, so never part of `all`.
+    ViewerFrames,
     /// What every pull request runs: startup and idle, in minutes (#27).
     Pr,
     All,
@@ -73,6 +76,10 @@ impl Scenario {
 
     fn includes_viewer_memory(self) -> bool {
         matches!(self, Self::ViewerMemory)
+    }
+
+    fn includes_viewer_frames(self) -> bool {
+        matches!(self, Self::ViewerFrames)
     }
 }
 
@@ -121,6 +128,7 @@ fn parse_args(args: &[String]) -> Result<Options, String> {
                     "ingest" => Scenario::Ingest,
                     "handles" => Scenario::Handles,
                     "viewer-memory" => Scenario::ViewerMemory,
+                    "viewer-frames" => Scenario::ViewerFrames,
                     "pr" => Scenario::Pr,
                     "all" => Scenario::All,
                     other => return Err(format!("unknown scenario {other}\n{USAGE}")),
@@ -1003,6 +1011,50 @@ fn measure_viewer_memory(
     Ok(())
 }
 
+/// The frame-time rows (F9) from the viewer scroll probe: the gaps between
+/// frames while the log of a million rows is wheeled up and down.
+fn measure_viewer_frames(
+    options: &Options,
+    budgets: &[Budget],
+    rows: &mut Vec<Row>,
+    detail: &mut Detail,
+) -> Result<(), String> {
+    let doc = launch::driver(&options.exe, "viewer_frames", "")?;
+    let scroll = doc
+        .pointer("/probe/scroll")
+        .ok_or_else(|| String::from("the viewer probe wrote no scroll section"))?;
+    let frames = number_of(scroll, "frames")?;
+    if frames < 100.0 {
+        return Err(format!(
+            "only {frames} frames were painted while scrolling; the window did not run"
+        ));
+    }
+    let backend = doc
+        .pointer("/probe/backend")
+        .and_then(Value::as_str)
+        .unwrap_or("unknown");
+    let note = format!(
+        "{frames} frames in {} s over {} rows, backend {backend}",
+        number_of(scroll, "seconds")?,
+        number_of(&doc, "rows")?
+    );
+    // The frame time of the budget is the app's own work per frame; the gap
+    // between frames also holds the wait for the display (vsync).
+    let note = format!(
+        "{note}; gap between frames p95 {:.1} ms (display-paced)",
+        number_of(scroll, "frame_us_p95")? / 1000.0
+    );
+    for (id, key) in [
+        ("viewer.frame.p95", "ui_us_p95"),
+        ("viewer.frame.p99", "ui_us_p99"),
+        ("viewer.frame.max", "ui_us_max"),
+    ] {
+        rows.push(judge(budgets, id, number_of(scroll, key)? / 1000.0, &note));
+    }
+    detail.insert(String::from("viewerFrames"), doc);
+    Ok(())
+}
+
 fn measure(options: &Options) -> Result<(Vec<Row>, Value), String> {
     let budgets = budgets::load()?;
     let mut rows = Vec::new();
@@ -1021,6 +1073,9 @@ fn measure(options: &Options) -> Result<(Vec<Row>, Value), String> {
     }
     if options.scenario.includes_viewer_memory() {
         measure_viewer_memory(&budgets, &mut rows, &mut detail)?;
+    }
+    if options.scenario.includes_viewer_frames() {
+        measure_viewer_frames(options, &budgets, &mut rows, &mut detail)?;
     }
     Ok((rows, Value::Object(detail)))
 }

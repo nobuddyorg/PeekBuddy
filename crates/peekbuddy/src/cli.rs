@@ -74,6 +74,32 @@ impl std::fmt::Display for Error {
     }
 }
 
+/// `--perf-probe-out` goes to the probe that was asked for, and
+/// `--viewer-probe-scroll` turns the viewer probe into a scroll probe.
+fn attach_probe_flags(
+    options: &mut Options,
+    viewer_probe: &mut Option<ViewerProbe>,
+    out: Option<PathBuf>,
+    scroll: bool,
+) -> Result<(), Error> {
+    if let Some(out) = out {
+        if let Some(probe) = options.probe.as_mut() {
+            probe.out = Some(out);
+        } else if let Some(probe) = viewer_probe.as_mut() {
+            probe.out = Some(out);
+        } else {
+            return Err(Error::OrphanFlag("--perf-probe-out"));
+        }
+    }
+    if scroll {
+        viewer_probe
+            .as_mut()
+            .ok_or(Error::OrphanFlag("--viewer-probe-scroll"))?
+            .scroll = true;
+    }
+    Ok(())
+}
+
 /// Parses the arguments after the program name.
 ///
 /// # Errors
@@ -86,6 +112,7 @@ pub fn parse(args: impl IntoIterator<Item = String>) -> Result<Invocation, Error
     let mut full = false;
     let mut probe_out = None;
     let mut viewer_probe = None;
+    let mut scroll = false;
     let mut options = Options::default();
     let mut args = args.into_iter();
     while let Some(arg) = args.next() {
@@ -108,8 +135,13 @@ pub fn parse(args: impl IntoIterator<Item = String>) -> Result<Invocation, Error
             "--viewer-probe" => {
                 let value = args.next().ok_or(Error::MissingValue("--viewer-probe"))?;
                 let seconds = value.parse().map_err(|_| Error::BadSeconds(value))?;
-                viewer_probe = Some(ViewerProbe { seconds, out: None });
+                viewer_probe = Some(ViewerProbe {
+                    seconds,
+                    scroll: false,
+                    out: None,
+                });
             }
+            "--viewer-probe-scroll" => scroll = true,
             "--perf-probe-out" => {
                 let value = args.next().ok_or(Error::MissingValue("--perf-probe-out"))?;
                 probe_out = Some(PathBuf::from(value));
@@ -126,15 +158,7 @@ pub fn parse(args: impl IntoIterator<Item = String>) -> Result<Invocation, Error
             _ => return Err(Error::Unknown(arg)),
         }
     }
-    if let Some(out) = probe_out {
-        if let Some(probe) = options.probe.as_mut() {
-            probe.out = Some(out);
-        } else if let Some(probe) = viewer_probe.as_mut() {
-            probe.out = Some(out);
-        } else {
-            return Err(Error::OrphanFlag("--perf-probe-out"));
-        }
-    }
+    attach_probe_flags(&mut options, &mut viewer_probe, probe_out, scroll)?;
     if viewer_probe.is_some() && !viewer {
         return Err(Error::OrphanFlag("--viewer-probe"));
     }
@@ -317,7 +341,26 @@ mod tests {
         let probe = invocation.viewer_probe.unwrap();
         assert_eq!(probe.seconds, 10);
         assert_eq!(probe.out, Some(PathBuf::from(r"C:\t\v.json")));
+        assert!(!probe.scroll);
         assert_eq!(parse(args(&["--viewer"])).unwrap().viewer_probe, None);
+    }
+
+    #[test]
+    fn the_scroll_probe_needs_a_viewer_probe() {
+        let invocation = parse(args(&[
+            "--viewer",
+            "--viewer-probe",
+            "20",
+            "--viewer-probe-scroll",
+        ]))
+        .unwrap();
+        let probe = invocation.viewer_probe.unwrap();
+        assert_eq!(probe.seconds, 20);
+        assert!(probe.scroll);
+        assert_eq!(
+            parse(args(&["--viewer", "--viewer-probe-scroll"])),
+            Err(Error::OrphanFlag("--viewer-probe-scroll"))
+        );
     }
 
     #[test]

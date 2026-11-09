@@ -18,6 +18,12 @@
 mod engine;
 #[path = "support/judge.rs"]
 mod judge;
+#[expect(
+    dead_code,
+    reason = "the store fixture of the benches, of which only `build` is used here"
+)]
+#[path = "../../../benches/benches/support/store.rs"]
+mod store;
 
 use std::collections::HashMap;
 use std::os::windows::io::AsHandle as _;
@@ -319,6 +325,63 @@ fn handles() {
         "scenario": "handles",
         "handlesAfterCycle": after,
         "delta": i64::from(last) - i64::from(first),
+    });
+    std::fs::write(out, serde_json::to_string_pretty(&document).unwrap()).unwrap();
+}
+
+/// The viewer on a log of `PEEKBUDDY_PERF_ROWS` rows (default 1,000,000),
+/// scrolled with the wheel for `PEEKBUDDY_PERF_SECONDS` (default 20) in a
+/// real window: the time between frames on the GPU of this machine (F9, #84).
+#[test]
+#[ignore = "run by `cargo xtask perf --scenario viewer-frames`"]
+fn viewer_frames() {
+    let Some(out) = out() else {
+        return;
+    };
+    let number = |name: &str, default: u64| {
+        std::env::var(name)
+            .ok()
+            .and_then(|text| text.parse().ok())
+            .unwrap_or(default)
+    };
+    let rows = number("PEEKBUDDY_PERF_ROWS", 1_000_000);
+    let seconds = number("PEEKBUDDY_PERF_SECONDS", 20);
+    let dir = TestDir::new("perf-viewer-frames").unwrap();
+    let data = dir.path().to_path_buf();
+    let segments = data.join("segments");
+    std::fs::create_dir_all(&segments).unwrap();
+    store::build(&segments, rows);
+
+    let report = data.join("viewer-frames.json");
+    let mut child = std::process::Command::new(engine::exe())
+        .args(["--viewer", "--viewer-probe", &seconds.to_string()])
+        .args(["--viewer-probe-scroll", "--perf-probe-out"])
+        .arg(&report)
+        .arg("--data-dir")
+        .arg(&data)
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .spawn()
+        .unwrap();
+    let job = Job::new().unwrap();
+    job.assign(child.as_handle()).unwrap();
+    let deadline = Instant::now() + Duration::from_secs(seconds + 300);
+    let status = loop {
+        if let Some(status) = child.try_wait().unwrap() {
+            break status;
+        }
+        assert!(Instant::now() < deadline, "the viewer did not exit in time");
+        std::thread::sleep(Duration::from_millis(100));
+    };
+    assert!(status.success(), "the viewer probe failed: {status:?}");
+
+    let probe: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(&report).unwrap()).unwrap();
+    let document = json!({
+        "scenario": "viewerFrames",
+        "rows": rows,
+        "probe": probe,
     });
     std::fs::write(out, serde_json::to_string_pretty(&document).unwrap()).unwrap();
 }

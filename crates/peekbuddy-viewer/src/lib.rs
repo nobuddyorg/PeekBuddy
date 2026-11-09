@@ -66,11 +66,15 @@ pub fn isolated_title(hash: u64) -> String {
     format!("PeekBuddy [{hash:016x}]")
 }
 
-/// `--viewer-probe <seconds>`: open, stay idle, report, close.
+/// `--viewer-probe <seconds>`: open, stay idle, report, close. With `scroll`
+/// the window is not left alone: the log is scrolled with the wheel for
+/// `seconds` and the time between frames is reported (#84).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Probe {
-    /// Seconds to leave the window alone after it settled.
+    /// Seconds to leave the window alone after it settled (or to scroll it).
     pub seconds: u64,
+    /// Scroll the log for `seconds` instead of leaving it idle.
+    pub scroll: bool,
     /// Write the report here instead of standard output.
     pub out: Option<PathBuf>,
 }

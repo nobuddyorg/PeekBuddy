@@ -355,9 +355,10 @@ gate = "nightly-trend"
 scenario = "owner-run"
 status = "provisional"
 source = "F9"
-workload = "10M-row log, scripted scroll"
-how = "egui frame timing in --perf-probe JSON"
+workload = "10M-row log, scripted scroll (owner PC: 1M rows, 20 s, #84)"
+how = "app time in ui per frame, scripted wheel scroll (--viewer-probe-scroll, #84)"
 arch = ["x86_64", "aarch64"]
+owner_pc = 1.3
 
 [[budget]]
 id = "viewer.frame.p99"
@@ -370,9 +371,10 @@ gate = "nightly-trend"
 scenario = "owner-run"
 status = "provisional"
 source = "F9"
-workload = "10M-row log, scripted scroll"
-how = "egui frame timing in --perf-probe JSON"
+workload = "10M-row log, scripted scroll (owner PC: 1M rows, 20 s, #84)"
+how = "app time in ui per frame, scripted wheel scroll (--viewer-probe-scroll, #84)"
 arch = ["x86_64", "aarch64"]
+owner_pc = 1.7
 
 [[budget]]
 id = "viewer.frame.max"
@@ -385,9 +387,10 @@ gate = "nightly-trend"
 scenario = "owner-run"
 status = "provisional"
 source = "F9"
-workload = "10M-row log, scripted scroll"
-how = "egui frame timing in --perf-probe JSON"
+workload = "10M-row log, scripted scroll (owner PC: 1M rows, 20 s, #84)"
+how = "app time in ui per frame, scripted wheel scroll (--viewer-probe-scroll, #84)"
 arch = ["x86_64", "aarch64"]
+owner_pc = 2.8
 
 [[budget]]
 id = "query.filter_first_results"

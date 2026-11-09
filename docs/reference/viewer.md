@@ -252,6 +252,25 @@ for the given seconds, and closes it. It writes one JSON line:
 `first_frame_us` is microseconds since process creation (F7). With
 `--data-dir` the viewer belongs to the isolated engine of that directory.
 
+### Scrolling: `--viewer-probe-scroll`
+
+With `--viewer-probe-scroll` the window is not left alone: after it settled
+(5 s) the pointer is put over the middle of the window and the log is wheeled
+down and up (40 lines a frame, 1.5 s per direction) for the given seconds,
+and the line gets a `scroll` object:
+
+```json
+"scroll":{"seconds":20,"frames":1001,"frame_us_p50":20000,"frame_us_p95":21100,"frame_us_p99":21800,"frame_us_max":23000,"ui_us_p50":900,"ui_us_p95":1300,"ui_us_p99":1700,"ui_us_max":2800}
+```
+
+`ui_us_*` is the time the app spent in its `ui` for each frame: the frame
+time of the F9 budgets (`viewer.frame.p95`, `p99`, `max`). It leaves out
+tessellation, the GPU and the swap. `frame_us_*` is the gap between the
+starts of consecutive frames, which a display at 50 or 60 Hz holds near
+20 or 16.7 ms whatever the app does; a gap far above that is a missed
+frame. `cargo xtask perf --scenario viewer-frames` runs it over a log of
+1,000,000 rows (`perf_driver.rs`, `viewer_frames`).
+
 ## Known limitations
 
 - A pointer move repaints the whole window ([egui#8695](https://github.com/emilk/egui/issues/8695)).
