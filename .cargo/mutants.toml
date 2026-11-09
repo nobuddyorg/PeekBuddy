@@ -18,7 +18,10 @@ examine_re = [
 # modules that hold its logic and data (the follow state machine, the
 # debounce, the selection, the filter text form, the rows, the details, the
 # Explorer path conversion, the window geometry and the watch list with its
-# state mapping, #68) are examined. The timeline, the worker, the link and
+# state mapping, #68) are examined, and since #347 the timeline and the
+# worker (a full run: 231 mutants, 181 caught or timed out, 36 unviable, 14
+# missed, 93 %; the survivors are equivalent boundary mutants such as `<` for
+# `<=` on strictly descending ids, and the tracy plot below). The link and
 # the brand module are not yet (#310).
 exclude_globs = [
   "crates/peekbuddy-viewer/src/app.rs",
@@ -33,9 +36,7 @@ exclude_globs = [
   "crates/peekbuddy-viewer/src/shell.rs",
   "crates/peekbuddy-viewer/src/source.rs",
   "crates/peekbuddy-viewer/src/theme.rs",
-  "crates/peekbuddy-viewer/src/timeline.rs",
   "crates/peekbuddy-viewer/src/view.rs",
-  "crates/peekbuddy-viewer/src/worker.rs",
 ]
 # UI glue, the tray message pump and logging are tested by e2e and UI
 # tests (#71), not by unit tests that can catch mutants.
@@ -49,6 +50,9 @@ exclude_re = [
   "crates/peekbuddy-core/src/reconcile/dirinfo.rs:.*Iterator for Entries.*::next.*with Some",
   "crates/peekbuddy-win/src/single_instance.rs:.*replace SingleInstance::acquire.*with Ok.Some",
   "logging",
+  # Compiled only with the `tracy` feature, which no test enables: the value
+  # of the "page fetch ms" plot.
+  "crates/peekbuddy-viewer/src/worker.rs:315:.*replace \\* with",
   # Equivalent mutants: Win32 access masks are disjoint bit flags, so `^`
   # and `|` give the same value.
   "crates/peekbuddy-win/src/process.rs:.*replace \\| with \\^",
