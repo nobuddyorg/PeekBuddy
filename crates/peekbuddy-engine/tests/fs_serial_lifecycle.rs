@@ -304,15 +304,24 @@ fn a_deleted_root_is_lost_and_comes_back_restored_and_reconciled() {
     wait_for("restored", || {
         fx.log.has_state(WatchState::Restored, ROOT_RESTORED)
     });
+    // The reconcile after the restore explains what happened while it was
+    // away. The state `Live, RECONCILE_DONE` is not a sign of it: the
+    // baseline reconcile of the first arm has already logged it, so waiting
+    // for it returned before this reconcile had written a row.
+    wait_for("the reconcile after the restore", || {
+        fx.log
+            .names(Kind::ReconciledCreated)
+            .iter()
+            .any(|n| n == "again.txt")
+            && fx
+                .log
+                .names(Kind::ReconciledDeleted)
+                .iter()
+                .any(|n| n == "first.txt")
+    });
     wait_for("live again", || {
         fx.log.has_state(WatchState::Live, RECONCILE_DONE)
     });
-    // The reconcile after the restore explains what happened while it was
-    // away.
-    let created = fx.log.names(Kind::ReconciledCreated);
-    let deleted = fx.log.names(Kind::ReconciledDeleted);
-    assert!(created.iter().any(|n| n == "again.txt"), "{created:?}");
-    assert!(deleted.iter().any(|n| n == "first.txt"), "{deleted:?}");
 }
 
 #[test]
