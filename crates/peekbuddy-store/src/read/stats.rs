@@ -66,8 +66,9 @@ fn root_text(conn: &Connection, id: i64) -> String {
     })
     .ok()
     .and_then(|(text, wide)| from_columns(&text, wide.as_deref()))
-    .map(|name| String::from_utf16_lossy(&name.into_units()))
-    .unwrap_or_default()
+    .map_or_else(String::new, |name| {
+        String::from_utf16_lossy(&name.into_units())
+    })
 }
 
 impl Reader {
@@ -101,8 +102,7 @@ impl Reader {
                 .query_map([from_hour], |row| {
                     Ok((row.get(0)?, row.get(1)?, row.get(2)?))
                 })
-                .map(|rows| rows.flatten().collect())
-                .unwrap_or_default();
+                .map_or_else(|_| Vec::new(), |rows| rows.flatten().collect());
             for (hour, root_id, n) in found {
                 let root = root_text(&conn, root_id);
                 *sums.entry((hour, root)).or_insert(0) += u64::try_from(n).unwrap_or(0);
@@ -158,8 +158,7 @@ impl Reader {
                         row.get(5)?,
                     ))
                 })
-                .map(|rows| rows.flatten().collect())
-                .unwrap_or_default();
+                .map_or_else(|_| Vec::new(), |rows| rows.flatten().collect());
             let mut resolver = Paths::with_cache(&conn, PathCache::default());
             for (root_id, dim, key, label, n, err) in found {
                 let root = root_text(&conn, root_id);
