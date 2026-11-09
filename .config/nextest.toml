@@ -55,3 +55,9 @@ retries = 0
 
 [profile.ci.junit]
 path = "junit.xml"
+
+# The paging property test builds a store per case; the nightly runs 40 cases
+# (PEEKBUDDY_HEAVY_CASES) and took longer than 120 s on a hosted runner (#423).
+[[profile.default.overrides]]
+filter = "test(paging_from_any_cursor_equals_a_naive_model)"
+slow-timeout = { period = "120s", terminate-after = 5 }
