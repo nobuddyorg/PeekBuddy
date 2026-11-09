@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1794218365842,
+  "lastUpdate": 1794218499112,
   "repoUrl": "https://github.com/nobuddyorg/PeekBuddy",
   "entries": {
     "benches (windows-2025)": [
@@ -697,6 +697,98 @@ window.BENCHMARK_DATA = {
           {
             "name": "viewer/scroll_frame_p99",
             "value": 339550,
+            "unit": "ns"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "name": "Matthias Eggert",
+            "username": "besessener",
+            "email": "8039350+besessener@users.noreply.github.com"
+          },
+          "committer": {
+            "name": "GitHub",
+            "username": "web-flow",
+            "email": "noreply@github.com"
+          },
+          "id": "cab1b6e58335300faf3b81bf0c297d4cbb03fb54",
+          "message": "feat: viewer frame times over 1M rows (#84) (#431)\n\nAdd --viewer-probe-scroll: the viewer wheels its log in a real window\nand reports the app time per frame and the gaps between frames. The\nperf_driver test viewer_frames builds a 1M-row store and runs it,\nxtask perf --scenario viewer-frames turns it into the viewer.frame\nrows, and perf-baremetal.ps1 -Driver runs it on the owner PC.\n\nCo-authored-by: Matthias Eggert <dem.matze@gmail.com>\nCo-authored-by: Claude Sonnet 5.5 <noreply@anthropic.com>",
+          "timestamp": "2026-11-09T08:25:15Z",
+          "url": "https://github.com/nobuddyorg/PeekBuddy/commit/cab1b6e58335300faf3b81bf0c297d4cbb03fb54"
+        },
+        "date": 1794218496954,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "filter/eval_6_names",
+            "value": 1479.0093324678378,
+            "unit": "ns"
+          },
+          {
+            "name": "metrics/process_list_300",
+            "value": 448.43007793358845,
+            "unit": "ns"
+          },
+          {
+            "name": "notify_parse/extended/64kib",
+            "value": 1246.039835453916,
+            "unit": "ns"
+          },
+          {
+            "name": "notify_parse/full/64kib",
+            "value": 1264.091523087482,
+            "unit": "ns"
+          },
+          {
+            "name": "notify_parse/plain/64kib",
+            "value": 2199.2619793460235,
+            "unit": "ns"
+          },
+          {
+            "name": "perf/counters_event",
+            "value": 0.24092340987482413,
+            "unit": "ns"
+          },
+          {
+            "name": "perf/milestone_record",
+            "value": 10.311904294067709,
+            "unit": "ns"
+          },
+          {
+            "name": "reparse/classify_8",
+            "value": 12.11931538825056,
+            "unit": "ns"
+          },
+          {
+            "name": "rules/eval_6_events_50_rules",
+            "value": 28083.154549216728,
+            "unit": "ns"
+          },
+          {
+            "name": "store/batch_insert_1000",
+            "value": 2003378.7566137565,
+            "unit": "ns"
+          },
+          {
+            "name": "store/intern_hit_1000",
+            "value": 35929.25806405896,
+            "unit": "ns"
+          },
+          {
+            "name": "store/intern_miss_1000",
+            "value": 2416144.1567460317,
+            "unit": "ns"
+          },
+          {
+            "name": "viewer/scroll_frame_p95",
+            "value": 295825,
+            "unit": "ns"
+          },
+          {
+            "name": "viewer/scroll_frame_p99",
+            "value": 344150,
             "unit": "ns"
           }
         ]
