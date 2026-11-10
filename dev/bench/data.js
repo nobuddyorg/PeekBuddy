@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1794304934874,
+  "lastUpdate": 1794304988814,
   "repoUrl": "https://github.com/nobuddyorg/PeekBuddy",
   "entries": {
     "benches (windows-2025)": [
@@ -1047,6 +1047,38 @@ window.BENCHMARK_DATA = {
           {
             "name": "durability.restart_to_ready.max",
             "value": 304,
+            "unit": "ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "name": "Matthias Eggert",
+            "username": "besessener",
+            "email": "8039350+besessener@users.noreply.github.com"
+          },
+          "committer": {
+            "name": "GitHub",
+            "username": "web-flow",
+            "email": "noreply@github.com"
+          },
+          "id": "433163889d3a3019beb307566843cb941a742fd4",
+          "message": "test: examine viewer timeline and worker mutants (#441)\n\nTake timeline.rs and worker.rs off the mutants exclude list. A full\nlocal run gave 14 missed of 195 judged (93 %), the survivors being\nequivalent boundary mutants and the tracy-only plot value, which is\nexcluded by name.\n\nCo-authored-by: Matthias Eggert <dem.matze@gmail.com>\nCo-authored-by: Claude Sonnet 5.5 <noreply@anthropic.com>",
+          "timestamp": "2026-11-09T22:58:25Z",
+          "url": "https://github.com/nobuddyorg/PeekBuddy/commit/433163889d3a3019beb307566843cb941a742fd4"
+        },
+        "date": 1794304985889,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "durability.restart_to_ready.p50",
+            "value": 103,
+            "unit": "ms"
+          },
+          {
+            "name": "durability.restart_to_ready.max",
+            "value": 154,
             "unit": "ms"
           }
         ]
