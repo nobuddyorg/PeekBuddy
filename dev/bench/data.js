@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1794389954960,
+  "lastUpdate": 1794390045289,
   "repoUrl": "https://github.com/nobuddyorg/PeekBuddy",
   "entries": {
     "benches (windows-2025)": [
@@ -2005,6 +2005,58 @@ window.BENCHMARK_DATA = {
           {
             "name": "query.subtree_resolve_10m",
             "value": 9602113.888888888,
+            "unit": "ns"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "name": "Matthias Eggert",
+            "username": "besessener",
+            "email": "8039350+besessener@users.noreply.github.com"
+          },
+          "committer": {
+            "name": "GitHub",
+            "username": "web-flow",
+            "email": "noreply@github.com"
+          },
+          "id": "433163889d3a3019beb307566843cb941a742fd4",
+          "message": "test: examine viewer timeline and worker mutants (#441)\n\nTake timeline.rs and worker.rs off the mutants exclude list. A full\nlocal run gave 14 missed of 195 judged (93 %), the survivors being\nequivalent boundary mutants and the tracy-only plot value, which is\nexcluded by name.\n\nCo-authored-by: Matthias Eggert <dem.matze@gmail.com>\nCo-authored-by: Claude Sonnet 5.5 <noreply@anthropic.com>",
+          "timestamp": "2026-11-09T22:58:25Z",
+          "url": "https://github.com/nobuddyorg/PeekBuddy/commit/433163889d3a3019beb307566843cb941a742fd4"
+        },
+        "date": 1794390036871,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "query.changes_since_1m",
+            "value": 1969566100,
+            "unit": "ns"
+          },
+          {
+            "name": "query.filtered_first_1m",
+            "value": 7149235.225885225,
+            "unit": "ns"
+          },
+          {
+            "name": "query.fts_lookup_10m",
+            "value": 32584204.385964915,
+            "unit": "ns"
+          },
+          {
+            "name": "query.page_keyset_10m",
+            "value": 2108053.856749311,
+            "unit": "ns"
+          },
+          {
+            "name": "query.regex_post_filter_1m",
+            "value": 3760890350,
+            "unit": "ns"
+          },
+          {
+            "name": "query.subtree_resolve_10m",
+            "value": 9959849.264705881,
             "unit": "ns"
           }
         ]
