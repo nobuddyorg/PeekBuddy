@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1794477833642,
+  "lastUpdate": 1794477891141,
   "repoUrl": "https://github.com/nobuddyorg/PeekBuddy",
   "entries": {
     "benches (windows-2025)": [
@@ -973,6 +973,98 @@ window.BENCHMARK_DATA = {
           {
             "name": "viewer/scroll_frame_p99",
             "value": 339075,
+            "unit": "ns"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "name": "Matthias Eggert",
+            "username": "besessener",
+            "email": "8039350+besessener@users.noreply.github.com"
+          },
+          "committer": {
+            "name": "GitHub",
+            "username": "web-flow",
+            "email": "noreply@github.com"
+          },
+          "id": "433163889d3a3019beb307566843cb941a742fd4",
+          "message": "test: examine viewer timeline and worker mutants (#441)\n\nTake timeline.rs and worker.rs off the mutants exclude list. A full\nlocal run gave 14 missed of 195 judged (93 %), the survivors being\nequivalent boundary mutants and the tracy-only plot value, which is\nexcluded by name.\n\nCo-authored-by: Matthias Eggert <dem.matze@gmail.com>\nCo-authored-by: Claude Sonnet 5.5 <noreply@anthropic.com>",
+          "timestamp": "2026-11-09T22:58:25Z",
+          "url": "https://github.com/nobuddyorg/PeekBuddy/commit/433163889d3a3019beb307566843cb941a742fd4"
+        },
+        "date": 1794477888934,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "filter/eval_6_names",
+            "value": 1961.805554291163,
+            "unit": "ns"
+          },
+          {
+            "name": "metrics/process_list_300",
+            "value": 741.417498928911,
+            "unit": "ns"
+          },
+          {
+            "name": "notify_parse/extended/64kib",
+            "value": 3494.8611261304063,
+            "unit": "ns"
+          },
+          {
+            "name": "notify_parse/full/64kib",
+            "value": 3573.0731313945425,
+            "unit": "ns"
+          },
+          {
+            "name": "notify_parse/plain/64kib",
+            "value": 6409.987814693473,
+            "unit": "ns"
+          },
+          {
+            "name": "perf/counters_event",
+            "value": 0.3166993516562085,
+            "unit": "ns"
+          },
+          {
+            "name": "perf/milestone_record",
+            "value": 4.987602817526729,
+            "unit": "ns"
+          },
+          {
+            "name": "reparse/classify_8",
+            "value": 21.69311415321385,
+            "unit": "ns"
+          },
+          {
+            "name": "rules/eval_6_events_50_rules",
+            "value": 37383.900512860564,
+            "unit": "ns"
+          },
+          {
+            "name": "store/batch_insert_1000",
+            "value": 3473986.977040816,
+            "unit": "ns"
+          },
+          {
+            "name": "store/intern_hit_1000",
+            "value": 63037.12291965997,
+            "unit": "ns"
+          },
+          {
+            "name": "store/intern_miss_1000",
+            "value": 4212201.884920634,
+            "unit": "ns"
+          },
+          {
+            "name": "viewer/scroll_frame_p95",
+            "value": 576850,
+            "unit": "ns"
+          },
+          {
+            "name": "viewer/scroll_frame_p99",
+            "value": 635925,
             "unit": "ns"
           }
         ]
