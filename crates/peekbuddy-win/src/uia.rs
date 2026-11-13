@@ -37,6 +37,14 @@ pub struct Node {
 
 /// The connection to UI Automation; ends the apartment of the thread when
 /// it is dropped, after every element of it.
+///
+/// # Contract
+///
+/// Owns the COM apartment this thread entered in [`Client::new`] (none when
+/// the thread already had one of another kind) and the automation object.
+/// Dropping it leaves the apartment, so every [`Window`] of it, which borrows
+/// the client, is gone by then. It belongs to the thread that created it: it
+/// is not `Send` because COM interface pointers are not.
 pub struct Client {
     automation: IUIAutomation,
     ended: bool,
