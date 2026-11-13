@@ -68,6 +68,8 @@ pub mod timer;
 pub mod token;
 #[cfg(windows)]
 pub mod tray;
+#[cfg(all(windows, feature = "uia"))]
+pub mod uia;
 #[cfg(all(windows, feature = "usn"))]
 pub mod usn;
 #[cfg(windows)]

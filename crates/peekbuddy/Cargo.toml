@@ -62,6 +62,7 @@ jsonschema = { workspace = true }
 peekbuddy-churn = { workspace = true }
 peekbuddy-store = { workspace = true }
 peekbuddy-testkit = { workspace = true }
+peekbuddy-win = { workspace = true, features = ["uia"] }
 rusqlite = { workspace = true }
 serde_json = { workspace = true }
 

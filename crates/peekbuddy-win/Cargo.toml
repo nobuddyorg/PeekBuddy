@@ -14,6 +14,8 @@ publish.workspace = true
 picker = ["dep:windows"]
 # The Start-menu shortcut with an AppUserModelID that toasts need (#81).
 aumid = ["dep:windows"]
+# A UI Automation client for the end-to-end smoke test of the viewer (#71).
+uia = ["dep:windows"]
 # The OpenGL renderer string for the viewer's startup log (#252).
 glow = ["dep:glow"]
 # The USN journal reader (#47, ADR 0018). Off in v1: the unprivileged read
@@ -31,6 +33,7 @@ windows = { workspace = true, optional = true, features = [
   "Win32_System_Com",
   "Win32_System_Com_StructuredStorage",
   "Win32_System_Variant",
+  "Win32_UI_Accessibility",
   "Win32_UI_Shell",
   "Win32_UI_Shell_Common",
   "Win32_UI_Shell_PropertiesSystem",
