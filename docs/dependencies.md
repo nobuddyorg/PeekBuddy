@@ -9,7 +9,7 @@ monthly and whenever Dependabot opens a manual-only PR.
 
 | Item | Pin today | Target | Trigger | Status |
 | --- | --- | --- | --- | --- |
-| Rust toolchain | 1.99.1 | 1.100 | released 2026-11-12 | open |
+| Rust toolchain | 1.100.0 | next stable | released every six weeks | done in the 1.100 migration PR |
 | windows / windows-sys | windows-sys =0.61.2 | 0.100 | tray-icon, muda, eframe, windows-service and tauri-winrt-notification have moved | open |
 | winit | via eframe | 0.31 | eframe depends on a stable 0.31 | open |
 | egui, eframe, egui_table | =0.37.0, =0.11.0 | next egui release | about every 6 weeks, manual | open |
@@ -20,8 +20,8 @@ monthly and whenever Dependabot opens a manual-only PR.
 
 ## Rust 1.100
 
-One PR, because the new keys warn on 1.99 and `CARGO_BUILD_WARNINGS=deny`
-turns warnings into failures:
+Done in one PR, because the new keys warn on 1.99 and
+`CARGO_BUILD_WARNINGS=deny` turns warnings into failures:
 
 - bump `rust-toolchain.toml`,
 - replace cargo-machete with `[lints.cargo] unused_dependencies` and remove
