@@ -110,6 +110,12 @@ jobs:
       - run: cargo xtask check-contracts
       - run: cargo xtask check-deps
       - name: Benches compile (#26)
+        # Only the bench targets are built here, so the dev-dependencies of
+        # the other crates look unused to `cargo::unused_dependencies`; the
+        # clippy steps above build every target and deny that lint and every
+        # other warning.
+        env:
+          CARGO_BUILD_WARNINGS: warn
         run: cargo bench --no-run --workspace --locked
 
   test-x64:
