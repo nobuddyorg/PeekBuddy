@@ -10,7 +10,7 @@ Silently watches your folders and logs every change in real time 👀
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/nobuddyorg/PeekBuddy/badge)](https://scorecard.dev/viewer/?uri=github.com/nobuddyorg/PeekBuddy)
 ![cargo-deny](https://img.shields.io/badge/supply%20chain-cargo--deny-orange)
 ![cargo-mutants](https://img.shields.io/badge/mutation%20testing-cargo--mutants-8A2BE2)
-![Rust 1.99.1](https://img.shields.io/badge/rust-1.99.1-b7410e?logo=rust&logoColor=white)
+![Rust 1.100.0](https://img.shields.io/badge/rust-1.100.0-b7410e?logo=rust&logoColor=white)
 ![Windows](https://img.shields.io/badge/platform-Windows%2011%20x64%20%7C%20arm64-0078D4?logo=windows&logoColor=white)
 [![License: MIT](https://img.shields.io/github/license/nobuddyorg/PeekBuddy)](LICENSE)
 

@@ -30,7 +30,7 @@ reference for how it is enforced.
 | --- | --- | --- |
 | `cargo deny check bans licenses sources` | `ci.yml` job `cargo-deny` | required (in `ci-ok`) |
 | `cargo audit` (RustSec advisories) | `audit.yml`, daily | opens or updates one `security` issue; never blocks PRs |
-| cargo-machete (unused deps) | `ci.yml` job `lint` | required |
+| `cargo::unused_dependencies` lint (unused deps) | every build, denied through `CARGO_BUILD_WARNINGS=deny` | required |
 | `cargo xtask check-release` (no Tracy in the release feature set or exe) | `ci.yml` job `test (windows x64)`, `cargo xtask check` | required |
 
 Advisories are deliberately not a PR gate: a new advisory must not block an

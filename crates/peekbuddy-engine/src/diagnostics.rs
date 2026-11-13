@@ -99,7 +99,7 @@ mod tests {
             facts: Facts {
                 version: String::from("0.0.0"),
                 git_sha: String::from("abcdef123456"),
-                rustc: String::from("rustc 1.99.1"),
+                rustc: String::from("rustc 1.100.0"),
                 dependencies: vec![(String::from("windows-sys"), String::from("0.61.2"))],
             },
             sqlite: String::from("not linked into this build yet"),

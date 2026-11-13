@@ -6,3 +6,8 @@ xtask = "run --package xtask --"
 # LIBSQLITE3_FLAGS = ""
 
 # CI sets CARGO_BUILD_WARNINGS=deny (Cargo 1.97+) so warnings fail the build.
+
+# A crate version has to be a week old before a build takes it (Cargo 1.100):
+# a release that was yanked or found malicious within days is not pulled in.
+[registry]
+global-min-publish-age = "7 days"
