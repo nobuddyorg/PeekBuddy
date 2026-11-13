@@ -41,8 +41,11 @@ pub struct Point {
 pub enum Trend {
     /// Within +25 % of the rolling median.
     Ok,
-    /// More than +25 % above the rolling median.
+    /// More than +25 % above the rolling median tonight and the night before.
     Alert,
+    /// More than +25 % above the rolling median tonight only: the hosted
+    /// runners come in two speeds, so one slow night proves nothing (#403).
+    Watch,
     /// Fewer than [`MIN_POINTS`] earlier points.
     NoBaseline,
 }
@@ -89,7 +92,9 @@ pub fn history(data_js: &str, entry: &str) -> Result<BTreeMap<String, Vec<f64>>,
 }
 
 /// Compares tonight's medians with the rolling median of the last
-/// [`WINDOW`] earlier points.
+/// [`WINDOW`] earlier points. A bench alerts only when the night before was
+/// above its own rolling median too: the hosted runners alternate between a
+/// fast and a slow machine, and a single slow night is not a regression.
 #[must_use]
 pub fn compare(tonight: &BTreeMap<String, f64>, earlier: &BTreeMap<String, Vec<f64>>) -> Vec<Row> {
     tonight
@@ -104,7 +109,13 @@ pub fn compare(tonight: &BTreeMap<String, f64>, earlier: &BTreeMap<String, Vec<f
                 .flatten();
             let trend = match baseline {
                 None => Trend::NoBaseline,
-                Some(base) if value > base * ALERT_RATIO => Trend::Alert,
+                Some(base) if value > base * ALERT_RATIO => {
+                    if previous_was_high(points, base) {
+                        Trend::Alert
+                    } else {
+                        Trend::Watch
+                    }
+                }
                 Some(_) => Trend::Ok,
             };
             Row {
@@ -115,6 +126,24 @@ pub fn compare(tonight: &BTreeMap<String, f64>, earlier: &BTreeMap<String, Vec<f
             }
         })
         .collect()
+}
+
+/// Whether the last of `points` was itself more than +25 % above the rolling
+/// median of the [`WINDOW`] points before it (or above `fallback` when those
+/// are too few for a median).
+fn previous_was_high(points: &[f64], fallback: f64) -> bool {
+    let Some((&last, before)) = points.split_last() else {
+        return false;
+    };
+    let before = before
+        .get(before.len().saturating_sub(WINDOW)..)
+        .unwrap_or_default();
+    let base = if before.len() >= MIN_POINTS {
+        bench_ab::median(before).unwrap_or(fallback)
+    } else {
+        fallback
+    };
+    last > base * ALERT_RATIO
 }
 
 fn format_ns(value: f64) -> String {
@@ -153,7 +182,8 @@ pub fn render(rows: &[Row], rounds: usize, shape: &str) -> String {
         };
         let trend = match row.trend {
             Trend::Ok => "ok",
-            Trend::Alert => "**ALERT** (> +25 %)",
+            Trend::Alert => "**ALERT** (> +25 %, two nights running)",
+            Trend::Watch => "high tonight (alerts if tomorrow is too)",
             Trend::NoBaseline => "no baseline yet",
         };
         let _ = writeln!(
@@ -376,9 +406,32 @@ mod tests {
         );
         assert_eq!(rows[0].name, "a/hot");
         assert_eq!(rows[0].baseline, Some(10.0));
-        assert_eq!(rows[0].trend, Trend::Alert);
-        // Exactly +25 % is not an alert.
+        // One night over is only watched; exactly +25 % is fine.
+        assert_eq!(rows[0].trend, Trend::Watch);
         assert_eq!(rows[1].trend, Trend::Ok);
+    }
+
+    #[test]
+    fn two_nights_in_a_row_over_the_median_alert() {
+        // 13 is over +25 % of the median of the seven 10s before it; tonight
+        // is over +25 % of the median of the last seven, which is still 10.
+        let points: &[f64] = &[10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 13.0];
+        let rows = compare(
+            &tonight(&[("a/hot", 13.0), ("a/cool", 10.0)]),
+            &earlier(&[("a/hot", points), ("a/cool", points)]),
+        );
+        assert_eq!(rows[0].name, "a/cool");
+        assert_eq!(rows[0].trend, Trend::Ok);
+        assert_eq!(rows[1].trend, Trend::Alert);
+    }
+
+    #[test]
+    fn a_slow_night_between_fast_ones_does_not_alert() {
+        // The hosted runners alternate between two speeds (#403): 6.4 after
+        // 2.2 and 2.1 is watched, not an alert.
+        let points: &[f64] = &[6.0, 6.0, 4.3, 2.1, 2.2, 6.4, 2.2];
+        let rows = compare(&tonight(&[("a/x", 6.4)]), &earlier(&[("a/x", points)]));
+        assert_eq!(rows[0].trend, Trend::Watch);
     }
 
     #[test]
@@ -392,7 +445,7 @@ mod tests {
             trends,
             [
                 ("a/new", Trend::NoBaseline),
-                ("a/three", Trend::Alert),
+                ("a/three", Trend::Watch),
                 ("a/two", Trend::NoBaseline)
             ]
         );
@@ -402,12 +455,26 @@ mod tests {
     fn the_report_marks_alerts() {
         let rows = compare(
             &tonight(&[("a/x", 2_000.0), ("a/y", 5.0)]),
-            &earlier(&[("a/x", &[1_000.0; 3])]),
+            &earlier(&[("a/x", &[1_000.0, 1_000.0, 1_000.0, 1_000.0, 2_000.0])]),
         );
         let report = render(&rows, 10, "test");
         assert!(
-            report.contains("| `a/x` | 2.00 us | 1.00 us | +100.0 % | **ALERT** (> +25 %) |"),
+            report.contains(
+                "| `a/x` | 2.00 us | 1.00 us | +100.0 % | **ALERT** (> +25 %, two nights running) |"
+            ),
             "{report}"
+        );
+        let watched = render(
+            &compare(
+                &tonight(&[("a/w", 2_000.0)]),
+                &earlier(&[("a/w", &[1_000.0; 4])]),
+            ),
+            10,
+            "test",
+        );
+        assert!(
+            watched.contains("| high tonight (alerts if tomorrow is too) |"),
+            "{watched}"
         );
         assert!(
             report.contains("| `a/y` | 5.00 ns | - | - | no baseline yet |"),
