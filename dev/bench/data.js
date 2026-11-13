@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1794563832088,
+  "lastUpdate": 1794563947142,
   "repoUrl": "https://github.com/nobuddyorg/PeekBuddy",
   "entries": {
     "benches (windows-2025)": [
@@ -1805,6 +1805,38 @@ window.BENCHMARK_DATA = {
           {
             "name": "durability.restart_to_ready.max",
             "value": 254,
+            "unit": "ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "name": "Matthias Eggert",
+            "username": "besessener",
+            "email": "8039350+besessener@users.noreply.github.com"
+          },
+          "committer": {
+            "name": "GitHub",
+            "username": "web-flow",
+            "email": "noreply@github.com"
+          },
+          "id": "fea96fd1d7073920800ec805bb1962809b290430",
+          "message": "chore: move to Rust 1.100 (#83) (#452)\n\n* chore: move to Rust 1.100 (#83)\n\nBump the toolchain, msrv and rust-version to 1.100.0. The new\ncargo::unused_dependencies lint replaces cargo-machete, which goes\nfrom CI and the crate metadata. Builds take only crate versions that\nare a week old (registry.global-min-publish-age).\n\nCo-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>\n\n* ci: warn only in the bench compile step (#83)\n\ncargo bench --no-run builds no test targets, so the dev-dependencies\nlook unused to the new cargo lint and the denied warning failed the\nlint job. The clippy steps build every target and still deny it.\n\nCo-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>\n\n---------\n\nCo-authored-by: Matthias Eggert <dem.matze@gmail.com>\nCo-authored-by: Claude Sonnet 5.5 <noreply@anthropic.com>",
+          "timestamp": "2026-11-13T09:22:11Z",
+          "url": "https://github.com/nobuddyorg/PeekBuddy/commit/fea96fd1d7073920800ec805bb1962809b290430"
+        },
+        "date": 1794563944774,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "durability.restart_to_ready.p50",
+            "value": 102,
+            "unit": "ms"
+          },
+          {
+            "name": "durability.restart_to_ready.max",
+            "value": 807,
             "unit": "ms"
           }
         ]
