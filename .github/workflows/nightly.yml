@@ -405,7 +405,9 @@ jobs:
         env:
           INCREMENTAL: ${{ needs.mutants-scope.outputs.incremental }}
         run: |
-          count() { cat shards/*/"$1.txt" 2>/dev/null | wc -l; }
+          # No shard artifacts (a day without mutants in the diff) make `cat`
+          # fail, which `pipefail` and `-e` would turn into a failed job.
+          count() { { cat shards/*/"$1.txt" 2>/dev/null || true; } | wc -l; }
           caught="$(count caught)"; missed="$(count missed)"; timeout="$(count timeout)"
           total=$((caught + missed + timeout))
           if [ "${INCREMENTAL}" = true ] && [ "${total}" -eq 0 ]; then echo "no mutants in the diff"; exit 0; fi
