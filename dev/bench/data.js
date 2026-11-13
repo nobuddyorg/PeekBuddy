@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1794563979476,
+  "lastUpdate": 1794564308539,
   "repoUrl": "https://github.com/nobuddyorg/PeekBuddy",
   "entries": {
     "benches (windows-2025)": [
@@ -1065,6 +1065,98 @@ window.BENCHMARK_DATA = {
           {
             "name": "viewer/scroll_frame_p99",
             "value": 635925,
+            "unit": "ns"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "name": "Matthias Eggert",
+            "username": "besessener",
+            "email": "8039350+besessener@users.noreply.github.com"
+          },
+          "committer": {
+            "name": "GitHub",
+            "username": "web-flow",
+            "email": "noreply@github.com"
+          },
+          "id": "fea96fd1d7073920800ec805bb1962809b290430",
+          "message": "chore: move to Rust 1.100 (#83) (#452)\n\n* chore: move to Rust 1.100 (#83)\n\nBump the toolchain, msrv and rust-version to 1.100.0. The new\ncargo::unused_dependencies lint replaces cargo-machete, which goes\nfrom CI and the crate metadata. Builds take only crate versions that\nare a week old (registry.global-min-publish-age).\n\nCo-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>\n\n* ci: warn only in the bench compile step (#83)\n\ncargo bench --no-run builds no test targets, so the dev-dependencies\nlook unused to the new cargo lint and the denied warning failed the\nlint job. The clippy steps build every target and still deny it.\n\nCo-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>\n\n---------\n\nCo-authored-by: Matthias Eggert <dem.matze@gmail.com>\nCo-authored-by: Claude Sonnet 5.5 <noreply@anthropic.com>",
+          "timestamp": "2026-11-13T09:22:11Z",
+          "url": "https://github.com/nobuddyorg/PeekBuddy/commit/fea96fd1d7073920800ec805bb1962809b290430"
+        },
+        "date": 1794564305975,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "filter/eval_6_names",
+            "value": 1963.8345847788264,
+            "unit": "ns"
+          },
+          {
+            "name": "metrics/process_list_300",
+            "value": 757.9585664367878,
+            "unit": "ns"
+          },
+          {
+            "name": "notify_parse/extended/64kib",
+            "value": 3500.5367496449026,
+            "unit": "ns"
+          },
+          {
+            "name": "notify_parse/full/64kib",
+            "value": 3579.930500205878,
+            "unit": "ns"
+          },
+          {
+            "name": "notify_parse/plain/64kib",
+            "value": 6398.352275413381,
+            "unit": "ns"
+          },
+          {
+            "name": "perf/counters_event",
+            "value": 0.31613585653482357,
+            "unit": "ns"
+          },
+          {
+            "name": "perf/milestone_record",
+            "value": 4.990262301624705,
+            "unit": "ns"
+          },
+          {
+            "name": "reparse/classify_8",
+            "value": 21.746265384108092,
+            "unit": "ns"
+          },
+          {
+            "name": "rules/eval_6_events_50_rules",
+            "value": 36377.679812215814,
+            "unit": "ns"
+          },
+          {
+            "name": "store/batch_insert_1000",
+            "value": 4381208.258928571,
+            "unit": "ns"
+          },
+          {
+            "name": "store/intern_hit_1000",
+            "value": 62443.50711641986,
+            "unit": "ns"
+          },
+          {
+            "name": "store/intern_miss_1000",
+            "value": 4413668.402777778,
+            "unit": "ns"
+          },
+          {
+            "name": "viewer/scroll_frame_p95",
+            "value": 601775,
+            "unit": "ns"
+          },
+          {
+            "name": "viewer/scroll_frame_p99",
+            "value": 650000,
             "unit": "ns"
           }
         ]
