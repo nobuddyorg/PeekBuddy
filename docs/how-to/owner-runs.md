@@ -39,6 +39,7 @@ Runs are batched: at most one owner run per week unless a release is due.
 | [`store-bench.ps1`](../../scripts/owner/store-bench.ps1) | Commit policy, checkpoint, readers, memory, size and 2M-row query numbers of the SQLite store on the owner's disk (about 15 minutes; needs the `store-bench-exes-windows-2025` artifact of the store-bench workflow) | #35 |
 | [`autostart-check.ps1`](../../scripts/owner/autostart-check.ps1) | In three phases around a real sign-in: the Run value and Task Manager's StartupApproved flag, whether the autostarted engine runs with no viewer child, its CPU time and bytes read, and the Startup impact you read from Task Manager (about 10 minutes plus the sign-out; the only persistent change is the Run value, removed by `-Phase cleanup`) | #63 |
 | [`perf-baremetal.ps1`](../../scripts/owner/perf-baremetal.ps1) | The absolute numbers of a release build on real hardware: a preflight (AC power, power plan, GPU and driver, Defender, busiest processes), then the perf harness (engine ready warm, startup CPU and disk read, idle CPU and wakeups, Private Bytes; with `-Driver` ingest, event latency, handle stability and viewer frame times over 1M rows) and the viewer's first frame, 3 runs each, medians and spread (about 12 minutes, unelevated; takes `-Exe`, `-Harness` and `-Driver`, see below) | #84 |
+| [`release-smoke.ps1`](../../scripts/owner/release-smoke.ps1) | The smoke run of a release build: file facts (SHA-256, size, Authenticode state, Mark of the Web), the engine with a tray icon (answers `--ipc-ping`, icon found in the notification area through UI Automation, CPU and bytes read), its `--perf-probe`, the viewer opening, painting and closing, and a Defender custom scan of the exe and of a folder of release assets (about two minutes, unelevated, no persistent change; takes `-Exe`, optional `-Assets`) | #77 |
 
 ### Running `perf-baremetal.ps1`
 
@@ -71,3 +72,20 @@ A report committed to `perf/owner-runs/` on main is published by the
 budget row. Keep the default `-IdleSecs 60` for such a report: with a shorter
 idle window a single timer wake rounds up to several wakes per minute and
 fails `engine.idle.wakes`.
+
+### Running `release-smoke.ps1`
+
+Run it on the release `peekbuddy.exe` (checked as in
+[verify a download](verify-download.md)), with `-Assets` pointing at the
+folder of the downloaded release assets when they should be scanned too:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\ownerelease-smoke.ps1 -Exe .\peekbuddy.exe -Assets .elease
+```
+
+Every check prints `pass` or `FAIL`; the exit code is 1 when one fails. The
+report `release-smoke-<version>-<date>.json` goes to the release checklist
+issue (#77). An unsigned release says `NotSigned` under `authenticode`: that
+is expected (see the README). The autostart check needs a real sign-in and
+stays a separate script, `autostart-check.ps1`; try the export of a log by
+hand once.
