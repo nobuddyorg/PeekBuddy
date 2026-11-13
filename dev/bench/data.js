@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1794563947142,
+  "lastUpdate": 1794563979476,
   "repoUrl": "https://github.com/nobuddyorg/PeekBuddy",
   "entries": {
     "benches (windows-2025)": [
@@ -2329,6 +2329,58 @@ window.BENCHMARK_DATA = {
           {
             "name": "query.subtree_resolve_10m",
             "value": 9621817.222222222,
+            "unit": "ns"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "name": "Matthias Eggert",
+            "username": "besessener",
+            "email": "8039350+besessener@users.noreply.github.com"
+          },
+          "committer": {
+            "name": "GitHub",
+            "username": "web-flow",
+            "email": "noreply@github.com"
+          },
+          "id": "fea96fd1d7073920800ec805bb1962809b290430",
+          "message": "chore: move to Rust 1.100 (#83) (#452)\n\n* chore: move to Rust 1.100 (#83)\n\nBump the toolchain, msrv and rust-version to 1.100.0. The new\ncargo::unused_dependencies lint replaces cargo-machete, which goes\nfrom CI and the crate metadata. Builds take only crate versions that\nare a week old (registry.global-min-publish-age).\n\nCo-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>\n\n* ci: warn only in the bench compile step (#83)\n\ncargo bench --no-run builds no test targets, so the dev-dependencies\nlook unused to the new cargo lint and the denied warning failed the\nlint job. The clippy steps build every target and still deny it.\n\nCo-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>\n\n---------\n\nCo-authored-by: Matthias Eggert <dem.matze@gmail.com>\nCo-authored-by: Claude Sonnet 5.5 <noreply@anthropic.com>",
+          "timestamp": "2026-11-13T09:22:11Z",
+          "url": "https://github.com/nobuddyorg/PeekBuddy/commit/fea96fd1d7073920800ec805bb1962809b290430"
+        },
+        "date": 1794563977237,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "query.changes_since_1m",
+            "value": 1800687200,
+            "unit": "ns"
+          },
+          {
+            "name": "query.filtered_first_1m",
+            "value": 6873229.761904762,
+            "unit": "ns"
+          },
+          {
+            "name": "query.fts_lookup_10m",
+            "value": 30673142.410714284,
+            "unit": "ns"
+          },
+          {
+            "name": "query.page_keyset_10m",
+            "value": 2381315.4545454546,
+            "unit": "ns"
+          },
+          {
+            "name": "query.regex_post_filter_1m",
+            "value": 3505074250,
+            "unit": "ns"
+          },
+          {
+            "name": "query.subtree_resolve_10m",
+            "value": 9214184.31372549,
             "unit": "ns"
           }
         ]
