@@ -58,6 +58,7 @@ embed-manifest = { workspace = true }
 winresource = { workspace = true }
 
 [dev-dependencies]
+peekbuddy-win = { workspace = true, features = ["uia"] }
 jsonschema = { workspace = true }
 peekbuddy-churn = { workspace = true }
 peekbuddy-store = { workspace = true }

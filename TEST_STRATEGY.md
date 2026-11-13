@@ -11,7 +11,7 @@ and how to add one.
 | Unit and property | Pure logic: event model, names, filters, derived views, parsers | `mod tests` in each module; proptest | Any host; Windows in CI, every PR |
 | Win32 integration | Real watchers, real NTFS, pipes, tokens | `tests/` of `peekbuddy-win`, `-engine`, `-store` | Windows x64 every PR, arm64 advisory |
 | End-to-end | Launch `peekbuddy.exe`, drive it, check the log | `tests/e2e*.rs` | Windows, every PR (`e2e` group) |
-| UI | egui_kittest interaction tests, layout snapshots ([UI tests](#ui-tests-kittest)); UIA smoke (#71, not yet) | `peekbuddy-viewer` | Any host; Windows in CI, every PR |
+| UI | egui_kittest interaction tests, layout snapshots ([UI tests](#ui-tests-kittest)); UIA smoke (`tests/e2e_viewer.rs`, #71) | `peekbuddy-viewer` | Any host; Windows in CI, every PR |
 | Performance ([PERFORMANCE.md](PERFORMANCE.md)) | Allocation budgets (#23), micro-benchmarks (#26), end-to-end harness (#27) | own test binaries and `benches` | Windows, PR (deterministic) and nightly (trends) |
 
 ## Runner and profiles
@@ -288,8 +288,15 @@ a hash of it), so a PeekBuddy that runs for you is not touched, but close a
 second window of yours that sits on the same screen position. A test that
 fails to find the window usually ran in a session without a desktop:
 `peekbuddy_testkit::assert_interactive_session()` says so. The UI Automation
-smoke of #71 (`tests/e2e*.rs`, nextest group `e2e`) is not written yet; when
-it is, it runs the same way with `-E 'binary(/^e2e/)'`.
+smoke of #71 (`tests/e2e_viewer.rs`, nextest group `e2e`) runs the same way
+with `-E 'binary(/^e2e/)'`. It starts the viewer on a fresh data directory,
+finds its window by title, and drives it through
+`peekbuddy_win::uia` (a UI Automation client, feature `uia`): the welcome
+screens are walked with `Next` and `Skip`, the log screen's tabs and filters
+are read by name, `Compact` and `Settings` are invoked, and closing the
+window ends the viewer with status 0. A new check is a name in the list and
+an `invoke`; `names` and `wait_for` poll the accessibility tree, which fills
+a moment after the window appears.
 
 ## Conventions
 
