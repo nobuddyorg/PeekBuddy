@@ -80,7 +80,7 @@ Run it on the release `peekbuddy.exe` (checked as in
 folder of the downloaded release assets when they should be scanned too:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File scripts\ownerelease-smoke.ps1 -Exe .\peekbuddy.exe -Assets .elease
+powershell -ExecutionPolicy Bypass -File scripts\owner\release-smoke.ps1 -Exe .\peekbuddy.exe -Assets .\release
 ```
 
 Every check prints `pass` or `FAIL`; the exit code is 1 when one fails. The
