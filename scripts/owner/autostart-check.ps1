@@ -25,8 +25,15 @@ param(
     [Parameter(Mandatory)][ValidateSet('prepare', 'report', 'cleanup')][string]$Phase,
     [string]$Exe,
     [ValidateSet('Not measured', 'Not measured yet', 'Low', 'Medium', 'High')][string]$TaskManagerImpact = 'Not measured',
-    [string]$OutFile = (Join-Path $PSScriptRoot 'autostart-check-report.json')
+    [string]$OutFile
 )
+
+# `$PSScriptRoot` is empty in a parameter default of Windows PowerShell 5.1
+# when the script runs through `-File`, so the default is set here.
+if (-not $OutFile) {
+    $here = if ($PSScriptRoot) { $PSScriptRoot } else { Split-Path -Parent $MyInvocation.MyCommand.Path }
+    $OutFile = Join-Path $here 'autostart-check-report.json'
+}
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'

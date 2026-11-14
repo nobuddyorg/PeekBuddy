@@ -8,8 +8,15 @@
 #>
 [CmdletBinding()]
 param(
-    [string]$OutFile = (Join-Path $PSScriptRoot 'hello-report.json')
+    [string]$OutFile
 )
+
+# `$PSScriptRoot` is empty in a parameter default of Windows PowerShell 5.1
+# when the script runs through `-File`, so the default is set here.
+if (-not $OutFile) {
+    $here = if ($PSScriptRoot) { $PSScriptRoot } else { Split-Path -Parent $MyInvocation.MyCommand.Path }
+    $OutFile = Join-Path $here 'hello-report.json'
+}
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
