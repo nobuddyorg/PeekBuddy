@@ -32,7 +32,7 @@ The viewer's top bar draws the wordmark. The welcome screen and the About view
 ## Where it cannot
 
 Windows draws the window title bar, the tray tooltip and the tray menu, Task
-Manager, the Start menu and the winget listing; they have no colour or
+Manager and the Start menu; they have no colour or
 underline and say plain `PeekBuddy`.
 
 ## Font
