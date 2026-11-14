@@ -292,8 +292,12 @@ jobs:
       - run: cargo nextest run --workspace --profile ci --no-tests=pass
 
   mutants-scope:
-    # Incremental: on weekdays only the mutants in lines changed since the
-    # last 26 hours are examined; Sundays and manual runs examine everything.
+    # Every night examines one seventh of all mutants, a different seventh
+    # each weekday, so a week covers all of them. A full run was about 70
+    # runner-hours and 7 hours of wall clock, long enough for the runners to be
+    # lost under it; a seventh is about 10 hours of runner time in well under
+    # two hours. The score gate (80 %) applies to every night's seventh, which
+    # is large enough (about 700 mutants) to be steady.
     name: mutants scope
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -301,28 +305,15 @@ jobs:
       contents: read
     outputs:
       incremental: ${{ steps.scope.outputs.incremental }}
+      day: ${{ steps.scope.outputs.day }}
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-          fetch-depth: 0
       - name: Scope
         id: scope
-        env:
-          EVENT: ${{ github.event_name }}
         run: |
-          base="$(git rev-list -1 --before='26 hours ago' HEAD || true)"
-          if [ "${EVENT}" = schedule ] && [ "$(date -u +%u)" != 7 ] && [ -n "${base}" ]; then
-            git diff "${base}" HEAD > git.diff
-            echo "incremental=true" >> "${GITHUB_OUTPUT}"
-          else
-            : > git.diff
-            echo "incremental=false" >> "${GITHUB_OUTPUT}"
-          fi
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: mutants-diff
-          path: git.diff
+          # ISO weekday 1 to 7 as 0 to 6: the seventh of the mutants of today.
+          echo "day=$(( $(date -u +%u) % 7 ))" >> "${GITHUB_OUTPUT}"
+          # Never the diff mode of earlier versions; the score gate always applies.
+          echo "incremental=false" >> "${GITHUB_OUTPUT}"
 
   mutants:
     name: mutants (shard ${{ matrix.shard }}/32)
@@ -345,21 +336,19 @@ jobs:
       - uses: taiki-e/install-action@86f7a0ffb25f40114606501a311ebcfaf882ea32 # v2.88.0
         with:
           tool: cargo-nextest@0.9.149,cargo-mutants@27.1.0
-      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
-        with:
-          name: mutants-diff
       - name: Mutants shard
         shell: pwsh
         env:
           SHARD: ${{ matrix.shard }}
-          INCREMENTAL: ${{ needs.mutants-scope.outputs.incremental }}
+          DAY: ${{ needs.mutants-scope.outputs.day }}
         run: |
-          $scope = @()
-          if ($env:INCREMENTAL -eq 'true') { $scope = @('--in-diff', 'git.diff') }
+          # 32 shards times 7 days: slice (shard * 7 + day) of 224 is the
+          # shard's seventh of its former share.
+          $slice = [int]$env:SHARD * 7 + [int]$env:DAY
           New-Item -ItemType Directory -Force -Path C:\t | Out-Null
           $env:TMP = 'C:\t'
           $env:TEMP = 'C:\t'
-          cargo mutants --no-shuffle $scope --shard "$env:SHARD/32" --test-tool nextest --in-place --timeout-multiplier 2 --minimum-test-timeout 150
+          cargo mutants --no-shuffle --shard "$slice/224" --test-tool nextest --in-place --timeout-multiplier 2 --minimum-test-timeout 150
           # Exit 2 (missed) and 3 (timeouts) are judged by the mutation-score
           # job over all shards; anything else (a failing baseline, a broken
           # build) fails the shard.
@@ -443,18 +432,15 @@ jobs:
       - uses: taiki-e/install-action@86f7a0ffb25f40114606501a311ebcfaf882ea32 # v2.88.0
         with:
           tool: cargo-nextest@0.9.149,cargo-mutants@27.1.0
-      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
-        with:
-          name: mutants-diff
       - name: Mutants of core
         env:
           INCREMENTAL: ${{ needs.mutants-scope.outputs.incremental }}
           SHARD: ${{ matrix.shard }}
+          DAY: ${{ needs.mutants-scope.outputs.day }}
         run: |
-          scope=()
-          [ "${INCREMENTAL}" = true ] && scope=(--in-diff git.diff)
+          # 4 shards times 7 days: slice (shard * 7 + day) of 28.
           code=0
-          cargo mutants --no-shuffle "${scope[@]}" -p peekbuddy-core --test-tool nextest --shard "${SHARD}/4" || code=$?
+          cargo mutants --no-shuffle -p peekbuddy-core --test-tool nextest --shard "$((SHARD * 7 + DAY))/28" || code=$?
           # Exit 2 (missed) and 3 (timeouts) are judged by the 80 % score.
           if [ "${code}" -ne 0 ] && [ "${code}" -ne 2 ] && [ "${code}" -ne 3 ]; then exit "${code}"; fi
           count() { [ -f "mutants.out/$1.txt" ] && wc -l < "mutants.out/$1.txt" || echo 0; }
