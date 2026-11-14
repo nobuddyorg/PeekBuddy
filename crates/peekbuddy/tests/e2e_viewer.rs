@@ -77,32 +77,65 @@ fn names(window: WindowHandle) -> Result<Vec<String>, String> {
     Ok(nodes.into_iter().map(|node| node.name).collect())
 }
 
-/// Waits until a control named `name` is there (or gone, when `present` is
-/// false) and returns every name then.
-fn wait_for(window: WindowHandle, name: &str, present: bool) -> Vec<String> {
-    let deadline = Instant::now() + Duration::from_secs(60);
+/// Waits up to `seconds` until a control named `name` is there (or gone, when
+/// `present` is false) and returns every name then, or the last answer.
+fn wait_within(
+    window: WindowHandle,
+    name: &str,
+    present: bool,
+    seconds: u64,
+) -> Result<Vec<String>, String> {
+    let deadline = Instant::now() + Duration::from_secs(seconds);
     loop {
         let now = names(window);
         if let Ok(now) = &now
             && now.iter().any(|n| n == name) == present
         {
-            return now.clone();
+            return Ok(now.clone());
         }
-        assert!(
-            Instant::now() < deadline,
-            "{name:?} did not {} in 60 s: {now:#?}",
-            if present { "appear" } else { "go" }
-        );
+        if Instant::now() >= deadline {
+            return Err(format!(
+                "{name:?} did not {} in {seconds} s: {now:#?}",
+                if present { "appear" } else { "go" }
+            ));
+        }
         std::thread::sleep(Duration::from_millis(100));
     }
+}
+
+/// [`wait_within`] for the 60 s of a screen change that must happen.
+fn wait_for(window: WindowHandle, name: &str, present: bool) -> Vec<String> {
+    wait_within(window, name, present, 60).unwrap()
+}
+
+/// A viewer on a fresh data directory whose window UI Automation can read.
+///
+/// On the hosted runners the first viewer of a session answers
+/// `ElementFromHandle` with 0x80040201 ("an event was unable to invoke any of
+/// the subscribers") for as long as it lives, while the next viewer, started
+/// seconds later, answers at once (the first attempt of this test failed after
+/// 60 s and the retry passed in 4 s, in every run since it exists). So a
+/// viewer that is not readable after 20 s is replaced, up to three times.
+fn readable_viewer() -> Result<(TestDir, Viewer, WindowHandle), String> {
+    let mut last = String::new();
+    for _ in 0..3 {
+        let dir = TestDir::new("e2e-viewer").unwrap();
+        let mut viewer = start(dir.path());
+        let window = window_of(dir.path(), &mut viewer);
+        match wait_within(window, "Welcome to PeekBuddy", true, 20) {
+            Ok(_) => return Ok((dir, viewer, window)),
+            Err(why) => last = why,
+        }
+    }
+    Err(format!(
+        "no viewer was readable through UI Automation in three tries: {last}"
+    ))
 }
 
 #[test]
 fn the_welcome_screens_work_through_ui_automation() {
     peekbuddy_testkit::assert_interactive_session();
-    let dir = TestDir::new("e2e-viewer").unwrap();
-    let mut viewer = start(dir.path());
-    let window = window_of(dir.path(), &mut viewer);
+    let (_dir, mut viewer, window) = readable_viewer().unwrap();
 
     // A fresh data directory opens the welcome screen, with no engine.
     let first = wait_for(window, "Welcome to PeekBuddy", true);
