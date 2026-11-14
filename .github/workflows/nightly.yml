@@ -458,13 +458,14 @@ jobs:
     # `nightly: bench-trend failing` issue with the run's table.
     name: bench trend (windows x64)
     runs-on: windows-2025
-    timeout-minutes: 45
+    timeout-minutes: 90
     permissions:
       contents: write # github-action-benchmark pushes the data to gh-pages
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          fetch-depth: 0
       - name: Rust toolchain
         run: rustup toolchain install && rustup show
       - name: Earlier points from gh-pages
@@ -492,7 +493,14 @@ jobs:
           fi
       - name: Bench trend
         id: trend
-        run: cargo xtask bench-trend --rounds 10 --history target/bench-trend/history.js
+        shell: bash
+        # An alert of the history is judged again by a same-runner A/B against
+        # the commit of a week ago: the hosted runners alternate between a fast
+        # and a slow machine, a regression shows on one machine.
+        run: |
+          base="$(git rev-list -1 --before='7 days ago' HEAD || true)"
+          if [ -z "${base}" ]; then base="$(git rev-list --max-parents=0 HEAD | tail -n 1)"; fi
+          cargo xtask bench-trend --rounds 10 --history target/bench-trend/history.js --confirm-base "${base}"
       - name: Publish to gh-pages
         if: always() && hashFiles('target/bench-trend/output.json') != ''
         uses: benchmark-action/github-action-benchmark@4322e5726e6334590d251fc4f92bec0efafc45dc # v1.22.2

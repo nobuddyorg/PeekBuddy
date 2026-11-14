@@ -382,18 +382,35 @@ pub fn round(
     estimates(home)
 }
 
-/// `cargo xtask bench-ab`.
+/// The per-round medians of both sides of an A/B run.
+#[derive(Debug)]
+pub struct Measured {
+    /// The base revision as given or found.
+    pub base_rev: String,
+    /// Medians by bench id, one per round, of the base.
+    pub base: BTreeMap<String, Vec<f64>>,
+    /// The same for the working tree.
+    pub head: BTreeMap<String, Vec<f64>>,
+    /// Where the run keeps its files (`target/bench-ab`).
+    pub out: PathBuf,
+}
+
+/// Builds the benches of `base_rev` (`None`: the merge base with
+/// `origin/main`) and of the working tree and runs them in alternating
+/// rounds, optionally only the benches `filter` matches.
 ///
 /// # Errors
 ///
-/// Returns the report as the error when a gated bench fails, or the error
-/// of a failed step.
-pub fn run(args: &[String]) -> Result<String, String> {
-    let options = parse(args)?;
+/// Returns the error of a failed git, cargo or bench step.
+pub fn measure(
+    base_rev: Option<&str>,
+    rounds: usize,
+    filter: Option<&str>,
+) -> Result<Measured, String> {
     let out = PathBuf::from("target").join("bench-ab");
     let base_src = out.join("base-src");
-    let base_rev = match &options.base {
-        Some(rev) => rev.clone(),
+    let base_rev = match base_rev {
+        Some(rev) => rev.to_owned(),
         None => run_checked(Command::new("git").args(["merge-base", "origin/main", "HEAD"]))?
             .trim()
             .to_owned(),
@@ -417,7 +434,7 @@ pub fn run(args: &[String]) -> Result<String, String> {
 
     let mut base: BTreeMap<String, Vec<f64>> = BTreeMap::new();
     let mut head: BTreeMap<String, Vec<f64>> = BTreeMap::new();
-    for index in 0..options.rounds {
+    for index in 0..rounds {
         // Alternate which side goes first so drift hits both alike.
         let order = if index % 2 == 0 {
             [false, true]
@@ -432,12 +449,41 @@ pub fn run(args: &[String]) -> Result<String, String> {
             };
             let home = out.join("rounds").join(side).join(index.to_string());
             let _ = std::fs::remove_dir_all(&home);
-            for (id, median) in round(exes, source, &home, options.filter.as_deref())? {
+            for (id, median) in round(exes, source, &home, filter)? {
                 samples.entry(id).or_default().push(median);
             }
         }
     }
+    let _ = Command::new("git")
+        .args(["worktree", "remove", "--force"])
+        .arg(&base_src)
+        .output();
+    Ok(Measured {
+        base_rev,
+        base,
+        head,
+        out,
+    })
+}
 
+/// `cargo xtask bench-ab`.
+///
+/// # Errors
+///
+/// Returns the report as the error when a gated bench fails, or the error
+/// of a failed step.
+pub fn run(args: &[String]) -> Result<String, String> {
+    let options = parse(args)?;
+    let Measured {
+        base_rev,
+        base,
+        head,
+        out,
+    } = measure(
+        options.base.as_deref(),
+        options.rounds,
+        options.filter.as_deref(),
+    )?;
     let gates: BTreeMap<String, String> = budgets::load()?
         .into_iter()
         .map(|budget| (budget.id, budget.gate))
@@ -457,10 +503,6 @@ pub fn run(args: &[String]) -> Result<String, String> {
         text.push_str(&report);
         std::fs::write(&summary, text).map_err(|e| e.to_string())?;
     }
-    let _ = Command::new("git")
-        .args(["worktree", "remove", "--force"])
-        .arg(&base_src)
-        .output();
     if rows.iter().any(|row| row.verdict == Verdict::Fail) {
         Err(report)
     } else {

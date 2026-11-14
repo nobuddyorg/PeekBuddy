@@ -48,6 +48,9 @@ pub enum Trend {
     Watch,
     /// Fewer than [`MIN_POINTS`] earlier points.
     NoBaseline,
+    /// Would alert on the history, but the same-runner A/B against the base
+    /// revision finds no slowdown: the runner was slow, not the code.
+    NotConfirmed,
 }
 
 /// One row of the report.
@@ -61,6 +64,9 @@ pub struct Row {
     pub baseline: Option<f64>,
     /// Outcome.
     pub trend: Trend,
+    /// Head over base of the same-runner A/B that judged an alert, when one
+    /// was run.
+    pub ab_ratio: Option<f64>,
 }
 
 /// Earlier values per bench from github-action-benchmark's `data.js`
@@ -123,9 +129,50 @@ pub fn compare(tonight: &BTreeMap<String, f64>, earlier: &BTreeMap<String, Vec<f
                 value,
                 baseline,
                 trend,
+                ab_ratio: None,
             }
         })
         .collect()
+}
+
+/// Judges the alerts of `rows` again with a same-runner A/B of the working
+/// tree against `base_rev`: a bench keeps its alert only when the paired
+/// measurement finds it more than [`bench_ab::WARN_RATIO`] slower than the
+/// base. The hosted runners alternate between a fast and a slow machine, and
+/// the history cannot tell that from a regression; a measurement of both
+/// revisions on one machine can.
+///
+/// # Errors
+///
+/// Returns the error of the A/B run.
+pub fn confirm(rows: &mut [Row], base_rev: &str, rounds: usize) -> Result<(), String> {
+    let alerts: Vec<String> = rows
+        .iter()
+        .filter(|row| row.trend == Trend::Alert)
+        .map(|row| row.name.clone())
+        .collect();
+    if alerts.is_empty() {
+        return Ok(());
+    }
+    let measured = bench_ab::measure(Some(base_rev), rounds, Some(&alerts.join("|")))?;
+    for row in rows.iter_mut().filter(|row| row.trend == Trend::Alert) {
+        let base = measured
+            .base
+            .get(&row.name)
+            .and_then(|v| bench_ab::median(v));
+        let head = measured
+            .head
+            .get(&row.name)
+            .and_then(|v| bench_ab::median(v));
+        if let (Some(base), Some(head)) = (base, head) {
+            let ratio = head / base;
+            row.ab_ratio = Some(ratio);
+            if ratio <= bench_ab::WARN_RATIO {
+                row.trend = Trend::NotConfirmed;
+            }
+        }
+    }
+    Ok(())
 }
 
 /// Whether the last of `points` was itself more than +25 % above the rolling
@@ -185,6 +232,11 @@ pub fn render(rows: &[Row], rounds: usize, shape: &str) -> String {
             Trend::Alert => "**ALERT** (> +25 %, two nights running)",
             Trend::Watch => "high tonight (alerts if tomorrow is too)",
             Trend::NoBaseline => "no baseline yet",
+            Trend::NotConfirmed => "high on the history, not slower in the same-runner A/B",
+        };
+        let trend = match row.ab_ratio {
+            Some(ratio) => format!("{trend} ({:+.1} % vs the base)", (ratio - 1.0) * 100.0),
+            None => trend.to_owned(),
         };
         let _ = writeln!(
             out,
@@ -208,6 +260,8 @@ pub struct Options {
     /// Compare the points of this `customSmallerIsBetter` file instead of
     /// running the benches (the query bench job, #433).
     pub points: Option<PathBuf>,
+    /// Judge the alerts again with a same-runner A/B against this revision.
+    pub confirm_base: Option<String>,
 }
 
 /// Parses `[--rounds <n>] [--history <data.js>] [--entry <name>]`.
@@ -221,6 +275,7 @@ pub fn parse(args: &[String]) -> Result<Options, String> {
         history: None,
         entry: "benches (windows-2025)".to_owned(),
         points: None,
+        confirm_base: None,
     };
     let mut args = args.iter();
     while let Some(arg) = args.next() {
@@ -236,10 +291,11 @@ pub fn parse(args: &[String]) -> Result<Options, String> {
             "--history" => options.history = Some(PathBuf::from(value()?)),
             "--entry" => options.entry = value()?,
             "--points" => options.points = Some(PathBuf::from(value()?)),
+            "--confirm-base" => options.confirm_base = Some(value()?),
             other => {
                 return Err(format!(
                     "unknown option {other}; usage: cargo xtask bench-trend [--rounds <n>] \
-                     [--history <data.js>] [--entry <name>] [--points <output.json>]"
+                     [--history <data.js>] [--entry <name>] [--points <output.json>]                      [--confirm-base <rev>]"
                 ));
             }
         }
@@ -321,7 +377,10 @@ pub fn run(args: &[String]) -> Result<String, String> {
         )?,
         _ => BTreeMap::new(),
     };
-    let rows = compare(&tonight, &earlier);
+    let mut rows = compare(&tonight, &earlier);
+    if let (Some(base), None) = (&options.confirm_base, &options.points) {
+        confirm(&mut rows, base, options.rounds)?;
+    }
     let shape = format!(
         "{} {} with {} logical CPUs",
         std::env::consts::OS,
@@ -502,6 +561,24 @@ mod tests {
     }
 
     #[test]
+    fn an_alert_the_paired_run_does_not_confirm_is_named_so() {
+        let mut rows = compare(
+            &tonight(&[("a/x", 2_000.0)]),
+            &earlier(&[("a/x", &[1_000.0, 1_000.0, 1_000.0, 1_000.0, 2_000.0])]),
+        );
+        assert_eq!(rows[0].trend, Trend::Alert);
+        rows[0].trend = Trend::NotConfirmed;
+        rows[0].ab_ratio = Some(1.02);
+        let report = render(&rows, 10, "test");
+        assert!(
+            report.contains(
+                "high on the history, not slower in the same-runner A/B (+2.0 % vs the base)"
+            ),
+            "{report}"
+        );
+    }
+
+    #[test]
     fn a_report_without_rounds_names_the_source() {
         let text = render(&[], 0, "shape");
         assert!(
@@ -530,6 +607,9 @@ mod tests {
         assert_eq!(set.history.unwrap().to_str(), Some("d.js"));
         assert_eq!(set.entry, "e");
         assert_eq!(set.points, None);
+        assert_eq!(set.confirm_base, None);
+        let confirm = parse(&args(&["--confirm-base", "abc123"])).unwrap();
+        assert_eq!(confirm.confirm_base.as_deref(), Some("abc123"));
         let points = parse(&args(&["--points", "o.json"])).unwrap();
         assert_eq!(points.points.unwrap().to_str(), Some("o.json"));
         for bad in [&["--rounds", "0"][..], &["--rounds"], &["--x"]] {
