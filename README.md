@@ -14,6 +14,11 @@ Silently watches your folders and logs every change in real time 👀
 ![Windows](https://img.shields.io/badge/platform-Windows%2011%20x64%20%7C%20arm64-0078D4?logo=windows&logoColor=white)
 [![License: MIT](https://img.shields.io/github/license/nobuddyorg/PeekBuddy)](LICENSE)
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screenshot-log-dark.png">
+  <img src="docs/assets/screenshot-log-light.png" alt="The PeekBuddy viewer showing the log of a demo folder: file names, the kind of each change and its time, newest first." width="900">
+</picture>
+
 ## Motivation
 
 Something rewrote your config file overnight, a build tool keeps touching a
