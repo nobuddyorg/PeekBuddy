@@ -22,6 +22,8 @@ The first time, PeekBuddy shows five short screens. You can skip them at any
 point; they appear only once and come back from **Settings, Show the welcome
 screens again**.
 
+![The first welcome screen of PeekBuddy, with the buttons Next and Skip.](../assets/screenshot-welcome-light.png)
+
 1. **Welcome.** What PeekBuddy does and what it stores: paths, names, sizes
    and times, never file contents. No login, no server, no tracking.
 2. **Folders.** Type a path or press **Browse...** and pick one or more
