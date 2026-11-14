@@ -95,7 +95,7 @@ The checklist covers, in order:
    current; the README has current screenshots and the *Unsigned builds*
    section.
 7. **Launch**: the site listing is ready, the announcement is drafted, and
-   after the release is public the winget submission is made and any Defender
+   after the release is public any Defender
    false positive is reported.
 
 ## Checking an unsigned build

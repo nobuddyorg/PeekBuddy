@@ -47,4 +47,4 @@ screenshot. Nothing is ticked without one. Runbook: docs/how-to/release.md -->
 
 - [ ] Site listing ready:
 - [ ] Announcement drafted:
-- [ ] After release: winget submission made, Defender false positives reported, SmartScreen behaviour noted:
+- [ ] After release: Defender false positives reported, SmartScreen behaviour noted:
