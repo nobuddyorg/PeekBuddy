@@ -24,6 +24,7 @@
          and wakeups, Private Bytes; with -Driver also ingest (the churn
          profiles, event latency), handle stability and the viewer's frame
          times while the log of 1M rows is scrolled in a real window (20 s).
+         Ingest runs the latency-10k profile only.
       3. The viewer's first frame and idle repaints, 3 runs, on the real GPU.
 
     What it does not measure yet is listed in `notMeasured` of the report with
@@ -143,7 +144,11 @@ if ($Driver) {
 }
 foreach ($scenario in $scenarios) {
     $out = Join-Path $work "harness-$scenario.json"
-    $log = & $Harness perf --scenario $scenario --exe $Exe --runs $Runs --idle-secs $IdleSecs --out $out 2>&1 | Out-String
+    # Ingest runs the profile that measures the event latency (about two minutes);
+    # the burst and sustained profiles take 30 minutes on this kind of PC, and
+    # its generator cannot reach their rate anyway (they say 'not exercised').
+    $extra = if ($scenario -eq 'ingest') { @('--profile', 'latency-10k') } else { @() }
+    $log = & $Harness perf --scenario $scenario --exe $Exe --runs $Runs --idle-secs $IdleSecs @extra --out $out 2>&1 | Out-String
     if ($LASTEXITCODE -ne 0) { $hr.exitCode = $LASTEXITCODE }
     $hr.log += "== $scenario`n$log"
     $hr.scenarios[$scenario] = if (Test-Path $out) { Get-Content $out -Raw | ConvertFrom-Json } else { $null }
