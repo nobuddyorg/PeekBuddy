@@ -469,6 +469,13 @@ fn an_entry_created_live_and_deleted_while_the_engine_was_down_is_reported_delet
     // of the live stream says it existed (#290).
     let mut engine = Running::start("livedel", "", "");
     wait_for_armed(&engine, "armed.txt");
+    // The row that ends the first walk is the point from which the live log is
+    // read after the restart: a file created while that walk still runs
+    // (a slow runner) has an older row, is not in the walk's snapshot, and
+    // its deletion would be missed.
+    engine.wait("the baseline of the first walk", || {
+        engine.has_row(Kind::BaselineEstablished, "")
+    });
     std::fs::write(engine.tree.join("transient.txt"), b"x").unwrap();
     engine.wait("the live row of the transient file", || {
         engine.has_row(Kind::Created, "transient.txt")
