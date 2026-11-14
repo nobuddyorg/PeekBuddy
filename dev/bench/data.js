@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1794647313856,
+  "lastUpdate": 1794647439047,
   "repoUrl": "https://github.com/nobuddyorg/PeekBuddy",
   "entries": {
     "benches (windows-2025)": [
@@ -1157,6 +1157,98 @@ window.BENCHMARK_DATA = {
           {
             "name": "viewer/scroll_frame_p99",
             "value": 650000,
+            "unit": "ns"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "name": "Matthias Eggert",
+            "username": "besessener",
+            "email": "8039350+besessener@users.noreply.github.com"
+          },
+          "committer": {
+            "name": "GitHub",
+            "username": "web-flow",
+            "email": "noreply@github.com"
+          },
+          "id": "188cd92f031a68fb17a8e2370fab9a4d853d7791",
+          "message": "test: UI Automation smoke of the viewer (#71) (#456)\n\n* test: UI Automation smoke of the viewer (#71)\n\nAdd a UI Automation client to peekbuddy-win (feature uia) and an\ne2e test that starts the viewer, finds its window by title and walks\nthe welcome screens and the log screen by control name: Next, Skip,\nCompact, Settings, then closes the window and expects status 0.\n\nCo-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>\n\n* style: sort the peekbuddy dev-dependencies\n\ncargo-sort wants peekbuddy-win after peekbuddy-testkit.\n\nCo-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>\n\n* docs: add the contract of the UI Automation client\n\ncheck-contracts wants a Contract section on a public type that\nimplements Drop.\n\nCo-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>\n\n---------\n\nCo-authored-by: Matthias Eggert <dem.matze@gmail.com>\nCo-authored-by: Claude Sonnet 5.5 <noreply@anthropic.com>",
+          "timestamp": "2026-11-13T16:12:43Z",
+          "url": "https://github.com/nobuddyorg/PeekBuddy/commit/188cd92f031a68fb17a8e2370fab9a4d853d7791"
+        },
+        "date": 1794647437213,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "filter/eval_6_names",
+            "value": 1444.9730689376602,
+            "unit": "ns"
+          },
+          {
+            "name": "metrics/process_list_300",
+            "value": 439.20821608528496,
+            "unit": "ns"
+          },
+          {
+            "name": "notify_parse/extended/64kib",
+            "value": 1218.5522558583957,
+            "unit": "ns"
+          },
+          {
+            "name": "notify_parse/full/64kib",
+            "value": 1242.7022386523188,
+            "unit": "ns"
+          },
+          {
+            "name": "notify_parse/plain/64kib",
+            "value": 2143.472991781329,
+            "unit": "ns"
+          },
+          {
+            "name": "perf/counters_event",
+            "value": 0.233610894332254,
+            "unit": "ns"
+          },
+          {
+            "name": "perf/milestone_record",
+            "value": 10.02414083984441,
+            "unit": "ns"
+          },
+          {
+            "name": "reparse/classify_8",
+            "value": 11.916556691435176,
+            "unit": "ns"
+          },
+          {
+            "name": "rules/eval_6_events_50_rules",
+            "value": 27409.548373192927,
+            "unit": "ns"
+          },
+          {
+            "name": "store/batch_insert_1000",
+            "value": 2027635.7295482296,
+            "unit": "ns"
+          },
+          {
+            "name": "store/intern_hit_1000",
+            "value": 35026.263314536336,
+            "unit": "ns"
+          },
+          {
+            "name": "store/intern_miss_1000",
+            "value": 2392029.166666667,
+            "unit": "ns"
+          },
+          {
+            "name": "viewer/scroll_frame_p95",
+            "value": 303650,
+            "unit": "ns"
+          },
+          {
+            "name": "viewer/scroll_frame_p99",
+            "value": 350375,
             "unit": "ns"
           }
         ]
