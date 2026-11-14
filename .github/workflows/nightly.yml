@@ -306,18 +306,40 @@ jobs:
     outputs:
       incremental: ${{ steps.scope.outputs.incremental }}
       day: ${{ steps.scope.outputs.day }}
+      skip: ${{ steps.scope.outputs.skip }}
     steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
       - name: Scope
         id: scope
+        env:
+          EVENT: ${{ github.event_name }}
         run: |
           # ISO weekday 1 to 7 as 0 to 6: the seventh of the mutants of today.
           echo "day=$(( $(date -u +%u) % 7 ))" >> "${GITHUB_OUTPUT}"
           # Never the diff mode of earlier versions; the score gate always applies.
           echo "incremental=false" >> "${GITHUB_OUTPUT}"
+          # Nothing that a mutant or a test depends on changed since this
+          # seventh was last examined (a week ago): the result would be the
+          # same, so there is nothing to run. A manual run always runs.
+          base="$(git rev-list -1 --before='7 days ago' HEAD || true)"
+          skip=false
+          unchanged=false
+          if [ -n "${base}" ] && git diff --quiet "${base}" HEAD -- crates benches xtask Cargo.toml Cargo.lock .cargo .config; then
+            unchanged=true
+          fi
+          if [ "${EVENT}" = schedule ] && [ "${unchanged}" = true ]; then
+            skip=true
+          fi
+          echo "skip=${skip}" >> "${GITHUB_OUTPUT}"
+          echo "mutation run skipped: ${skip} (base ${base})" >> "${GITHUB_STEP_SUMMARY}"
 
   mutants:
     name: mutants (shard ${{ matrix.shard }}/32)
     needs: mutants-scope
+    if: needs.mutants-scope.outputs.skip != 'true'
     runs-on: windows-2025
     # Eight shards ran into 120 minutes and sixteen into 180; thirty-two.
     timeout-minutes: 360
@@ -414,6 +436,7 @@ jobs:
   mutants-core-linux:
     name: mutants (core, linux, ${{ matrix.shard }}/4)
     needs: mutants-scope
+    if: needs.mutants-scope.outputs.skip != 'true'
     runs-on: ubuntu-latest
     # One job ran into 180 minutes; four shards, GitHub's 360 maximum.
     timeout-minutes: 360
