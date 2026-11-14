@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1794564308539,
+  "lastUpdate": 1794647269323,
   "repoUrl": "https://github.com/nobuddyorg/PeekBuddy",
   "entries": {
     "benches (windows-2025)": [
@@ -1929,6 +1929,38 @@ window.BENCHMARK_DATA = {
           {
             "name": "durability.restart_to_ready.max",
             "value": 807,
+            "unit": "ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "name": "Matthias Eggert",
+            "username": "besessener",
+            "email": "8039350+besessener@users.noreply.github.com"
+          },
+          "committer": {
+            "name": "GitHub",
+            "username": "web-flow",
+            "email": "noreply@github.com"
+          },
+          "id": "188cd92f031a68fb17a8e2370fab9a4d853d7791",
+          "message": "test: UI Automation smoke of the viewer (#71) (#456)\n\n* test: UI Automation smoke of the viewer (#71)\n\nAdd a UI Automation client to peekbuddy-win (feature uia) and an\ne2e test that starts the viewer, finds its window by title and walks\nthe welcome screens and the log screen by control name: Next, Skip,\nCompact, Settings, then closes the window and expects status 0.\n\nCo-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>\n\n* style: sort the peekbuddy dev-dependencies\n\ncargo-sort wants peekbuddy-win after peekbuddy-testkit.\n\nCo-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>\n\n* docs: add the contract of the UI Automation client\n\ncheck-contracts wants a Contract section on a public type that\nimplements Drop.\n\nCo-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>\n\n---------\n\nCo-authored-by: Matthias Eggert <dem.matze@gmail.com>\nCo-authored-by: Claude Sonnet 5.5 <noreply@anthropic.com>",
+          "timestamp": "2026-11-13T16:12:43Z",
+          "url": "https://github.com/nobuddyorg/PeekBuddy/commit/188cd92f031a68fb17a8e2370fab9a4d853d7791"
+        },
+        "date": 1794647267334,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "durability.restart_to_ready.p50",
+            "value": 51,
+            "unit": "ms"
+          },
+          {
+            "name": "durability.restart_to_ready.max",
+            "value": 253,
             "unit": "ms"
           }
         ]
