@@ -61,26 +61,32 @@ fn window_of(data: &Path, viewer: &mut Viewer) -> WindowHandle {
     }
 }
 
-/// The names of the controls of the window now (none while the accessibility
-/// tree is still empty).
-fn names(client: &Client, window: WindowHandle) -> Vec<String> {
-    client
+/// The names of the controls of the window now; the error says why there are
+/// none (a window UI Automation does not know yet, an empty tree).
+///
+/// Every call connects anew: on the hosted runners the first connection of a
+/// session can see an empty tree for a long time while the next one sees the
+/// window at once (the first attempt of this test timed out and the retry
+/// passed in 4 s, every time), and a fresh connection costs nothing.
+fn names(window: WindowHandle) -> Result<Vec<String>, String> {
+    let client = Client::new().map_err(|e| e.to_string())?;
+    let nodes = client
         .window(window.raw())
         .and_then(|window| window.nodes())
-        .unwrap_or_default()
-        .into_iter()
-        .map(|node| node.name)
-        .collect()
+        .map_err(|e| e.to_string())?;
+    Ok(nodes.into_iter().map(|node| node.name).collect())
 }
 
 /// Waits until a control named `name` is there (or gone, when `present` is
 /// false) and returns every name then.
-fn wait_for(client: &Client, window: WindowHandle, name: &str, present: bool) -> Vec<String> {
+fn wait_for(window: WindowHandle, name: &str, present: bool) -> Vec<String> {
     let deadline = Instant::now() + Duration::from_secs(60);
     loop {
-        let now = names(client, window);
-        if now.iter().any(|n| n == name) == present {
-            return now;
+        let now = names(window);
+        if let Ok(now) = &now
+            && now.iter().any(|n| n == name) == present
+        {
+            return now.clone();
         }
         assert!(
             Instant::now() < deadline,
@@ -97,10 +103,9 @@ fn the_welcome_screens_work_through_ui_automation() {
     let dir = TestDir::new("e2e-viewer").unwrap();
     let mut viewer = start(dir.path());
     let window = window_of(dir.path(), &mut viewer);
-    let client = Client::new().unwrap();
 
     // A fresh data directory opens the welcome screen, with no engine.
-    let first = wait_for(&client, window, "Welcome to PeekBuddy", true);
+    let first = wait_for(window, "Welcome to PeekBuddy", true);
     for expected in ["Step 1 of 5", "Next", "Skip", "Engine not running"] {
         assert!(
             first.iter().any(|n| n == expected),
@@ -109,11 +114,12 @@ fn the_welcome_screens_work_through_ui_automation() {
     }
 
     // The screens work without a mouse or a pixel: invoke by name.
+    let client = Client::new().unwrap();
     let ui = client.window(window.raw()).unwrap();
     ui.invoke("Next").unwrap();
-    wait_for(&client, window, "Step 2 of 5", true);
+    wait_for(window, "Step 2 of 5", true);
     ui.invoke("Skip").unwrap();
-    let after = wait_for(&client, window, "Skip", false);
+    let after = wait_for(window, "Skip", false);
     assert!(!after.iter().any(|n| n.starts_with("Step ")), "{after:#?}");
 
     // The log screen: its tabs, filters and the empty-log hint.
@@ -137,7 +143,7 @@ fn the_welcome_screens_work_through_ui_automation() {
     }
     ui.invoke("Compact").unwrap();
     ui.invoke("Settings").unwrap();
-    wait_for(&client, window, "Log", true);
+    wait_for(window, "Log", true);
 
     // Closing the window ends the viewer cleanly.
     window.post_close().unwrap();

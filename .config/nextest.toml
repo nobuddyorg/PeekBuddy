@@ -10,6 +10,9 @@ leak-timeout = { period = "500ms", result = "fail" }
 fs-serial = { max-threads = 1 }
 # Tests that launch peekbuddy.exe.
 e2e = { max-threads = 2 }
+# Tests with a visible viewer window: two windows at once take the focus from
+# each other, and the idle test counts the focus events (#458).
+desktop = { max-threads = 1 }
 
 [[profile.default.overrides]]
 filter = "binary(/^fs_serial/)"
@@ -39,13 +42,19 @@ slow-timeout = { period = "300s", terminate-after = 4 }
 filter = "test(rotation_keeps_the_invariants_with_dst_days_and_a_wandering_clock)"
 slow-timeout = { period = "120s", terminate-after = 5 }
 
-# The UI Automation smoke of the viewer (#71): a real window, so two at a
-# time at most, and retried twice because a desktop can be busy.
+# The UI Automation smoke of the viewer (#71): a real window, one visible
+# viewer at a time with the viewer tests, retried twice because a desktop
+# can be busy.
 [[profile.default.overrides]]
 filter = "binary(/^e2e/)"
-test-group = "e2e"
+test-group = "desktop"
 retries = { backoff = "exponential", count = 2, delay = "5s" }
 slow-timeout = { period = "60s", terminate-after = 3 }
+
+# The viewer tests open windows too (the idle one counts focus events).
+[[profile.default.overrides]]
+filter = "binary(=viewer)"
+test-group = "desktop"
 
 [profile.ci]
 fail-fast = false
