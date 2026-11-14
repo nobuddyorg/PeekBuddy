@@ -27,6 +27,37 @@ pub fn imports_pdh(bytes: &[u8]) -> bool {
         .any(|window| window.eq_ignore_ascii_case(NAME))
 }
 
+/// The libraries of the Windows network stack. PeekBuddy makes no network
+/// connection (v1 non-goal, privacy promise): the release exe imports none of
+/// them, so it cannot open a socket, resolve a name or make an HTTP request
+/// without loading one at run time, which nothing in it does.
+const NETWORK_LIBRARIES: &[&str] = &[
+    "ws2_32.dll",
+    "wsock32.dll",
+    "mswsock.dll",
+    "winhttp.dll",
+    "wininet.dll",
+    "urlmon.dll",
+    "iphlpapi.dll",
+    "dnsapi.dll",
+    "dhcpcsvc.dll",
+    "rasapi32.dll",
+];
+
+/// The network libraries the binary names (any case), in
+/// [`NETWORK_LIBRARIES`] order.
+pub fn network_imports(bytes: &[u8]) -> Vec<&'static str> {
+    NETWORK_LIBRARIES
+        .iter()
+        .copied()
+        .filter(|name| {
+            bytes
+                .windows(name.len())
+                .any(|window| window.eq_ignore_ascii_case(name.as_bytes()))
+        })
+        .collect()
+}
+
 /// `cargo xtask check-release [--features <list>] [--exe <path>]`.
 ///
 /// Fails when the feature set (default: the release set, no extra features)
@@ -69,10 +100,17 @@ pub fn check_release(args: &[String]) -> Result<String, String> {
         if imports_pdh(&bytes) {
             problems.push(format!("{exe} imports pdh.dll (PDH is banned, #24)"));
         }
+        problems.extend(
+            network_imports(&bytes)
+                .into_iter()
+                .map(|name| format!("{exe} names {name}: PeekBuddy makes no network connection")),
+        );
     }
     if problems.is_empty() {
         Ok(match exe {
-            Some(exe) => format!("check-release: ok (no {TRACY_SYS}, no Tracy strings in {exe})"),
+            Some(exe) => format!(
+                "check-release: ok (no {TRACY_SYS}, no Tracy strings, no network library in {exe})"
+            ),
             None => format!("check-release: ok (no {TRACY_SYS})"),
         })
     } else {
@@ -172,6 +210,20 @@ mod tests {
         assert!(super::imports_pdh(b"pdh.dll"));
         assert!(!super::imports_pdh(b"kernel32.dll, pdh.dl"));
         assert!(!super::imports_pdh(b""));
+    }
+
+    #[test]
+    fn network_libraries_are_found_in_any_case_and_only_by_name() {
+        assert_eq!(
+            super::network_imports(b"\0KERNEL32.dll\0WS2_32.DLL\0winhttp.dll\0"),
+            ["ws2_32.dll", "winhttp.dll"]
+        );
+        let none: Vec<&str> = Vec::new();
+        assert_eq!(
+            super::network_imports(b"kernel32.dll user32.dll uiautomationcore.dll"),
+            none
+        );
+        assert_eq!(super::network_imports(b"ws2_32"), none);
     }
 
     use super::{markers_in, option};
