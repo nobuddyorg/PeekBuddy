@@ -17,6 +17,12 @@
                        minutes after sign-in; Low is the goal).
       -Phase cleanup   stops the engine and removes the Run value.
 
+    Note: a real engine (started without --data-dir) applies the saved
+    setting general.autostart, off by default, to the Run key as it starts, so
+    after sign-in `runValue` is null in the report. That is expected: the
+    engine was started by the Run value and then tidied it away. The check is
+    that the engine is running, has no viewer child and cost little.
+
     Writes autostart-check-report.json next to the script unless -OutFile is
     given (only in the report phase).
 #>
