@@ -17,8 +17,15 @@ param(
     [Parameter(Mandatory)][string]$Exe,
     [string]$DataDir = (Join-Path ([IO.Path]::GetTempPath()) "store-bench-$([guid]::NewGuid())"),
     [int]$QueryRows = 2000000,
-    [string]$OutFile = (Join-Path $PSScriptRoot 'store-bench-report.json')
+    [string]$OutFile
 )
+
+# `$PSScriptRoot` is empty in a parameter default of Windows PowerShell 5.1
+# when the script runs through `-File`, so the default is set here.
+if (-not $OutFile) {
+    $here = if ($PSScriptRoot) { $PSScriptRoot } else { Split-Path -Parent $MyInvocation.MyCommand.Path }
+    $OutFile = Join-Path $here 'store-bench-report.json'
+}
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
