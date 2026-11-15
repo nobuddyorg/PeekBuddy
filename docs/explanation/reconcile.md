@@ -82,7 +82,9 @@ consequences, one of them handled:
   reports its deletion (#290). After the comparison, a walk that follows a
   gap asks the event store (`peekbuddy_engine::live_log::StoreLiveLog`, read on
   the reconcile thread, never on the capture path) for the entries that live
-  rows created or renamed to since the last finished walk of the root, looks
+  rows (and the rows of walks that were cancelled) created or renamed to
+  since the start of the last finished walk of the root (its end for a
+  baseline: the snapshot is as of the listing, not of the end), looks
   whether each is still there (`DirSource::exists`, attributes only, a reparse
   point is not followed) and writes `ReconciledDeleted` for those that are
   gone. A path the comparison already reported as deleted can get a second
