@@ -375,7 +375,9 @@ pub fn round(
             .env("CRITERION_HOME", home)
             .args(CRITERION_ARGS);
         if let Some(filter) = filter {
-            command.arg(filter);
+            // The ids of the history are the directory names of criterion,
+            // lower case (`64kib`), while the filter matches `64KiB`.
+            command.arg(format!("(?i){filter}"));
         }
         run_checked(&mut command)?;
     }
