@@ -145,7 +145,13 @@ fn a_second_launch_exits_zero_and_shows_the_viewer_through_the_pipe() {
         .status()
         .unwrap();
     assert!(status.success());
-    assert!(started.elapsed() < Duration::from_secs(2));
+    // Two seconds is the bar; a busy runner sets a wider limit, as in the
+    // second-engine test (#383).
+    let limit = std::env::var("PEEKBUDDY_SECOND_LAUNCH_LIMIT_MS")
+        .ok()
+        .and_then(|ms| ms.parse().ok())
+        .map_or(Duration::from_secs(2), Duration::from_millis);
+    assert!(started.elapsed() < limit, "took {:?}", started.elapsed());
     assert!(engine.0.try_wait().unwrap().is_none());
 
     // The engine started a viewer for this directory (#65): it opens a
