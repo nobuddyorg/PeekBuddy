@@ -33,6 +33,13 @@ pub fn logged_tree(run: &Run) -> std::collections::BTreeSet<String> {
     };
     let mut pending_old: Vec<String> = Vec::new();
     for row in all_rows(&run.data) {
+        // A gap loses rows: a renamed-from whose renamed-to fell into it must
+        // not be paired with a later rename. The walk that closes the gap
+        // reports what it changed.
+        if row.kind == Kind::ReconcileStarted {
+            pending_old.clear();
+            continue;
+        }
         let Some(path) = relative(&row.path, &root).map(|units| lower(&units)) else {
             continue;
         };
