@@ -363,6 +363,11 @@ jobs:
         env:
           SHARD: ${{ matrix.shard }}
           DAY: ${{ needs.mutants-scope.outputs.day }}
+          # A mutation run asks whether the tests catch a change, not how
+          # fast the exe starts: its baseline runs on a busy runner.
+          PEEKBUDDY_SECOND_ENGINE_LIMIT_MS: "6000"
+          PEEKBUDDY_SECOND_LAUNCH_LIMIT_MS: "6000"
+          PEEKBUDDY_SESSION_END_LIMIT_MS: "5000"
         run: |
           # 32 shards times 7 days: slice (shard * 7 + day) of 224 is the
           # shard's seventh of its former share.
