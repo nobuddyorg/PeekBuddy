@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1794735576603,
+  "lastUpdate": 1794735728172,
   "repoUrl": "https://github.com/nobuddyorg/PeekBuddy",
   "entries": {
     "benches (windows-2025)": [
@@ -1249,6 +1249,98 @@ window.BENCHMARK_DATA = {
           {
             "name": "viewer/scroll_frame_p99",
             "value": 350375,
+            "unit": "ns"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "name": "Matthias Eggert",
+            "username": "besessener",
+            "email": "8039350+besessener@users.noreply.github.com"
+          },
+          "committer": {
+            "name": "GitHub",
+            "username": "web-flow",
+            "email": "noreply@github.com"
+          },
+          "id": "eb945265c259cfc66e0208346b4ee4cd1e5c4bbb",
+          "message": "fix: find the last walk past a burst of rows (#475)\n\nThe live lookup read the newest finish row with one filtered page and\nignored its resume cursor, so after about 50k rows since the last walk\nit found none and skipped the deleted-path check. It now follows\nresume, starts at the walk's start row and reads the rows of cancelled\nwalks too. A nightly test overflows in the middle of a burst.\n\nCo-authored-by: Matthias Eggert <dem.matze@gmail.com>\nCo-authored-by: Claude Sonnet 5.5 <noreply@anthropic.com>",
+          "timestamp": "2026-11-15T09:26:42Z",
+          "url": "https://github.com/nobuddyorg/PeekBuddy/commit/eb945265c259cfc66e0208346b4ee4cd1e5c4bbb"
+        },
+        "date": 1794735726504,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "filter/eval_6_names",
+            "value": 1572.7855665440875,
+            "unit": "ns"
+          },
+          {
+            "name": "metrics/process_list_300",
+            "value": 926.3071941391704,
+            "unit": "ns"
+          },
+          {
+            "name": "notify_parse/extended/64kib",
+            "value": 2278.584946590732,
+            "unit": "ns"
+          },
+          {
+            "name": "notify_parse/full/64kib",
+            "value": 2273.7605871114974,
+            "unit": "ns"
+          },
+          {
+            "name": "notify_parse/plain/64kib",
+            "value": 4655.931488078502,
+            "unit": "ns"
+          },
+          {
+            "name": "perf/counters_event",
+            "value": 0.2751174875602316,
+            "unit": "ns"
+          },
+          {
+            "name": "perf/milestone_record",
+            "value": 4.78300717335899,
+            "unit": "ns"
+          },
+          {
+            "name": "reparse/classify_8",
+            "value": 18.098522752708313,
+            "unit": "ns"
+          },
+          {
+            "name": "rules/eval_6_events_50_rules",
+            "value": 29244.75755124056,
+            "unit": "ns"
+          },
+          {
+            "name": "store/batch_insert_1000",
+            "value": 2815658.2407407407,
+            "unit": "ns"
+          },
+          {
+            "name": "store/intern_hit_1000",
+            "value": 48105.845827923666,
+            "unit": "ns"
+          },
+          {
+            "name": "store/intern_miss_1000",
+            "value": 3263081.6666666665,
+            "unit": "ns"
+          },
+          {
+            "name": "viewer/scroll_frame_p95",
+            "value": 405400,
+            "unit": "ns"
+          },
+          {
+            "name": "viewer/scroll_frame_p99",
+            "value": 486075,
             "unit": "ns"
           }
         ]
