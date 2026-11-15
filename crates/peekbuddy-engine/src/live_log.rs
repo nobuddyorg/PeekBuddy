@@ -11,7 +11,7 @@ use std::path::Path;
 
 use peekbuddy_core::event::Kind;
 use peekbuddy_core::filter::KindSet;
-use peekbuddy_core::query::{CancelFlag, Direction, Filter, PageRequest};
+use peekbuddy_core::query::{CancelFlag, Direction, Filter, PageRequest, Row};
 use peekbuddy_core::reconcile::LiveLog;
 use peekbuddy_store::read::Reader;
 
@@ -42,30 +42,75 @@ impl StoreLiveLog {
         }
     }
 
-    /// The id of the newest row that ends a walk that was not cancelled: the
-    /// snapshot is as of that row.
-    fn last_finished_walk(&self, root: &[u16], cancel: &CancelFlag) -> Option<i64> {
-        let request = PageRequest {
-            generation: 0,
-            filter: Filter {
-                kinds: Some(KindSet::of(&[
-                    Kind::ReconcileFinished,
-                    Kind::BaselineEstablished,
-                ])),
-                root: Some(root.to_vec()),
-                ..Filter::default()
-            },
-            cursor: None,
-            direction: Direction::Older,
-            limit: WALKS_LOOKED_AT,
+    /// The newest row of `kinds` older than `before` (the newest of all for
+    /// `None`) that `accept` takes.
+    ///
+    /// A scan that stops at its step limit says where to go on: after a burst
+    /// of rows since the last walk, the row looked for is far back.
+    fn newest_row(
+        &self,
+        root: &[u16],
+        kinds: &[Kind],
+        before: Option<i64>,
+        accept: impl Fn(&Row) -> bool,
+        cancel: &CancelFlag,
+    ) -> Option<Row> {
+        let filter = Filter {
+            kinds: Some(KindSet::of(kinds)),
+            root: Some(root.to_vec()),
+            ..Filter::default()
         };
-        let page = self.reader.page(&request, cancel).ok()?;
+        let mut cursor = before;
+        loop {
+            let request = PageRequest {
+                generation: 0,
+                filter: filter.clone(),
+                cursor,
+                direction: Direction::Older,
+                limit: WALKS_LOOKED_AT,
+            };
+            let page = self.reader.page(&request, cancel).ok()?;
+            if let Some(row) = page.rows.iter().find(|row| accept(row)) {
+                return Some(row.clone());
+            }
+            cursor = match page.resume {
+                Some(resume) => Some(resume),
+                None if page.more => page.oldest_id(),
+                None => return None,
+            };
+        }
+    }
+
+    /// The id from which the live rows are read: the row that starts the
+    /// newest walk that was not cancelled, or the row that ends it for a
+    /// baseline, which has no start row.
+    ///
+    /// The snapshot is as of the listing of the walk, not of its end: an entry
+    /// a live row created while the walk ran may be in no snapshot, and a row
+    /// that ends the walk would leave it out of the lookup.
+    fn last_finished_walk(&self, root: &[u16], cancel: &CancelFlag) -> Option<i64> {
         // `raw_mask` 1 on a finish row: the walk was cancelled and rolled
         // back, so the snapshot is older than that row.
-        page.rows
-            .iter()
-            .find(|row| !(row.kind == Kind::ReconcileFinished && row.raw_mask == 1))
-            .map(|row| row.id)
+        let end = self.newest_row(
+            root,
+            &[Kind::ReconcileFinished, Kind::BaselineEstablished],
+            None,
+            |row| !(row.kind == Kind::ReconcileFinished && row.raw_mask == 1),
+            cancel,
+        )?;
+        if end.kind != Kind::ReconcileFinished {
+            return Some(end.id);
+        }
+        // Walks of a root do not overlap: the newest start before the finish
+        // is its own.
+        let start = self.newest_row(
+            root,
+            &[Kind::ReconcileStarted],
+            Some(end.id),
+            |_| true,
+            cancel,
+        );
+        Some(start.map_or(end.id, |row| row.id))
     }
 }
 
@@ -106,7 +151,14 @@ impl LiveLog for StoreLiveLog {
         };
         let top = plain(root_path);
         let filter = Filter {
-            kinds: Some(KindSet::of(&[Kind::Created, Kind::RenamedTo])),
+            // The rows of a walk that was cancelled count too: they logged
+            // entries whose snapshot was rolled back.
+            kinds: Some(KindSet::of(&[
+                Kind::Created,
+                Kind::RenamedTo,
+                Kind::ReconciledCreated,
+                Kind::ReconciledRenamed,
+            ])),
             root: Some(root_path.clone()),
             ..Filter::default()
         };

@@ -255,6 +255,22 @@ fn a_forced_overflow_burst_is_closed_every_time() {
     }
 }
 
+/// The same burst against a small buffer and an engine that keeps reading: the
+/// overflows come in the middle of the run, so rows of the live stream sit
+/// before and after every gap, and entries created and deleted around a walk
+/// must still be closed (#290).
+#[test]
+#[ignore = "nightly zero-loss tier (#277)"]
+fn an_overflow_in_the_middle_of_a_burst_is_closed_every_time() {
+    for round in 0..3_u64 {
+        let dir = TestDir::new(&format!("zero-loss-partial-{round}")).unwrap();
+        let (run, outcome) =
+            churn_under_the_engine(&dir, "burst-50k", 50 + round, 8, Some(64), false);
+        assert_eq!(outcome.failures(), 0, "the churn itself failed");
+        nightly_verdict(&format!("partial-overflow-{round}"), &run, &outcome);
+    }
+}
+
 /// A data directory with one watch on a new tree; returns (data, root).
 fn watched_tree(dir: &TestDir) -> (std::path::PathBuf, std::path::PathBuf) {
     let data = dir.path().join("data");
