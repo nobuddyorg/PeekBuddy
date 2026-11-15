@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1794647535590,
+  "lastUpdate": 1794735516440,
   "repoUrl": "https://github.com/nobuddyorg/PeekBuddy",
   "entries": {
     "benches (windows-2025)": [
@@ -2085,6 +2085,38 @@ window.BENCHMARK_DATA = {
           {
             "name": "durability.restart_to_ready.max",
             "value": 253,
+            "unit": "ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "name": "Matthias Eggert",
+            "username": "besessener",
+            "email": "8039350+besessener@users.noreply.github.com"
+          },
+          "committer": {
+            "name": "GitHub",
+            "username": "web-flow",
+            "email": "noreply@github.com"
+          },
+          "id": "42fc59e8d8fb2a8535011761da7b84b704c312fa",
+          "message": "test: check that PeekBuddy makes no network call (#472)\n\n* test: check that PeekBuddy makes no network call\n\ncheck-release now fails when the exe names a network library, and\nscripts/owner/no-network.ps1 watches the sockets of a real run of\nthe engine and the viewer for ten minutes. Both back the v1 promise.\n\nCo-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>\n\n* fix: write the NULs of a test literal as escapes\n\nThe test string held real NUL bytes, which editorconfig-checker read\nas a binary file. Spell them as backslash zero.\n\nCo-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>\n\n---------\n\nCo-authored-by: Matthias Eggert <dem.matze@gmail.com>\nCo-authored-by: Claude Sonnet 5.5 <noreply@anthropic.com>",
+          "timestamp": "2026-11-14T21:54:41Z",
+          "url": "https://github.com/nobuddyorg/PeekBuddy/commit/42fc59e8d8fb2a8535011761da7b84b704c312fa"
+        },
+        "date": 1794735514435,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "durability.restart_to_ready.p50",
+            "value": 51,
+            "unit": "ms"
+          },
+          {
+            "name": "durability.restart_to_ready.max",
+            "value": 404,
             "unit": "ms"
           }
         ]
