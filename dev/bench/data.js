@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1794735728172,
+  "lastUpdate": 1794735826392,
   "repoUrl": "https://github.com/nobuddyorg/PeekBuddy",
   "entries": {
     "benches (windows-2025)": [
@@ -2837,6 +2837,58 @@ window.BENCHMARK_DATA = {
           {
             "name": "query.subtree_resolve_10m",
             "value": 10494990.68627451,
+            "unit": "ns"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "name": "Matthias Eggert",
+            "username": "besessener",
+            "email": "8039350+besessener@users.noreply.github.com"
+          },
+          "committer": {
+            "name": "GitHub",
+            "username": "web-flow",
+            "email": "noreply@github.com"
+          },
+          "id": "eb945265c259cfc66e0208346b4ee4cd1e5c4bbb",
+          "message": "fix: find the last walk past a burst of rows (#475)\n\nThe live lookup read the newest finish row with one filtered page and\nignored its resume cursor, so after about 50k rows since the last walk\nit found none and skipped the deleted-path check. It now follows\nresume, starts at the walk's start row and reads the rows of cancelled\nwalks too. A nightly test overflows in the middle of a burst.\n\nCo-authored-by: Matthias Eggert <dem.matze@gmail.com>\nCo-authored-by: Claude Sonnet 5.5 <noreply@anthropic.com>",
+          "timestamp": "2026-11-15T09:26:42Z",
+          "url": "https://github.com/nobuddyorg/PeekBuddy/commit/eb945265c259cfc66e0208346b4ee4cd1e5c4bbb"
+        },
+        "date": 1794735824202,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "query.changes_since_1m",
+            "value": 1879571800,
+            "unit": "ns"
+          },
+          {
+            "name": "query.filtered_first_1m",
+            "value": 7286211.805555556,
+            "unit": "ns"
+          },
+          {
+            "name": "query.fts_lookup_10m",
+            "value": 33401931.81818182,
+            "unit": "ns"
+          },
+          {
+            "name": "query.page_keyset_10m",
+            "value": 2399148.083333333,
+            "unit": "ns"
+          },
+          {
+            "name": "query.regex_post_filter_1m",
+            "value": 3739662300,
+            "unit": "ns"
+          },
+          {
+            "name": "query.subtree_resolve_10m",
+            "value": 10452612.121212121,
             "unit": "ns"
           }
         ]
