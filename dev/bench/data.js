@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1794735516440,
+  "lastUpdate": 1794735576603,
   "repoUrl": "https://github.com/nobuddyorg/PeekBuddy",
   "entries": {
     "benches (windows-2025)": [
@@ -1667,6 +1667,38 @@ window.BENCHMARK_DATA = {
           {
             "name": "durability.restart_to_ready.max",
             "value": 253,
+            "unit": "ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "name": "Matthias Eggert",
+            "username": "besessener",
+            "email": "8039350+besessener@users.noreply.github.com"
+          },
+          "committer": {
+            "name": "GitHub",
+            "username": "web-flow",
+            "email": "noreply@github.com"
+          },
+          "id": "eb945265c259cfc66e0208346b4ee4cd1e5c4bbb",
+          "message": "fix: find the last walk past a burst of rows (#475)\n\nThe live lookup read the newest finish row with one filtered page and\nignored its resume cursor, so after about 50k rows since the last walk\nit found none and skipped the deleted-path check. It now follows\nresume, starts at the walk's start row and reads the rows of cancelled\nwalks too. A nightly test overflows in the middle of a burst.\n\nCo-authored-by: Matthias Eggert <dem.matze@gmail.com>\nCo-authored-by: Claude Sonnet 5.5 <noreply@anthropic.com>",
+          "timestamp": "2026-11-15T09:26:42Z",
+          "url": "https://github.com/nobuddyorg/PeekBuddy/commit/eb945265c259cfc66e0208346b4ee4cd1e5c4bbb"
+        },
+        "date": 1794735573934,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "durability.restart_to_ready.p50",
+            "value": 103,
+            "unit": "ms"
+          },
+          {
+            "name": "durability.restart_to_ready.max",
+            "value": 254,
             "unit": "ms"
           }
         ]
