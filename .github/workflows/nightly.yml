@@ -467,6 +467,11 @@ jobs:
           DAY: ${{ needs.mutants-scope.outputs.day }}
         run: |
           # 4 shards times 7 days: slice (shard * 7 + day) of 28.
+          # Shards were lost to "the runner has received a shutdown signal"
+          # within minutes of the start, on and off: two test threads and a
+          # memory line every 30 s tell whether the runner runs out of it.
+          export NEXTEST_TEST_THREADS=2
+          (while sleep 30; do echo "mem: $(free -m | awk 'NR==2 {print $3 " of " $2 " MiB used"}')"; done) &
           code=0
           cargo mutants --no-shuffle -p peekbuddy-core --test-tool nextest --shard "$((SHARD * 7 + DAY))/28" || code=$?
           # Exit 2 (missed) and 3 (timeouts) are judged by the 80 % score.
