@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1794825704031,
+  "lastUpdate": 1794825862042,
   "repoUrl": "https://github.com/nobuddyorg/PeekBuddy",
   "entries": {
     "benches (windows-2025)": [
@@ -2953,6 +2953,58 @@ window.BENCHMARK_DATA = {
           {
             "name": "query.subtree_resolve_10m",
             "value": 10452612.121212121,
+            "unit": "ns"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "name": "dependabot[bot]",
+            "username": "dependabot[bot]",
+            "email": "49699333+dependabot[bot]@users.noreply.github.com"
+          },
+          "committer": {
+            "name": "GitHub",
+            "username": "web-flow",
+            "email": "noreply@github.com"
+          },
+          "id": "b94413233446ea8de2a729b605ebc6a98c9fece8",
+          "message": "build(deps): Bump release-plz/action from 0.5.144 to 0.5.148 (#439)\n\nBumps [release-plz/action](https://github.com/release-plz/action) from 0.5.144 to 0.5.148.\n- [Release notes](https://github.com/release-plz/action/releases)\n- [Commits](https://github.com/release-plz/action/compare/8b5bf233ecb5779f63508db7cd050e948ee77cc2...66b324fd6c72d05d2a08568492ecdd62bfb8a62b)\n\n---\nupdated-dependencies:\n- dependency-name: release-plz/action\n  dependency-version: 0.5.148\n  dependency-type: direct:production\n  update-type: version-update:semver-patch\n...\n\nSigned-off-by: dependabot[bot] <support@github.com>\nCo-authored-by: dependabot[bot] <49699333+dependabot[bot]@users.noreply.github.com>",
+          "timestamp": "2026-11-16T07:39:36Z",
+          "url": "https://github.com/nobuddyorg/PeekBuddy/commit/b94413233446ea8de2a729b605ebc6a98c9fece8"
+        },
+        "date": 1794825854295,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "query.changes_since_1m",
+            "value": 1595682100,
+            "unit": "ns"
+          },
+          {
+            "name": "query.filtered_first_1m",
+            "value": 6613766.666666667,
+            "unit": "ns"
+          },
+          {
+            "name": "query.fts_lookup_10m",
+            "value": 31501716.42857143,
+            "unit": "ns"
+          },
+          {
+            "name": "query.page_keyset_10m",
+            "value": 2282187.5588235296,
+            "unit": "ns"
+          },
+          {
+            "name": "query.regex_post_filter_1m",
+            "value": 3451382350,
+            "unit": "ns"
+          },
+          {
+            "name": "query.subtree_resolve_10m",
+            "value": 9166536.458333332,
             "unit": "ns"
           }
         ]
