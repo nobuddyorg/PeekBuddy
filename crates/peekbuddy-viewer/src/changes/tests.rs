@@ -169,7 +169,9 @@ fn harness(dir: &Path) -> Harness<'static, State> {
 }
 
 fn wait_for(harness: &mut Harness<'static, State>, what: &str, done: impl Fn(&mut State) -> bool) {
-    let deadline = Instant::now() + Duration::from_secs(20);
+    // A loaded runner (a mutation shard builds while it tests) needs more
+    // than 20 s for the first result of a worker thread.
+    let deadline = Instant::now() + Duration::from_secs(60);
     loop {
         harness.step();
         if done(harness.state_mut()) {
