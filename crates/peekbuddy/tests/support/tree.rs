@@ -13,9 +13,12 @@ use crate::judge::{Run, relative};
 /// path and moves what was below the old one of a directory.
 ///
 /// The two rows of a rename are not always adjacent: with writers in many
-/// directories other events come between the old name and the new name, so a
-/// renamed-to takes the oldest pending renamed-from of its own directory (a
-/// move across directories, which has none there, takes the oldest of all).
+/// directories other events come between the old name and the new name. A
+/// renamed-to takes the newest pending renamed-from with its file id: a row
+/// lost in a gap leaves a renamed-from or a renamed-to alone, and pairing it
+/// with another rename would move the wrong entry. Rows without a file id
+/// pair with the oldest pending renamed-from of their own directory (a move
+/// across directories, which has none there, takes the oldest of all).
 pub fn logged_tree(run: &Run) -> std::collections::BTreeSet<String> {
     use std::collections::BTreeSet;
 
@@ -31,7 +34,7 @@ pub fn logged_tree(run: &Run) -> std::collections::BTreeSet<String> {
         let prefix = format!("{path}\\");
         tree.retain(|entry| entry != path && !entry.starts_with(&prefix));
     };
-    let mut pending_old: Vec<String> = Vec::new();
+    let mut pending_old: Vec<(u128, String)> = Vec::new();
     for row in all_rows(&run.data) {
         // A gap loses rows: a renamed-from whose renamed-to fell into it must
         // not be paired with a later rename. The walk that closes the gap
@@ -49,21 +52,25 @@ pub fn logged_tree(run: &Run) -> std::collections::BTreeSet<String> {
             }
             Kind::Deleted | Kind::ReconciledDeleted => remove_below(&mut tree, &path),
             Kind::RenamedFrom => {
-                pending_old.push(path);
+                pending_old.push((row.file_id, path));
             }
             Kind::RenamedTo | Kind::ReconciledRenamed => {
                 let old = if row.kind == Kind::RenamedTo {
                     let parent =
                         |entry: &str| entry.rsplit_once('\\').map(|(head, _)| head.to_owned());
-                    let own = pending_old
-                        .iter()
-                        .position(|candidate| parent(candidate) == parent(&path));
-                    own.or(if pending_old.is_empty() {
-                        None
+                    let at = if row.file_id == 0 {
+                        pending_old
+                            .iter()
+                            .position(|(_, candidate)| parent(candidate) == parent(&path))
+                            .or(if pending_old.is_empty() {
+                                None
+                            } else {
+                                Some(0)
+                            })
                     } else {
-                        Some(0)
-                    })
-                    .map(|at| pending_old.remove(at))
+                        pending_old.iter().rposition(|(id, _)| *id == row.file_id)
+                    };
+                    at.map(|at| pending_old.remove(at).1)
                 } else {
                     relative(&row.old_path, &root).map(|units| lower(&units))
                 };
