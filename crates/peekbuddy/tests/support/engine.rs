@@ -159,23 +159,43 @@ pub fn wait_until_settled(data: &Path, quiet: Duration) {
 }
 
 /// The reconcile rows of the log, for the message of a log that never settles.
-fn reconcile_state(data: &Path) -> String {
+pub fn reconcile_state(data: &Path) -> String {
     let rows = all_rows(data);
     let walks: Vec<String> = rows
         .iter()
-        .filter(|r| matches!(r.kind, Kind::ReconcileStarted | Kind::ReconcileFinished))
+        .filter(|r| {
+            r.kind.is_gap()
+                || matches!(
+                    r.kind,
+                    Kind::ReconcileStarted | Kind::ReconcileFinished | Kind::WatchStateChanged(_)
+                )
+        })
         .map(|r| format!("{}:{:?}:{}", r.id, r.kind, r.raw_mask))
         .collect();
     let newest = rows.last().map(|r| r.id);
-    format!("{} rows, newest {newest:?}, walks {walks:?}", rows.len())
+    let engine_log = std::fs::read_to_string(data.join("logs").join("engine.log"))
+        .unwrap_or_default()
+        .lines()
+        .filter(|line| line.contains("watch ") || line.contains("reconcile"))
+        .take(60)
+        .collect::<Vec<_>>()
+        .join(" | ");
+    format!(
+        "{} rows, newest {newest:?}, walks {walks:?}, engine log {engine_log}",
+        rows.len()
+    )
 }
 
-/// The newest walk has finished. A walk that a killed engine never finished
-/// stays open for good, so only the newest one counts.
+/// The newest walk has finished and no gap is newer than it. A walk that a
+/// killed engine never finished stays open for good, so only the newest one
+/// counts. A gap newer than every walk row is a walk still to start: on a slow
+/// disk the log stays quiet for seconds while the engine lists the tree.
 pub fn reconciles_balanced(data: &Path) -> bool {
     all_rows(data)
         .iter()
         .rev()
-        .find(|r| matches!(r.kind, Kind::ReconcileStarted | Kind::ReconcileFinished))
+        .find(|r| {
+            r.kind.is_gap() || matches!(r.kind, Kind::ReconcileStarted | Kind::ReconcileFinished)
+        })
         .is_none_or(|r| r.kind == Kind::ReconcileFinished)
 }

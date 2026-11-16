@@ -9,7 +9,10 @@
 )]
 
 use std::io::Write as _;
+use std::path::Path;
 use std::time::{Duration, Instant};
+
+use peekbuddy_core::event::Kind;
 
 use peekbuddy_churn::exec::windows::{WinClock, WinTarget};
 use peekbuddy_churn::exec::{Config, run};
@@ -26,7 +29,7 @@ mod spill;
 #[path = "support/tree.rs"]
 mod tree;
 
-use engine::{quit, spawn, wait_for_window, wait_until_settled};
+use engine::{all_rows, quit, spawn, wait_for_window, wait_until_settled};
 use judge::{Run, judge};
 use spill::drain_spill;
 use tree::tree_diff;
@@ -38,7 +41,7 @@ fn phase(since: Instant, label: &str) {
     let Some(path) = std::env::var_os("PEEKBUDDY_ZERO_LOSS_PHASES") else {
         return;
     };
-    if let Some(dir) = std::path::Path::new(&path).parent() {
+    if let Some(dir) = Path::new(&path).parent() {
         let _ = std::fs::create_dir_all(dir);
     }
     if let Ok(mut file) = std::fs::OpenOptions::new()
@@ -47,6 +50,22 @@ fn phase(since: Instant, label: &str) {
         .open(path)
     {
         let _ = writeln!(file, "{:>8.1}s {label}", since.elapsed().as_secs_f64());
+    }
+}
+
+/// Waits until the baseline walk of the watched root is done. It runs at
+/// background priority, so under load it can still be listing the tree when
+/// a test starts its churn: the churn would then be part of the baseline.
+fn wait_for_baseline(data: &Path) {
+    let deadline = Instant::now() + Duration::from_secs(180);
+    while !all_rows(data).iter().any(|row| {
+        matches!(
+            row.kind,
+            Kind::BaselineEstablished | Kind::ReconcileFinished
+        )
+    }) {
+        assert!(Instant::now() < deadline, "no baseline in 180 s");
+        std::thread::sleep(Duration::from_millis(250));
     }
 }
 
@@ -82,6 +101,7 @@ fn churn_under_the_engine(
     let mut engine = spawn(&data);
     let window = wait_for_window(&data, &mut engine.0);
     // Let the watch arm and the baseline reconcile finish before the churn.
+    wait_for_baseline(&data);
     wait_until_settled(&data, Duration::from_secs(3));
 
     let config = Config {
@@ -215,8 +235,9 @@ fn verdict_with(name: &str, run: &Run, outcome: &peekbuddy_churn::exec::Outcome,
     assert_eq!(
         diff,
         Vec::<String>::new(),
-        "{name}: the replayed log differs from the disk: {}",
-        verdict.summary
+        "{name}: the replayed log differs from the disk: {}; {}",
+        verdict.summary,
+        engine::reconcile_state(&run.data)
     );
 }
 
@@ -352,7 +373,7 @@ fn a_watched_root_deleted_and_recreated_is_logged_again() {
     wait_until_settled(&data, Duration::from_secs(5));
     quit(window, &mut engine.0);
 
-    let states: Vec<WatchState> = engine::all_rows(&data)
+    let states: Vec<WatchState> = all_rows(&data)
         .iter()
         .filter_map(|row| match row.kind {
             Kind::WatchStateChanged(state) => Some(state),

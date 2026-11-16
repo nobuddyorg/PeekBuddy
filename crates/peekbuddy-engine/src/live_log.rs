@@ -82,12 +82,13 @@ impl StoreLiveLog {
     }
 
     /// The id from which the live rows are read: the row that starts the
-    /// newest walk that was not cancelled, or the row that ends it for a
-    /// baseline, which has no start row.
+    /// newest walk that was not cancelled, or 0 for a baseline, which has no
+    /// start row.
     ///
     /// The snapshot is as of the listing of the walk, not of its end: an entry
     /// a live row created while the walk ran may be in no snapshot, and a row
-    /// that ends the walk would leave it out of the lookup.
+    /// that ends the walk would leave it out of the lookup. A baseline can run
+    /// for minutes on a large tree, so every row of the root counts.
     fn last_finished_walk(&self, root: &[u16], cancel: &CancelFlag) -> Option<i64> {
         // `raw_mask` 1 on a finish row: the walk was cancelled and rolled
         // back, so the snapshot is older than that row.
@@ -99,7 +100,7 @@ impl StoreLiveLog {
             cancel,
         )?;
         if end.kind != Kind::ReconcileFinished {
-            return Some(end.id);
+            return Some(0);
         }
         // Walks of a root do not overlap: the newest start before the finish
         // is its own.
