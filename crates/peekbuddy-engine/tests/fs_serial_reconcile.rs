@@ -9,8 +9,9 @@
 use std::collections::BTreeMap;
 use std::os::windows::ffi::OsStrExt;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Condvar, Mutex};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use peekbuddy_core::event::{Event, GapReason, Kind, RootIdx, VolIdx};
 use peekbuddy_core::reconcile::RowOut;
@@ -27,6 +28,8 @@ fn clock() -> (u64, u64) {
 struct Gate {
     open: Mutex<bool>,
     wake: Condvar,
+    /// A walk has reached its first row and waits there.
+    parked: AtomicBool,
 }
 
 impl Gate {
@@ -34,6 +37,7 @@ impl Gate {
         Arc::new(Self {
             open: Mutex::new(open),
             wake: Condvar::new(),
+            parked: AtomicBool::new(false),
         })
     }
 
@@ -86,6 +90,7 @@ impl RowOut for Rows {
         if event.kind == Kind::ReconcileStarted {
             let mut open = self.gate.open.lock().unwrap();
             while !*open {
+                self.gate.parked.store(true, Ordering::Release);
                 open = self
                     .gate
                     .wake
@@ -350,8 +355,13 @@ fn a_cancel_leaves_the_previous_snapshot_intact() {
     let gate = Gate::new(false);
     let (mut reconciler, log) = start(&scratch, &gate);
     reconciler.trigger(ROOT, Some(GapReason::BufferOverflow));
-    // The walk is parked on its first row; cancel, then let it go.
-    std::thread::sleep(Duration::from_millis(300));
+    // The walk is parked on its first row; cancel, then let it go. A walk
+    // that has not been picked up yet would clear the cancel when it is.
+    let until = Instant::now() + Duration::from_secs(60);
+    while !gate.parked.load(Ordering::Acquire) {
+        assert!(Instant::now() < until, "the walk never started");
+        std::thread::sleep(Duration::from_millis(10));
+    }
     reconciler.cancel_current();
     gate.set(true);
     assert!(reconciler.wait_idle(Duration::from_secs(60)));
