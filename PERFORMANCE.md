@@ -75,7 +75,7 @@ Gate values in `budgets.toml`:
 | `viewer.frame.p95` | <= 8 ms | timing | nightly-trend | `owner-run` | calibrated | 1.3 ms | 10M-row log, scripted scroll (owner PC: 1M rows, 20 s, #84) | app time in ui per frame, scripted wheel scroll (--viewer-probe-scroll, #84) | F9 |
 | `viewer.frame.p99` | <= 16 ms | timing | nightly-trend | `owner-run` | calibrated | 1.7 ms | 10M-row log, scripted scroll (owner PC: 1M rows, 20 s, #84) | app time in ui per frame, scripted wheel scroll (--viewer-probe-scroll, #84) | F9 |
 | `viewer.frame.max` | <= 33 ms | timing | nightly-trend | `owner-run` | calibrated | 2.8 ms | 10M-row log, scripted scroll (owner PC: 1M rows, 20 s, #84) | app time in ui per frame, scripted wheel scroll (--viewer-probe-scroll, #84) | F9 |
-| `query.filter_first_results` | <= 100 ms | timing | nightly-trend | `query-bench` | provisional | - | 1M-row store, glob filter that one row in a thousand matches | criterion bench query/filtered_first_1m (nightly query bench job) | F5, recalibrated by #35, #267 |
+| `query.filter_first_results` | <= 100 ms | timing | nightly-trend | `query-bench` | calibrated | - | 1M-row store, glob filter that one row in a thousand matches | criterion bench query/filtered_first_1m (nightly query bench job) | F5, recalibrated by #35, #267 |
 | `bench.query.changes_since_1m` | <= 2000000000 ns | timing | nightly-trend | `query-bench` | calibrated | - | 1M-row store, a million distinct files | criterion bench query/changes_since_1m in the nightly query bench job (series `query benches` on gh-pages, alert at +25 %) | #82 |
 | `export.1m_rows` | <= 8 s | timing | nightly-trend | `owner-run` | provisional | - | 1M-row store | ignored test a_million_rows_export_in_both_formats_within_the_budget in peekbuddy-store (cargo test --release -- --ignored --nocapture) | M9; #215 (owner PC, Intel N150, 2026-11-06, release, Defender on): CSV 6.6 s, JSON Lines 6.8 s for 1M rows, of which 6.0 s is reading the rows (6 us per row), the formatting and the disk about 0.7 s; the 2 s target of M9 needs a faster row reader |
 | `binary.size` | <= 13.5 MB | deterministic | report-only | `size` | calibrated | - | release profile (#28) | file size of the release artifact (#28) | M14 |
@@ -109,7 +109,7 @@ Gate values in `budgets.toml`:
 | `bench.store.intern_hit_1000` | <= 97000 ns | timing | pr-ab | `bench-ab` | calibrated | - | criterion bench store/intern_hit_1000 | cargo xtask bench-ab (same-runner A/B, warn +15 %, fail +50 %) | #26, #53 |
 | `bench.store.intern_miss_1000` | <= 6900000 ns | timing | pr-ab | `bench-ab` | calibrated | - | criterion bench store/intern_miss_1000 | cargo xtask bench-ab (same-runner A/B, warn +15 %, fail +50 %) | #26, #53 |
 | `bench.store.batch_insert_1000` | <= 6600000 ns | timing | pr-ab | `bench-ab` | calibrated | - | criterion bench store/batch_insert_1000 | cargo xtask bench-ab (same-runner A/B, warn +15 %, fail +50 %) | #26, #52 |
-| `capture.parse.throughput` | >= 1 GB/s | timing | nightly-trend | `bench-trend` | provisional | - | criterion bench notify_parse/{plain,extended,full}/64KiB | criterion throughput; trended nightly, never a PR gate (F11) | #44 |
+| `capture.parse.throughput` | >= 1 GB/s | timing | nightly-trend | `bench-trend` | calibrated | - | criterion bench notify_parse/{plain,extended,full}/64KiB | criterion throughput; trended nightly, never a PR gate (F11) | #44 |
 
 <!-- budgets:end -->
 
