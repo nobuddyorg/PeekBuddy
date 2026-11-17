@@ -26,6 +26,10 @@ use crate::writer::{Commit, Cursor, WAL_CHECKPOINT_BYTES, WriteError, Writer};
 
 /// Quick retries of a commit before the writer reports itself failing.
 const COMMIT_ATTEMPTS: u32 = 3;
+/// Empty batches kept for reuse. A batch holds its buffers whatever it carries
+/// (about 60 KB), so a burst that filled the ring must not leave that memory
+/// behind: beyond this many the batches are freed.
+const SPARE_BATCHES: usize = 64;
 /// Pause between retries once the writer is failing (a full disk, say).
 const FAILING_PAUSE: Duration = Duration::from_millis(100);
 
@@ -520,7 +524,7 @@ fn spill_loop(shared: &Shared) {
             shared.progress.notify_all();
         }
         for batch in group {
-            if state.free.len() < shared.capacity {
+            if state.free.len() < shared.capacity.min(SPARE_BATCHES) {
                 state.free.push(batch);
             }
         }
@@ -909,7 +913,7 @@ fn commit_group(
     }
     for mut batch in group.drain(..) {
         batch.clear();
-        if state.free.len() < shared.capacity {
+        if state.free.len() < shared.capacity.min(SPARE_BATCHES) {
             state.free.push(batch);
         }
     }
