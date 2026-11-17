@@ -244,7 +244,10 @@ fn ingest() {
     let config = Config {
         profile: profile(&name).unwrap(),
         seed: 5,
-        threads: 4,
+        threads: std::env::var("PEEKBUDDY_PERF_THREADS")
+            .ok()
+            .and_then(|value| value.parse().ok())
+            .unwrap_or(4),
         shape: Shape::default(),
     };
     let outcome = run(&config, |_| (WinTarget::new(&root), WinClock::new()));
@@ -257,6 +260,14 @@ fn ingest() {
     quit_within(window, &mut engine.child.0, Duration::from_mins(15));
     let shutdown_seconds = closing.elapsed().as_secs_f64();
     let sightings = sightings_of(&data, &root_units, &probes);
+    // The commits of 100 ms and more the engine wrote to its log: what a
+    // latency of that size is made of.
+    let slow_commits: Vec<String> = std::fs::read_to_string(data.join("logs").join("engine.log"))
+        .unwrap_or_default()
+        .lines()
+        .filter(|line| line.contains("slow commit"))
+        .map(str::to_owned)
+        .collect();
 
     let verdict = judge(
         &Run {
@@ -307,6 +318,8 @@ fn ingest() {
         "latencyP50Ms": percentile(&latencies, 50.0),
         "latencyP99Ms": percentile(&latencies, 99.0),
         "latencySamples": latencies.len(),
+        "slowCommits": slow_commits.len(),
+        "slowCommitSamples": slow_commits.iter().take(10).collect::<Vec<_>>(),
         "summary": verdict.summary.lines().next().unwrap_or_default(),
     });
     std::fs::write(out, serde_json::to_string_pretty(&document).unwrap()).unwrap();
