@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1794912910123,
+  "lastUpdate": 1794913056188,
   "repoUrl": "https://github.com/nobuddyorg/PeekBuddy",
   "entries": {
     "benches (windows-2025)": [
@@ -1433,6 +1433,98 @@ window.BENCHMARK_DATA = {
           {
             "name": "viewer/scroll_frame_p99",
             "value": 688775,
+            "unit": "ns"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "name": "Matthias Eggert",
+            "username": "besessener",
+            "email": "8039350+besessener@users.noreply.github.com"
+          },
+          "committer": {
+            "name": "GitHub",
+            "username": "web-flow",
+            "email": "noreply@github.com"
+          },
+          "id": "f08653f6a71669155ebf6eee1a875aa154b5943d",
+          "message": "chore: prepare v1.0.0 (#496)\n\n* chore: prepare v1.0.0\n\nVersion 1.0.0, the CHANGELOG section with the known limitations.\nRelease smoke on a release build of main: 7 of 7 checks pass; no\nnetwork connection in a 10 minute run; nightly 43950461833 green.\n\nCo-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>\n\n* chore: name the release in every changelog group\n\nmarkdownlint MD024 rejects the same group heading in two releases.\nThe group headings carry their version, in the template and in the\n1.0.0 section, so every heading in the file is unique.\n\nCo-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>\n\n---------\n\nCo-authored-by: Matthias Eggert <dem.matze@gmail.com>\nCo-authored-by: Claude Sonnet 5.5 <noreply@anthropic.com>",
+          "timestamp": "2026-11-17T10:20:46Z",
+          "url": "https://github.com/nobuddyorg/PeekBuddy/commit/f08653f6a71669155ebf6eee1a875aa154b5943d"
+        },
+        "date": 1794913050018,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "filter/eval_6_names",
+            "value": 1555.8934161924524,
+            "unit": "ns"
+          },
+          {
+            "name": "metrics/process_list_300",
+            "value": 947.3733531746329,
+            "unit": "ns"
+          },
+          {
+            "name": "notify_parse/extended/64kib",
+            "value": 2262.3932718361903,
+            "unit": "ns"
+          },
+          {
+            "name": "notify_parse/full/64kib",
+            "value": 2291.1728434027564,
+            "unit": "ns"
+          },
+          {
+            "name": "notify_parse/plain/64kib",
+            "value": 4606.179825241352,
+            "unit": "ns"
+          },
+          {
+            "name": "perf/counters_event",
+            "value": 0.2747895732548258,
+            "unit": "ns"
+          },
+          {
+            "name": "perf/milestone_record",
+            "value": 4.810045163252845,
+            "unit": "ns"
+          },
+          {
+            "name": "reparse/classify_8",
+            "value": 17.31886987342159,
+            "unit": "ns"
+          },
+          {
+            "name": "rules/eval_6_events_50_rules",
+            "value": 28905.253578200034,
+            "unit": "ns"
+          },
+          {
+            "name": "store/batch_insert_1000",
+            "value": 2840774.074074074,
+            "unit": "ns"
+          },
+          {
+            "name": "store/intern_hit_1000",
+            "value": 48409.4209987631,
+            "unit": "ns"
+          },
+          {
+            "name": "store/intern_miss_1000",
+            "value": 3275685.5833333335,
+            "unit": "ns"
+          },
+          {
+            "name": "viewer/scroll_frame_p95",
+            "value": 368750,
+            "unit": "ns"
+          },
+          {
+            "name": "viewer/scroll_frame_p99",
+            "value": 491400,
             "unit": "ns"
           }
         ]
