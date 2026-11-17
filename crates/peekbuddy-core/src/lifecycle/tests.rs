@@ -65,6 +65,25 @@ fn a_gap_is_overflowed_then_reconciling_then_live() {
     let out = m.signal(Signal::Gap(GapReason::NotifyEnumDir));
     assert_eq!(m.state(), State::Overflowed);
     assert_eq!(actions(&out).len(), 1);
+    // A walk that ends after a later gap does not make the watch live: the
+    // follow-up walk the gap asked for has to run first.
+    let mut m = live();
+    let _ = feed(
+        &mut m,
+        &[
+            Signal::Gap(GapReason::BufferOverflow),
+            Signal::ReconcileStarted,
+            Signal::Gap(GapReason::NotifyEnumDir),
+        ],
+    );
+    assert_eq!(m.state(), State::Overflowed);
+    let out = m.signal(Signal::ReconcileDone);
+    assert_eq!(m.state(), State::Overflowed);
+    assert_eq!(out, Outcome::default());
+    assert_eq!(
+        states(&mut m, &[Signal::ReconcileStarted, Signal::ReconcileDone]),
+        [WatchState::Reconciling, WatchState::Live]
+    );
     // A cancelled reconcile asks again.
     let mut m = live();
     let _ = feed(
