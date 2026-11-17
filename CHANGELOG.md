@@ -16,7 +16,7 @@ The first stable release. Known limitations:
 - 21 of the 60 performance budgets are still provisional: no run measures
   them yet (see `PERFORMANCE.md`).
 
-### Features
+### Features (1.0.0)
 
 - Use the nobuddy.org logo as the app icon (#384)
 - **viewer:** Save column widths and compact (#395)
@@ -37,7 +37,7 @@ The first stable release. Known limitations:
 - Viewer frame times over 1M rows (#84) (#431)
 - Release smoke script for the owner PC (#77) (#457)
 
-### Fixes
+### Fixes (1.0.0)
 
 - **engine:** Reconcile entries deleted in a gap (#377)
 - **viewer:** Fill the width with the log table (#382)
@@ -62,12 +62,12 @@ The first stable release. Known limitations:
 - Read live rows from the start for a baseline (#482)
 - Find the tray icon in the Windows 11 overflow (#495)
 
-### Performance
+### Performance (1.0.0)
 
 - Calibrate the 20 benchmark budgets (#493)
 - Calibrate 15 budgets from nightly numbers (#494)
 
-### Documentation
+### Documentation (1.0.0)
 
 - Use the real asset names in the verify steps (#375)
 - Add the dependency watchlist (#83) (#406)
@@ -77,7 +77,7 @@ The first stable release. Known limitations:
 - Add reference pages for the CLI and kinds (#466)
 - Add screenshots to the README and tutorial (#473)
 
-### Tests
+### Tests (1.0.0)
 
 - Settle the kill soak after a killed walk (#381)
 - Recreate the file while waiting for a watch (#390)
@@ -93,7 +93,7 @@ The first stable release. Known limitations:
 - Wait for the walk and for the worker thread (#483)
 - Pair renames by file id in the replay (#485)
 
-### Build and CI
+### Build and CI (1.0.0)
 
 - Run the profiling recipes on the runners (#369)
 - Gate the nightly mutants on a score of 80 (#386)
@@ -109,7 +109,7 @@ The first stable release. Known limitations:
 - Log memory and use two threads in core mutants (#480)
 - Cap the memory of every mutant process (#492)
 
-### Other
+### Other (1.0.0)
 
 - Remove CODEOWNERS (#380)
 - Move to Rust 1.100 (#83) (#452)
