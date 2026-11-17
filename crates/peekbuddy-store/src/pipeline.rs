@@ -45,6 +45,23 @@ pub struct CommitInfo {
     /// How long the write took, in microseconds (the attempts of a failing
     /// commit included).
     pub write_us: u64,
+    /// Microseconds from the stamp of the first event of the commit to the end
+    /// of its write: what a row waited in capture, ring and writer.
+    pub age_us: u64,
+}
+
+/// Microseconds from `stamp` (a wall-clock stamp in FILETIME ticks) to now;
+/// 0 when there is none or the clock went back.
+fn age_us(stamp: Option<u64>) -> u64 {
+    const UNIX_EPOCH_TICKS: u64 = 116_444_736_000_000_000;
+    let Some(stamp) = stamp else {
+        return 0;
+    };
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |d| u64::try_from(d.as_nanos() / 100).unwrap_or(0))
+        + UNIX_EPOCH_TICKS;
+    now.saturating_sub(stamp) / 10
 }
 
 /// A callback run before each commit attempt.
@@ -819,6 +836,12 @@ fn commit_group(
     let mut outcome: Option<Commit> = None;
     let mut attempt: u32 = 0;
     let write_started = Instant::now();
+    // The group is drained after the commit: note the first stamp now (the
+    // queue is in order, so the first event is the oldest).
+    let first_ts = group
+        .first()
+        .and_then(|batch| batch.iter().next())
+        .map(|(event, _)| event.ts);
     loop {
         attempt += 1;
         if let Some(before) = &hooks.before_commit {
@@ -873,6 +896,7 @@ fn commit_group(
                     from_spill,
                     write_us: u64::try_from(write_started.elapsed().as_micros())
                         .unwrap_or(u64::MAX),
+                    age_us: age_us(first_ts),
                 });
             }
         }

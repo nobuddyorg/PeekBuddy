@@ -287,11 +287,12 @@ fn on_commit(counters: &Counters, commits: &Mutex<CommitLog>, info: &CommitInfo)
         // A commit this slow holds every row of the next one back: say so
         // where a run on another PC can be read afterwards.
         crate::instrument::log(&format!(
-            "slow commit: {} rows in {} ms, {} batches, {} waiting",
+            "slow commit: {} rows in {} ms, {} batches, {} waiting, first event {} ms old",
             info.commit.rows,
             info.write_us / 1_000,
             info.batches,
-            info.ring_depth
+            info.ring_depth,
+            info.age_us / 1_000
         ));
     }
     let snapshot: CounterSnapshot = counters.snapshot();

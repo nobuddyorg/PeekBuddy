@@ -44,6 +44,7 @@ use peekbuddy_testkit::TestDir;
 use peekbuddy_win::job::Job;
 use peekbuddy_win::metrics;
 use peekbuddy_win::pipe::PipeClient;
+use peekbuddy_win::timer::HighResTimer;
 use serde_json::json;
 
 use engine::{Kill, quit, quit_within, wait_for_window, wait_until_settled};
@@ -113,7 +114,8 @@ fn percentile(sorted: &[f64], p: f64) -> f64 {
 }
 
 /// The first time each `(path, kind)` row was seen in the log, in order.
-type Sightings = HashMap<(String, RawKind), Vec<u64>>;
+/// `(tick of the first probe that saw it, tick the engine stamped it with)`.
+type Sightings = HashMap<(String, RawKind), Vec<(u64, u64)>>;
 
 /// When the newest row id of the log grew: `(tick, newest id)`.
 type Probes = Vec<(u64, i64)>;
@@ -129,6 +131,8 @@ fn probe_log(data: PathBuf, stop: Arc<AtomicBool>) -> std::thread::JoinHandle<Pr
         let cancel = CancelFlag::new();
         let mut probes = Probes::new();
         let mut newest = 0_i64;
+        // A plain sleep of 2 ms lasts a timer tick (15.6 ms) on Windows.
+        let timer = HighResTimer::new().ok();
         loop {
             let stopping = stop.load(Ordering::Acquire);
             if data.join("segments").join("catalog.db").exists()
@@ -151,7 +155,12 @@ fn probe_log(data: PathBuf, stop: Arc<AtomicBool>) -> std::thread::JoinHandle<Pr
             if stopping {
                 return probes;
             }
-            std::thread::sleep(Duration::from_millis(2));
+            match &timer {
+                Some(timer) => {
+                    let _ = timer.sleep(20_000);
+                }
+                None => std::thread::sleep(Duration::from_millis(2)),
+            }
         }
     })
 }
@@ -185,7 +194,7 @@ fn sightings_of(data: &Path, root: &[u16], probes: &Probes) -> Sightings {
             ) {
                 seen.entry((String::from_utf16_lossy(&rel).to_lowercase(), kind))
                     .or_default()
-                    .push(*tick);
+                    .push((*tick, row.ts));
             }
         }
         if let Some(newest) = page.newest_id() {
@@ -214,6 +223,60 @@ fn sample_memory(
             std::thread::sleep(Duration::from_millis(100));
         }
     })
+}
+
+/// The latency of every operation whose row was seen, in milliseconds and
+/// sorted: from the end of the operation to a probe that saw its row, and in
+/// two stages: to the stamp the engine gave the row, and from that stamp to
+/// the row being in the log.
+struct Latencies {
+    total: Vec<f64>,
+    to_stamp: Vec<f64>,
+    to_durable: Vec<f64>,
+}
+
+fn latencies_of(outcome: &peekbuddy_churn::exec::Outcome, sightings: &Sightings) -> Latencies {
+    let mut latencies: Vec<f64> = Vec::new();
+    // The same latency in two stages: the end of the operation to the stamp
+    // the engine gave the row, and that stamp to the row being in the log.
+    let mut to_stamp: Vec<f64> = Vec::new();
+    let mut to_durable: Vec<f64> = Vec::new();
+    for record in outcome.records.iter().filter(|record| record.result == 0) {
+        for expected in record.expected_records().unwrap_or_default() {
+            let key = (
+                String::from_utf16_lossy(&expected.path).to_lowercase(),
+                expected.kind,
+            );
+            // A burst of writes to one file is one `Modified` row for several
+            // operations (the engine coalesces them): the row of the first
+            // write says nothing about the others, so only the kinds that are
+            // one row per operation are timed.
+            if expected.kind == RawKind::Modified {
+                continue;
+            }
+            if let Some(times) = sightings.get(&key)
+                && let Some((at, stamp)) = times.iter().find(|(at, _)| *at >= record.t_start)
+            {
+                #[expect(
+                    clippy::cast_precision_loss,
+                    reason = "a latency in ticks, far below 2^52"
+                )]
+                {
+                    latencies.push(at.saturating_sub(record.t_end) as f64 / 10_000.0);
+                    to_stamp.push(stamp.saturating_sub(record.t_end) as f64 / 10_000.0);
+                    to_durable.push(at.saturating_sub(*stamp) as f64 / 10_000.0);
+                }
+            }
+        }
+    }
+    to_stamp.sort_by(f64::total_cmp);
+    to_durable.sort_by(f64::total_cmp);
+    latencies.sort_by(f64::total_cmp);
+    Latencies {
+        total: latencies,
+        to_stamp,
+        to_durable,
+    }
 }
 
 #[test]
@@ -279,25 +342,11 @@ fn ingest() {
 
     // Change to durable: from the end of an operation to the first sighting of
     // its row in the log at or after the start of the operation.
-    let mut latencies: Vec<f64> = Vec::new();
-    for record in outcome.records.iter().filter(|record| record.result == 0) {
-        for expected in record.expected_records().unwrap_or_default() {
-            let key = (
-                String::from_utf16_lossy(&expected.path).to_lowercase(),
-                expected.kind,
-            );
-            if let Some(times) = sightings.get(&key)
-                && let Some(at) = times.iter().find(|at| **at >= record.t_start)
-            {
-                #[expect(
-                    clippy::cast_precision_loss,
-                    reason = "a latency in ticks, far below 2^52"
-                )]
-                latencies.push(at.saturating_sub(record.t_end) as f64 / 10_000.0);
-            }
-        }
-    }
-    latencies.sort_by(f64::total_cmp);
+    let Latencies {
+        total: latencies,
+        to_stamp,
+        to_durable,
+    } = latencies_of(&outcome, &sightings);
 
     #[expect(
         clippy::cast_precision_loss,
@@ -318,6 +367,10 @@ fn ingest() {
         "latencyP50Ms": percentile(&latencies, 50.0),
         "latencyP99Ms": percentile(&latencies, 99.0),
         "latencySamples": latencies.len(),
+        "toStampP50Ms": percentile(&to_stamp, 50.0),
+        "toStampP99Ms": percentile(&to_stamp, 99.0),
+        "toDurableP50Ms": percentile(&to_durable, 50.0),
+        "toDurableP99Ms": percentile(&to_durable, 99.0),
         "slowCommits": slow_commits.len(),
         "slowCommitSamples": slow_commits.iter().take(10).collect::<Vec<_>>(),
         "summary": verdict.summary.lines().next().unwrap_or_default(),
