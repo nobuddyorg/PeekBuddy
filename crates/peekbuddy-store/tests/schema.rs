@@ -657,8 +657,8 @@ fn bytes_per_event_stay_small() {
     let per_event = total / i64::try_from(EVENTS).unwrap();
     drop(conn);
     let _ = std::fs::remove_file(&path);
-    // Provisional ceiling until #35 fixes the target (estimate 90-110 B; measured 72).
-    assert!(per_event <= 100, "{per_event} B per event");
+    // The budget `store.bytes_per_event` in `perf/budgets.toml` (measured 72).
+    assert!(per_event <= 90, "{per_event} B per event");
     assert!(
         per_event >= 20,
         "{per_event} B per event looks too small to be true"
