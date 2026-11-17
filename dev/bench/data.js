@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1794826828762,
+  "lastUpdate": 1794912906063,
   "repoUrl": "https://github.com/nobuddyorg/PeekBuddy",
   "entries": {
     "benches (windows-2025)": [
@@ -1915,6 +1915,38 @@ window.BENCHMARK_DATA = {
           {
             "name": "durability.restart_to_ready.max",
             "value": 855,
+            "unit": "ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "name": "Matthias Eggert",
+            "username": "besessener",
+            "email": "8039350+besessener@users.noreply.github.com"
+          },
+          "committer": {
+            "name": "GitHub",
+            "username": "web-flow",
+            "email": "noreply@github.com"
+          },
+          "id": "f08653f6a71669155ebf6eee1a875aa154b5943d",
+          "message": "chore: prepare v1.0.0 (#496)\n\n* chore: prepare v1.0.0\n\nVersion 1.0.0, the CHANGELOG section with the known limitations.\nRelease smoke on a release build of main: 7 of 7 checks pass; no\nnetwork connection in a 10 minute run; nightly 43950461833 green.\n\nCo-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>\n\n* chore: name the release in every changelog group\n\nmarkdownlint MD024 rejects the same group heading in two releases.\nThe group headings carry their version, in the template and in the\n1.0.0 section, so every heading in the file is unique.\n\nCo-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>\n\n---------\n\nCo-authored-by: Matthias Eggert <dem.matze@gmail.com>\nCo-authored-by: Claude Sonnet 5.5 <noreply@anthropic.com>",
+          "timestamp": "2026-11-17T10:20:46Z",
+          "url": "https://github.com/nobuddyorg/PeekBuddy/commit/f08653f6a71669155ebf6eee1a875aa154b5943d"
+        },
+        "date": 1794912901571,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "durability.restart_to_ready.p50",
+            "value": 103,
+            "unit": "ms"
+          },
+          {
+            "name": "durability.restart_to_ready.max",
+            "value": 254,
             "unit": "ms"
           }
         ]
