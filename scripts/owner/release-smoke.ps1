@@ -66,10 +66,25 @@ function Find-TrayIcon {
         $condition = New-Object System.Windows.Automation.PropertyCondition(
             [System.Windows.Automation.AutomationElement]::ControlTypeProperty,
             [System.Windows.Automation.ControlType]::Button)
-        foreach ($button in $root.FindAll([System.Windows.Automation.TreeScope]::Descendants, $condition)) {
-            if ($button.Current.Name -like '*PeekBuddy*') { return $true }
+        $named = {
+            foreach ($button in $root.FindAll([System.Windows.Automation.TreeScope]::Descendants, $condition)) {
+                if ($button.Current.Name -like '*PeekBuddy*') { return $true }
+            }
+            $false
         }
-        return $false
+        if (& $named) { return $true }
+        # Windows 11 keeps a new icon in the overflow flyout, which has no
+        # elements until the chevron opens it.
+        $chevron = $root.FindFirst([System.Windows.Automation.TreeScope]::Descendants,
+            (New-Object System.Windows.Automation.PropertyCondition(
+                [System.Windows.Automation.AutomationElement]::AutomationIdProperty, 'NotificationChevron')))
+        if (-not $chevron) { return $false }
+        ($chevron.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern)).Invoke()
+        Start-Sleep -Seconds 2
+        $found = & $named
+        Add-Type -AssemblyName System.Windows.Forms
+        [System.Windows.Forms.SendKeys]::SendWait('{ESC}')
+        return $found
     } catch { return $null }
 }
 
