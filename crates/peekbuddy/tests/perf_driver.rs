@@ -115,55 +115,86 @@ fn percentile(sorted: &[f64], p: f64) -> f64 {
 /// The first time each `(path, kind)` row was seen in the log, in order.
 type Sightings = HashMap<(String, RawKind), Vec<u64>>;
 
-/// Polls the log every few milliseconds and notes when each row first shows.
-fn poll_log(
-    data: PathBuf,
-    root: Vec<u16>,
-    stop: Arc<AtomicBool>,
-) -> std::thread::JoinHandle<Sightings> {
+/// When the newest row id of the log grew: `(tick, newest id)`.
+type Probes = Vec<(u64, i64)>;
+
+/// Asks the log for its newest row every few milliseconds and notes when the
+/// id grows. Reading a page of rows costs hundreds of milliseconds under load
+/// (a commit puts about 1,000 rows in it), and a poller that read pages would
+/// date every row of a page with the end of that read: the probe reads one row
+/// and says when the log had grown to an id, the rows are read afterwards.
+fn probe_log(data: PathBuf, stop: Arc<AtomicBool>) -> std::thread::JoinHandle<Probes> {
     std::thread::spawn(move || {
         let reader = Reader::new(&data.join("segments"));
         let cancel = CancelFlag::new();
-        let mut seen = Sightings::new();
-        let mut cursor: Option<i64> = None;
+        let mut probes = Probes::new();
+        let mut newest = 0_i64;
         loop {
             let stopping = stop.load(Ordering::Acquire);
-            if data.join("segments").join("catalog.db").exists() {
-                let page = reader.page(
+            if data.join("segments").join("catalog.db").exists()
+                && let Ok(page) = reader.page(
                     &PageRequest {
                         generation: 0,
                         filter: Filter::default(),
-                        cursor,
-                        direction: Direction::Newer,
-                        limit: 5_000,
+                        cursor: None,
+                        direction: Direction::Older,
+                        limit: 1,
                     },
                     &cancel,
-                );
-                if let Ok(page) = page {
-                    let at = now_ticks();
-                    for row in &page.rows {
-                        if let (Some(rel), Some(kind)) =
-                            (relative(&row.path, &root), raw_kind(row.raw_mask))
-                        {
-                            seen.entry((String::from_utf16_lossy(&rel).to_lowercase(), kind))
-                                .or_default()
-                                .push(at);
-                        }
-                    }
-                    if let Some(newest) = page.newest_id() {
-                        cursor = Some(newest);
-                    }
-                    if page.more {
-                        continue;
-                    }
-                }
+                )
+                && let Some(id) = page.newest_id()
+                && id > newest
+            {
+                newest = id;
+                probes.push((now_ticks(), id));
             }
             if stopping {
-                return seen;
+                return probes;
             }
-            std::thread::sleep(Duration::from_millis(5));
+            std::thread::sleep(Duration::from_millis(2));
         }
     })
+}
+
+/// Reads the whole log and dates each row of the root with the first probe
+/// that saw the log reach its id.
+fn sightings_of(data: &Path, root: &[u16], probes: &Probes) -> Sightings {
+    let reader = Reader::new(&data.join("segments"));
+    let cancel = CancelFlag::new();
+    let mut seen = Sightings::new();
+    let mut cursor: Option<i64> = None;
+    loop {
+        let Ok(page) = reader.page(
+            &PageRequest {
+                generation: 0,
+                filter: Filter::default(),
+                cursor,
+                direction: Direction::Newer,
+                limit: 5_000,
+            },
+            &cancel,
+        ) else {
+            return seen;
+        };
+        for row in &page.rows {
+            let at = probes.partition_point(|(_, id)| *id < row.id);
+            if let (Some((tick, _)), Some(rel), Some(kind)) = (
+                probes.get(at),
+                relative(&row.path, root),
+                raw_kind(row.raw_mask),
+            ) {
+                seen.entry((String::from_utf16_lossy(&rel).to_lowercase(), kind))
+                    .or_default()
+                    .push(*tick);
+            }
+        }
+        if let Some(newest) = page.newest_id() {
+            cursor = Some(newest);
+        }
+        if !page.more {
+            return seen;
+        }
+    }
 }
 
 /// Peak private bytes of the process, sampled until `stop`.
@@ -207,7 +238,7 @@ fn ingest() {
     let stop = Arc::new(AtomicBool::new(false));
     let peak = Arc::new(AtomicU64::new(0));
     let sampler = sample_memory(engine.child.0.id(), Arc::clone(&stop), Arc::clone(&peak));
-    let poller = poll_log(data.clone(), root_units, Arc::clone(&stop));
+    let poller = probe_log(data.clone(), Arc::clone(&stop));
 
     let started = Instant::now();
     let config = Config {
@@ -220,11 +251,12 @@ fn ingest() {
     let churn_seconds = started.elapsed().as_secs_f64();
     wait_until_settled(&data, Duration::from_secs(5));
     stop.store(true, Ordering::Release);
-    let sightings = poller.join().unwrap();
+    let probes = poller.join().unwrap();
     sampler.join().unwrap();
     let closing = Instant::now();
     quit_within(window, &mut engine.child.0, Duration::from_mins(15));
     let shutdown_seconds = closing.elapsed().as_secs_f64();
+    let sightings = sightings_of(&data, &root_units, &probes);
 
     let verdict = judge(
         &Run {
