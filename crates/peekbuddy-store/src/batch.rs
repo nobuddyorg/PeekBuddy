@@ -35,10 +35,12 @@ impl Batch {
         }
     }
 
-    /// The default shape used by capture: 256 events, 32 Ki name units.
+    /// The default shape used by capture: 256 events, 16 Ki name units (a
+    /// path of the churn corpora is 40 to 60 units; a batch that runs out of
+    /// names is sent and the next one starts).
     #[must_use]
     pub fn standard() -> Self {
-        Self::with_capacity(256, 32 * 1024)
+        Self::with_capacity(256, 16 * 1024)
     }
 
     /// Adds `event` with its `name` (a path relative to the watch root,

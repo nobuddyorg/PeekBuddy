@@ -15,7 +15,7 @@ capture thread --Batch--> ring --> writer thread --> segment.db (WAL)
                                                                    (replayed in order by the writer)
 ```
 
-- Capture fills a **batch** (up to 256 events and 32 Ki name units, storage
+- Capture fills a **batch** (up to 256 events and 16 Ki name units, storage
   reserved once) and pushes it. Pushing takes a lock for a pointer move and
   never touches the disk. A used batch comes back empty from the writer, so
   the capture path allocates nothing per event (F10).
