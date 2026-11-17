@@ -9,7 +9,7 @@ use std::path::Path;
 use std::process::{Child, Command, Stdio};
 use std::time::{Duration, Instant};
 
-use peekbuddy_core::event::Kind;
+use peekbuddy_core::event::{Kind, WatchState};
 use peekbuddy_core::query::{CancelFlag, Direction, Filter, PageRequest, Row};
 use peekbuddy_engine::Names;
 use peekbuddy_store::read::Reader;
@@ -186,16 +186,25 @@ pub fn reconcile_state(data: &Path) -> String {
     )
 }
 
-/// The newest walk has finished and no gap is newer than it. A walk that a
-/// killed engine never finished stays open for good, so only the newest one
-/// counts. A gap newer than every walk row is a walk still to start: on a slow
-/// disk the log stays quiet for seconds while the engine lists the tree.
+/// The newest walk has finished, no gap is newer than it, and the watch says
+/// it is live. A walk that a killed engine never finished stays open for good,
+/// so only the newest one counts. A gap newer than every walk row is a walk
+/// still to start, and a walk that ends after a later gap leaves the watch
+/// `Overflowed` until the follow-up walk has run: on a slow disk the log stays
+/// quiet for seconds while the engine lists the tree.
 pub fn reconciles_balanced(data: &Path) -> bool {
-    all_rows(data)
+    let rows = all_rows(data);
+    let walks_done = rows
         .iter()
         .rev()
         .find(|r| {
             r.kind.is_gap() || matches!(r.kind, Kind::ReconcileStarted | Kind::ReconcileFinished)
         })
-        .is_none_or(|r| r.kind == Kind::ReconcileFinished)
+        .is_none_or(|r| r.kind == Kind::ReconcileFinished);
+    let live = rows
+        .iter()
+        .rev()
+        .find(|r| matches!(r.kind, Kind::WatchStateChanged(_)))
+        .is_none_or(|r| r.kind == Kind::WatchStateChanged(WatchState::Live));
+    walks_done && live
 }

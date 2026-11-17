@@ -513,7 +513,11 @@ impl Machine {
                 }
             }
             Signal::ReconcileDone => {
-                if matches!(state, Overflowed | Reconciling | Restored) {
+                // A walk that ends while the watch is `Overflowed` started
+                // before the gap that made it so: the follow-up walk the gap
+                // asked for is still to run, and the watch is not live until it
+                // has.
+                if matches!(state, Reconciling | Restored) {
                     self.go(Live, Reason::ReconcileDone, &mut out);
                 }
             }

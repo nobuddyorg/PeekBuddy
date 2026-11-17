@@ -95,6 +95,26 @@ pub fn logged_tree(run: &Run) -> std::collections::BTreeSet<String> {
     tree
 }
 
+/// The rows of the log about `path` (lower case, below the root), oldest
+/// first, as `id:kind`: what a path that the replay and the disk disagree
+/// about went through.
+pub fn history(run: &Run, path: &str) -> Vec<String> {
+    let root: Vec<u16> = run
+        .root
+        .to_string_lossy()
+        .trim_start_matches(r"\\?\")
+        .encode_utf16()
+        .collect();
+    all_rows(&run.data)
+        .iter()
+        .filter(|row| {
+            relative(&row.path, &root)
+                .is_some_and(|units| String::from_utf16_lossy(&units).to_lowercase() == path)
+        })
+        .map(|row| format!("{}:{:?}", row.id, row.kind))
+        .collect()
+}
+
 /// Paths below the root as they are on disk now, lower case; links are
 /// entries and are not entered.
 pub fn real_tree(root: &std::path::Path) -> std::collections::BTreeSet<String> {

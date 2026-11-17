@@ -235,9 +235,14 @@ fn verdict_with(name: &str, run: &Run, outcome: &peekbuddy_churn::exec::Outcome,
     assert_eq!(
         diff,
         Vec::<String>::new(),
-        "{name}: the replayed log differs from the disk: {}; {}",
+        "{name}: the replayed log differs from the disk: {}; {}; rows of the first paths {:?}",
         verdict.summary,
-        engine::reconcile_state(&run.data)
+        engine::reconcile_state(&run.data),
+        diff.iter()
+            .filter_map(|line| line.get(2..))
+            .take(3)
+            .map(|path| (path, tree::history(run, path)))
+            .collect::<Vec<_>>()
     );
 }
 
