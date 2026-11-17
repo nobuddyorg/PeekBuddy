@@ -42,6 +42,9 @@ pub struct CommitInfo {
     pub ring_high_water: usize,
     /// Rows replayed from the spill in this commit.
     pub from_spill: bool,
+    /// How long the write took, in microseconds (the attempts of a failing
+    /// commit included).
+    pub write_us: u64,
 }
 
 /// A callback run before each commit attempt.
@@ -815,6 +818,7 @@ fn commit_group(
     } = *target;
     let mut outcome: Option<Commit> = None;
     let mut attempt: u32 = 0;
+    let write_started = Instant::now();
     loop {
         attempt += 1;
         if let Some(before) = &hooks.before_commit {
@@ -867,6 +871,8 @@ fn commit_group(
                     ring_depth: state.queue.len(),
                     ring_high_water: state.high_water,
                     from_spill,
+                    write_us: u64::try_from(write_started.elapsed().as_micros())
+                        .unwrap_or(u64::MAX),
                 });
             }
         }

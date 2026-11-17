@@ -264,6 +264,9 @@ pub fn health_event(health: Health, (ts, qpc): (u64, u64)) -> Event {
     }
 }
 
+/// A commit that takes this long (microseconds) is written to the engine log.
+const SLOW_COMMIT_US: u64 = 100_000;
+
 fn on_commit(counters: &Counters, commits: &Mutex<CommitLog>, info: &CommitInfo) {
     use std::sync::atomic::Ordering;
 
@@ -279,6 +282,17 @@ fn on_commit(counters: &Counters, commits: &Mutex<CommitLog>, info: &CommitInfo)
             at_us: since_process_create_us(),
             rows: info.commit.rows,
         });
+    }
+    if info.write_us >= SLOW_COMMIT_US {
+        // A commit this slow holds every row of the next one back: say so
+        // where a run on another PC can be read afterwards.
+        crate::instrument::log(&format!(
+            "slow commit: {} rows in {} ms, {} batches, {} waiting",
+            info.commit.rows,
+            info.write_us / 1_000,
+            info.batches,
+            info.ring_depth
+        ));
     }
     let snapshot: CounterSnapshot = counters.snapshot();
     etw::counters(&snapshot);
