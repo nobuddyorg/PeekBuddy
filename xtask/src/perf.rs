@@ -896,10 +896,24 @@ fn measure_ingest(
             profiles.len()
         ),
     ));
-    rows.push(not_exercised(
-        "capture.rearm_latency",
-        "the span of the capture thread is not visible from outside the engine (#21)",
-    ));
+    // The slowest re-arm of the latency run, from the engine's log. Only a
+    // run that reached its rate says anything about it.
+    let rearm = documents
+        .iter()
+        .find(|doc| doc.get("profile").and_then(Value::as_str) == Some("latency-10k"))
+        .and_then(|doc| doc.get("rearmMaxMs").and_then(Value::as_f64));
+    match rearm {
+        Some(ms) => rows.push(judge(
+            budgets,
+            "capture.rearm_latency",
+            ms,
+            "slowest dequeue to re-arm of the latency-10k run, from the engine's log",
+        )),
+        None => rows.push(not_exercised(
+            "capture.rearm_latency",
+            "no latency-10k run, or the engine wrote no re-arm line",
+        )),
+    }
     detail.insert(String::from("ingest"), Value::Array(documents));
     Ok(())
 }
