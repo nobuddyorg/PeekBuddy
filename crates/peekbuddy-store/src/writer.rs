@@ -35,8 +35,12 @@ use crate::segments::{SealContext, SegmentState, SystemRows, rotated_row, seal_a
 const CACHE_KIB: i64 = 2 * 1024;
 /// `journal_size_limit`: the WAL file is truncated to this after a checkpoint.
 const JOURNAL_LIMIT: i64 = 64 * 1024 * 1024;
-/// A size-triggered `PASSIVE` checkpoint runs once the WAL is this large.
-pub const WAL_CHECKPOINT_BYTES: u64 = 64 * 1024 * 1024;
+/// A size-triggered `PASSIVE` checkpoint runs once the live log is this large
+/// ([`Writer::wal_log_bytes`]). The writer commits nothing while it runs, so a
+/// large log means a long stall: at 10k events/s the longest checkpoint took
+/// 180 ms at 64 MiB and 27 ms at 4 MiB, the 99th percentile of the wait of a
+/// row 97 ms and 32 ms, and a burst still went in at 113k events/s.
+pub const WAL_CHECKPOINT_BYTES: u64 = 4 * 1024 * 1024;
 
 const BACKSLASH: u16 = 0x5C;
 
@@ -171,7 +175,7 @@ const MAX_PAGES: u32 = 4_294_967_294;
 
 /// SQLite's page size, which the store never changes: a frame of the log is
 /// this many bytes.
-const PAGE_BYTES: u64 = 4096;
+pub(crate) const PAGE_BYTES: u64 = 4096;
 
 thread_local! {
     /// The frames in the log after the last commit of a writer on this

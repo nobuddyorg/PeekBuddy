@@ -417,6 +417,35 @@ fn a_stuck_reader_is_reported_while_ingest_goes_on_and_clears_when_it_lets_go() 
     );
 }
 
+/// The file keeps its size after a checkpoint (`journal_size_limit`), so a
+/// writer that compared the file with the threshold would checkpoint after
+/// every commit once the file had grown that far, and stall for each: it is
+/// the live log that counts.
+#[test]
+fn a_checkpoint_follows_the_size_of_the_log_not_of_the_file() {
+    let dirs = Dirs::new("log-size");
+    let mut config = Config::new(dirs.spill());
+    config.ring_batches = 8;
+    config.wal_checkpoint_bytes = 2 * 1024 * 1024;
+    let pipeline = Pipeline::start(open_writer(&dirs.db()), config).unwrap();
+    let producer = pipeline.producer();
+    let mut next = 1;
+    for _ in 0..400 {
+        push(&producer, next, 20);
+        next += 20;
+        pipeline.flush(Duration::from_secs(30)).unwrap();
+    }
+    let stats = pipeline.stats();
+    assert!(stats.checkpoints > 0, "the log never reached the threshold");
+    assert!(
+        stats.checkpoints * 4 < stats.commits,
+        "{} checkpoints for {} commits",
+        stats.checkpoints,
+        stats.commits
+    );
+    drop(pipeline.close());
+}
+
 #[test]
 fn a_reader_that_holds_the_log_only_shows_once_the_file_is_far_past_the_threshold() {
     let dirs = Dirs::new("not-yet");

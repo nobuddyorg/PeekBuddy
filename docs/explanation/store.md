@@ -34,8 +34,9 @@ every event would never fire under steady arrivals: the spike measured p50
 51 ms for that reading and 3.2 ms for the first-event reading (report 0005).
 The wait exists only while events are pending; an idle writer sleeps without a
 timeout. After a commit the writer arms one 1 s wait to run a single `PASSIVE`
-checkpoint when the burst is over; a WAL above 64 MB is checkpointed between
-batches.
+checkpoint when the burst is over; a live log above 4 MiB is checkpointed between
+batches (the writer commits nothing meanwhile, so the threshold is small: see
+`WAL_CHECKPOINT_BYTES`).
 
 ## What "durable" means
 
@@ -76,7 +77,7 @@ file record by record and removes it.
   shutdown may then not follow capture order (the `ts` column does).
 - A reader that holds a snapshot keeps the WAL from being reset. Ingest goes
   on and the log grows; when a passive checkpoint cannot catch up with the log
-  and the file is past twice `wal_checkpoint_bytes` (64 MiB by default),
+  and the log is past twice `wal_checkpoint_bytes` (4 MiB by default),
   `Stats::wal_blocked` is set. It clears with the first checkpoint that
   catches up after the reader has let go.
 - If the spill cannot be written either (disk full), the batch is dropped and

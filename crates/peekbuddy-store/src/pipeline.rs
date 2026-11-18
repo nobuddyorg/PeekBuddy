@@ -22,7 +22,7 @@ use std::time::{Duration, Instant};
 use crate::batch::Batch;
 use crate::policy::{Pending, Policy};
 use crate::spill::Spill;
-use crate::writer::{Commit, Cursor, WAL_CHECKPOINT_BYTES, WriteError, Writer};
+use crate::writer::{Commit, Cursor, PAGE_BYTES, WAL_CHECKPOINT_BYTES, WriteError, Writer};
 
 /// Quick retries of a commit before the writer reports itself failing.
 const COMMIT_ATTEMPTS: u32 = 3;
@@ -183,6 +183,11 @@ pub struct Stats {
     /// log is at least twice the checkpoint size after a checkpoint. Ingest
     /// continues and the log grows; the state clears when the reader lets go.
     pub wal_blocked: bool,
+    /// Checkpoints the writer ran, and the longest one in microseconds: the
+    /// writer commits nothing while it runs one.
+    pub checkpoints: u64,
+    /// See [`Stats::checkpoints`].
+    pub checkpoint_max_us: u64,
     /// The writer cannot commit right now and keeps retrying (a full disk,
     /// a read-only file). Pushes overflow to the spill file meanwhile; the
     /// state clears itself with the first commit that works.
@@ -225,6 +230,8 @@ struct Shared {
     failures: AtomicU64,
     failing: AtomicBool,
     wal_blocked: AtomicBool,
+    checkpoints: AtomicU64,
+    checkpoint_max_us: AtomicU64,
     torn_tail_bytes: u64,
 }
 
@@ -405,6 +412,8 @@ impl Pipeline {
             failures: AtomicU64::new(0),
             failing: AtomicBool::new(false),
             wal_blocked: AtomicBool::new(false),
+            checkpoints: AtomicU64::new(0),
+            checkpoint_max_us: AtomicU64::new(0),
             torn_tail_bytes,
         });
         let (for_writer, for_spiller) = (Arc::clone(&shared), Arc::clone(&shared));
@@ -449,6 +458,8 @@ impl Pipeline {
             commit_failures: self.shared.failures.load(Ordering::Relaxed),
             failing: self.shared.failing.load(Ordering::Relaxed),
             wal_blocked: self.shared.wal_blocked.load(Ordering::Relaxed),
+            checkpoints: self.shared.checkpoints.load(Ordering::Relaxed),
+            checkpoint_max_us: self.shared.checkpoint_max_us.load(Ordering::Relaxed),
             torn_tail_bytes: self.shared.torn_tail_bytes,
         }
     }
@@ -738,7 +749,7 @@ fn write_loop(
         ) {
             Work::Stop => return writer,
             Work::Checkpoint => {
-                let _ = writer.checkpoint_passive();
+                let _ = timed_checkpoint(&mut writer, shared);
                 dirty_since = None;
             }
             Work::CursorsOnly(cursors) => {
@@ -761,14 +772,15 @@ fn write_loop(
                 commit_group(&mut writer, shared, hooks, &mut batches, &target);
                 dirty_since.get_or_insert_with(Instant::now);
                 // Between batches under sustained churn: size-triggered.
-                if writer.wal_bytes() >= wal_checkpoint_bytes {
-                    // A checkpoint that cannot catch up with the log while the
-                    // file is past twice the threshold: a reader holds a
-                    // snapshot. The file keeps its size after the log is
-                    // reset, so the checkpoint's own answer decides.
-                    if let Ok((log, done)) = writer.checkpoint_passive() {
-                        let blocked = done < log
-                            && writer.wal_bytes() >= wal_checkpoint_bytes.saturating_mul(2);
+                if writer.wal_log_bytes() >= wal_checkpoint_bytes {
+                    // A checkpoint that cannot catch up with a log past twice
+                    // the threshold: a reader holds a snapshot. The file keeps
+                    // its size after the log is reset, so the log the
+                    // checkpoint reports decides, not the file.
+                    if let Ok((log, done)) = timed_checkpoint(&mut writer, shared) {
+                        let log_bytes = u64::try_from(log).unwrap_or(0) * PAGE_BYTES;
+                        let blocked =
+                            done < log && log_bytes >= wal_checkpoint_bytes.saturating_mul(2);
                         if shared.wal_blocked.swap(blocked, Ordering::Relaxed) != blocked {
                             tell(
                                 hooks,
@@ -785,6 +797,19 @@ fn write_loop(
             }
         }
     }
+}
+
+/// A passive checkpoint, counted and timed: the writer commits nothing while
+/// it runs.
+fn timed_checkpoint(writer: &mut Writer, shared: &Shared) -> Result<(i64, i64), WriteError> {
+    let began = Instant::now();
+    let result = writer.checkpoint_passive();
+    shared.checkpoints.fetch_add(1, Ordering::Relaxed);
+    shared.checkpoint_max_us.fetch_max(
+        u64::try_from(began.elapsed().as_micros()).unwrap_or(u64::MAX),
+        Ordering::Relaxed,
+    );
+    result
 }
 
 fn tell(hooks: &Hooks, health: Health) {
