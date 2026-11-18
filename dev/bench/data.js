@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1795002176175,
+  "lastUpdate": 1795002249878,
   "repoUrl": "https://github.com/nobuddyorg/PeekBuddy",
   "entries": {
     "benches (windows-2025)": [
@@ -3369,6 +3369,58 @@ window.BENCHMARK_DATA = {
           {
             "name": "query.subtree_resolve_10m",
             "value": 9961154.678362574,
+            "unit": "ns"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "name": "Matthias Eggert",
+            "username": "besessener",
+            "email": "8039350+besessener@users.noreply.github.com"
+          },
+          "committer": {
+            "name": "GitHub",
+            "username": "web-flow",
+            "email": "noreply@github.com"
+          },
+          "id": "22edfd7c71251f88f61ea679eaab09fbf60fcf23",
+          "message": "ci: exclude the mutant that freezes the runner (#513)\n\nMutation shard 30 lost its runner with no log on slice 212 of the\nnightly of 2026-11-17 and slice 213 of 2026-11-18. Both slices hold\nsuspend.rs, and != for == on the owner of a thread makes\nsuspend_process suspend every thread of every other process, the\nrunner agent included. Listed with a comment like the other runaway\nmutants.\n\nCo-authored-by: Matthias Eggert <dem.matze@gmail.com>\nCo-authored-by: Claude Sonnet 5.5 <noreply@anthropic.com>",
+          "timestamp": "2026-11-18T09:13:40Z",
+          "url": "https://github.com/nobuddyorg/PeekBuddy/commit/22edfd7c71251f88f61ea679eaab09fbf60fcf23"
+        },
+        "date": 1795002247883,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "query.changes_since_1m",
+            "value": 1434674350,
+            "unit": "ns"
+          },
+          {
+            "name": "query.filtered_first_1m",
+            "value": 5035228.50877193,
+            "unit": "ns"
+          },
+          {
+            "name": "query.fts_lookup_10m",
+            "value": 23879902.631578945,
+            "unit": "ns"
+          },
+          {
+            "name": "query.page_keyset_10m",
+            "value": 1608376.875,
+            "unit": "ns"
+          },
+          {
+            "name": "query.regex_post_filter_1m",
+            "value": 2639379500,
+            "unit": "ns"
+          },
+          {
+            "name": "query.subtree_resolve_10m",
+            "value": 7116749.107142857,
             "unit": "ns"
           }
         ]
