@@ -597,9 +597,9 @@ limit = 50000
 class = "timing"
 gate = "nightly-trend"
 scenario = "owner-run"
-status = "provisional"
+status = "calibrated"
 source = "#35 (77k to 83k events/s measured; the 100k/s burst needs the ring of about 170k records or the spill, see ADR 0004)"
-workload = "spikes/store-bench commit cells, replaced by the writer bench (#52)"
+workload = "the writer bench store/batch_insert_1000 (1,000 rows and a commit per iteration; the trend runs 2.0 to 4.4 ms, 228k to 500k rows/s)"
 how = "store-bench JSONL, later the writer bench (#26)"
 arch = ["x86_64", "aarch64"]
 
