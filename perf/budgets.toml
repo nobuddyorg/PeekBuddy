@@ -597,10 +597,10 @@ limit = 15
 class = "timing"
 gate = "nightly-trend"
 scenario = "owner-run"
-status = "provisional"
+status = "calibrated"
 source = "#35 (6.3 ms measured on windows-2025; limit is about twice that)"
-workload = "spikes/store-bench commit cells, replaced by the writer bench (#52)"
-how = "store-bench JSONL, later the writer bench (#26)"
+workload = "10k events/s paced in batches of 8, a real on-disk writer (the ignored test ingest_rate of peekbuddy-store); owner PC: write per commit p50 1.0 ms, p99 3.0 to 3.4 ms, max 13 to 15 ms"
+how = "cargo test --release -p peekbuddy-store --test ingest_rate -- --ignored --nocapture: `write per commit` of the report (CommitInfo::write_us)"
 arch = ["x86_64", "aarch64"]
 
 [[budget]]
