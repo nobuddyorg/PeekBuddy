@@ -49,6 +49,12 @@ exclude_re = [
   # lost their runners on these in two full runs.
   "crates/peekbuddy-core/src/reconcile/dirinfo.rs:.*Iterator for Entries.*::next.*with Some",
   "crates/peekbuddy-win/src/single_instance.rs:.*replace SingleInstance::acquire.*with Ok.Some",
+  # `!=` for `==` on the owner of a thread makes `suspend_process` suspend
+  # every thread of every other process: the runner agent, the shell and
+  # nextest freeze with the test, and the shard dies with no log. Shard 30
+  # lost its runner on slices 212 (Tuesday) and 213 (Wednesday), which both
+  # hold `suspend.rs`. The function is tested by the forced-overflow tests.
+  "crates/peekbuddy-win/src/suspend.rs:.*replace == with != in suspend_process",
   "logging",
   # Compiled only with the `tracy` feature, which no test enables: the value
   # of the "page fetch ms" plot.
