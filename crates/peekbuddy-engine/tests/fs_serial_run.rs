@@ -319,17 +319,22 @@ impl Running {
         let _ = client.receive().unwrap();
     }
 
-    /// Waits for `done`; a timeout says what the log held, so a failure on
-    /// a runner shows what the engine did.
+    /// Waits for `done`; a timeout says what the log held last, so a failure
+    /// on a runner shows what the engine did. Only the newest rows go into the
+    /// message: a whole log is too long for a runner's log, which then ends
+    /// before the message does.
     fn wait(&self, what: &str, mut done: impl FnMut() -> bool) {
         let until = Instant::now() + Duration::from_secs(90);
         while !done() {
             assert!(
                 Instant::now() < until,
-                "timed out waiting for {what}; the log holds {:?}",
+                "timed out waiting for {what}; {} rows, the newest {:?}",
+                rows(&self.data).len(),
                 rows(&self.data)
                     .iter()
-                    .map(|row| (row.kind, String::from_utf16_lossy(&row.path)))
+                    .rev()
+                    .take(12)
+                    .map(|row| (row.id, row.kind, String::from_utf16_lossy(&row.path)))
                     .collect::<Vec<_>>()
             );
             std::thread::sleep(Duration::from_millis(50));
