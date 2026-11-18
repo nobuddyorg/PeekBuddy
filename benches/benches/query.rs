@@ -20,8 +20,10 @@
 use std::sync::Arc;
 
 use criterion::{Criterion, Throughput};
+use peekbuddy_core::export::{Format, Options};
 use peekbuddy_core::filter::{FilterSet, Pattern, Rule};
 use peekbuddy_core::query::{CancelFlag, Direction, Filter, PageRequest};
+use peekbuddy_store::export::{Job, Progress, export_file};
 use peekbuddy_store::read::Reader;
 
 #[path = "support/store.rs"]
@@ -65,6 +67,30 @@ fn changes_since(
                 .map(|set| set.summary.rows.len())
         });
     });
+}
+
+/// A CSV export of every row, to a file in `dir`: the read of the rows (the
+/// segment is opened per page), the formatting and the disk (`export.1m_rows`).
+fn export_all(
+    group: &mut criterion::BenchmarkGroup<'_, criterion::measurement::WallTime>,
+    reader: &Reader,
+    cancel: &CancelFlag,
+    rows: u64,
+    dir: &std::path::Path,
+) {
+    let job = Job {
+        filter: Filter::default(),
+        format: Format::Csv,
+        options: Options::default(),
+    };
+    let target = dir.join("export-bench.csv");
+    let offset = |_: u64| 0_i32;
+    group.throughput(Throughput::Elements(rows));
+    group.sample_size(10);
+    group.bench_function("export_1m_rows", |b| {
+        b.iter(|| export_file(reader, &job, &target, &offset, cancel, &Progress::default()));
+    });
+    let _ = std::fs::remove_file(&target);
 }
 
 #[expect(
@@ -150,6 +176,7 @@ fn main() {
                 });
             });
             changes_since(&mut group, &reader, &cancel, rows);
+            export_all(&mut group, &reader, &cancel, rows, &dir);
             // Time to the first filtered rows with a glob that one row in a
             // thousand matches: calls until one has a row.
             let glob =
