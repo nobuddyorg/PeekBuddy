@@ -325,12 +325,20 @@ fn ingest() {
     let sightings = sightings_of(&data, &root_units, &probes);
     // The commits of 100 ms and more the engine wrote to its log: what a
     // latency of that size is made of.
-    let slow_commits: Vec<String> = std::fs::read_to_string(data.join("logs").join("engine.log"))
-        .unwrap_or_default()
+    let engine_log =
+        std::fs::read_to_string(data.join("logs").join("engine.log")).unwrap_or_default();
+    let slow_commits: Vec<String> = engine_log
         .lines()
         .filter(|line| line.contains("slow commit"))
         .map(str::to_owned)
         .collect();
+    // `capture: slowest re-arm 312 us, 4 reconciles`, written as the capture stops.
+    let rearm_max_ms: Option<f64> = engine_log
+        .lines()
+        .filter_map(|line| line.split("capture: slowest re-arm ").nth(1))
+        .filter_map(|rest| rest.split(' ').next()?.parse::<f64>().ok())
+        .next_back()
+        .map(|us| us / 1_000.0);
 
     let verdict = judge(
         &Run {
@@ -371,6 +379,7 @@ fn ingest() {
         "toStampP99Ms": percentile(&to_stamp, 99.0),
         "toDurableP50Ms": percentile(&to_durable, 50.0),
         "toDurableP99Ms": percentile(&to_durable, 99.0),
+        "rearmMaxMs": rearm_max_ms,
         "slowCommits": slow_commits.len(),
         "slowCommitSamples": slow_commits.iter().take(10).collect::<Vec<_>>(),
         "summary": verdict.summary.lines().next().unwrap_or_default(),

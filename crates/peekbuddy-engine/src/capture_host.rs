@@ -681,7 +681,13 @@ impl Host {
             reconciler.stop();
         }
         if let Some(watcher) = lock(&self.inner.watcher).take() {
-            let _ = watcher.stop();
+            let metrics = watcher.stop();
+            // The slowest re-arm of the run (`capture.rearm_latency`): the
+            // perf harness reads it from the log after the engine is gone.
+            crate::instrument::log(&format!(
+                "capture: slowest re-arm {} us, {} reconciles",
+                metrics.rearm_max_us, metrics.reconciles
+            ));
         }
         if let Some(parents) = lock(&self.inner.parents).take() {
             let _ = parents.stop();
