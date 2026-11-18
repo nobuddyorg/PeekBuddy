@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1795002249878,
+  "lastUpdate": 1795002287088,
   "repoUrl": "https://github.com/nobuddyorg/PeekBuddy",
   "entries": {
     "benches (windows-2025)": [
@@ -1525,6 +1525,98 @@ window.BENCHMARK_DATA = {
           {
             "name": "viewer/scroll_frame_p99",
             "value": 491400,
+            "unit": "ns"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "name": "Matthias Eggert",
+            "username": "besessener",
+            "email": "8039350+besessener@users.noreply.github.com"
+          },
+          "committer": {
+            "name": "GitHub",
+            "username": "web-flow",
+            "email": "noreply@github.com"
+          },
+          "id": "22edfd7c71251f88f61ea679eaab09fbf60fcf23",
+          "message": "ci: exclude the mutant that freezes the runner (#513)\n\nMutation shard 30 lost its runner with no log on slice 212 of the\nnightly of 2026-11-17 and slice 213 of 2026-11-18. Both slices hold\nsuspend.rs, and != for == on the owner of a thread makes\nsuspend_process suspend every thread of every other process, the\nrunner agent included. Listed with a comment like the other runaway\nmutants.\n\nCo-authored-by: Matthias Eggert <dem.matze@gmail.com>\nCo-authored-by: Claude Sonnet 5.5 <noreply@anthropic.com>",
+          "timestamp": "2026-11-18T09:13:40Z",
+          "url": "https://github.com/nobuddyorg/PeekBuddy/commit/22edfd7c71251f88f61ea679eaab09fbf60fcf23"
+        },
+        "date": 1795002285283,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "filter/eval_6_names",
+            "value": 1476.7158940641934,
+            "unit": "ns"
+          },
+          {
+            "name": "metrics/process_list_300",
+            "value": 445.4871341126775,
+            "unit": "ns"
+          },
+          {
+            "name": "notify_parse/extended/64kib",
+            "value": 1254.3609534984425,
+            "unit": "ns"
+          },
+          {
+            "name": "notify_parse/full/64kib",
+            "value": 1273.951784494298,
+            "unit": "ns"
+          },
+          {
+            "name": "notify_parse/plain/64kib",
+            "value": 2193.4730413896395,
+            "unit": "ns"
+          },
+          {
+            "name": "perf/counters_event",
+            "value": 0.23850091434642345,
+            "unit": "ns"
+          },
+          {
+            "name": "perf/milestone_record",
+            "value": 10.220331679042975,
+            "unit": "ns"
+          },
+          {
+            "name": "reparse/classify_8",
+            "value": 12.427846468102466,
+            "unit": "ns"
+          },
+          {
+            "name": "rules/eval_6_events_50_rules",
+            "value": 27520.40132892216,
+            "unit": "ns"
+          },
+          {
+            "name": "store/batch_insert_1000",
+            "value": 2222018.291170635,
+            "unit": "ns"
+          },
+          {
+            "name": "store/intern_hit_1000",
+            "value": 35188.16364796126,
+            "unit": "ns"
+          },
+          {
+            "name": "store/intern_miss_1000",
+            "value": 2446460.476190476,
+            "unit": "ns"
+          },
+          {
+            "name": "viewer/scroll_frame_p95",
+            "value": 333875,
+            "unit": "ns"
+          },
+          {
+            "name": "viewer/scroll_frame_p99",
+            "value": 364375,
             "unit": "ns"
           }
         ]
