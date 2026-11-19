@@ -49,6 +49,12 @@ exclude_re = [
   # lost their runners on these in two full runs.
   "crates/peekbuddy-core/src/reconcile/dirinfo.rs:.*Iterator for Entries.*::next.*with Some",
   "crates/peekbuddy-win/src/single_instance.rs:.*replace SingleInstance::acquire.*with Ok.Some",
+  # `+=` or `/=` for `-=` on the count of owed gap rows never reaches zero:
+  # `flush_owed` pushes rows into the test sink until the test times out. On
+  # the runner that took 15 GB in 30 s and the shard died with "the runner
+  # has received a shutdown signal" (slice 25/28 of core, three times on
+  # 2026-11-19); locally the same mutant holds a test for 18 to 31 s.
+  "crates/peekbuddy-core/src/usn/feed/mod.rs:.*replace -= with .* in Feed::flush_owed",
   # `!=` for `==` on the owner of a thread makes `suspend_process` suspend
   # every thread of every other process: the runner agent, the shell and
   # nextest freeze with the test, and the shard dies with no log. Shard 30
