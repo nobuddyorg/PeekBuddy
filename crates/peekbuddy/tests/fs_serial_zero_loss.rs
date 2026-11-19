@@ -207,6 +207,52 @@ fn report(name: &str, ops: usize, verdict: &judge::Verdict, tree_differences: us
     writeln!(file, "{line}").unwrap();
 }
 
+/// When the walks and gaps of the log were, and when the operations on the
+/// first paths of `diff` ran, in milliseconds from the first operation: where
+/// a path that the replay and the disk disagree about falls among the
+/// listings of the walks.
+fn timeline(run: &Run, outcome: &peekbuddy_churn::exec::Outcome, diff: &[String]) -> Vec<String> {
+    let Some(zero) = outcome.records.iter().map(|record| record.t_start).min() else {
+        return Vec::new();
+    };
+    let at = |ticks: u64| i128::from(ticks) / 10_000 - i128::from(zero) / 10_000;
+    let mut lines: Vec<String> = all_rows(&run.data)
+        .iter()
+        .filter(|row| {
+            row.kind.is_gap()
+                || matches!(
+                    row.kind,
+                    Kind::ReconcileStarted | Kind::ReconcileFinished | Kind::BaselineEstablished
+                )
+        })
+        .map(|row| format!("row {} {:?} +{} ms", row.id, row.kind, at(row.ts)))
+        .collect();
+    for path in diff.iter().filter_map(|line| line.get(2..)).take(2) {
+        let name = path.to_lowercase();
+        lines.extend(
+            outcome
+                .records
+                .iter()
+                .filter(|record| {
+                    record
+                        .paths
+                        .iter()
+                        .any(|p| p.to_lowercase().ends_with(&name))
+                })
+                .map(|record| {
+                    format!(
+                        "op {} {:?} result {} +{} ms",
+                        record.seq,
+                        record.op,
+                        record.result,
+                        at(record.t_end)
+                    )
+                }),
+        );
+    }
+    lines
+}
+
 /// Asserts the things every nightly run owes and reports the numbers.
 fn nightly_verdict(name: &str, run: &Run, outcome: &peekbuddy_churn::exec::Outcome) {
     verdict_with(name, run, outcome, false);
@@ -235,14 +281,15 @@ fn verdict_with(name: &str, run: &Run, outcome: &peekbuddy_churn::exec::Outcome,
     assert_eq!(
         diff,
         Vec::<String>::new(),
-        "{name}: the replayed log differs from the disk: {}; {}; rows of the first paths {:?}",
+        "{name}: the replayed log differs from the disk: {}; {}; rows of the first paths {:?};          timeline {:?}",
         verdict.summary,
         engine::reconcile_state(&run.data),
         diff.iter()
             .filter_map(|line| line.get(2..))
             .take(3)
             .map(|path| (path, tree::history(run, path)))
-            .collect::<Vec<_>>()
+            .collect::<Vec<_>>(),
+        timeline(run, outcome, &diff)
     );
 }
 
