@@ -37,6 +37,24 @@ fn custom_event_guids_map_to_notices() {
 }
 
 #[test]
+fn a_guid_that_differs_in_any_one_field_is_not_a_known_event() {
+    for known in [GUID_IO_VOLUME_LOCK, GUID_IO_VOLUME_FVE_STATUS_CHANGE] {
+        let mut other = known;
+        other.data1 ^= 1;
+        assert_eq!(notice_of_event(&other), None);
+        let mut other = known;
+        other.data2 ^= 1;
+        assert_eq!(notice_of_event(&other), None);
+        let mut other = known;
+        other.data3 ^= 1;
+        assert_eq!(notice_of_event(&other), None);
+        let mut other = known;
+        other.data4[7] ^= 1;
+        assert_eq!(notice_of_event(&other), None);
+    }
+}
+
+#[test]
 fn plain_actions_map_to_notices() {
     assert_eq!(
         notice_of_action(CM_NOTIFY_ACTION_DEVICEQUERYREMOVE),
