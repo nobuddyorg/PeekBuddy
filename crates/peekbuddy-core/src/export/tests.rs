@@ -480,3 +480,38 @@ fn csv_errors_carry_the_line_they_happened_on() {
     assert_eq!(at("x").line, 1);
     assert_eq!(read_csv("", ReadOptions::default()).unwrap(), []);
 }
+
+#[test]
+fn a_csv_with_exactly_the_documented_columns_reads_without_the_side_column() {
+    let rows = vec![row(1, NOON, Kind::Modified, Source::Rdcw, "a")];
+    let csv = export(&rows, Format::Csv, Options::default(), &utc);
+    // Drop root_utf16, the last cell of the header and of the row.
+    let mut trimmed = String::new();
+    for line in csv.split_inclusive("\r\n") {
+        let body = line.trim_end_matches("\r\n");
+        let (head, _) = body.rsplit_once(',').unwrap();
+        trimmed.push_str(head);
+        trimmed.push_str("\r\n");
+    }
+    assert_eq!(
+        trimmed.lines().next().unwrap().split(',').count(),
+        COLUMNS.len()
+    );
+    assert_eq!(read_csv(&trimmed, ReadOptions::default()).unwrap(), rows);
+}
+
+#[test]
+fn a_last_record_that_ends_in_a_comma_has_its_empty_cell() {
+    let header = COLUMNS.join(",");
+    let text = format!("{header}\r\n1,");
+    let error = read_csv(&text, ReadOptions::default()).unwrap_err();
+    assert_eq!((error.line, error.what.as_str()), (2, "too few columns"));
+}
+
+#[test]
+fn a_jsonl_error_names_its_line_among_blank_lines() {
+    let error = read_jsonl("\n{oops").unwrap_err();
+    assert_eq!(error.line, 2);
+    let error = read_jsonl("\n\n[1]\n").unwrap_err();
+    assert_eq!((error.line, error.what.as_str()), (3, "not an object"));
+}
