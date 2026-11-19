@@ -575,3 +575,30 @@ fn an_unknown_key_in_the_command_table_is_found() {
         messages(&text)
     );
 }
+
+#[test]
+fn a_hundred_rules_load_and_one_more_is_refused() {
+    let file = |count: usize| {
+        let mut text = String::from(
+            "version = 1
+",
+        );
+        for index in 0..count {
+            text.push_str(&format!(
+                "
+[[rule]]
+name = \"r{index}\"
+threshold = 1
+window_s = 1
+"
+            ));
+        }
+        text
+    };
+    let Loaded::Ok { settings, .. } = load(&file(crate::rules::MAX_RULES), &ctx()) else {
+        panic!("{}", messages(&file(crate::rules::MAX_RULES)));
+    };
+    assert_eq!(settings.rules.len(), crate::rules::MAX_RULES);
+    let text = messages(&file(crate::rules::MAX_RULES + 1));
+    assert!(text.contains("at most 100 rules"), "{text}");
+}
