@@ -55,6 +55,9 @@ exclude_re = [
   # lost its runner on slices 212 (Tuesday) and 213 (Wednesday), which both
   # hold `suspend.rs`. The function is tested by the forced-overflow tests.
   "crates/peekbuddy-win/src/suspend.rs:.*replace == with != in suspend_process",
+  # Equivalent: without the `!`, a page that ends the log is followed by one
+  # more read of an empty page, which has no newest row and returns.
+  "crates/peekbuddy-engine/src/live_log.rs:191:16: delete ! in .impl LiveLog for StoreLiveLog.::created_since_last_walk",
   "logging",
   # Compiled only with the `tracy` feature, which no test enables: the value
   # of the "page fetch ms" plot.
