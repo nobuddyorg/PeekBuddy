@@ -409,3 +409,170 @@ fn timing_of_a_pass_over_a_kept_store() {
         started.elapsed()
     );
 }
+
+#[test]
+fn a_path_key_is_the_hash_of_the_joined_path_whatever_its_case() {
+    use peekbuddy_store::read::changes::path_key;
+
+    let key = path_key(&units(r"C:\Watched\a.txt"));
+    assert_eq!(key, path_key(&units(r"c:\WATCHED\A.TXT")));
+    assert_ne!(key, path_key(&units(r"C:\Watched\b.txt")));
+    assert_ne!(key, path_key(&[]));
+    assert_ne!(path_key(&[]), path_key(&units("a")));
+    // The directory, the backslash and the name hash as the joined path.
+    let mut joined = units(r"C:\Watched");
+    joined.push(u16::from(b'\\'));
+    joined.extend(units("a.txt"));
+    assert_eq!(key, path_key(&joined));
+}
+
+#[test]
+fn the_same_name_in_two_directories_is_two_changes() {
+    let dir = Dir::new("twins");
+    let mut writer = open(dir.path());
+    writer
+        .write(
+            &[batch(&[
+                (10, Kind::Created, r"x\a\f.txt", 1),
+                (11, Kind::Created, r"y\a\f.txt", 2),
+                (12, Kind::Created, r"f.txt", 3),
+                (13, Kind::Created, r"x\f.txt", 4),
+            ])],
+            &[],
+        )
+        .unwrap();
+    let paths: Vec<String> = rows(&changes(dir.path(), 0))
+        .into_iter()
+        .map(|(_, path, _)| path)
+        .collect();
+    assert_eq!(
+        paths,
+        [
+            r"C:\Watched\f.txt",
+            r"C:\Watched\x\a\f.txt",
+            r"C:\Watched\x\f.txt",
+            r"C:\Watched\y\a\f.txt",
+        ]
+    );
+}
+
+#[test]
+fn a_name_that_is_not_utf16_text_is_still_a_change() {
+    let dir = Dir::new("wide");
+    let mut writer = open(dir.path());
+    let mut batch = Batch::with_capacity(2, 256);
+    // A lone high surrogate cannot be stored as text.
+    let name = [u16::from(b'a'), 0xD800, u16::from(b'b')];
+    batch.push(event(10, Kind::Created, 1), &name).unwrap();
+    writer.write(&[batch], &[]).unwrap();
+    let set = changes(dir.path(), 0);
+    assert_eq!(set.summary.rows.len(), 1);
+    assert_eq!(set.summary.rows[0].kind, NetKind::Created);
+}
+
+#[test]
+fn a_sealed_segment_that_ends_at_the_marker_is_not_read() {
+    let dir = Dir::new("sealed");
+    let mut writer = open(dir.path());
+    writer
+        .write(&[batch(&[(10, Kind::Created, "one.txt", 1)])], &[])
+        .unwrap();
+    writer
+        .write(&[batch(&[(DAY + 1, Kind::Created, "two.txt", 2)])], &[])
+        .unwrap();
+    writer.wait_background();
+    let reader = Reader::new(dir.path());
+    let mut all = Vec::new();
+    let both = reader
+        .changes_since(0, &CancelFlag::new(), &mut |p| all.push(p))
+        .unwrap();
+    assert_eq!(both.summary.rows.len(), 2);
+    let last = all.last().copied().unwrap();
+    assert_eq!((last.segments_done, last.segments), (2, 2));
+
+    // The newest row of the first day is the marker.
+    let marker = reader.id_before(DAY).unwrap();
+    let mut seen = Vec::new();
+    let after = reader
+        .changes_since(marker, &CancelFlag::new(), &mut |p| seen.push(p))
+        .unwrap();
+    assert_eq!(after.summary.rows.len(), 1);
+    let last = seen.last().copied().unwrap();
+    assert_eq!((last.segments_done, last.segments), (1, 1));
+}
+
+#[test]
+fn a_short_list_is_alphabetical_whatever_the_case_and_the_order_seen() {
+    let dir = Dir::new("alpha");
+    let mut writer = open(dir.path());
+    writer
+        .write(
+            &[batch(&[
+                (10, Kind::Created, "b.txt", 1),
+                (11, Kind::Created, "C.txt", 2),
+                (12, Kind::Created, "a.txt", 3),
+            ])],
+            &[],
+        )
+        .unwrap();
+    let paths: Vec<String> = rows(&changes(dir.path(), 0))
+        .into_iter()
+        .map(|(_, path, _)| path)
+        .collect();
+    assert_eq!(
+        paths,
+        [
+            r"C:\Watched\a.txt",
+            r"C:\Watched\b.txt",
+            r"C:\Watched\C.txt"
+        ]
+    );
+}
+
+#[test]
+fn a_file_and_a_directory_that_spell_the_same_without_the_slash_differ() {
+    let dir = Dir::new("slash");
+    let mut writer = open(dir.path());
+    writer
+        .write(
+            &[batch(&[
+                (10, Kind::Created, r"x\ab", 1),
+                (11, Kind::Created, r"xa\b", 2),
+            ])],
+            &[],
+        )
+        .unwrap();
+    assert_eq!(changes(dir.path(), 0).summary.rows.len(), 2);
+}
+
+#[test]
+fn every_root_with_a_gap_is_named_by_its_own_path() {
+    let dir = Dir::new("two-roots");
+    let mut writer = open(dir.path());
+    writer
+        .register_root(&RootInfo {
+            idx: RootIdx(1),
+            vol: VolInfo {
+                guid: String::from("vol-1"),
+                serial: 1,
+                letter: Some(String::from("C:")),
+                journal_id: None,
+            },
+            path: units(r"\\?\C:\Other"),
+            recursive: true,
+        })
+        .unwrap();
+    let mut gaps = Batch::with_capacity(3, 256);
+    for (ts, root) in [(10, 0), (11, 1)] {
+        let mut gap = event(ts, Kind::Overflow(GapReason::RingFull), 0);
+        gap.root = RootIdx(root);
+        gaps.push(gap, &[]).unwrap();
+    }
+    writer.write(&[gaps], &[]).unwrap();
+    let set = changes(dir.path(), 0);
+    assert_eq!(set.summary.gaps.len(), 2);
+    let mut named: Vec<&str> = set.roots.values().map(String::as_str).collect();
+    named.sort_unstable();
+    assert_eq!(named, [r"\\?\C:\Other", r"\\?\C:\Watched"]);
+    assert_ne!(set.summary.gaps[0].root, set.summary.gaps[1].root);
+}

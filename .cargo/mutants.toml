@@ -55,6 +55,15 @@ exclude_re = [
   # lost its runner on slices 212 (Tuesday) and 213 (Wednesday), which both
   # hold `suspend.rs`. The function is tested by the forced-overflow tests.
   "crates/peekbuddy-win/src/suspend.rs:.*replace == with != in suspend_process",
+  # Equivalent: the cache of directory states only saves work. Clearing it
+  # more often gives the same keys, a few more reads.
+  "crates/peekbuddy-store/src/read/changes.rs:.*replace >= with < in Run::scan",
+  # Equivalent: a name without a key here is keyed from its whole path, which
+  # is the same value.
+  "crates/peekbuddy-store/src/read/changes.rs:.*replace leaf_key .* with None",
+  # Equivalent: another midpoint of the binary search for the id before a
+  # time finds the same id; only the number of steps changes.
+  "crates/peekbuddy-store/src/read/changes.rs:281:46: replace / with . in Reader::id_before",
   # Equivalent: without the `!`, a page that ends the log is followed by one
   # more read of an empty page, which has no newest row and returns.
   "crates/peekbuddy-engine/src/live_log.rs:191:16: delete ! in .impl LiveLog for StoreLiveLog.::created_since_last_walk",
