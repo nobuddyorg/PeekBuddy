@@ -332,7 +332,6 @@ impl Running {
                 rows(&self.data).len(),
                 rows(&self.data)
                     .iter()
-                    .rev()
                     .take(12)
                     .map(|row| (row.id, row.kind, String::from_utf16_lossy(&row.path)))
                     .collect::<Vec<_>>()
@@ -374,9 +373,13 @@ fn a_root_that_is_deleted_and_comes_back_is_watched_again() {
     engine.wait("the root to be watched again", || {
         engine.state_rows(WatchState::Live) > lives || engine.has_state(WatchState::Restored)
     });
+    // A new file every time: one that the walk after the restore found is
+    // logged as reconciled, and only a file made once the watch is armed is
+    // a live `Created`.
     engine.wait("a file of the new root", || {
-        std::fs::write(engine.tree.join("again.txt"), b"x").is_ok()
-            && engine.has_row(Kind::Created, "again.txt")
+        let file = engine.tree.join("again.txt");
+        let _ = std::fs::remove_file(&file);
+        std::fs::write(&file, b"x").is_ok() && engine.has_row(Kind::Created, "again.txt")
     });
     engine.stop();
 }
@@ -396,8 +399,9 @@ fn a_root_two_levels_below_a_deleted_directory_is_watched_once_it_exists_again()
         engine.state_rows(WatchState::Live) > lives || engine.has_state(WatchState::Restored)
     });
     engine.wait("a file below the root", || {
-        std::fs::write(engine.tree.join(r"a\b\file.txt"), b"x").is_ok()
-            && engine.has_row(Kind::Created, "file.txt")
+        let file = engine.tree.join(r"a\b\file.txt");
+        let _ = std::fs::remove_file(&file);
+        std::fs::write(&file, b"x").is_ok() && engine.has_row(Kind::Created, "file.txt")
     });
     engine.stop();
 }
