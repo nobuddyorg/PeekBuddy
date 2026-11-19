@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1795084426507,
+  "lastUpdate": 1795084567687,
   "repoUrl": "https://github.com/nobuddyorg/PeekBuddy",
   "entries": {
     "benches (windows-2025)": [
@@ -1617,6 +1617,98 @@ window.BENCHMARK_DATA = {
           {
             "name": "viewer/scroll_frame_p99",
             "value": 364375,
+            "unit": "ns"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "name": "Matthias Eggert",
+            "username": "besessener",
+            "email": "8039350+besessener@users.noreply.github.com"
+          },
+          "committer": {
+            "name": "GitHub",
+            "username": "web-flow",
+            "email": "noreply@github.com"
+          },
+          "id": "41ff7b00c387f20ea4409388abcb6a1202a85c83",
+          "message": "test: pin the reconcile lookup of the live log (#527)\n\nThe lookup that finds where a walk reads the live rows from had 11\nmissed mutants (#365). Nine tests on a real store: the newest walk\nthat was not cancelled, a baseline, two roots (one inside the other),\nmore rows than a page, a callback that stops. Mutants on live_log.rs:\n37 caught, 0 missed; one equivalent mutant is excluded.\n\nCo-authored-by: Matthias Eggert <dem.matze@gmail.com>\nCo-authored-by: Claude Sonnet 5.5 <noreply@anthropic.com>",
+          "timestamp": "2026-11-19T10:13:14Z",
+          "url": "https://github.com/nobuddyorg/PeekBuddy/commit/41ff7b00c387f20ea4409388abcb6a1202a85c83"
+        },
+        "date": 1795084565654,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "filter/eval_6_names",
+            "value": 1551.7596616030426,
+            "unit": "ns"
+          },
+          {
+            "name": "metrics/process_list_300",
+            "value": 946.4541700511713,
+            "unit": "ns"
+          },
+          {
+            "name": "notify_parse/extended/64kib",
+            "value": 2268.8257455654257,
+            "unit": "ns"
+          },
+          {
+            "name": "notify_parse/full/64kib",
+            "value": 2301.4084829562785,
+            "unit": "ns"
+          },
+          {
+            "name": "notify_parse/plain/64kib",
+            "value": 4613.730892201631,
+            "unit": "ns"
+          },
+          {
+            "name": "perf/counters_event",
+            "value": 0.27461678673019385,
+            "unit": "ns"
+          },
+          {
+            "name": "perf/milestone_record",
+            "value": 4.791613547411133,
+            "unit": "ns"
+          },
+          {
+            "name": "reparse/classify_8",
+            "value": 17.289412302309493,
+            "unit": "ns"
+          },
+          {
+            "name": "rules/eval_6_events_50_rules",
+            "value": 28783.798309178746,
+            "unit": "ns"
+          },
+          {
+            "name": "store/batch_insert_1000",
+            "value": 3011948.765432099,
+            "unit": "ns"
+          },
+          {
+            "name": "store/intern_hit_1000",
+            "value": 48357.05417759135,
+            "unit": "ns"
+          },
+          {
+            "name": "store/intern_miss_1000",
+            "value": 3249384.6666666665,
+            "unit": "ns"
+          },
+          {
+            "name": "viewer/scroll_frame_p95",
+            "value": 357475,
+            "unit": "ns"
+          },
+          {
+            "name": "viewer/scroll_frame_p99",
+            "value": 426100,
             "unit": "ns"
           }
         ]
