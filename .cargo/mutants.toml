@@ -64,6 +64,11 @@ exclude_re = [
   # Equivalent: another midpoint of the binary search for the id before a
   # time finds the same id; only the number of steps changes.
   "crates/peekbuddy-store/src/read/changes.rs:281:46: replace / with . in Reader::id_before",
+  # Equivalent: whether a filter scans in windows or in one statement, and
+  # when a scan hands back a resume cursor, changes the time a page takes,
+  # not the rows the viewer gets in the end.
+  "crates/peekbuddy-store/src/read/mod.rs:.*(replace \\|= with &=|delete !) in SegmentQuery::build",
+  "crates/peekbuddy-store/src/read/mod.rs:408:.*replace && with .. in Walk.*::scan",
   # Equivalent: without the `!`, a page that ends the log is followed by one
   # more read of an empty page, which has no newest row and returns.
   "crates/peekbuddy-engine/src/live_log.rs:191:16: delete ! in .impl LiveLog for StoreLiveLog.::created_since_last_walk",
