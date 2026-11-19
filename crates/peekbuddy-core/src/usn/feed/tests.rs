@@ -307,6 +307,10 @@ fn a_buffer_without_a_header_is_an_error_and_a_gap() {
     assert_eq!(error, DecodeError::NoHeader);
     let kinds: Vec<_> = sink.rows.iter().map(|(e, _)| e.kind).collect();
     assert_eq!(kinds, [Kind::Overflow(GapReason::ParserError)]);
+    assert_eq!(feed.counters().parse_errors, 1);
+    feed.decode(&[1, 2, 3], STAMP, &mut Fs::default(), &mut sink)
+        .unwrap_err();
+    assert_eq!(feed.counters().parse_errors, 2);
 }
 
 #[test]
@@ -384,6 +388,20 @@ fn a_name_longer_than_an_event_can_hold_is_cut_and_flagged_not_dropped() {
     let (event, name) = one(&sink.rows);
     assert_eq!(name.len(), MAX_NAME_UNITS);
     assert_eq!(event.flags, Flags::NAME_UNRESOLVED);
+}
+
+#[test]
+fn a_name_that_just_fits_is_not_flagged() {
+    let mut feed = feed();
+    let mut sink = Sink::default();
+    // The path of the record is exactly as long as an event can hold.
+    let fits = "x".repeat(MAX_NAME_UNITS);
+    let buf = batch(9, &[spec(200, ROOT, &fits, 50, reason::FILE_CREATE, FILE)]);
+    feed.decode(&buf, STAMP, &mut Fs::default(), &mut sink)
+        .unwrap();
+    let (event, name) = one(&sink.rows);
+    assert_eq!(name.len(), MAX_NAME_UNITS);
+    assert_eq!(event.flags, Flags::NONE);
 }
 
 #[test]
