@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1795002287088,
+  "lastUpdate": 1795084412509,
   "repoUrl": "https://github.com/nobuddyorg/PeekBuddy",
   "entries": {
     "benches (windows-2025)": [
@@ -2163,6 +2163,38 @@ window.BENCHMARK_DATA = {
           {
             "name": "durability.restart_to_ready.max",
             "value": 204,
+            "unit": "ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "name": "Matthias Eggert",
+            "username": "besessener",
+            "email": "8039350+besessener@users.noreply.github.com"
+          },
+          "committer": {
+            "name": "GitHub",
+            "username": "web-flow",
+            "email": "noreply@github.com"
+          },
+          "id": "41ff7b00c387f20ea4409388abcb6a1202a85c83",
+          "message": "test: pin the reconcile lookup of the live log (#527)\n\nThe lookup that finds where a walk reads the live rows from had 11\nmissed mutants (#365). Nine tests on a real store: the newest walk\nthat was not cancelled, a baseline, two roots (one inside the other),\nmore rows than a page, a callback that stops. Mutants on live_log.rs:\n37 caught, 0 missed; one equivalent mutant is excluded.\n\nCo-authored-by: Matthias Eggert <dem.matze@gmail.com>\nCo-authored-by: Claude Sonnet 5.5 <noreply@anthropic.com>",
+          "timestamp": "2026-11-19T10:13:14Z",
+          "url": "https://github.com/nobuddyorg/PeekBuddy/commit/41ff7b00c387f20ea4409388abcb6a1202a85c83"
+        },
+        "date": 1795084409653,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "durability.restart_to_ready.p50",
+            "value": 103,
+            "unit": "ms"
+          },
+          {
+            "name": "durability.restart_to_ready.max",
+            "value": 203,
             "unit": "ms"
           }
         ]
