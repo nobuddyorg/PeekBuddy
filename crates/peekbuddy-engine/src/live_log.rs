@@ -197,7 +197,18 @@ impl LiveLog for StoreLiveLog {
 
 #[cfg(test)]
 mod tests {
-    use super::{plain, relative};
+    use std::path::PathBuf;
+    use std::sync::Arc;
+
+    use peekbuddy_core::event::{Event, Flags, Kind, NameKind, NameRef, RootIdx, Source, VolIdx};
+    use peekbuddy_core::reconcile::LiveLog;
+    use peekbuddy_store::batch::Batch;
+    use peekbuddy_store::retention::{Caps, NoViewer};
+    use peekbuddy_store::segment::{DayFn, DayKey, Rotation};
+    use peekbuddy_store::writer::{RootInfo, SegmentsConfig, VolInfo, Writer};
+
+    use super::{PAGE, StoreLiveLog, plain, relative};
+    use crate::reconciler::RootSpec;
 
     fn w(text: &str) -> Vec<u16> {
         text.encode_utf16().collect()
@@ -220,11 +231,217 @@ mod tests {
         assert_eq!(relative(&w(r"C:\Demo\Projects2\a"), &root), None);
         assert_eq!(relative(&w(r"C:\Demo\Other\a"), &root), None);
         assert_eq!(relative(&w(r"C:\Demo"), &root), None);
+        // As long as the root, with another name.
+        assert_eq!(relative(&w(r"C:\Demo\Projeqts\a"), &root), None);
     }
 
     #[test]
     fn the_long_prefix_comes_off_a_root_path() {
         assert_eq!(plain(&w(r"\\?\C:\x")), w(r"C:\x").as_slice());
         assert_eq!(plain(&w(r"C:\x")), w(r"C:\x").as_slice());
+    }
+
+    const ROOT_A: &str = r"\\?\C:\Watched";
+    const ROOT_B: &str = r"\\?\C:\Watched\Inner";
+
+    struct Dir(PathBuf);
+
+    impl Dir {
+        fn new(tag: &str) -> Self {
+            let dir = std::env::temp_dir().join(format!("pb-livelog-{tag}-{}", std::process::id()));
+            let _ = std::fs::remove_dir_all(&dir);
+            std::fs::create_dir_all(&dir).unwrap();
+            Self(dir)
+        }
+    }
+
+    impl Drop for Dir {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.0);
+        }
+    }
+
+    fn event(ts: u64, root: u16, kind: Kind, raw_mask: u32) -> Event {
+        Event {
+            ts,
+            qpc: ts,
+            src_ts: 0,
+            source: Source::Rdcw,
+            kind,
+            raw_mask,
+            source_info: 0,
+            is_dir: false,
+            size: 1,
+            attrs: 0x20,
+            reparse_tag: 0,
+            file_id: u128::from(ts),
+            parent_file_id: 5,
+            usn: 0,
+            vol: VolIdx(0),
+            root: RootIdx(root),
+            name: NameRef::EMPTY,
+            name_kind: NameKind::Long,
+            flags: Flags::NONE,
+        }
+    }
+
+    /// A store with the two roots and the rows of `rows`, in order:
+    /// `(root, kind, raw_mask, name below the root)`.
+    fn store(dir: &Dir, rows: &[(u16, Kind, u32, &str)]) -> StoreLiveLog {
+        let day_of: DayFn = Arc::new(|_| DayKey {
+            year: 2026,
+            month: 11,
+            day: 18,
+        });
+        let config = SegmentsConfig {
+            rotation: Rotation {
+                dir: dir.0.clone(),
+                day_of,
+                size_cap: u64::MAX,
+            },
+            caps: Caps::default(),
+            retire: Arc::new(NoViewer),
+        };
+        let (mut writer, _) = Writer::open_segments(config, 1).unwrap();
+        for (idx, path) in [(0, ROOT_A), (1, ROOT_B)] {
+            writer
+                .register_root(&RootInfo {
+                    idx: RootIdx(idx),
+                    vol: VolInfo {
+                        guid: String::from("vol-1"),
+                        serial: 1,
+                        letter: Some(String::from("C:")),
+                        journal_id: None,
+                    },
+                    path: w(path),
+                    recursive: true,
+                })
+                .unwrap();
+        }
+        for (chunk, group) in rows.chunks(200).enumerate() {
+            let mut batch = Batch::with_capacity(201, 1 << 16);
+            for (offset, (root, kind, raw_mask, name)) in group.iter().enumerate() {
+                let ts = 1 + (chunk * 200 + offset) as u64;
+                batch
+                    .push(event(ts, *root, *kind, *raw_mask), &w(name))
+                    .unwrap();
+            }
+            writer.write(&[batch], &[]).unwrap();
+        }
+        writer.wait_background();
+        let specs: Vec<RootSpec> = [(0, ROOT_A), (1, ROOT_B)]
+            .iter()
+            .map(|(idx, path)| RootSpec {
+                root: RootIdx(*idx),
+                vol: VolIdx(0),
+                path: w(path),
+            })
+            .collect();
+        StoreLiveLog::new(&dir.0, &specs)
+    }
+
+    fn created(log: &StoreLiveLog, root: u16) -> Vec<String> {
+        let mut names = Vec::new();
+        log.created_since_last_walk(root, &mut |below| {
+            names.push(String::from_utf16_lossy(below));
+            true
+        });
+        names
+    }
+
+    #[test]
+    fn the_lookup_starts_at_the_newest_walk_that_was_not_cancelled_of_its_own_root() {
+        use Kind::{Created, Modified, ReconcileFinished as Done, ReconcileStarted as Start};
+        let dir = Dir::new("walks");
+        let mut rows = vec![
+            (0, Created, 1, "before"),
+            (0, Start, 1, ""),
+            (0, Created, 1, "inwalk"),
+            (0, Modified, 1, "touched"),
+            (0, Done, 0, ""),
+            (0, Created, 1, "after"),
+            // A walk of the other root, which lies inside the first and is
+            // newer than everything of the first.
+            (1, Start, 1, ""),
+            (1, Created, 1, "other-only"),
+            (1, Done, 0, ""),
+            // A cancelled walk of the first root does not move the start.
+            (0, Start, 1, ""),
+            (0, Created, 1, "cancelled"),
+        ];
+        // Enough cancelled finishes to push the good one past the first page.
+        rows.extend((0..40).map(|_| (0, Done, 1, "")));
+        let log = store(&dir, &rows);
+        assert_eq!(created(&log, 0), ["inwalk", "after", "cancelled"]);
+        assert_eq!(created(&log, 1), ["other-only"]);
+    }
+
+    #[test]
+    fn a_baseline_counts_every_row_of_its_root() {
+        use Kind::{BaselineEstablished as Base, Created};
+        let dir = Dir::new("baseline");
+        let log = store(
+            &dir,
+            &[
+                (0, Created, 1, "early"),
+                (0, Base, 1, ""),
+                (0, Created, 1, "late"),
+                (1, Created, 1, "other"),
+            ],
+        );
+        assert_eq!(created(&log, 0), ["early", "late"]);
+    }
+
+    #[test]
+    fn a_root_without_a_walk_or_an_unknown_root_gives_nothing() {
+        let dir = Dir::new("none");
+        let log = store(&dir, &[(0, Kind::Created, 1, "a")]);
+        assert_eq!(created(&log, 0), Vec::<String>::new());
+        assert_eq!(created(&log, 7), Vec::<String>::new());
+    }
+
+    #[test]
+    fn only_cancelled_walks_give_nothing_to_look_from() {
+        use Kind::{Created, ReconcileFinished as Done};
+        let dir = Dir::new("cancelled");
+        let log = store(&dir, &[(0, Created, 1, "a"), (0, Done, 1, "")]);
+        assert_eq!(created(&log, 0), Vec::<String>::new());
+    }
+
+    #[test]
+    fn a_callback_that_says_stop_ends_the_lookup() {
+        use Kind::Created;
+        let dir = Dir::new("stop");
+        let log = store(
+            &dir,
+            &[
+                (0, Kind::BaselineEstablished, 1, ""),
+                (0, Created, 1, "a"),
+                (0, Created, 1, "b"),
+                (0, Created, 1, "c"),
+            ],
+        );
+        let mut seen = Vec::new();
+        log.created_since_last_walk(0, &mut |below| {
+            seen.push(String::from_utf16_lossy(below));
+            seen.len() < 2
+        });
+        assert_eq!(seen, ["a", "b"]);
+    }
+
+    #[test]
+    fn more_rows_than_a_page_are_all_looked_at_oldest_first() {
+        let dir = Dir::new("pages");
+        let names: Vec<String> = (0..PAGE * 6).map(|index| format!("f{index}")).collect();
+        let mut rows: Vec<(u16, Kind, u32, &str)> = vec![(0, Kind::BaselineEstablished, 1, "")];
+        rows.extend(
+            names
+                .iter()
+                .map(|name| (0, Kind::Created, 1, name.as_str())),
+        );
+        let log = store(&dir, &rows);
+        let found = created(&log, 0);
+        assert_eq!(found.len(), names.len());
+        assert!(found == names, "the rows came back in another order");
     }
 }

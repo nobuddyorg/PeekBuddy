@@ -64,6 +64,9 @@ exclude_re = [
   # Equivalent: another midpoint of the binary search for the id before a
   # time finds the same id; only the number of steps changes.
   "crates/peekbuddy-store/src/read/changes.rs:281:46: replace / with . in Reader::id_before",
+  # Equivalent: without the `!`, a page that ends the log is followed by one
+  # more read of an empty page, which has no newest row and returns.
+  "crates/peekbuddy-engine/src/live_log.rs:191:16: delete ! in .impl LiveLog for StoreLiveLog.::created_since_last_walk",
   "logging",
   # Compiled only with the `tracy` feature, which no test enables: the value
   # of the "page fetch ms" plot.
