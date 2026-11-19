@@ -192,6 +192,21 @@ mod tests {
     }
 
     #[test]
+    fn days_left_counts_across_the_turn_of_a_400_year_cycle() {
+        // 400 years of the Gregorian calendar are 146,097 days.
+        let file = "events-1600-03-01.db";
+        assert_eq!(days_left(file, day(2000, 3, 1), Some(0)), Some(-146_097));
+        // Dec 1999 is in the cycle before March 2000, and 2000 is a leap year.
+        let file = "events-1999-12-31.db";
+        assert_eq!(days_left(file, day(2000, 3, 1), Some(100)), Some(100 - 61));
+        // January and February belong to the year before for the leap day.
+        let file = "events-2000-02-28.db";
+        assert_eq!(days_left(file, day(2000, 3, 1), Some(10)), Some(10 - 2));
+        let file = "events-2000-01-01.db";
+        assert_eq!(days_left(file, day(2001, 1, 1), Some(400)), Some(400 - 366));
+    }
+
+    #[test]
     fn the_warning_starts_two_days_before_the_segment_is_due() {
         let file = "events-2026-10-01.db";
         assert!(!expires_soon(file, day(2026, 10, 28), Some(30)));
