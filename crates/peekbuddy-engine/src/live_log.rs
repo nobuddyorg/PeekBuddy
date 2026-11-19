@@ -21,6 +21,12 @@ use crate::reconciler::RootSpec;
 const PAGE: usize = 5_000;
 /// How many finished walks are looked at to find one that was not cancelled.
 const WALKS_LOOKED_AT: usize = 16;
+/// How long before the start of a walk its live rows are still read: 10 s in
+/// FILETIME ticks. The row that starts a walk is written some hundreds of
+/// milliseconds after the walk began (it queues behind the live rows), so
+/// rows with a lower id can describe entries that were made after the walk had
+/// listed their directory.
+const START_SLACK: u64 = 100_000_000;
 
 /// The live rows of the segments in one data directory.
 #[derive(Debug)]
@@ -81,14 +87,17 @@ impl StoreLiveLog {
         }
     }
 
-    /// The id from which the live rows are read: the row that starts the
-    /// newest walk that was not cancelled, or 0 for a baseline, which has no
+    /// The id from which the live rows are read: the newest row older than
+    /// the start of the newest walk that was not cancelled (by the time of its
+    /// start row, less [`START_SLACK`]), or 0 for a baseline, which has no
     /// start row.
     ///
     /// The snapshot is as of the listing of the walk, not of its end: an entry
     /// a live row created while the walk ran may be in no snapshot, and a row
-    /// that ends the walk would leave it out of the lookup. A baseline can run
-    /// for minutes on a large tree, so every row of the root counts.
+    /// that ends the walk would leave it out of the lookup. The id of the
+    /// start row is no bound either: it is written after live rows of events
+    /// that came later than the start of the walk. A baseline can run for
+    /// minutes on a large tree, so every row of the root counts.
     fn last_finished_walk(&self, root: &[u16], cancel: &CancelFlag) -> Option<i64> {
         // `raw_mask` 1 on a finish row: the walk was cancelled and rolled
         // back, so the snapshot is older than that row.
@@ -111,7 +120,12 @@ impl StoreLiveLog {
             |_| true,
             cancel,
         );
-        Some(start.map_or(end.id, |row| row.id))
+        let from = start.unwrap_or(end);
+        let before = self
+            .reader
+            .id_before(from.ts.saturating_sub(START_SLACK))
+            .unwrap_or(from.id);
+        Some(before.min(from.id))
     }
 }
 
@@ -207,7 +221,7 @@ mod tests {
     use peekbuddy_store::segment::{DayFn, DayKey, Rotation};
     use peekbuddy_store::writer::{RootInfo, SegmentsConfig, VolInfo, Writer};
 
-    use super::{PAGE, StoreLiveLog, plain, relative};
+    use super::{PAGE, START_SLACK, StoreLiveLog, plain, relative};
     use crate::reconciler::RootSpec;
 
     fn w(text: &str) -> Vec<u16> {
@@ -285,9 +299,28 @@ mod tests {
         }
     }
 
-    /// A store with the two roots and the rows of `rows`, in order:
+    /// A store with the two roots and the rows of `rows`, in order, each a
+    /// further 20 s apart (twice the slack before the start of a walk):
     /// `(root, kind, raw_mask, name below the root)`.
     fn store(dir: &Dir, rows: &[(u16, Kind, u32, &str)]) -> StoreLiveLog {
+        let timed: Vec<(u64, u16, Kind, u32, &str)> = rows
+            .iter()
+            .enumerate()
+            .map(|(index, &(root, kind, raw_mask, name))| {
+                (
+                    (index as u64 + 1) * 2 * START_SLACK,
+                    root,
+                    kind,
+                    raw_mask,
+                    name,
+                )
+            })
+            .collect();
+        store_at(dir, &timed)
+    }
+
+    /// As [`store`], each row with its own time (FILETIME ticks).
+    fn store_at(dir: &Dir, rows: &[(u64, u16, Kind, u32, &str)]) -> StoreLiveLog {
         let day_of: DayFn = Arc::new(|_| DayKey {
             year: 2026,
             month: 11,
@@ -318,12 +351,11 @@ mod tests {
                 })
                 .unwrap();
         }
-        for (chunk, group) in rows.chunks(200).enumerate() {
+        for group in rows.chunks(200) {
             let mut batch = Batch::with_capacity(201, 1 << 16);
-            for (offset, (root, kind, raw_mask, name)) in group.iter().enumerate() {
-                let ts = 1 + (chunk * 200 + offset) as u64;
+            for (ts, root, kind, raw_mask, name) in group {
                 batch
-                    .push(event(ts, *root, *kind, *raw_mask), &w(name))
+                    .push(event(*ts, *root, *kind, *raw_mask), &w(name))
                     .unwrap();
             }
             writer.write(&[batch], &[]).unwrap();
@@ -443,5 +475,27 @@ mod tests {
         let found = created(&log, 0);
         assert_eq!(found.len(), names.len());
         assert!(found == names, "the rows came back in another order");
+    }
+
+    #[test]
+    fn a_row_logged_before_the_start_row_of_a_walk_but_after_its_start_counts() {
+        use Kind::ReconcileStarted as Start;
+        use Kind::{BaselineEstablished as Base, Created, ReconcileFinished as Done};
+        let dir = Dir::new("late-start");
+        let second = 10_000_000;
+        let log = store_at(
+            &dir,
+            &[
+                (1_000 * second, 0, Base, 1, ""),
+                (1_900 * second, 0, Created, 1, "well-before"),
+                // The walk started at 2,000 s; its row is written after the
+                // row of an event that came a moment later.
+                (2_001 * second, 0, Created, 1, "made-after-the-start"),
+                (2_000 * second, 0, Start, 1, ""),
+                (2_050 * second, 0, Done, 0, ""),
+                (2_100 * second, 0, Created, 1, "after"),
+            ],
+        );
+        assert_eq!(created(&log, 0), ["made-after-the-start", "after"]);
     }
 }
