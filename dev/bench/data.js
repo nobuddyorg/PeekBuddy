@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1795084567687,
+  "lastUpdate": 1795084738440,
   "repoUrl": "https://github.com/nobuddyorg/PeekBuddy",
   "entries": {
     "benches (windows-2025)": [
@@ -3669,6 +3669,63 @@ window.BENCHMARK_DATA = {
           {
             "name": "query.subtree_resolve_10m",
             "value": 7116749.107142857,
+            "unit": "ns"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "name": "Matthias Eggert",
+            "username": "besessener",
+            "email": "8039350+besessener@users.noreply.github.com"
+          },
+          "committer": {
+            "name": "GitHub",
+            "username": "web-flow",
+            "email": "noreply@github.com"
+          },
+          "id": "41ff7b00c387f20ea4409388abcb6a1202a85c83",
+          "message": "test: pin the reconcile lookup of the live log (#527)\n\nThe lookup that finds where a walk reads the live rows from had 11\nmissed mutants (#365). Nine tests on a real store: the newest walk\nthat was not cancelled, a baseline, two roots (one inside the other),\nmore rows than a page, a callback that stops. Mutants on live_log.rs:\n37 caught, 0 missed; one equivalent mutant is excluded.\n\nCo-authored-by: Matthias Eggert <dem.matze@gmail.com>\nCo-authored-by: Claude Sonnet 5.5 <noreply@anthropic.com>",
+          "timestamp": "2026-11-19T10:13:14Z",
+          "url": "https://github.com/nobuddyorg/PeekBuddy/commit/41ff7b00c387f20ea4409388abcb6a1202a85c83"
+        },
+        "date": 1795084736141,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "query.changes_since_1m",
+            "value": 1525956200,
+            "unit": "ns"
+          },
+          {
+            "name": "query.export_1m_rows",
+            "value": 4028584850,
+            "unit": "ns"
+          },
+          {
+            "name": "query.filtered_first_1m",
+            "value": 5257887.962962963,
+            "unit": "ns"
+          },
+          {
+            "name": "query.fts_lookup_10m",
+            "value": 27132016.729323305,
+            "unit": "ns"
+          },
+          {
+            "name": "query.page_keyset_10m",
+            "value": 1678270.393668831,
+            "unit": "ns"
+          },
+          {
+            "name": "query.regex_post_filter_1m",
+            "value": 2860377850,
+            "unit": "ns"
+          },
+          {
+            "name": "query.subtree_resolve_10m",
+            "value": 8021576.666666666,
             "unit": "ns"
           }
         ]
