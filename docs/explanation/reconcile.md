@@ -85,7 +85,9 @@ consequences, one of them handled:
   rows (and the rows of walks that were cancelled) created or renamed to
   since the start of the last finished walk of the root (the first row of
   the root for a baseline, which lists for as long as the tree is large and
-  has no start row), looks
+  has no start row; for another walk the time of its start row less 10 s,
+  not its id, because that row is written after live rows of events that
+  came a moment later), looks
   whether each is still there (`DirSource::exists`, attributes only, a reparse
   point is not followed) and writes `ReconciledDeleted` for those that are
   gone. A path the comparison already reported as deleted can get a second
