@@ -1066,15 +1066,33 @@ mod tests {
             }
         }
 
-        /// Runs the loop to its end.
+        /// Runs the loop to its end. A loop that does not end within 5 s is
+        /// stopped, so a broken loop fails its test's assertions instead of
+        /// waiting on the port for ever.
         fn run(&mut self) -> Option<io::Error> {
+            let (done, watch) = mpsc::channel::<()>();
+            let guard = {
+                let iocp = Arc::clone(&self.job.iocp);
+                let stop = Arc::clone(&self.job.stop);
+                std::thread::spawn(move || {
+                    if watch.recv_timeout(Duration::from_secs(5))
+                        == Err(mpsc::RecvTimeoutError::Timeout)
+                    {
+                        stop.store(true, Ordering::SeqCst);
+                        let _ = iocp.post(KEY_STOP, 0, 0);
+                    }
+                })
+            };
             let mut names = Lookup {
                 control: &self.control,
                 lister: FakeDirs::default(),
                 root_path: &[],
                 units: Vec::new(),
             };
-            self.job.read_loop(&mut self.st, &mut names)
+            let result = self.job.read_loop(&mut self.st, &mut names);
+            drop(done);
+            guard.join().unwrap();
+            result
         }
 
         fn saved(&self) -> Vec<(u64, i64)> {
