@@ -409,3 +409,21 @@ fn settings_from_a_newer_version_are_not_applied() {
     assert!(ctl.apply_settings(&Settings::default()).is_err());
     assert_eq!(std::fs::read_to_string(&path).unwrap(), before);
 }
+
+#[test]
+fn the_tray_lists_an_added_watch_and_not_a_removed_one_with_their_positions() {
+    let (ctl, _rows, _path) = ctl("tray-list", vec![watch("a", true), watch("b", false)], true);
+    let _asked = bind_fake(&ctl, true);
+    let (added, _) = ctl.add_watch("C:/added", false, &context()).unwrap();
+    ctl.remove_watch("a").unwrap();
+    let listed = ctl.tray_watches();
+    let positions: Vec<usize> = listed.iter().map(|(position, ..)| *position).collect();
+    assert_eq!(positions, [1, 2], "{listed:?}");
+    assert_eq!(listed[1].1, added.watch.path);
+    // `b` starts paused, the added watch does not.
+    assert!(listed[0].2);
+    assert!(!listed[1].2);
+    // A global pause shows on every listed watch.
+    ctl.pause_all();
+    assert!(ctl.tray_watches().iter().all(|(_, _, paused)| *paused));
+}
