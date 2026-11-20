@@ -252,6 +252,19 @@ pub trait Snapshot {
     ///
     /// The storage error.
     fn is_baselined(&mut self, root: u16) -> Result<bool, Self::Error>;
+    /// Makes what is known about `root` be about the folder at `path`: the
+    /// snapshot is keyed by the watch's position, and the positions shift
+    /// when a watch is removed, so a root whose folder differs from the one
+    /// last recorded is forgotten and its next walk is a baseline. The
+    /// default keeps everything.
+    ///
+    /// # Errors
+    ///
+    /// The storage error.
+    fn claim_root(&mut self, root: u16, path: &[u16]) -> Result<(), Self::Error> {
+        let _ = (root, path);
+        Ok(())
+    }
     /// Marks the root as baselined.
     ///
     /// # Errors

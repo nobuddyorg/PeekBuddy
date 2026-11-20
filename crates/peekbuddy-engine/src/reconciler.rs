@@ -341,6 +341,8 @@ fn work<N: Snapshot, R: RowOut>(
     live: Option<&(dyn LiveLog + Send + Sync)>,
 ) {
     let _background = BackgroundMode::enter();
+    // Roots whose snapshot was matched to their folder in this run.
+    let mut claimed: std::collections::HashSet<RootIdx> = std::collections::HashSet::new();
     loop {
         let (root, reason) = {
             let mut state = lock(&shared.state);
@@ -368,6 +370,9 @@ fn work<N: Snapshot, R: RowOut>(
             .find(|spec| spec.root == root)
             .cloned();
         let summary = spec.and_then(|spec| {
+            if claimed.insert(spec.root) && snapshot.claim_root(spec.root.0, &spec.path).is_err() {
+                claimed.remove(&spec.root);
+            }
             let mut source = DirLister::new(&spec.path);
             let cfg = Config {
                 root: spec.root,

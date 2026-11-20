@@ -38,6 +38,10 @@ CREATE UNIQUE INDEX IF NOT EXISTS entry_key ON entry (root, parent, name);
 CREATE TABLE IF NOT EXISTS root_state (
     root INTEGER PRIMARY KEY,
     baselined INTEGER NOT NULL
+) STRICT;
+CREATE TABLE IF NOT EXISTS root_path (
+    root INTEGER PRIMARY KEY,
+    path BLOB NOT NULL
 ) STRICT;";
 
 /// Why the snapshot could not be opened.
@@ -147,6 +151,8 @@ impl SnapshotDb {
             .execute("DELETE FROM entry WHERE root = ?1", [i64::from(root)])?;
         self.conn
             .execute("DELETE FROM root_state WHERE root = ?1", [i64::from(root)])?;
+        self.conn
+            .execute("DELETE FROM root_path WHERE root = ?1", [i64::from(root)])?;
         Ok(())
     }
 
@@ -220,6 +226,28 @@ fn read_meta(row: &rusqlite::Row<'_>, from: usize) -> rusqlite::Result<Meta> {
 
 impl Snapshot for SnapshotDb {
     type Error = rusqlite::Error;
+
+    fn claim_root(&mut self, root: u16, path: &[u16]) -> rusqlite::Result<()> {
+        let path = units_to_bytes(path);
+        let known: Option<Vec<u8>> = self
+            .conn
+            .query_row(
+                "SELECT path FROM root_path WHERE root = ?1",
+                [i64::from(root)],
+                |row| row.get(0),
+            )
+            .optional()?;
+        // A file from before the table has no path for a root: what it knows
+        // is kept, as before.
+        if known.is_some_and(|known| known != path) {
+            self.forget_root(root)?;
+        }
+        self.conn.execute(
+            "INSERT INTO root_path (root, path) VALUES (?1, ?2)              ON CONFLICT (root) DO UPDATE SET path = excluded.path",
+            params![i64::from(root), path],
+        )?;
+        Ok(())
+    }
 
     fn is_baselined(&mut self, root: u16) -> rusqlite::Result<bool> {
         let baselined: Option<i64> = self
