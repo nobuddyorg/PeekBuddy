@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1795169633190,
+  "lastUpdate": 1795169655827,
   "repoUrl": "https://github.com/nobuddyorg/PeekBuddy",
   "entries": {
     "benches (windows-2025)": [
@@ -3790,6 +3790,63 @@ window.BENCHMARK_DATA = {
           {
             "name": "query.subtree_resolve_10m",
             "value": 8021576.666666666,
+            "unit": "ns"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "name": "Matthias Eggert",
+            "username": "besessener",
+            "email": "8039350+besessener@users.noreply.github.com"
+          },
+          "committer": {
+            "name": "GitHub",
+            "username": "web-flow",
+            "email": "noreply@github.com"
+          },
+          "id": "4c76d6913ce690540eaedb3bd273ed9a6691a40c",
+          "message": "fix: read live rows from the start time of a walk (#542)\n\nThe row that starts a walk is written after live rows of events\nthat came a moment later. The next walk read the live rows after\nits id and missed entries made after their directory was listed and\ndeleted in a gap (#535). It now reads from the newest row older than\nthe start time less 10 s.\n\nCo-authored-by: Matthias Eggert <dem.matze@gmail.com>\nCo-authored-by: Claude Sonnet 5.5 <noreply@anthropic.com>",
+          "timestamp": "2026-11-19T19:49:03Z",
+          "url": "https://github.com/nobuddyorg/PeekBuddy/commit/4c76d6913ce690540eaedb3bd273ed9a6691a40c"
+        },
+        "date": 1795169654002,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "query.changes_since_1m",
+            "value": 1046565300,
+            "unit": "ns"
+          },
+          {
+            "name": "query.export_1m_rows",
+            "value": 2779506950,
+            "unit": "ns"
+          },
+          {
+            "name": "query.filtered_first_1m",
+            "value": 5651106.339285715,
+            "unit": "ns"
+          },
+          {
+            "name": "query.fts_lookup_10m",
+            "value": 18741671.719457015,
+            "unit": "ns"
+          },
+          {
+            "name": "query.page_keyset_10m",
+            "value": 1200794.5244690673,
+            "unit": "ns"
+          },
+          {
+            "name": "query.regex_post_filter_1m",
+            "value": 1956777750,
+            "unit": "ns"
+          },
+          {
+            "name": "query.subtree_resolve_10m",
+            "value": 5217808.333333334,
             "unit": "ns"
           }
         ]
