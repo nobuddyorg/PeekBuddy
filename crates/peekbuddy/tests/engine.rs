@@ -49,18 +49,27 @@ fn wait_for_window(data: &Path, child: &mut Child) -> WindowHandle {
     }
 }
 
-fn wait_for_exit(child: &mut Child, within: Duration) -> std::process::ExitStatus {
+/// The exit status, or `None` when the process runs on after `within`.
+fn exit_within(child: &mut Child, within: Duration) -> Option<std::process::ExitStatus> {
     let deadline = Instant::now() + within;
     loop {
         if let Some(status) = child.try_wait().unwrap() {
-            return status;
+            return Some(status);
         }
-        assert!(
-            Instant::now() < deadline,
-            "the process did not exit in time"
-        );
+        if Instant::now() >= deadline {
+            return None;
+        }
         std::thread::sleep(Duration::from_millis(10));
     }
+}
+
+fn wait_for_exit(child: &mut Child, within: Duration) -> std::process::ExitStatus {
+    let status = exit_within(child, within);
+    assert!(
+        status.is_some(),
+        "the process did not exit within {within:?}"
+    );
+    status.unwrap()
 }
 
 /// Stops an engine through the hidden window and checks the exit code.
@@ -82,8 +91,11 @@ impl Drop for Kill {
 #[test]
 fn a_second_engine_exits_zero_within_a_second_and_leaves_the_first_running() {
     let dir = TestDir::new("engine-second").unwrap();
+    let spawned = Instant::now();
     let mut first = Kill(spawn(dir.path(), &[]));
     let window = wait_for_window(dir.path(), &mut first.0);
+    // Where the time goes on a slow runner (#548): shown when the test fails.
+    let window_after = spawned.elapsed();
 
     // One second is the specified bar. The coverage job runs instrumented
     // code, which is several times slower, and sets a wider limit (#338).
@@ -93,9 +105,21 @@ fn a_second_engine_exits_zero_within_a_second_and_leaves_the_first_running() {
         .map_or(Duration::from_secs(1), Duration::from_millis);
     let started = Instant::now();
     let mut second = spawn(dir.path(), &[]);
-    let status = wait_for_exit(&mut second, limit);
+    let exited = exit_within(&mut second, limit);
+    if exited.is_none() {
+        let _ = second.kill();
+    }
+    assert!(
+        exited.is_some(),
+        "the second engine did not exit within {limit:?}; the first engine's window          took {window_after:?} to appear"
+    );
+    let status = exited.unwrap();
     assert!(status.success(), "{status:?}");
-    assert!(started.elapsed() < limit, "took {:?}", started.elapsed());
+    assert!(
+        started.elapsed() < limit,
+        "took {:?}; the first engine's window took {window_after:?}",
+        started.elapsed()
+    );
 
     assert!(
         first.0.try_wait().unwrap().is_none(),
