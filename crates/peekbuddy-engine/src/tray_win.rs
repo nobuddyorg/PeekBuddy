@@ -10,7 +10,7 @@ use crate::marker_ctl::MarkerCtl;
 use crate::pause_ctl::PauseCtl;
 use crate::tray_model::{
     Actions, Command, FIRST_RUN_TEXT, FIRST_RUN_TITLE, ICON_SIZES, IconId, MenuItem, Theme,
-    TrayState, dispatch, icon_id, menu, render_icon, tooltip,
+    TrayState, WatchEntry, dispatch, icon_id, menu, render_icon, tooltip,
 };
 
 /// Real effects of the tray commands.
@@ -21,6 +21,9 @@ struct RealActions {
     data_root: PathBuf,
     pause: Arc<PauseCtl>,
     markers: Arc<MarkerCtl>,
+    /// The settings position of each watch the menu lists: removed watches
+    /// are not listed, so a menu index is not always a position.
+    positions: Vec<usize>,
 }
 
 /// Explorer does not take `\\?\` paths.
@@ -57,7 +60,9 @@ impl Actions for RealActions {
     fn watch_paused(&mut self, index: usize, paused: bool) {
         // A failed save is not fatal: the pause took effect; the viewer's
         // command path reports the reason to the user.
-        let _ = self.pause.set_watch_at(index, paused);
+        if let Some(&position) = self.positions.get(index) {
+            let _ = self.pause.set_watch_at(position, paused);
+        }
     }
 
     fn all_paused(&mut self, paused: bool) {
@@ -69,10 +74,13 @@ impl Actions for RealActions {
     }
 
     fn own_paused(&self, index: usize) -> Option<bool> {
+        let position = *self.positions.get(index)?;
         Some(
             self.pause
                 .pause()
-                .watch_paused(peekbuddy_core::event::RootIdx(u16::try_from(index).ok()?)),
+                .watch_paused(peekbuddy_core::event::RootIdx(
+                    u16::try_from(position).ok()?,
+                )),
         )
     }
 }
@@ -143,6 +151,7 @@ impl TrayController {
                 data_root,
                 pause,
                 markers,
+                positions: (0..state.watches.len()).collect(),
             },
             state,
             theme: current_theme(),
@@ -226,7 +235,22 @@ impl TrayController {
         }
     }
 
+    /// Takes the watch list from the pause control: a watch added while the
+    /// engine runs is listed, a removed one is not (#553).
+    fn reload_watches(&mut self) {
+        let watches = self.actions.pause.tray_watches();
+        self.actions.positions = watches.iter().map(|(position, ..)| *position).collect();
+        self.state.watches = watches
+            .iter()
+            .map(|(_, path, paused)| WatchEntry {
+                label: label_for(path),
+                paused: *paused,
+            })
+            .collect();
+    }
+
     fn show_menu(&mut self, window: WindowHandle) {
+        self.reload_watches();
         let entries: Vec<Entry> = menu(&self.state).iter().map(to_entry).collect();
         let Ok(popup) = Menu::build(&entries) else {
             return;

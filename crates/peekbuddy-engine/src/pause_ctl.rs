@@ -382,6 +382,31 @@ impl PauseCtl {
         Ok(())
     }
 
+    /// The watches for the tray menu, in settings order without the removed
+    /// ones: settings position, path, and whether it is paused on its own or
+    /// by a global pause.
+    #[must_use]
+    pub fn tray_watches(&self) -> Vec<(usize, String, bool)> {
+        let Ok(inner) = self.inner.lock() else {
+            return Vec::new();
+        };
+        inner
+            .settings
+            .watches
+            .iter()
+            .enumerate()
+            .filter(|(index, _)| !inner.removed.contains(index))
+            .map(|(index, watch)| {
+                let paused = if inner.is_armed(index) {
+                    self.pause.is_paused(root_of(index))
+                } else {
+                    !watch.enabled
+                };
+                (index, watch.path.clone(), paused)
+            })
+            .collect()
+    }
+
     /// Tells the control where the lifecycle states of the armed roots can
     /// be read once the capture host runs.
     pub fn bind_signals(&self, signals: &Arc<OnceLock<Signaller>>) {
