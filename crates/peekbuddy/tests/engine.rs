@@ -231,9 +231,12 @@ fn a_panic_leaves_a_crash_log_and_marker_and_the_next_start_takes_the_marker() {
     let status = wait_for_exit(&mut crashing, Duration::from_secs(20));
     if cfg!(feature = "test-panic") {
         assert!(!status.success(), "{status:?}");
+        // The capture host writes `engine.log` beside it, with or without
+        // watches (#553); the panic leaves exactly one crash log.
         let logs: Vec<_> = std::fs::read_dir(data.join("logs"))
             .unwrap()
             .map(|entry| entry.unwrap().file_name().to_string_lossy().into_owned())
+            .filter(|name| name != "engine.log")
             .collect();
         assert_eq!(logs.len(), 1, "{logs:?}");
         assert!(
