@@ -205,6 +205,8 @@ fn write_partial<W: Write>(
     let file = File::create(partial)?;
     let sync = file.try_clone()?;
     let mut writer = RowWriter::new(wrap(file), job.format, job.options)?;
+    // One run of pages: the catalog and the segment stay open between pages.
+    let mut pages = reader.pages();
     let mut cursor = None;
     loop {
         if cancel.is_cancelled() {
@@ -217,7 +219,7 @@ fn write_partial<W: Write>(
             direction: Direction::Newer,
             limit: page_rows,
         };
-        let page = reader.page(&request, cancel)?;
+        let page = pages.page(&request, cancel)?;
         if page.cancelled {
             return Ok(None);
         }
