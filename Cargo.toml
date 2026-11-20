@@ -104,7 +104,7 @@ tracy-client-sys = { version = "=0.30.1", default-features = false }
 # switches on every backend of wgpu, including Vulkan (`ash`) and GLES (which
 # pulls in opengl32.dll and glu32.dll); this direct dependency picks the one
 # that is used. The version follows eframe 0.37.0.
-wgpu = { version = "=30.0.1", default-features = false, features = [
+wgpu = { version = "=30.0.2", default-features = false, features = [
   "dx12",
   "parking_lot",
   "std",
