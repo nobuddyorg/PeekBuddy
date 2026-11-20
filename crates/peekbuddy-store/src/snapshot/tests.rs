@@ -191,3 +191,34 @@ fn open_errors_say_what_happened() {
     let sqlite = OpenError::Sqlite(rusqlite::Error::InvalidQuery).to_string();
     assert!(sqlite.starts_with("SQLite error: "), "{sqlite}");
 }
+
+#[test]
+fn a_root_claimed_for_another_folder_is_forgotten_and_the_same_folder_kept() {
+    let mut db = SnapshotDb::open_in_memory().unwrap();
+    let mut tree = MemoryTree::new();
+    tree.set(&u("a.txt"), file(1, 1));
+    db.claim_root(3, &u(r"C:\one")).unwrap();
+    walk(&mut tree, &mut db);
+    assert_eq!(db.count(3).unwrap(), 1);
+    // The same folder again (a restart): the snapshot stays.
+    db.claim_root(3, &u(r"C:\one")).unwrap();
+    assert_eq!(db.count(3).unwrap(), 1);
+    assert!(db.is_baselined(3).unwrap());
+    // Another folder at the position (a watch before it was removed): the
+    // next walk is a baseline, not a diff against the old folder.
+    db.claim_root(3, &u(r"C:\two")).unwrap();
+    assert_eq!(db.count(3).unwrap(), 0);
+    let (summary, _) = walk(&mut tree, &mut db);
+    assert!(summary.baseline);
+}
+
+#[test]
+fn a_root_without_a_recorded_folder_keeps_what_it_knows() {
+    // A file written before folders were recorded.
+    let mut db = SnapshotDb::open_in_memory().unwrap();
+    let mut tree = MemoryTree::new();
+    tree.set(&u("a.txt"), file(1, 1));
+    walk(&mut tree, &mut db);
+    db.claim_root(3, &u(r"C:\one")).unwrap();
+    assert_eq!(db.count(3).unwrap(), 1);
+}

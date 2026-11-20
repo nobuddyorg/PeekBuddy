@@ -575,3 +575,86 @@ fn add_and_remove_cycles_leave_the_handle_count_where_the_first_left_it() {
     drop(client);
     quit(window, &mut engine.0);
 }
+
+/// Removing the first watch moves the second to position 0 at the next start
+/// (#553). Its first walk must not diff its folder against the snapshot of
+/// the removed one: no reconciled row for files that did not change.
+#[test]
+fn a_watch_that_moves_up_after_a_removal_writes_no_false_reconcile_rows() {
+    use peekbuddy_core::ipc::Command as Cmd;
+
+    let dir = TestDir::new("watch-moves-up").unwrap();
+    let data = dir.path().join("data");
+    let first = dir.path().join("first");
+    let second = dir.path().join("second");
+    for path in [&data, &first, &second] {
+        std::fs::create_dir_all(path).unwrap();
+    }
+    std::fs::write(first.join("only-in-first.txt"), b"x").unwrap();
+    std::fs::write(second.join("only-in-second.txt"), b"x").unwrap();
+    let plain = |path: &Path| {
+        std::fs::canonicalize(path)
+            .unwrap()
+            .to_string_lossy()
+            .trim_start_matches(r"\?\")
+            .to_owned()
+    };
+    std::fs::write(
+        data.join("settings.toml"),
+        format!(
+            "version = 1\n[general]\nfirst_run = false\n\
+             [[watch]]\nid = \"w0\"\npath = '{}'\n\
+             [[watch]]\nid = \"w1\"\npath = '{}'\n",
+            plain(&first),
+            plain(&second)
+        ),
+    )
+    .unwrap();
+    let mut engine = spawn(&data);
+    let window = wait_for_window(&data, &mut engine.0);
+    let deadline = Instant::now() + Duration::from_secs(60);
+    while rows_of(&data, Kind::BaselineEstablished) < 2 {
+        assert!(Instant::now() < deadline, "no baselines");
+        std::thread::sleep(Duration::from_millis(100));
+    }
+    let mut client = connect(&data);
+    client
+        .send(&Message::Command(Cmd::RemoveWatch {
+            id: String::from("w0"),
+        }))
+        .unwrap();
+    let Some(Message::CommandResult { ok, message }) = client.receive().unwrap() else {
+        unreachable!("a command is answered with a result");
+    };
+    assert!(ok, "{message}");
+    drop(client);
+    quit(window, &mut engine.0);
+
+    // The second watch is position 0 now.
+    let mut engine = spawn(&data);
+    let window = wait_for_window(&data, &mut engine.0);
+    let deadline = Instant::now() + Duration::from_secs(60);
+    while rows_of(&data, Kind::BaselineEstablished) < 3 {
+        assert!(
+            Instant::now() < deadline,
+            "the moved watch was not baselined again"
+        );
+        std::thread::sleep(Duration::from_millis(100));
+    }
+    wait_until_settled(&data, Duration::from_secs(3));
+    let reconciled: Vec<String> = all_rows(&data)
+        .iter()
+        .filter(|row| {
+            matches!(
+                row.kind,
+                Kind::ReconciledCreated | Kind::ReconciledDeleted | Kind::ReconciledModified
+            )
+        })
+        .map(|row| String::from_utf16_lossy(&row.path))
+        .collect();
+    assert!(
+        reconciled.is_empty(),
+        "false reconcile rows: {reconciled:?}"
+    );
+    quit(window, &mut engine.0);
+}
