@@ -171,3 +171,128 @@ fn a_deleted_root_shows_lost_and_comes_back_live_with_a_restored_row() {
     assert!(lost.is_some(), "{states:?}");
     assert!(restored > lost, "{states:?}");
 }
+
+fn list(client: &mut PipeClient) -> Vec<WatchInfo> {
+    client.send(&Message::ListWatches).unwrap();
+    let Some(Message::WatchList(watches)) = client.receive().unwrap() else {
+        unreachable!("the list is answered with a list");
+    };
+    watches
+}
+
+/// How many rows have a path that ends with `name`.
+fn rows_named(data: &Path, name: &str) -> usize {
+    all_rows(data)
+        .iter()
+        .filter(|row| {
+            String::from_utf16_lossy(&row.path)
+                .to_lowercase()
+                .ends_with(name)
+        })
+        .count()
+}
+
+/// A root added through the pipe while the engine runs (#68, #355). Live
+/// arming is not built yet (the capture host fixes its roots at start), so
+/// this pins what happens today: the watch is saved and listed as not armed,
+/// the running engine records nothing under it, and the next start arms it
+/// and records a file created afterwards. When live arming lands, the middle
+/// part changes to "Live within seconds, and the file is a row".
+#[test]
+fn a_root_added_while_running_is_saved_unarmed_and_captures_after_a_restart() {
+    use peekbuddy_core::ipc::Command as Cmd;
+
+    let dir = TestDir::new("watch-added").unwrap();
+    let data = dir.path().join("data");
+    let first = dir.path().join("first");
+    let added = dir.path().join("added");
+    std::fs::create_dir_all(&data).unwrap();
+    std::fs::create_dir_all(&first).unwrap();
+    std::fs::create_dir_all(&added).unwrap();
+    let first = std::fs::canonicalize(&first).unwrap();
+    let plain = first
+        .to_string_lossy()
+        .trim_start_matches(r"\\?\")
+        .to_owned();
+    std::fs::write(
+        data.join("settings.toml"),
+        format!(
+            "version = 1\n[general]\nfirst_run = false\n[[watch]]\nid = \"w0\"\npath = '{plain}'\n"
+        ),
+    )
+    .unwrap();
+    let mut engine = spawn(&data);
+    let window = wait_for_window(&data, &mut engine.0);
+    wait_until_settled(&data, Duration::from_secs(3));
+    let mut client = connect(&data);
+    until(&mut client, "w0 Live", |watch, _| {
+        watch.armed && watch.state == WatchState::Live
+    });
+
+    // Add the second root through the command the viewer sends.
+    client
+        .send(&Message::Command(Cmd::AddWatch {
+            path: added.display().to_string(),
+            confirmed: false,
+        }))
+        .unwrap();
+    let Some(Message::CommandResult { ok, message }) = client.receive().unwrap() else {
+        unreachable!("a command is answered with a result");
+    };
+    assert!(ok, "{message}");
+    let watches = list(&mut client);
+    assert_eq!(watches.len(), 2, "{watches:?}");
+    assert!(watches[0].armed && watches[0].id == "w0", "{watches:?}");
+    let new_id = watches[1].id.clone();
+    assert!(!watches[1].armed, "{watches:?}");
+    assert_eq!(watches[1].state, WatchState::Arming, "{watches:?}");
+    assert_eq!(present(&watches[1]).label, "Starts after restart");
+
+    // The running engine does not look at the new folder: once the marker in
+    // the first root is a row, the engine is awake and has had its chance
+    // at the file in the new one.
+    std::fs::write(added.join("before.txt"), b"x").unwrap();
+    std::fs::write(first.join("marker.txt"), b"x").unwrap();
+    let deadline = Instant::now() + Duration::from_secs(60);
+    while rows_named(&data, "marker.txt") == 0 {
+        assert!(Instant::now() < deadline, "no row for the marker file");
+        std::thread::sleep(Duration::from_millis(100));
+    }
+    std::thread::sleep(Duration::from_secs(1));
+    assert_eq!(rows_named(&data, "before.txt"), 0);
+    // Still waiting for the restart, still listed with the same id.
+    let watches = list(&mut client);
+    assert!(!watches[1].armed && watches[1].id == new_id, "{watches:?}");
+    drop(client);
+    quit(window, &mut engine.0);
+
+    // The next start arms both roots; a file created in the new one is a row.
+    let mut engine = spawn(&data);
+    let window = wait_for_window(&data, &mut engine.0);
+    let mut client = connect(&data);
+    let deadline = Instant::now() + Duration::from_secs(60);
+    loop {
+        let watches = list(&mut client);
+        if watches.len() == 2
+            && watches
+                .iter()
+                .all(|w| w.armed && w.state == WatchState::Live)
+        {
+            break;
+        }
+        assert!(Instant::now() < deadline, "not both live: {watches:?}");
+        std::thread::sleep(Duration::from_millis(50));
+    }
+    wait_until_settled(&data, Duration::from_secs(3));
+    std::fs::write(added.join("after.txt"), b"x").unwrap();
+    let deadline = Instant::now() + Duration::from_secs(60);
+    while rows_named(&data, "after.txt") == 0 {
+        assert!(
+            Instant::now() < deadline,
+            "no row for the file in the added root"
+        );
+        std::thread::sleep(Duration::from_millis(100));
+    }
+    drop(client);
+    quit(window, &mut engine.0);
+}
