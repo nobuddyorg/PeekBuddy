@@ -213,6 +213,25 @@ fn sightings_of(data: &Path, root: &[u16], probes: &Probes) -> Sightings {
     }
 }
 
+/// The store's closing line (#497), `store: ring high water 12 batches, 0
+/// spilled, interner 3 entries, 1 KiB of names`, as report fields.
+fn store_fields(engine_log: &str) -> serde_json::Value {
+    let numbers: Vec<u64> = engine_log
+        .lines()
+        .filter_map(|line| line.split("store: ring high water ").nth(1))
+        .next_back()
+        .unwrap_or_default()
+        .split(|c: char| !c.is_ascii_digit())
+        .filter_map(|part| part.parse().ok())
+        .collect();
+    json!({
+        "ringHighWater": numbers.first(),
+        "spilledBatches": numbers.get(1),
+        "internerEntries": numbers.get(2),
+        "internerNameKib": numbers.get(3),
+    })
+}
+
 /// Peak private bytes of the process, sampled until `stop`.
 fn sample_memory(
     pid: u32,
@@ -394,6 +413,7 @@ fn ingest() {
         "toDurableP50Ms": percentile(&to_durable, 50.0),
         "toDurableP99Ms": percentile(&to_durable, 99.0),
         "rearmMaxMs": rearm_max_ms,
+        "store": store_fields(&engine_log),
         "slowCommits": slow_commits.len(),
         "slowCommitSamples": slow_commits.iter().take(10).collect::<Vec<_>>(),
         "summary": verdict.summary.lines().next().unwrap_or_default(),
