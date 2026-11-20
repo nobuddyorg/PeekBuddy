@@ -450,6 +450,71 @@ fn a_root_added_while_running_and_removed_again_stops_recording_at_once() {
     );
 }
 
+/// A watch whose folder is missing at start (#553): its `Lost` row costs no
+/// other root a row, and once the folder is made the watch comes back and a
+/// file in it is a row.
+#[test]
+fn a_root_missing_at_start_records_once_its_folder_is_made() {
+    let dir = TestDir::new("watch-missing").unwrap();
+    let data = dir.path().join("data");
+    let first = dir.path().join("first");
+    std::fs::create_dir_all(&data).unwrap();
+    std::fs::create_dir_all(&first).unwrap();
+    let first = std::fs::canonicalize(&first).unwrap();
+    let plain = |path: &Path| {
+        path.to_string_lossy()
+            .trim_start_matches(r"\\?\")
+            .to_owned()
+    };
+    let later = first.with_file_name("later");
+    std::fs::write(first.join("before.txt"), b"x").unwrap();
+    std::fs::write(
+        data.join("settings.toml"),
+        format!(
+            "version = 1\n[general]\nfirst_run = false\n\
+             [[watch]]\nid = \"w0\"\npath = '{}'\n\
+             [[watch]]\nid = \"w1\"\npath = '{}'\n",
+            plain(&first),
+            plain(&later)
+        ),
+    )
+    .unwrap();
+    let mut engine = spawn(&data);
+    let window = wait_for_window(&data, &mut engine.0);
+    wait_until_settled(&data, Duration::from_secs(3));
+    // The first root's baseline is in the log next to the second's loss.
+    let deadline = Instant::now() + Duration::from_secs(60);
+    while rows_of(&data, Kind::BaselineEstablished) == 0 {
+        assert!(
+            Instant::now() < deadline,
+            "no baseline of the first root: {:?}",
+            all_rows(&data)
+                .iter()
+                .map(|r| (r.root.clone(), r.kind, String::from_utf16_lossy(&r.path)))
+                .collect::<Vec<_>>()
+        );
+        std::thread::sleep(Duration::from_millis(100));
+    }
+    std::fs::write(first.join("marker.txt"), b"x").unwrap();
+    wait_for_row(&data, "marker.txt");
+
+    std::fs::create_dir_all(&later).unwrap();
+    let mut client = connect(&data);
+    let deadline = Instant::now() + Duration::from_secs(60);
+    loop {
+        let watches = list(&mut client);
+        if watches.get(1).is_some_and(|w| w.state == WatchState::Live) {
+            break;
+        }
+        assert!(Instant::now() < deadline, "w1 not Live: {watches:?}");
+        std::thread::sleep(Duration::from_millis(100));
+    }
+    std::fs::write(later.join("arrived.txt"), b"x").unwrap();
+    wait_for_row(&data, "arrived.txt");
+    drop(client);
+    quit(window, &mut engine.0);
+}
+
 /// Adding and removing a watch while the engine runs (#553, F8/#27): after
 /// the third cycle the engine holds as many handles as after the first. A
 /// removed watch closes its directory watch, its parent watches and its
