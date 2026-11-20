@@ -319,4 +319,18 @@ exclude_re = [
   "crates/peekbuddy-engine/src/capture_host.rs:966:40: replace . with . in guard_root",
   "crates/peekbuddy-engine/src/capture_host.rs:987:5: replace unwatch_parent with ..",
   "crates/peekbuddy-engine/src/capture_host.rs:987:40: replace . with . in unwatch_parent",
+  # The USN source's real-journal edge (#365): the Win32 delegations of
+  # `Journal` and `SyncReader`, the runner's thread start and stop, `Job::run`
+  # and `long_root` only act on a real volume. The read loop behind them is
+  # driven by fakes in the lib tests; these are exercised by
+  # `fs_serial_usn_vhd` in the nightly, which cargo-mutants does not run.
+  "crates/peekbuddy-engine/src/usn_source.rs:.*replace UsnRunner::counters ",
+  "crates/peekbuddy-engine/src/usn_source.rs:.*replace UsnRunner::uses_synchronous_reads ",
+  "crates/peekbuddy-engine/src/usn_source.rs:.*replace UsnRunner::stop ",
+  "crates/peekbuddy-engine/src/usn_source.rs:.*replace .impl Drop for UsnRunner.::drop",
+  "crates/peekbuddy-engine/src/usn_source.rs:.*replace .impl JournalRead for Journal.::",
+  "crates/peekbuddy-engine/src/usn_source.rs:.*replace .impl SyncSource for SyncReader.::",
+  "crates/peekbuddy-engine/src/usn_source.rs:.*replace .impl JournalControl for Journal.::resolve_path",
+  "crates/peekbuddy-engine/src/usn_source.rs:.*replace Job::run ",
+  "crates/peekbuddy-engine/src/usn_source.rs:.*replace Job::long_root ",
 ]
