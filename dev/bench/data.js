@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1795084738440,
+  "lastUpdate": 1795169613418,
   "repoUrl": "https://github.com/nobuddyorg/PeekBuddy",
   "entries": {
     "benches (windows-2025)": [
@@ -2855,6 +2855,38 @@ window.BENCHMARK_DATA = {
           "url": "https://github.com/nobuddyorg/PeekBuddy/commit/41ff7b00c387f20ea4409388abcb6a1202a85c83"
         },
         "date": 1795084423937,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "durability.restart_to_ready.p50",
+            "value": 102,
+            "unit": "ms"
+          },
+          {
+            "name": "durability.restart_to_ready.max",
+            "value": 203,
+            "unit": "ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "name": "Matthias Eggert",
+            "username": "besessener",
+            "email": "8039350+besessener@users.noreply.github.com"
+          },
+          "committer": {
+            "name": "GitHub",
+            "username": "web-flow",
+            "email": "noreply@github.com"
+          },
+          "id": "4c76d6913ce690540eaedb3bd273ed9a6691a40c",
+          "message": "fix: read live rows from the start time of a walk (#542)\n\nThe row that starts a walk is written after live rows of events\nthat came a moment later. The next walk read the live rows after\nits id and missed entries made after their directory was listed and\ndeleted in a gap (#535). It now reads from the newest row older than\nthe start time less 10 s.\n\nCo-authored-by: Matthias Eggert <dem.matze@gmail.com>\nCo-authored-by: Claude Sonnet 5.5 <noreply@anthropic.com>",
+          "timestamp": "2026-11-19T19:49:03Z",
+          "url": "https://github.com/nobuddyorg/PeekBuddy/commit/4c76d6913ce690540eaedb3bd273ed9a6691a40c"
+        },
+        "date": 1795169611098,
         "tool": "customSmallerIsBetter",
         "benches": [
           {
