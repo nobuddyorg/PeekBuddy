@@ -9,12 +9,14 @@
 //! capture thread only reads the lock-free [`Pause`]; the lock here is for the
 //! control path.
 //!
-//! It also owns the list of watches the viewer edits (#68). The capture host
-//! arms a fixed set of roots at start, and a root's position in the settings
-//! is its index. So an added watch is saved and starts capturing with the
-//! next engine start (`armed = false` until then), and a removed watch that
-//! is armed keeps its position, is paused at once and disappears from the
-//! list and from the file; the position is reused by nothing until a restart.
+//! It also owns the list of watches the viewer edits (#68). A root's position
+//! in the settings is its index. An added watch is saved and armed at once
+//! through the engine's [`ArmFn`] (#553); when that is not possible (no
+//! capture host, too many positions) it starts capturing with the next
+//! engine start (`armed = false` until then). A removed watch keeps its
+//! position, disappears from the list and from the file and, when it is
+//! armed, is paused at once; the position is reused by nothing until a
+//! restart.
 
 use std::collections::BTreeSet;
 use std::collections::HashMap;
@@ -25,7 +27,7 @@ use peekbuddy_core::event::{Event, RootIdx, VolIdx, WatchState};
 use peekbuddy_core::ipc::WatchInfo;
 use peekbuddy_core::pause::{Pause, Transition};
 use peekbuddy_core::settings::edit::{self, Added, Refusal, Removed};
-use peekbuddy_core::settings::{Context, Settings, to_toml};
+use peekbuddy_core::settings::{Context, Settings, Watch, to_toml};
 use peekbuddy_store::pipeline::Producer;
 
 use crate::capture_host::Signaller;
@@ -69,12 +71,20 @@ pub fn now_ticks() -> (u64, u64) {
     (UNIX_EPOCH_TICKS.saturating_add(wall), mono)
 }
 
+/// Arms the watch of the settings at a position while the engine runs;
+/// `true` when the capture host took it.
+pub type ArmFn = Box<dyn Fn(RootIdx, &Watch) -> bool + Send + Sync>;
+
 struct Inner {
     settings: Settings,
     /// How many watches the capture host armed at start: positions below
-    /// this are root indexes, later ones wait for a restart.
+    /// this are root indexes.
     started: usize,
-    /// Armed watches the user removed; hidden, paused and not written.
+    /// Later positions that were armed while the engine runs; the others
+    /// wait for a restart.
+    armed_later: BTreeSet<usize>,
+    /// Watches the user removed; hidden and not written, and paused when
+    /// they are armed.
     removed: BTreeSet<usize>,
     settings_path: PathBuf,
     /// False for a file from a newer build: it is never written.
@@ -90,6 +100,8 @@ pub struct PauseCtl {
     /// The capture host's signal handle, once it exists; the watch list
     /// reads the lifecycle states through it.
     signals: OnceLock<Arc<OnceLock<Signaller>>>,
+    /// Arms an added watch, once the engine has said how.
+    arm: OnceLock<ArmFn>,
 }
 
 impl std::fmt::Debug for PauseCtl {
@@ -124,8 +136,10 @@ impl PauseCtl {
         Arc::new(Self {
             pause,
             signals: OnceLock::new(),
+            arm: OnceLock::new(),
             inner: Mutex::new(Inner {
                 started: settings.watches.len(),
+                armed_later: BTreeSet::new(),
                 removed: BTreeSet::new(),
                 settings,
                 settings_path,
@@ -245,8 +259,9 @@ impl std::fmt::Display for EditError {
 
 impl PauseCtl {
     /// Adds a recursive watch on `path`: validated, written to
-    /// `settings.toml` and listed. It starts capturing with the next engine
-    /// start.
+    /// `settings.toml`, listed and armed. The second value says whether it
+    /// was armed now; if not, it starts capturing with the next engine start.
+    /// A global pause in force pauses it too, with its row.
     ///
     /// # Errors
     ///
@@ -259,7 +274,7 @@ impl PauseCtl {
         path: &str,
         confirmed: bool,
         context: &Context,
-    ) -> Result<Added, EditError> {
+    ) -> Result<(Added, bool), EditError> {
         let mut inner = self
             .inner
             .lock()
@@ -269,8 +284,29 @@ impl PauseCtl {
         let added =
             edit::add_watch(&mut view, path, confirmed, context).map_err(EditError::Refused)?;
         inner.write(&view).map_err(EditError::Failed)?;
+        let index = inner.settings.watches.len();
         inner.settings.watches.push(added.watch.clone());
-        Ok(added)
+        let root = root_of(index);
+        // Past the pause switches a watch could not be paused on its own.
+        let armed = index < peekbuddy_core::pause::MAX_WATCHES
+            && self.arm.get().is_some_and(|arm| arm(root, &added.watch));
+        if armed {
+            inner.armed_later.insert(index);
+            if self.pause.global() {
+                inner.emit(&[Transition {
+                    root,
+                    state: WatchState::SuspendedByUser,
+                    missed: 0,
+                    lower_bound: false,
+                }]);
+            }
+        }
+        Ok((added, armed))
+    }
+
+    /// Tells the control how to arm a watch added while the engine runs.
+    pub fn bind_arming(&self, arm: ArmFn) {
+        let _ = self.arm.set(arm);
     }
 
     /// Removes the watch `id`. Rows already recorded stay in the log; an
@@ -292,13 +328,15 @@ impl PauseCtl {
         let mut view = inner.live_settings();
         let removed = edit::remove_watch(&mut view, id).map_err(EditError::Refused)?;
         inner.write(&view).map_err(EditError::Failed)?;
-        if index < inner.started {
+        // A watch armed while the engine runs goes the way of one armed at
+        // start.
+        if inner.is_armed(index) {
             let transition = self.pause.set_watch(root_of(index), true);
             inner.emit(transition.as_slice());
-            inner.removed.insert(index);
-        } else {
-            inner.settings.watches.remove(index);
         }
+        // The position stays taken until the next start, armed or not: a
+        // watch armed after it keeps its root index.
+        inner.removed.insert(index);
         Ok(removed)
     }
 
@@ -377,7 +415,7 @@ impl PauseCtl {
             .filter(|(index, _)| !inner.removed.contains(index))
             .map(|(index, watch)| {
                 let root = root_of(index);
-                let armed = index < inner.started;
+                let armed = inner.is_armed(index);
                 let state = if !armed {
                     WatchState::Arming
                 } else if self.pause.is_paused(root) {
@@ -399,6 +437,11 @@ impl PauseCtl {
 }
 
 impl Inner {
+    /// Whether the capture host watches the position `index`.
+    fn is_armed(&self, index: usize) -> bool {
+        index < self.started || self.armed_later.contains(&index)
+    }
+
     /// The position of the live watch `id`.
     fn position_of(&self, id: &str) -> Option<usize> {
         self.settings

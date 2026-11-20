@@ -176,9 +176,12 @@ a whole drive asks for a second click ("Add anyway"), a network folder or a
 folder inside another watch is added with a word about it. **Remove** asks
 first and says that the rows already recorded stay.
 
-A new watch is saved at once and starts recording when the engine starts the
-next time. The tab says so and offers **Restart engine now**: the viewer asks
-the engine to shut down, waits for it to go and starts it again. The list is
+A new watch is saved and armed at once: it is listed **Live** within seconds
+and records from then on, while its first scan (the baseline) runs in the
+background (#553). Only when the running engine cannot take it (its folder cannot be
+opened, say) does it start recording when the engine starts the next time;
+the tab then says so and offers **Restart engine now**: the viewer asks the
+engine to shut down, waits for it to go and starts it again. The list is
 asked for when the tab opens, after every command and every two seconds while
 the tab is open; nothing asks while the Log is shown.
 

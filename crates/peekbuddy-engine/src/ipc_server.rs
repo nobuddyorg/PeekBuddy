@@ -126,11 +126,15 @@ fn add_watch(ctx: &Shared, path: &str, confirmed: bool) -> Message {
         return command_result(false, refusal.to_string());
     }
     match ctx.pause.add_watch(path, confirmed, &edit_context(ctx)) {
-        Ok(added) => {
-            let mut message = format!(
-                "added `{}`; it starts capturing with the next engine start",
-                added.watch.id
-            );
+        Ok((added, armed)) => {
+            let mut message = if armed {
+                format!("added `{}`; it starts capturing now", added.watch.id)
+            } else {
+                format!(
+                    "added `{}`; it starts capturing with the next engine start",
+                    added.watch.id
+                )
+            };
             for notice in &added.notices {
                 message.push('\n');
                 message.push_str(&notice.text());
@@ -659,6 +663,26 @@ mod tests {
         ));
         assert!(!ok);
         assert!(message.contains("no watch"), "{message}");
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn a_watch_the_engine_arms_at_once_is_listed_armed_and_says_so() {
+        let dir = dir("armnow");
+        let ctx = ctx(&dir);
+        ctx.pause.bind_arming(Box::new(|_, _| true));
+        let (ok, message) = result(&answer(
+            &ctx,
+            &Message::Command(Command::AddWatch {
+                path: String::from("C:/Reports/"),
+                confirmed: false,
+            }),
+        ));
+        assert!(ok, "{message}");
+        assert!(message.contains("starts capturing now"), "{message}");
+        let listed = list(&ctx);
+        assert_eq!(listed.len(), 2);
+        assert!(listed[1].armed, "{listed:?}");
         std::fs::remove_dir_all(&dir).unwrap();
     }
 

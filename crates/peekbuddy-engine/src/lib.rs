@@ -624,8 +624,10 @@ mod run {
     }
 
     /// Starts capture: the watches of the settings, their lifecycle and the
-    /// reconcile worker. Without watches nothing is started. The host stops
-    /// in the `StopCapture` step, before the queue is drained.
+    /// reconcile worker. It starts without watches too, so a watch added
+    /// while the engine runs is armed at once (#553); the pause control gets
+    /// the way to do that. The host stops in the `StopCapture` step, before
+    /// the queue is drained.
     fn start_capture(
         data: &DataDir,
         loaded: &crate::settings::LoadedSettings,
@@ -641,15 +643,12 @@ mod run {
     ) -> std::io::Result<Option<SharedHost>> {
         use crate::capture_host::{
             Host, HostParts, Services, StoreSink, filters_from_settings, real_probe,
-            watches_from_settings,
+            watches_and_volumes,
         };
         use crate::live_log::StoreLiveLog;
         use crate::reconciler::{Reconciler, RootSpec, StoreRows};
 
-        let watches = watches_from_settings(&loaded.settings);
-        if watches.is_empty() {
-            return Ok(None);
-        }
+        let (watches, volumes) = watches_and_volumes(&loaded.settings);
         let sink = Box::new(
             StoreSink::new(
                 producer.clone(),
@@ -666,19 +665,20 @@ mod run {
                 path: watch.long.clone(),
             })
             .collect();
+        let live = Arc::new(StoreLiveLog::new(&data.segments, &specs));
         // Without a snapshot there is no reconcile; the watches still run.
         let reconciler =
             peekbuddy_store::snapshot::SnapshotDb::open(&data.root.join("snapshot.db"))
                 .ok()
                 .and_then(|snapshot| {
-                    let live = Arc::new(StoreLiveLog::new(&data.segments, &specs));
                     Reconciler::start_with_live(
                         snapshot,
                         StoreRows::new(producer.clone()),
                         specs,
                         crate::pause_ctl::now_ticks,
                         Host::observer(bind),
-                        Some(live),
+                        Some(Arc::clone(&live)
+                            as Arc<dyn peekbuddy_core::reconcile::LiveLog + Send + Sync>),
                     )
                     .ok()
                 });
@@ -709,6 +709,7 @@ mod run {
             bind,
         )?;
         crate::capture_host::watch_system(&host);
+        pause.bind_arming(arming(producer.clone(), Arc::clone(bind), volumes, live));
         let cell = Rc::new(RefCell::new(Some(host)));
         let stopping = Rc::clone(&cell);
         shutdown
@@ -719,6 +720,45 @@ mod run {
                 }
             });
         Ok(Some(cell))
+    }
+
+    /// How the pause control arms a watch added while the engine runs
+    /// (#553): the writer learns the root first, so no row of it meets an
+    /// unknown root; then the live log, then the host, which opens the watch
+    /// and reconciles it as at start. A folder whose volume cannot be read
+    /// is not armed: it waits for the next start, as before.
+    fn arming(
+        producer: peekbuddy_store::pipeline::Producer,
+        bind: Arc<std::sync::OnceLock<crate::capture_host::Signaller>>,
+        volumes: crate::capture_host::Volumes,
+        live: Arc<crate::live_log::StoreLiveLog>,
+    ) -> crate::pause_ctl::ArmFn {
+        let volumes = Mutex::new(volumes);
+        Box::new(move |root, watch| {
+            let Some(signaller) = bind.get() else {
+                return false;
+            };
+            let index = usize::from(root.0);
+            let Some(info) = crate::store_win::root_info(index, watch) else {
+                return false;
+            };
+            let spec = volumes
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .spec(index, watch);
+            producer.register_root(info);
+            live.add_root(&crate::reconciler::RootSpec {
+                root,
+                vol: spec.vol,
+                path: spec.long.clone(),
+            });
+            let armed = signaller.arm(spec);
+            crate::instrument::log(&format!(
+                "watch {}: added while running, armed {armed}",
+                root.0
+            ));
+            armed
+        })
     }
 
     /// Brings the Run value in line with the saved intent. Test engines (an

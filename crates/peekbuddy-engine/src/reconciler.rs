@@ -146,6 +146,8 @@ struct State {
 
 struct Shared {
     state: Mutex<State>,
+    /// The roots it can walk; a watch armed while the engine runs adds one.
+    roots: Mutex<Vec<RootSpec>>,
     wake: Condvar,
     idle: Condvar,
     cancel: AtomicBool,
@@ -217,6 +219,7 @@ impl Reconciler {
                 stop: false,
                 stats: Stats::default(),
             }),
+            roots: Mutex::new(roots),
             wake: Condvar::new(),
             idle: Condvar::new(),
             cancel: AtomicBool::new(false),
@@ -229,7 +232,6 @@ impl Reconciler {
                     &inner,
                     snapshot,
                     rows,
-                    &roots,
                     clock,
                     observer.as_ref(),
                     live.as_deref(),
@@ -261,6 +263,18 @@ impl Reconciler {
         }
         drop(state);
         self.shared.wake.notify_one();
+    }
+
+    /// Adds a root it can walk (a watch armed while the engine runs); a
+    /// root it knows already is replaced.
+    pub fn add_root(&self, spec: RootSpec) {
+        let mut roots = self
+            .shared
+            .roots
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        roots.retain(|known| known.root != spec.root);
+        roots.push(spec);
     }
 
     /// Stops the walk in progress at the next directory; the next queued
@@ -322,7 +336,6 @@ fn work<N: Snapshot, R: RowOut>(
     shared: &Shared,
     mut snapshot: N,
     mut rows: R,
-    roots: &[RootSpec],
     clock: fn() -> (u64, u64),
     observer: &dyn Observer,
     live: Option<&(dyn LiveLog + Send + Sync)>,
@@ -347,21 +360,25 @@ fn work<N: Snapshot, R: RowOut>(
             }
         };
         observer.started(root);
-        let summary = roots
+        let spec = shared
+            .roots
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
             .iter()
             .find(|spec| spec.root == root)
-            .and_then(|spec| {
-                let mut source = DirLister::new(&spec.path);
-                let cfg = Config {
-                    root: spec.root,
-                    vol: spec.vol,
-                    reason,
-                    cancel: &shared.cancel,
-                    clock,
-                    live: live.map(|log| log as &dyn LiveLog),
-                };
-                run(&cfg, &mut source, &mut snapshot, &mut rows).ok()
-            });
+            .cloned();
+        let summary = spec.and_then(|spec| {
+            let mut source = DirLister::new(&spec.path);
+            let cfg = Config {
+                root: spec.root,
+                vol: spec.vol,
+                reason,
+                cancel: &shared.cancel,
+                clock,
+                live: live.map(|log| log as &dyn LiveLog),
+            };
+            run(&cfg, &mut source, &mut snapshot, &mut rows).ok()
+        });
         observer.finished(root, summary.as_ref());
         let mut state = lock(&shared.state);
         state.running = None;

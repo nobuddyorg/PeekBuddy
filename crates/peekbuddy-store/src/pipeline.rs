@@ -24,7 +24,9 @@ use peekbuddy_core::event::RootIdx;
 use crate::batch::Batch;
 use crate::policy::{Pending, Policy};
 use crate::spill::Spill;
-use crate::writer::{Commit, Cursor, PAGE_BYTES, WAL_CHECKPOINT_BYTES, WriteError, Writer};
+use crate::writer::{
+    Commit, Cursor, PAGE_BYTES, RootInfo, WAL_CHECKPOINT_BYTES, WriteError, Writer,
+};
 
 /// Quick retries of a commit before the writer reports itself failing.
 const COMMIT_ATTEMPTS: u32 = 3;
@@ -202,6 +204,9 @@ struct State {
     overflow: VecDeque<Batch>,
     free: Vec<Batch>,
     cursors: Vec<Cursor>,
+    /// Roots to register before the next write (a watch armed while the
+    /// engine runs).
+    roots: Vec<RootInfo>,
     /// The newest cursor of each root: the one handed to [`Producer::set_cursor`]
     /// last, or the one the database had at start.
     saved: Vec<Cursor>,
@@ -334,6 +339,20 @@ impl Producer {
         } else {
             state.saved.push(cursor);
         }
+        drop(state);
+        self.shared.writer_wake.notify_one();
+    }
+
+    /// Registers a root with the running writer. The writer registers it
+    /// before it writes anything it takes from the ring or the spill file
+    /// afterwards, so a batch pushed after this call never meets an unknown
+    /// root (which would cost the whole group). Does not wait for the disk;
+    /// a root that cannot be registered leaves its rows unwritable, as at
+    /// start.
+    pub fn register_root(&self, info: RootInfo) {
+        let mut state = lock(&self.shared.state);
+        state.roots.retain(|queued| queued.idx != info.idx);
+        state.roots.push(info);
         drop(state);
         self.shared.writer_wake.notify_one();
     }
@@ -585,6 +604,8 @@ enum Work {
         spill_end: Option<(u32, u64)>,
     },
     CursorsOnly(Vec<Cursor>),
+    /// Roots are waiting to be registered and nothing else is.
+    Roots,
     /// The writer has been idle since the last commit: checkpoint once.
     Checkpoint,
     Stop,
@@ -729,6 +750,9 @@ fn next_work(
         if !state.cursors.is_empty() {
             return Work::CursorsOnly(std::mem::take(&mut state.cursors));
         }
+        if !state.roots.is_empty() {
+            return Work::Roots;
+        }
         if state.closed && state.overflow.is_empty() && !state.spiller_busy {
             return Work::Stop;
         }
@@ -766,15 +790,20 @@ fn write_loop(
     let mut replay = Batch::standard();
     let mut dirty_since: Option<Instant> = None;
     loop {
-        match next_work(
+        let work = next_work(
             shared,
             policy,
             &mut pending,
             clock,
             &mut replay,
             dirty_since,
-        ) {
+        );
+        // After the work was taken: a root registered before any of its
+        // batches was pushed is in the list by now.
+        register_roots(&mut writer, shared);
+        match work {
             Work::Stop => return writer,
+            Work::Roots => {}
             Work::Checkpoint => {
                 let _ = timed_checkpoint(&mut writer, shared);
                 dirty_since = None;
@@ -823,6 +852,16 @@ fn write_loop(
                 }
             }
         }
+    }
+}
+
+/// Registers the roots queued by [`Producer::register_root`].
+fn register_roots(writer: &mut Writer, shared: &Shared) {
+    let roots = std::mem::take(&mut lock(&shared.state).roots);
+    for info in &roots {
+        // A failure leaves the root unknown: its rows are dropped with their
+        // group and counted lost, which the engine reports as a gap.
+        let _ = writer.register_root(info);
     }
 }
 

@@ -145,8 +145,9 @@ pub struct WatchInfo {
     pub recursive: bool,
     /// The F19 state. A watch that is not armed yet reports `Arming`.
     pub state: WatchState,
-    /// False for a watch added after the engine started: it is saved and
-    /// starts capturing with the next engine start.
+    /// False for a watch added after the engine started that the running
+    /// capture could not take (#553): it is saved and starts capturing with
+    /// the next engine start.
     pub armed: bool,
     /// Changes the pause let pass unrecorded since the watch was paused.
     pub missed_while_paused: u64,

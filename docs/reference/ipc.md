@@ -88,9 +88,12 @@ asks the user and sends the same command again with `confirmed: true`. `RemoveWa
 takes the watch out of the file and, when it is armed, pauses it at once (a
 state row says so); the rows already recorded stay. `ListWatches` is answered
 with `WatchList`: every watch in settings order with its F19 state, whether
-it is armed yet, and what a pause let pass. A saved watch is armed when the
-engine starts, so a watch added meanwhile reports `armed: false` and the state
-`Arming` until the viewer restarts the engine (`Shutdown`, then a new start).
+it is armed yet, and what a pause let pass. An added watch is armed at once
+(#553) and the answer to `AddWatch` says `it starts capturing now`; its first
+reconcile is its baseline, as for a watch armed at start. Only a watch the
+running engine cannot take (its folder cannot be opened) reports
+`armed: false` and the state `Arming` until the viewer restarts the engine
+(`Shutdown`, then a new start).
 The file is written with the settings serializer, so comments in it are not
 kept. Counters, watch state and resync are defined and encoded but not sent
 yet: they need the writer (#52).

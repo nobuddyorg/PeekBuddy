@@ -192,7 +192,8 @@ fn context() -> Context {
 #[test]
 fn an_added_watch_is_saved_listed_unarmed_and_removing_it_leaves_no_row() {
     let (ctl, rows, path) = ctl("add", vec![watch("a", true)], true);
-    let added = ctl.add_watch("C:/added", false, &context()).unwrap();
+    let (added, armed) = ctl.add_watch("C:/added", false, &context()).unwrap();
+    assert!(!armed, "nothing armed it");
     let listed = ctl.list_with(|_| Some(WatchState::Live));
     assert_eq!(listed.len(), 2);
     assert!(listed[0].armed && !listed[1].armed);
@@ -228,9 +229,127 @@ fn removing_an_armed_watch_pauses_it_at_once_and_keeps_the_other_positions() {
     assert!(!saved.watches[0].enabled);
     assert!(ctl.set_watch("a", false).is_err(), "a is gone");
     // The same folder can be added again while the old root is still armed.
-    let again = ctl.add_watch("C:/watched/a", false, &context()).unwrap();
+    let (again, _) = ctl.add_watch("C:/watched/a", false, &context()).unwrap();
     assert!(again.watch.id.starts_with("a-"), "{}", again.watch.id);
     assert_eq!(ctl.list_with(|_| None).len(), 2);
+}
+
+/// The arming the engine binds, as a fake: records what it was asked and
+/// answers `take`.
+fn bind_fake(ctl: &PauseCtl, take: bool) -> Arc<Mutex<Vec<(u16, String)>>> {
+    let asked: Arc<Mutex<Vec<(u16, String)>>> = Arc::default();
+    let record = Arc::clone(&asked);
+    ctl.bind_arming(Box::new(move |root, watch| {
+        record.lock().unwrap().push((root.0, watch.path.clone()));
+        take
+    }));
+    asked
+}
+
+#[test]
+fn an_added_watch_the_engine_takes_is_armed_at_the_next_position() {
+    let (ctl, rows, _path) = ctl("arm", vec![watch("a", true)], true);
+    let asked = bind_fake(&ctl, true);
+    let (added, armed) = ctl.add_watch("C:/added", false, &context()).unwrap();
+    assert!(armed);
+    assert_eq!(
+        *asked.lock().unwrap(),
+        [(1, added.watch.path.clone())],
+        "the new watch is root 1"
+    );
+    let listed = ctl.list_with(|_| Some(WatchState::Live));
+    assert!(listed.iter().all(|watch| watch.armed), "{listed:?}");
+    assert_eq!(listed[1].state, WatchState::Live);
+    // Arming writes no row of its own: the lifecycle machine does.
+    assert_eq!(rows.states(), []);
+    // It pauses and resumes like a watch armed at start.
+    ctl.set_watch(&added.watch.id, true).unwrap();
+    assert_eq!(rows.states(), [(1, WatchState::SuspendedByUser, 0)]);
+    assert_eq!(
+        ctl.list_with(|_| Some(WatchState::Live))[1].state,
+        WatchState::SuspendedByUser
+    );
+}
+
+#[test]
+fn an_added_watch_the_engine_cannot_take_waits_for_a_restart() {
+    let (ctl, _rows, _path) = ctl("arm-refused", vec![watch("a", true)], true);
+    let asked = bind_fake(&ctl, false);
+    let (_, armed) = ctl.add_watch("C:/added", false, &context()).unwrap();
+    assert!(!armed);
+    assert_eq!(asked.lock().unwrap().len(), 1);
+    let listed = ctl.list_with(|_| Some(WatchState::Live));
+    assert!(!listed[1].armed);
+    assert_eq!(listed[1].state, WatchState::Arming);
+}
+
+#[test]
+fn a_watch_added_during_a_global_pause_is_paused_with_its_row() {
+    let (ctl, rows, _path) = ctl("arm-paused", vec![watch("a", true)], true);
+    let _asked = bind_fake(&ctl, true);
+    ctl.pause_all();
+    let (_, armed) = ctl.add_watch("C:/added", false, &context()).unwrap();
+    assert!(armed);
+    assert!(ctl.pause().is_paused(RootIdx(1)));
+    assert_eq!(
+        rows.states(),
+        [
+            (0, WatchState::SuspendedByUser, 0),
+            (1, WatchState::SuspendedByUser, 0)
+        ]
+    );
+    ctl.pause().note_missed(RootIdx(1));
+    ctl.resume_all();
+    assert_eq!(rows.states().last(), Some(&(1, WatchState::Live, 1)));
+}
+
+#[test]
+fn removing_a_watch_armed_while_running_pauses_it_and_keeps_its_position() {
+    let (ctl, rows, path) = ctl("arm-remove", vec![watch("a", true)], true);
+    let _asked = bind_fake(&ctl, true);
+    let (added, _) = ctl.add_watch("C:/added", false, &context()).unwrap();
+    let (later, _) = ctl.add_watch("C:/later", false, &context()).unwrap();
+    ctl.remove_watch(&added.watch.id).unwrap();
+    // It stops recording at once, with a row, like a watch armed at start.
+    assert_eq!(rows.states(), [(1, WatchState::SuspendedByUser, 0)]);
+    assert!(ctl.pause().is_paused(RootIdx(1)));
+    let ids: Vec<String> = ctl
+        .list_with(|_| Some(WatchState::Live))
+        .into_iter()
+        .map(|watch| watch.id)
+        .collect();
+    assert_eq!(ids, ["a".to_owned(), later.watch.id.clone()]);
+    assert_eq!(reload(&path).watches.len(), 2);
+    // The later watch is still root 2 of the running host.
+    ctl.set_watch(&later.watch.id, true).unwrap();
+    assert_eq!(
+        rows.states().last(),
+        Some(&(2, WatchState::SuspendedByUser, 0))
+    );
+}
+
+#[test]
+fn removing_a_watch_that_waits_for_a_restart_keeps_the_positions_after_it() {
+    use std::sync::atomic::{AtomicBool, Ordering};
+
+    let (ctl, rows, path) = ctl("arm-shift", vec![watch("a", true)], true);
+    let take = Arc::new(AtomicBool::new(false));
+    let answer = Arc::clone(&take);
+    ctl.bind_arming(Box::new(move |_, _| answer.load(Ordering::Acquire)));
+    let (waiting, armed) = ctl.add_watch("C:/waiting", false, &context()).unwrap();
+    assert!(!armed);
+    take.store(true, Ordering::Release);
+    let (live, armed) = ctl.add_watch("C:/live", false, &context()).unwrap();
+    assert!(armed);
+    ctl.remove_watch(&waiting.watch.id).unwrap();
+    assert_eq!(rows.states(), [], "a watch that was not armed has no row");
+    let listed = ctl.list_with(|_| Some(WatchState::Live));
+    assert_eq!(listed.len(), 2);
+    assert!(listed[1].armed && listed[1].id == live.watch.id);
+    assert_eq!(reload(&path).watches.len(), 2);
+    // The armed watch is still root 2 of the running host.
+    ctl.set_watch(&live.watch.id, true).unwrap();
+    assert_eq!(rows.states(), [(2, WatchState::SuspendedByUser, 0)]);
 }
 
 #[test]

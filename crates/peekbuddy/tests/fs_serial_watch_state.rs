@@ -3,8 +3,9 @@
 //! pipe client that asks for the watch list sees `Lost` in the first list
 //! that reports a change and the watch back to `Live` afterwards, with
 //! `Restored` among the logged states. The viewer's mapping turns each list
-//! into the label the watches screen shows. Runs in the `fs-serial` group on
-//! real NTFS.
+//! into the label the watches screen shows. A root added through the pipe
+//! while the engine runs is armed at once (#553). Runs in the `fs-serial`
+//! group on real NTFS.
 #![cfg(windows)]
 #![expect(
     clippy::unwrap_used,
@@ -14,15 +15,16 @@
 #[path = "support/engine.rs"]
 mod engine;
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
-use engine::{all_rows, exe, quit, spawn, wait_for_window, wait_until_settled};
+use engine::{Kill, all_rows, exe, quit, spawn, wait_for_window, wait_until_settled};
 use peekbuddy_core::event::{Kind, WatchState};
 use peekbuddy_core::ipc::{Message, PROTOCOL_VERSION, WatchInfo};
 use peekbuddy_testkit::TestDir;
 use peekbuddy_viewer::watches::present;
 use peekbuddy_win::pipe::PipeClient;
+use peekbuddy_win::window::WindowHandle;
 
 /// The state of the watch `w0` as the engine reports it, with the label the
 /// watches screen would show.
@@ -192,17 +194,20 @@ fn rows_named(data: &Path, name: &str) -> usize {
         .count()
 }
 
-/// A root added through the pipe while the engine runs (#68, #355). Live
-/// arming is not built yet (the capture host fixes its roots at start), so
-/// this pins what happens today: the watch is saved and listed as not armed,
-/// the running engine records nothing under it, and the next start arms it
-/// and records a file created afterwards. When live arming lands, the middle
-/// part changes to "Live within seconds, and the file is a row".
-#[test]
-fn a_root_added_while_running_is_saved_unarmed_and_captures_after_a_restart() {
-    use peekbuddy_core::ipc::Command as Cmd;
+/// Two folders under a fresh temp dir, the first watched from the start as
+/// `w0`, and the engine running on them with a pipe client attached.
+struct Running {
+    _dir: TestDir,
+    data: PathBuf,
+    first: PathBuf,
+    added: PathBuf,
+    engine: Kill,
+    window: WindowHandle,
+    client: PipeClient,
+}
 
-    let dir = TestDir::new("watch-added").unwrap();
+fn run_with_one_watch(tag: &str) -> Running {
+    let dir = TestDir::new(tag).unwrap();
     let data = dir.path().join("data");
     let first = dir.path().join("first");
     let added = dir.path().join("added");
@@ -228,11 +233,24 @@ fn a_root_added_while_running_is_saved_unarmed_and_captures_after_a_restart() {
     until(&mut client, "w0 Live", |watch, _| {
         watch.armed && watch.state == WatchState::Live
     });
+    Running {
+        _dir: dir,
+        data,
+        first,
+        added,
+        engine,
+        window,
+        client,
+    }
+}
 
-    // Add the second root through the command the viewer sends.
+/// Sends `AddWatch` for `path`; returns the engine's answer.
+fn add(client: &mut PipeClient, path: &Path) -> String {
+    use peekbuddy_core::ipc::Command as Cmd;
+
     client
         .send(&Message::Command(Cmd::AddWatch {
-            path: added.display().to_string(),
+            path: path.display().to_string(),
             confirmed: false,
         }))
         .unwrap();
@@ -240,29 +258,84 @@ fn a_root_added_while_running_is_saved_unarmed_and_captures_after_a_restart() {
         unreachable!("a command is answered with a result");
     };
     assert!(ok, "{message}");
+    message
+}
+
+/// Waits until the second watch of the list is `Live`, at most 10 s; returns
+/// its id.
+fn second_live_within_seconds(client: &mut PipeClient) -> String {
+    let deadline = Instant::now() + Duration::from_secs(10);
+    loop {
+        let watches = list(client);
+        if let Some(watch) = watches.get(1)
+            && watch.state == WatchState::Live
+        {
+            assert!(watch.armed, "{watches:?}");
+            assert_eq!(present(watch).label, "Live");
+            return watch.id.clone();
+        }
+        assert!(
+            Instant::now() < deadline,
+            "the added root is not Live within 10 s: {watches:?}"
+        );
+        std::thread::sleep(Duration::from_millis(50));
+    }
+}
+
+/// Waits until a row's path ends with `name`.
+fn wait_for_row(data: &Path, name: &str) {
+    let deadline = Instant::now() + Duration::from_secs(60);
+    while rows_named(data, name) == 0 {
+        assert!(Instant::now() < deadline, "no row for {name}");
+        std::thread::sleep(Duration::from_millis(100));
+    }
+}
+
+fn rows_of(data: &Path, kind: Kind) -> usize {
+    all_rows(data).iter().filter(|row| row.kind == kind).count()
+}
+
+/// A root added through the pipe while the engine runs (#68, #355, #553):
+/// it is armed at once, listed `Live` within seconds, its baseline covers the
+/// time before the handle was armed, and a file created in it is a row while
+/// the first root keeps recording. The next start arms it from the settings
+/// and it captures again.
+#[test]
+fn a_root_added_while_running_is_live_within_seconds_and_captures_after_a_restart() {
+    let Running {
+        _dir,
+        data,
+        first,
+        added,
+        mut engine,
+        window,
+        mut client,
+    } = run_with_one_watch("watch-added");
+
+    // Add the second root through the command the viewer sends.
+    let message = add(&mut client, &added);
+    assert!(message.contains("starts capturing now"), "{message}");
     let watches = list(&mut client);
     assert_eq!(watches.len(), 2, "{watches:?}");
     assert!(watches[0].armed && watches[0].id == "w0", "{watches:?}");
-    let new_id = watches[1].id.clone();
-    assert!(!watches[1].armed, "{watches:?}");
-    assert_eq!(watches[1].state, WatchState::Arming, "{watches:?}");
-    assert_eq!(present(&watches[1]).label, "Starts after restart");
+    assert!(watches[1].armed, "{watches:?}");
+    assert_ne!(present(&watches[1]).label, "Starts after restart");
 
-    // The running engine does not look at the new folder: once the marker in
-    // the first root is a row, the engine is awake and has had its chance
-    // at the file in the new one.
-    std::fs::write(added.join("before.txt"), b"x").unwrap();
-    std::fs::write(first.join("marker.txt"), b"x").unwrap();
+    // Live within seconds, without a restart, and baselined.
+    let new_id = second_live_within_seconds(&mut client);
     let deadline = Instant::now() + Duration::from_secs(60);
-    while rows_named(&data, "marker.txt") == 0 {
-        assert!(Instant::now() < deadline, "no row for the marker file");
+    while rows_of(&data, Kind::BaselineEstablished) < 2 {
+        assert!(Instant::now() < deadline, "no baseline of the added root");
         std::thread::sleep(Duration::from_millis(100));
     }
-    std::thread::sleep(Duration::from_secs(1));
-    assert_eq!(rows_named(&data, "before.txt"), 0);
-    // Still waiting for the restart, still listed with the same id.
+
+    // A file in the new root is a row, and the first root still records.
+    std::fs::write(added.join("during.txt"), b"x").unwrap();
+    std::fs::write(first.join("marker.txt"), b"x").unwrap();
+    wait_for_row(&data, "during.txt");
+    wait_for_row(&data, "marker.txt");
     let watches = list(&mut client);
-    assert!(!watches[1].armed && watches[1].id == new_id, "{watches:?}");
+    assert!(watches[1].armed && watches[1].id == new_id, "{watches:?}");
     drop(client);
     quit(window, &mut engine.0);
 
@@ -285,14 +358,94 @@ fn a_root_added_while_running_is_saved_unarmed_and_captures_after_a_restart() {
     }
     wait_until_settled(&data, Duration::from_secs(3));
     std::fs::write(added.join("after.txt"), b"x").unwrap();
-    let deadline = Instant::now() + Duration::from_secs(60);
-    while rows_named(&data, "after.txt") == 0 {
-        assert!(
-            Instant::now() < deadline,
-            "no row for the file in the added root"
-        );
-        std::thread::sleep(Duration::from_millis(100));
-    }
+    wait_for_row(&data, "after.txt");
     drop(client);
     quit(window, &mut engine.0);
+}
+
+/// The first watch of an engine that started without any (the first-run
+/// flow of the viewer, #553) is armed at once and records.
+#[test]
+fn the_first_watch_of_an_engine_without_watches_is_live_within_seconds() {
+    let dir = TestDir::new("watch-first").unwrap();
+    let data = dir.path().join("data");
+    let added = dir.path().join("first");
+    std::fs::create_dir_all(&data).unwrap();
+    std::fs::create_dir_all(&added).unwrap();
+    std::fs::write(
+        data.join("settings.toml"),
+        "version = 1\n[general]\nfirst_run = false\n",
+    )
+    .unwrap();
+    let mut engine = spawn(&data);
+    let window = wait_for_window(&data, &mut engine.0);
+    let mut client = connect(&data);
+    assert_eq!(list(&mut client), []);
+    let message = add(&mut client, &added);
+    assert!(message.contains("starts capturing now"), "{message}");
+    let deadline = Instant::now() + Duration::from_secs(10);
+    loop {
+        let watches = list(&mut client);
+        if watches.first().is_some_and(|w| w.state == WatchState::Live) {
+            assert!(watches[0].armed, "{watches:?}");
+            break;
+        }
+        assert!(
+            Instant::now() < deadline,
+            "the first watch is not Live within 10 s: {watches:?}"
+        );
+        std::thread::sleep(Duration::from_millis(50));
+    }
+    std::fs::write(added.join("hello.txt"), b"x").unwrap();
+    wait_for_row(&data, "hello.txt");
+    drop(client);
+    quit(window, &mut engine.0);
+}
+
+/// A root added while the engine runs and removed again (#553) takes the
+/// path of a root armed at start: it stops recording at once with a state
+/// row and leaves the list, while the first root keeps recording.
+#[test]
+fn a_root_added_while_running_and_removed_again_stops_recording_at_once() {
+    use peekbuddy_core::ipc::Command as Cmd;
+
+    let Running {
+        _dir,
+        data,
+        first,
+        added,
+        mut engine,
+        window,
+        mut client,
+    } = run_with_one_watch("watch-added-removed");
+    add(&mut client, &added);
+    let new_id = second_live_within_seconds(&mut client);
+    std::fs::write(added.join("kept.txt"), b"x").unwrap();
+    wait_for_row(&data, "kept.txt");
+
+    client
+        .send(&Message::Command(Cmd::RemoveWatch { id: new_id }))
+        .unwrap();
+    let Some(Message::CommandResult { ok, message }) = client.receive().unwrap() else {
+        unreachable!("a command is answered with a result");
+    };
+    assert!(ok, "{message}");
+    let watches = list(&mut client);
+    assert_eq!(watches.len(), 1, "{watches:?}");
+    assert_eq!(watches[0].id, "w0");
+
+    // Nothing more under the removed root: once the marker in the first root
+    // is a row, the engine has had its chance at the file.
+    std::fs::write(added.join("gone.txt"), b"x").unwrap();
+    std::fs::write(first.join("marker.txt"), b"x").unwrap();
+    wait_for_row(&data, "marker.txt");
+    std::thread::sleep(Duration::from_secs(1));
+    assert_eq!(rows_named(&data, "gone.txt"), 0);
+    drop(client);
+    quit(window, &mut engine.0);
+    assert_eq!(
+        rows_of(&data, Kind::WatchStateChanged(WatchState::SuspendedByUser)),
+        1,
+        "the removal is one state row"
+    );
 }
