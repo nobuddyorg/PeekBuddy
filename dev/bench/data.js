@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1795169655827,
+  "lastUpdate": 1795169719102,
   "repoUrl": "https://github.com/nobuddyorg/PeekBuddy",
   "entries": {
     "benches (windows-2025)": [
@@ -1709,6 +1709,98 @@ window.BENCHMARK_DATA = {
           {
             "name": "viewer/scroll_frame_p99",
             "value": 426100,
+            "unit": "ns"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "name": "Matthias Eggert",
+            "username": "besessener",
+            "email": "8039350+besessener@users.noreply.github.com"
+          },
+          "committer": {
+            "name": "GitHub",
+            "username": "web-flow",
+            "email": "noreply@github.com"
+          },
+          "id": "4c76d6913ce690540eaedb3bd273ed9a6691a40c",
+          "message": "fix: read live rows from the start time of a walk (#542)\n\nThe row that starts a walk is written after live rows of events\nthat came a moment later. The next walk read the live rows after\nits id and missed entries made after their directory was listed and\ndeleted in a gap (#535). It now reads from the newest row older than\nthe start time less 10 s.\n\nCo-authored-by: Matthias Eggert <dem.matze@gmail.com>\nCo-authored-by: Claude Sonnet 5.5 <noreply@anthropic.com>",
+          "timestamp": "2026-11-19T19:49:03Z",
+          "url": "https://github.com/nobuddyorg/PeekBuddy/commit/4c76d6913ce690540eaedb3bd273ed9a6691a40c"
+        },
+        "date": 1795169717154,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "filter/eval_6_names",
+            "value": 1500.2724321046126,
+            "unit": "ns"
+          },
+          {
+            "name": "metrics/process_list_300",
+            "value": 452.2107932416331,
+            "unit": "ns"
+          },
+          {
+            "name": "notify_parse/extended/64kib",
+            "value": 1275.2171885537896,
+            "unit": "ns"
+          },
+          {
+            "name": "notify_parse/full/64kib",
+            "value": 1287.4098816688586,
+            "unit": "ns"
+          },
+          {
+            "name": "notify_parse/plain/64kib",
+            "value": 2322.1643285751043,
+            "unit": "ns"
+          },
+          {
+            "name": "perf/counters_event",
+            "value": 0.24205506373727526,
+            "unit": "ns"
+          },
+          {
+            "name": "perf/milestone_record",
+            "value": 10.463508758404206,
+            "unit": "ns"
+          },
+          {
+            "name": "reparse/classify_8",
+            "value": 12.40388297757978,
+            "unit": "ns"
+          },
+          {
+            "name": "rules/eval_6_events_50_rules",
+            "value": 28150.401730903617,
+            "unit": "ns"
+          },
+          {
+            "name": "store/batch_insert_1000",
+            "value": 2199788.541666667,
+            "unit": "ns"
+          },
+          {
+            "name": "store/intern_hit_1000",
+            "value": 35757.78997439875,
+            "unit": "ns"
+          },
+          {
+            "name": "store/intern_miss_1000",
+            "value": 2478395.595238095,
+            "unit": "ns"
+          },
+          {
+            "name": "viewer/scroll_frame_p95",
+            "value": 324925,
+            "unit": "ns"
+          },
+          {
+            "name": "viewer/scroll_frame_p99",
+            "value": 371250,
             "unit": "ns"
           }
         ]
