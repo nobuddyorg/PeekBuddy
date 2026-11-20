@@ -88,6 +88,24 @@ fn volume_of(path: &str) -> Option<(VolInfo, Vec<u16>)> {
     ))
 }
 
+/// The root row of a watch whose folder cannot be opened at start: on a
+/// volume with an empty GUID, so its rows (its `Lost` row, and what it
+/// records once the folder is back) have a root. Without one a single row of
+/// the root would cost its whole commit group, rows of other roots included.
+fn unreadable_root(index: usize, watch: &peekbuddy_core::settings::Watch) -> RootInfo {
+    RootInfo {
+        idx: RootIdx(u16::try_from(index).unwrap_or(u16::MAX)),
+        vol: VolInfo {
+            guid: String::new(),
+            serial: 0,
+            letter: None,
+            journal_id: None,
+        },
+        path: watch.path.encode_utf16().collect(),
+        recursive: watch.recursive,
+    }
+}
+
 /// The root row of the watch at `index` of the settings; `None` when its
 /// volume cannot be read (the folder cannot be opened).
 #[must_use]
@@ -109,8 +127,8 @@ impl Store {
     /// # Errors
     ///
     /// The error from opening the segment or starting the threads. A watch
-    /// that cannot be opened is skipped (the lifecycle code of #48 deals
-    /// with lost roots), not an error.
+    /// that cannot be opened is registered without a volume (the lifecycle
+    /// code of #48 deals with lost roots), not an error.
     pub fn start(
         data: &DataDir,
         settings: &Settings,
@@ -147,10 +165,10 @@ impl Store {
         let mut roots = 0;
         // Paused watches are registered too: pausing and resuming write
         // state rows for them (#63).
+        // A folder missing at start is registered too, on no volume: the
+        // lifecycle code of #48 reports it lost and brings it back.
         for (index, watch) in settings.watches.iter().enumerate() {
-            let Some(info) = root_info(index, watch) else {
-                continue;
-            };
+            let info = root_info(index, watch).unwrap_or_else(|| unreadable_root(index, watch));
             roots += usize::from(writer.register_root(&info).is_ok());
         }
         let (observer_counters, observer_commits) = (Arc::clone(counters), Arc::clone(commits));
@@ -414,7 +432,9 @@ mod tests {
 
         let mut store = Store::start(&data, &settings, &counters, &commits).unwrap();
 
-        assert_eq!(store.roots, 1);
+        // The missing folder is registered too (on no volume): a row of an
+        // unregistered root would cost its whole commit group.
+        assert_eq!(store.roots, 2);
         assert_eq!(store.lost_batches(), 0);
         let producer = store.producer();
         let mut batch = producer.new_batch();

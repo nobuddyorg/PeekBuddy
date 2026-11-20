@@ -12,7 +12,7 @@
 //! A watch that is lost because its root was deleted or moved is watched from
 //! its nearest existing ancestor, so coming back is an event, not polling.
 
-use std::collections::{HashMap, VecDeque};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Condvar, Mutex, OnceLock};
 use std::thread::JoinHandle;
@@ -109,6 +109,8 @@ enum Job {
     Recheck(RootIdx),
     /// The watch above a lost root was itself lost: look for a new ancestor.
     Rewatch(RootIdx),
+    /// A removed watch: close its handles and ignore it from now on.
+    Disarm(RootIdx),
     Stop,
 }
 
@@ -131,6 +133,9 @@ struct Inner {
     notifiers: Mutex<HashMap<u16, Box<dyn Send + Sync>>>,
     /// Registrations that live as long as the host.
     keep: Mutex<Vec<Box<dyn Send + Sync>>>,
+    /// Roots of removed watches. Their positions stay in the vectors, so the
+    /// positions of the others stay valid; their jobs are dropped.
+    retired: Mutex<HashSet<u16>>,
     /// Canonical directories whose events are dropped before the ring.
     exclude: Vec<Vec<u16>>,
     stopping: AtomicBool,
@@ -372,13 +377,23 @@ impl Signaller {
         inner.post(Job::Open(root));
         true
     }
+
+    /// Closes the handles of a removed watch (#553): its directory watch,
+    /// the watches on its parent and its plug-and-play registration, so an
+    /// add and remove cycle leaves the handle count where it was. The caller
+    /// has paused the watch and written its row; the job runs after the jobs
+    /// queued before it, and the root's later signals are ignored.
+    pub fn disarm(&self, root: RootIdx) {
+        self.inner.post(Job::Disarm(root));
+    }
 }
 
 /// The roots whose spec `pick` accepts.
 fn roots_where(inner: &Inner, pick: impl Fn(&WatchSpec) -> bool) -> Vec<RootIdx> {
+    let retired = lock(&inner.retired).clone();
     lock(&inner.watches)
         .iter()
-        .filter(|w| pick(w))
+        .filter(|w| !retired.contains(&w.root.0) && pick(w))
         .map(|w| w.root)
         .collect()
 }
@@ -654,6 +669,7 @@ impl Host {
             reconciler: Mutex::new(reconciler),
             settled: Mutex::new(vec![false; count]),
             notifiers: Mutex::new(HashMap::new()),
+            retired: Mutex::new(HashSet::new()),
             keep: Mutex::new(Vec::new()),
             exclude,
             stopping: AtomicBool::new(false),
@@ -803,8 +819,18 @@ fn work(inner: &Arc<Inner>) {
                     .unwrap_or_else(std::sync::PoisonError::into_inner);
             }
         };
+        let root = match &job {
+            Job::Signal(root, _) | Job::Open(root) | Job::Recheck(root) | Job::Rewatch(root) => {
+                Some(*root)
+            }
+            Job::Disarm(_) | Job::Stop => None,
+        };
+        if root.is_some_and(|root| lock(&inner.retired).contains(&root.0)) {
+            continue;
+        }
         match job {
             Job::Stop => return,
+            Job::Disarm(root) => disarm(inner, root),
             Job::Open(root) => open(inner, root),
             Job::Recheck(root) => recheck(inner, root),
             Job::Rewatch(root) => rewatch(inner, root),
@@ -1111,6 +1137,29 @@ fn guard_root(inner: &Arc<Inner>, spec: &WatchSpec) {
         exclude: Vec::new(),
         reject: Vec::new(),
     });
+}
+
+/// Retires a removed root and closes what it holds: the registration, the
+/// directory watch, and the guard and waiting watches on its parents.
+fn disarm(inner: &Inner, root: RootIdx) {
+    lock(&inner.retired).insert(root.0);
+    lock(&inner.notifiers).remove(&root.0);
+    if let Some(watcher) = lock(&inner.watcher).as_ref() {
+        let _ = watcher.remove_root(root);
+    }
+    let parents_of = [RootIdx(GUARD_BIT | root.0), RootIdx(WAIT_BIT | root.0)];
+    {
+        let mut waiting = lock(&inner.waiting);
+        for parent in parents_of {
+            waiting.remove(&parent.0);
+        }
+    }
+    if let Some(parents) = lock(&inner.parents).as_ref() {
+        for parent in parents_of {
+            let _ = parents.remove_root(parent);
+        }
+    }
+    crate::instrument::log(&format!("watch {}: removed, handles closed", root.0));
 }
 
 fn unwatch_parent(inner: &Inner, spec: &WatchSpec) {

@@ -333,6 +333,10 @@ impl PauseCtl {
         if inner.is_armed(index) {
             let transition = self.pause.set_watch(root_of(index), true);
             inner.emit(transition.as_slice());
+            // After the row: the host closes the watch's handles (#553).
+            if let Some(signaller) = self.signals.get().and_then(|bound| bound.get()) {
+                signaller.disarm(root_of(index));
+            }
         }
         // The position stays taken until the next start, armed or not: a
         // watch armed after it keeps its root index.
