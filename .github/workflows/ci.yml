@@ -144,7 +144,7 @@ jobs:
           cargo nextest run -p peekbuddy-win -p peekbuddy-engine
           --features peekbuddy-win/usn,peekbuddy-engine/usn
           --profile ci --locked --no-tests=pass
-          -E 'binary(usn_source) | test(/^usn::/)'
+          -E 'binary(usn_source) | binary(usn_store) | test(/^usn::/)'
       - run: cargo nextest run --workspace --profile ci --locked --no-tests=pass
         env:
           # The autostart test touches the real Run key (#63); this runner is

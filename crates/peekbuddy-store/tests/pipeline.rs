@@ -292,12 +292,14 @@ fn cursors_are_committed_with_the_rows_they_cover() {
     producer.set_cursor(Cursor {
         root: RootIdx(0),
         usn: Some(777),
+        journal_id: None,
     });
     pipeline.flush(Duration::from_secs(10)).unwrap();
     // A cursor alone (no rows) is written too, at the next opportunity.
     producer.set_cursor(Cursor {
         root: RootIdx(0),
         usn: Some(888),
+        journal_id: None,
     });
     std::thread::sleep(Duration::from_millis(300));
     drop(pipeline.close());
@@ -487,8 +489,12 @@ fn a_cursor_queued_for_one_root_does_not_replace_another_roots() {
         producer.set_cursor(Cursor {
             root: RootIdx(root),
             usn: Some(usn),
+            journal_id: None,
         });
     }
+    // The position to resume from is the newest one, before it is written.
+    let saved = |root| producer.saved_cursor(RootIdx(root)).and_then(|c| c.usn);
+    assert_eq!((saved(0), saved(1), saved(2)), (Some(30), Some(20), None));
     push_events(&producer, 10, 5);
     blocked.store(false, Ordering::Release);
     pipeline.flush(Duration::from_secs(20)).unwrap();

@@ -50,6 +50,8 @@ mod tracy_plots;
 #[cfg(windows)]
 pub mod tray_win;
 #[cfg(all(windows, feature = "usn"))]
+pub mod usn_checkpoints;
+#[cfg(all(windows, feature = "usn"))]
 pub mod usn_source;
 
 use std::path::PathBuf;
