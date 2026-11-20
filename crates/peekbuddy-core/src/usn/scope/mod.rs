@@ -32,6 +32,7 @@
 //! anything below it is flagged partial.
 
 use std::collections::{HashMap, HashSet};
+use std::sync::Arc;
 
 use super::record::Record;
 use crate::event::map::usn_reason as reason;
@@ -40,10 +41,133 @@ const BACKSLASH: u16 = 0x5C;
 /// Bound on the parent chain walked for one path; a damaged map cannot loop.
 const MAX_DEPTH: usize = 4_096;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+/// A reference number as bytes: alignment 1, so a table slot packs to 36 B
+/// instead of the 48 B two `u128`s need.
+type Key = [u8; 16];
+
+fn key(frn: u128) -> Key {
+    frn.to_le_bytes()
+}
+
+fn frn_of(key: Key) -> u128 {
+    u128::from_le_bytes(key)
+}
+
+/// Id of the empty name, which every scope holds and never counts.
+const NO_NAME: u32 = 0;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct Dir {
-    parent: u128,
-    name: Vec<u16>,
+    parent: Key,
+    name: u32,
+}
+
+#[derive(Debug, Clone)]
+struct NameSlot {
+    units: Arc<[u16]>,
+    refs: u32,
+}
+
+/// Equal names share one allocation: most trees repeat `src`, `.git` or
+/// `node_modules` thousands of times. A name is freed with its last user.
+#[derive(Debug, Clone)]
+struct Names {
+    slots: Vec<NameSlot>,
+    free: Vec<u32>,
+    index: HashMap<Arc<[u16]>, u32>,
+}
+
+impl Names {
+    fn new() -> Self {
+        Self {
+            slots: vec![NameSlot {
+                units: Arc::from(Vec::new()),
+                refs: 0,
+            }],
+            free: Vec::new(),
+            index: HashMap::new(),
+        }
+    }
+
+    fn slot_mut(&mut self, id: u32) -> Option<&mut NameSlot> {
+        usize::try_from(id)
+            .ok()
+            .and_then(|at| self.slots.get_mut(at))
+    }
+
+    /// The units of name `id`; empty for an unknown id.
+    fn get(&self, id: u32) -> &[u16] {
+        usize::try_from(id)
+            .ok()
+            .and_then(|at| self.slots.get(at))
+            .map_or(&[], |slot| &slot.units)
+    }
+
+    /// Takes one use of `name` and returns its id.
+    fn acquire(&mut self, name: &[u16]) -> u32 {
+        if name.is_empty() {
+            return NO_NAME;
+        }
+        if let Some(&id) = self.index.get(name) {
+            if let Some(slot) = self.slot_mut(id) {
+                slot.refs = slot.refs.saturating_add(1);
+            }
+            return id;
+        }
+        let units: Arc<[u16]> = Arc::from(name);
+        let fresh = NameSlot {
+            units: Arc::clone(&units),
+            refs: 1,
+        };
+        let id = if let Some(id) = self.free.pop() {
+            if let Some(slot) = self.slot_mut(id) {
+                *slot = fresh;
+            }
+            id
+        } else if let Ok(id) = u32::try_from(self.slots.len()) {
+            self.slots.push(fresh);
+            id
+        } else {
+            // Four billion distinct names: fall back to no name.
+            return NO_NAME;
+        };
+        self.index.insert(units, id);
+        id
+    }
+
+    /// Gives one use of name `id` back.
+    fn release(&mut self, id: u32) {
+        if id == NO_NAME {
+            return;
+        }
+        let Some(empty) = self.slots.first().map(|slot| Arc::clone(&slot.units)) else {
+            return;
+        };
+        let Some(slot) = self.slot_mut(id) else {
+            return;
+        };
+        slot.refs = slot.refs.saturating_sub(1);
+        if slot.refs == 0 {
+            let gone = std::mem::replace(&mut slot.units, empty);
+            self.index.remove(&*gone);
+            self.free.push(id);
+        }
+    }
+
+    fn memory_usage(&self) -> usize {
+        // Per distinct name: the slot, its index entry and the shared
+        // allocation (two counters and the units).
+        let shared: usize = self
+            .slots
+            .iter()
+            .filter(|slot| slot.refs > 0)
+            .map(|slot| 2 * size_of::<usize>() + slot.units.len() * size_of::<u16>())
+            .sum();
+        self.slots.capacity() * size_of::<NameSlot>()
+            + self.free.capacity() * size_of::<u32>()
+            + self.index.capacity() * (size_of::<Arc<[u16]>>() + size_of::<u32>() + 1)
+            + shared
+    }
 }
 
 /// What the caller has to do after a record.
@@ -101,7 +225,8 @@ impl Decision {
 #[derive(Debug, Clone)]
 pub struct Scope {
     root: u128,
-    dirs: HashMap<u128, Dir>,
+    dirs: HashMap<Key, Dir>,
+    names: Names,
 }
 
 impl Scope {
@@ -110,13 +235,17 @@ impl Scope {
     pub fn new(root: u128) -> Self {
         let mut dirs = HashMap::new();
         dirs.insert(
-            root,
+            key(root),
             Dir {
-                parent: 0,
-                name: Vec::new(),
+                parent: key(0),
+                name: NO_NAME,
             },
         );
-        Self { root, dirs }
+        Self {
+            root,
+            dirs,
+            names: Names::new(),
+        }
     }
 
     /// The root's reference number.
@@ -140,20 +269,15 @@ impl Scope {
     /// Whether `frn` is a member directory.
     #[must_use]
     pub fn contains(&self, frn: u128) -> bool {
-        self.dirs.contains_key(&frn)
+        self.dirs.contains_key(&key(frn))
     }
 
     /// Bytes the set holds on the heap, estimated: the table slots plus the
     /// names. For the memory gate; not exact.
     #[must_use]
     pub fn memory_usage(&self) -> usize {
-        let slot = size_of::<u128>() + size_of::<Dir>() + 1;
-        self.dirs.capacity() * slot
-            + self
-                .dirs
-                .values()
-                .map(|dir| dir.name.capacity() * size_of::<u16>())
-                .sum::<usize>()
+        let slot = size_of::<Key>() + size_of::<Dir>() + 1;
+        self.dirs.capacity() * slot + self.names.memory_usage()
     }
 
     /// Adds a directory found by a walk (or a resolved name). The root is
@@ -162,13 +286,17 @@ impl Scope {
         if frn == self.root {
             return;
         }
-        self.dirs.insert(
-            frn,
+        let name = self.names.acquire(name);
+        let old = self.dirs.insert(
+            key(frn),
             Dir {
-                parent,
-                name: name.to_vec(),
+                parent: key(parent),
+                name,
             },
         );
+        if let Some(old) = old {
+            self.names.release(old.name);
+        }
     }
 
     /// Gives a directory added without a name its name.
@@ -176,19 +304,23 @@ impl Scope {
         if frn == self.root {
             return;
         }
-        if let Some(dir) = self.dirs.get_mut(&frn) {
-            name.clone_into(&mut dir.name);
+        if let Some(dir) = self.dirs.get_mut(&key(frn)) {
+            let old = std::mem::replace(&mut dir.name, self.names.acquire(name));
+            self.names.release(old);
         }
     }
 
     /// Removes a directory and every member below it; returns how many.
     pub fn remove_subtree(&mut self, frn: u128) -> usize {
-        if frn == self.root || !self.dirs.contains_key(&frn) {
+        if frn == self.root || !self.contains(frn) {
             return 0;
         }
         let mut children: HashMap<u128, Vec<u128>> = HashMap::new();
         for (&id, dir) in &self.dirs {
-            children.entry(dir.parent).or_default().push(id);
+            children
+                .entry(frn_of(dir.parent))
+                .or_default()
+                .push(frn_of(id));
         }
         let mut doomed: HashSet<u128> = HashSet::new();
         let mut stack = vec![frn];
@@ -199,8 +331,10 @@ impl Scope {
                 stack.extend(below.iter().copied());
             }
         }
-        for id in &doomed {
-            self.dirs.remove(id);
+        for &id in &doomed {
+            if let Some(dir) = self.dirs.remove(&key(id)) {
+                self.names.release(dir.name);
+            }
         }
         doomed.len()
     }
@@ -224,10 +358,11 @@ impl Scope {
             if depth >= MAX_DEPTH {
                 return None;
             }
-            let dir = self.dirs.get(&at)?;
-            partial |= dir.name.is_empty();
-            len += dir.name.len() + 1;
-            at = dir.parent;
+            let dir = self.dirs.get(&key(at))?;
+            let name = self.names.get(dir.name);
+            partial |= name.is_empty();
+            len += name.len() + 1;
+            at = frn_of(dir.parent);
             depth += 1;
         }
         let total = len.saturating_sub(1);
@@ -236,10 +371,11 @@ impl Scope {
         let mut end = total;
         at = frn;
         while at != self.root {
-            let dir = self.dirs.get(&at)?;
-            let start = end.saturating_sub(dir.name.len());
+            let dir = self.dirs.get(&key(at))?;
+            let name = self.names.get(dir.name);
+            let start = end.saturating_sub(name.len());
             if let Some(slot) = out.get_mut(start..end) {
-                slot.copy_from_slice(&dir.name);
+                slot.copy_from_slice(name);
             }
             end = start;
             if end > 0 {
@@ -248,7 +384,7 @@ impl Scope {
                     *slot = BACKSLASH;
                 }
             }
-            at = dir.parent;
+            at = frn_of(dir.parent);
         }
         Some(partial)
     }
@@ -277,7 +413,7 @@ impl Scope {
         // The path before the change: a member directory's own parent chain
         // while the map still has its old place, else the record's parent.
         let before = if frn_member && !parent_member {
-            self.dirs.get(&rec.frn).map(|dir| dir.parent)
+            self.dirs.get(&key(rec.frn)).map(|dir| frn_of(dir.parent))
         } else {
             Some(rec.parent)
         };

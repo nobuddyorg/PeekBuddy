@@ -232,19 +232,19 @@ fn memory_per_directory_is_small_and_linear() {
 fn a_hundred_thousand_watched_directories_stay_within_the_measured_bound() {
     // F8 (`engine.private_bytes.idle`, 15 MB with 100k watched directories)
     // was set for RDCW, which keeps nothing per directory. The USN scope
-    // does: measured at 9.85 MB for 100k directories with a 12-unit name,
-    // about 98 B each (map entry, parent, name vector). The bound is that
-    // measurement plus 5 %, so growth is noticed; interning equal names
-    // (most trees repeat `src`, `node_modules`, `.git`) is the way down if
-    // the service mode needs the room.
+    // does: measured at 4.24 MB for 100k directories with a 12-unit name,
+    // about 42 B each (a 36 B table slot; the name is interned and shared).
+    // It was 9.85 MB, 98 B each, with a name vector per directory. The bound
+    // is the measurement plus 5 %, so growth is noticed.
     let mut scope = Scope::new(ROOT);
     for index in 1..=100_000_u128 {
         scope.insert(ROOT + index, ROOT + index / 10, &units("node_modules"));
     }
     assert_eq!(scope.len(), 100_001);
     let bytes = scope.memory_usage();
-    assert!(bytes <= 10_350_000, "{bytes} B for 100k directories");
-    assert!(bytes >= 5_000_000, "{bytes} B: the estimate lost its names");
+    assert!(bytes <= 4_456_000, "{bytes} B for 100k directories");
+    let table = scope.dirs.capacity() * (size_of::<Key>() + size_of::<Dir>() + 1);
+    assert!(bytes > table, "{bytes} B: the estimate lost its names");
 }
 
 #[test]
@@ -258,22 +258,41 @@ fn the_root_and_the_membership_are_what_the_scope_was_made_with() {
 #[test]
 fn the_memory_estimate_counts_table_slots_and_names() {
     let mut scope = Scope::new(ROOT);
+    let slot = size_of::<Key>() + size_of::<Dir>() + 1;
     let empty = scope.memory_usage();
     assert_eq!(
-        empty,
-        scope.dirs.capacity() * (size_of::<u128>() + size_of::<Dir>() + 1)
+        empty - scope.names.memory_usage(),
+        scope.dirs.capacity() * slot
     );
     scope.insert(101, ROOT, &units("0123456789"));
-    let names: usize = scope
-        .dirs
-        .values()
-        .map(|dir| dir.name.capacity() * size_of::<u16>())
-        .sum();
-    assert!(names >= 20);
-    assert_eq!(
-        scope.memory_usage(),
-        scope.dirs.capacity() * (size_of::<u128>() + size_of::<Dir>() + 1) + names
-    );
+    let one = scope.names.memory_usage();
+    // The ten units are in the estimate, once.
+    assert!(one >= empty - scope.dirs.capacity() * slot + 20);
+    assert_eq!(scope.memory_usage(), scope.dirs.capacity() * slot + one);
+    scope.insert(102, ROOT, &units("0123456789"));
+    assert_eq!(scope.names.memory_usage(), one, "equal names are shared");
+    scope.insert(103, ROOT, &units("abcdefghij"));
+    assert!(scope.names.memory_usage() > one + 20);
+}
+
+#[test]
+fn a_name_is_freed_with_its_last_directory() {
+    let mut scope = Scope::new(ROOT);
+    let base = scope.names.memory_usage();
+    scope.insert(101, ROOT, &units("shared"));
+    scope.insert(102, ROOT, &units("shared"));
+    scope.remove_subtree(101);
+    let mut path = Vec::new();
+    assert_eq!(scope.path_into(102, &mut path), Some(false));
+    assert_eq!(path, units("shared"));
+    scope.set_name(102, &units("other"));
+    scope.remove_subtree(102);
+    assert!(scope.names.index.is_empty());
+    // The slot is reused, not grown, by the next name.
+    scope.insert(103, ROOT, &units("again"));
+    assert_eq!(scope.names.slots.len(), 3);
+    assert_eq!(scope.names.free.len(), 1);
+    assert!(scope.names.memory_usage() >= base);
 }
 
 #[test]
@@ -329,20 +348,8 @@ fn a_cycle_of_parents_ends_in_none_within_the_depth_bound() {
     let mut scope = Scope::new(ROOT);
     // Two directories that are each other's parent, not reachable from the
     // root: the walk up must stop at the depth bound, not run forever.
-    scope.dirs.insert(
-        101,
-        Dir {
-            parent: 102,
-            name: units("a"),
-        },
-    );
-    scope.dirs.insert(
-        102,
-        Dir {
-            parent: 101,
-            name: units("b"),
-        },
-    );
+    scope.insert(101, 102, &units("a"));
+    scope.insert(102, 101, &units("b"));
     let (tx, rx) = mpsc::channel();
     std::thread::spawn(move || {
         let mut path = Vec::new();
