@@ -449,3 +449,64 @@ fn a_root_added_while_running_and_removed_again_stops_recording_at_once() {
         "the removal is one state row"
     );
 }
+
+/// Adding and removing a watch while the engine runs (#553, F8/#27): after
+/// the third cycle the engine holds as many handles as after the first. A
+/// removed watch closes its directory watch, its parent watches and its
+/// plug-and-play registration at once. The first cycle warms up whatever is
+/// opened lazily.
+#[test]
+fn add_and_remove_cycles_leave_the_handle_count_where_the_first_left_it() {
+    use peekbuddy_core::ipc::Command as Cmd;
+    use peekbuddy_win::metrics::handle_count;
+    use std::os::windows::io::AsHandle;
+
+    let Running {
+        _dir,
+        data,
+        first: _,
+        added,
+        mut engine,
+        window,
+        mut client,
+    } = run_with_one_watch("watch-handles");
+    let mut after_first = 0;
+    for cycle in 0..3 {
+        add(&mut client, &added);
+        let id = second_live_within_seconds(&mut client);
+        let name = format!("cycle{cycle}.txt");
+        std::fs::write(added.join(&name), b"x").unwrap();
+        wait_for_row(&data, &name);
+        client
+            .send(&Message::Command(Cmd::RemoveWatch { id }))
+            .unwrap();
+        let Some(Message::CommandResult { ok, message }) = client.receive().unwrap() else {
+            unreachable!("a command is answered with a result");
+        };
+        assert!(ok, "{message}");
+        assert_eq!(list(&mut client).len(), 1);
+        // The handles go a moment after the answer: the host closes them on
+        // its own thread.
+        let settled = |expected: Option<u32>| {
+            let deadline = Instant::now() + Duration::from_secs(5);
+            loop {
+                let now = handle_count(engine.0.as_handle()).unwrap();
+                if expected.is_none_or(|e| now <= e) || Instant::now() >= deadline {
+                    return now;
+                }
+                std::thread::sleep(Duration::from_millis(50));
+            }
+        };
+        if cycle == 0 {
+            after_first = settled(None);
+        } else if cycle == 2 {
+            let now = settled(Some(after_first));
+            assert!(
+                now <= after_first,
+                "{now} handles after the third cycle, {after_first} after the first"
+            );
+        }
+    }
+    drop(client);
+    quit(window, &mut engine.0);
+}
