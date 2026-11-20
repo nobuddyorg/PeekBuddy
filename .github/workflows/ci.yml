@@ -144,7 +144,7 @@ jobs:
           cargo nextest run -p peekbuddy-win -p peekbuddy-engine
           --features peekbuddy-win/usn,peekbuddy-engine/usn
           --profile ci --locked --no-tests=pass
-          -E 'binary(usn_source) | test(/^usn::/)'
+          -E 'binary(usn_source) | binary(usn_store) | test(/^usn::/)'
       - run: cargo nextest run --workspace --profile ci --locked --no-tests=pass
         env:
           # The autostart test touches the real Run key (#63); this runner is
@@ -271,8 +271,9 @@ jobs:
       - run: cargo llvm-cov nextest --workspace --all-features --locked --profile ci --no-tests=pass --lcov --output-path lcov.info
         env:
           # Instrumented code is slower; the normal and nightly builds keep the
-          # 1 s bar of this test (#338).
+          # 1 s and 2 s bars of these tests (#338, #548).
           PEEKBUDDY_SECOND_ENGINE_LIMIT_MS: "6000"
+          PEEKBUDDY_SECOND_LAUNCH_LIMIT_MS: "6000"
           PEEKBUDDY_SESSION_END_LIMIT_MS: "5000"
       - uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
         with:

@@ -278,6 +278,7 @@ fn the_replay_position_and_the_cursors_follow_the_rotation() {
             &[Cursor {
                 root: RootIdx(0),
                 usn: Some(77),
+                journal_id: Some(-5),
             }],
             Some((3, 4096)),
         )
@@ -287,6 +288,16 @@ fn the_replay_position_and_the_cursors_follow_the_rotation() {
     let new_file = dir.path().join("events-2026-10-02.db");
     assert_eq!(count(&new_file, "SELECT count(*) FROM cursor"), 1);
     assert_eq!(count(&new_file, "SELECT usn FROM cursor"), 77);
+    // The journal the position belongs to goes with it (schema 4, #260).
+    assert_eq!(count(&new_file, "SELECT journal_id FROM cursor"), -5);
+    assert_eq!(
+        writer.cursors().unwrap(),
+        [Cursor {
+            root: RootIdx(0),
+            usn: Some(77),
+            journal_id: Some(-5),
+        }]
+    );
 }
 
 #[test]
@@ -703,10 +714,12 @@ fn cursors_of_two_roots_on_one_volume_each_follow_the_rotation() {
                 Cursor {
                     root: RootIdx(0),
                     usn: Some(70),
+                    journal_id: None,
                 },
                 Cursor {
                     root: RootIdx(1),
                     usn: Some(71),
+                    journal_id: None,
                 },
             ],
         )

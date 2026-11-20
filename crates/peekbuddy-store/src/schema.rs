@@ -24,7 +24,7 @@ use std::path::Path;
 use rusqlite::{Connection, OptionalExtension, Transaction};
 
 /// The schema version this build writes.
-pub const SCHEMA_VERSION: u32 = 3;
+pub const SCHEMA_VERSION: u32 = 4;
 
 /// `PRAGMA application_id` of a PeekBuddy segment: ASCII `PBK1`.
 pub const APPLICATION_ID: i32 = 0x5042_4B31;
@@ -157,6 +157,14 @@ pub const CHURN_DDL: &str = "CREATE TABLE churn (
 ) STRICT, WITHOUT ROWID;
 ";
 
+/// Schema v4 (#260): the USN journal a cursor's `usn` belongs to. A position
+/// is only valid in the journal that numbered it, and every root keeps its
+/// own (the roots of a volume share the journal but not their cursors), so
+/// the id sits next to the USN in the row that is committed with the events
+/// it covers. `vol.journal_id` stays what was known at registration. Rows of
+/// older segments get NULL: no USN cursor was ever written before this step.
+pub const CURSOR_JOURNAL_DDL: &str = "ALTER TABLE cursor ADD COLUMN journal_id INTEGER;\n";
+
 /// Adds a marker for the event just inserted.
 pub const INSERT_MARKER: &str =
     "INSERT INTO marker (event_id, name, created_ts) VALUES (?1, ?2, ?3)";
@@ -250,7 +258,7 @@ impl From<rusqlite::Error> for StoreError {
 pub type Step = fn(&Transaction<'_>) -> rusqlite::Result<()>;
 
 /// The migration steps; step `i` upgrades schema `i` to `i + 1`.
-pub const STEPS: [Step; 3] = [v1, v2, v3];
+pub const STEPS: [Step; 4] = [v1, v2, v3, v4];
 
 fn v1(tx: &Transaction<'_>) -> rusqlite::Result<()> {
     tx.execute_batch(DICTIONARY_DDL)?;
@@ -263,6 +271,10 @@ fn v2(tx: &Transaction<'_>) -> rusqlite::Result<()> {
 
 fn v3(tx: &Transaction<'_>) -> rusqlite::Result<()> {
     tx.execute_batch(CHURN_DDL)
+}
+
+fn v4(tx: &Transaction<'_>) -> rusqlite::Result<()> {
+    tx.execute_batch(CURSOR_JOURNAL_DDL)
 }
 
 /// Opens (creating if needed) the segment at `path` and migrates it.

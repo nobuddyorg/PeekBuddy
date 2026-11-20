@@ -7,6 +7,7 @@
 
 pub mod batch;
 pub mod catalog;
+pub mod checkpoints;
 pub mod churn;
 pub mod export;
 pub mod ids;

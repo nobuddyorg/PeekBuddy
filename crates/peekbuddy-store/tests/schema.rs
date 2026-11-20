@@ -293,6 +293,42 @@ fn every_committed_fixture_migrates_and_keeps_its_rows() {
 }
 
 #[test]
+fn a_schema_3_cursor_keeps_its_usn_and_gets_no_journal_id() {
+    let copy = std::env::temp_dir().join(format!(
+        "peekbuddy-fixture-{}-cursor-v3.db",
+        std::process::id()
+    ));
+    std::fs::copy(fixture_dir().join("v3.db"), &copy).unwrap();
+    {
+        // Written the way a schema 3 writer did, before the step.
+        let old = Connection::open(&copy).unwrap();
+        old.execute(
+            "INSERT INTO cursor (root_id, vol_id, usn, last_event_id, ts) VALUES (1, 1, 4242, 2, 9)",
+            [],
+        )
+        .unwrap();
+    }
+    let conn = schema::open(&copy).unwrap();
+    let row: (i64, Option<i64>, i64) = conn
+        .query_row(
+            "SELECT usn, journal_id, last_event_id FROM cursor",
+            [],
+            |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+        )
+        .unwrap();
+    assert_eq!(row, (4242, None, 2));
+    // The new column takes a journal id like any other.
+    conn.execute("UPDATE cursor SET journal_id = -3", [])
+        .unwrap();
+    let journal: i64 = conn
+        .query_row("SELECT journal_id FROM cursor", [], |r| r.get(0))
+        .unwrap();
+    assert_eq!(journal, -3);
+    drop(conn);
+    let _ = std::fs::remove_file(&copy);
+}
+
+#[test]
 fn ddl_snapshot() {
     let conn = memory();
     let ddl: Vec<String> = conn
