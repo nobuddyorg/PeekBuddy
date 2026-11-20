@@ -112,6 +112,9 @@ pub struct Cursor {
     pub root: RootIdx,
     /// The USN position, when the source has one.
     pub usn: Option<i64>,
+    /// The USN journal `usn` belongs to (`UsnJournalID` bit-cast to a signed
+    /// integer), when the source has one.
+    pub journal_id: Option<i64>,
 }
 
 /// What one commit wrote.
@@ -366,6 +369,37 @@ impl Writer {
             u32::try_from(read("spill_gen")).unwrap_or(0),
             u64::try_from(read("spill_offset")).unwrap_or(0),
         )
+    }
+
+    /// The saved cursors of the registered roots, by the index events carry
+    /// (#260). A root without a cursor row is left out.
+    ///
+    /// # Errors
+    ///
+    /// SQLite failures.
+    pub fn cursors(&self) -> Result<Vec<Cursor>, WriteError> {
+        let mut select = self.conn.prepare_cached(
+            "SELECT usn, journal_id FROM cursor WHERE root_id = ?1 AND vol_id = ?2",
+        )?;
+        let mut found = Vec::new();
+        for (index, row) in self.roots.iter().enumerate() {
+            let (Some(row), Ok(index)) = (row, u16::try_from(index)) else {
+                continue;
+            };
+            let saved = select
+                .query_row(params![row.root, row.vol], |r| {
+                    Ok((r.get::<_, Option<i64>>(0)?, r.get::<_, Option<i64>>(1)?))
+                })
+                .optional()?;
+            if let Some((usn, journal_id)) = saved {
+                found.push(Cursor {
+                    root: RootIdx(index),
+                    usn,
+                    journal_id,
+                });
+            }
+        }
+        Ok(found)
     }
 
     /// Writes `batches` and `cursors` in one transaction.
@@ -964,7 +998,17 @@ fn poisoned() -> WriteError {
 /// the spill file and the capture cursors.
 struct Carried {
     meta: Vec<(String, i64)>,
-    cursors: Vec<(i64, i64, Option<i64>, i64, i64)>,
+    cursors: Vec<CarriedCursor>,
+}
+
+/// A cursor row as the old segment has it.
+struct CarriedCursor {
+    root_id: i64,
+    vol_id: i64,
+    usn: Option<i64>,
+    journal_id: Option<i64>,
+    last_event_id: i64,
+    ts: i64,
 }
 
 fn carry_over(conn: &Connection) -> Result<Carried, WriteError> {
@@ -980,16 +1024,17 @@ fn carry_over(conn: &Connection) -> Result<Carried, WriteError> {
         }
     }
     let mut statement =
-        conn.prepare("SELECT root_id, vol_id, usn, last_event_id, ts FROM cursor")?;
+        conn.prepare("SELECT root_id, vol_id, usn, journal_id, last_event_id, ts FROM cursor")?;
     let cursors = statement
         .query_map([], |row| {
-            Ok((
-                row.get(0)?,
-                row.get(1)?,
-                row.get(2)?,
-                row.get(3)?,
-                row.get(4)?,
-            ))
+            Ok(CarriedCursor {
+                root_id: row.get(0)?,
+                vol_id: row.get(1)?,
+                usn: row.get(2)?,
+                journal_id: row.get(3)?,
+                last_event_id: row.get(4)?,
+                ts: row.get(5)?,
+            })
         })?
         .collect::<Result<Vec<_>, _>>()?;
     Ok(Carried { meta, cursors })
@@ -1008,21 +1053,27 @@ fn restore_carried(
             params![key, value],
         )?;
     }
-    for &(root_id, vol_id, usn, last_event_id, ts) in &carried.cursors {
+    for cursor in &carried.cursors {
         // The ids differ between files: go through the root's index.
-        let Some(index) = old_roots
-            .iter()
-            .position(|row| row.is_some_and(|r| r.root == root_id && r.vol == vol_id))
-        else {
+        let Some(index) = old_roots.iter().position(|row| {
+            row.is_some_and(|r| r.root == cursor.root_id && r.vol == cursor.vol_id)
+        }) else {
             continue;
         };
         let Some(Some(new)) = new_roots.get(index) else {
             continue;
         };
         conn.execute(
-            "INSERT INTO cursor (root_id, vol_id, usn, last_event_id, ts) \
-             VALUES (?1, ?2, ?3, ?4, ?5) ON CONFLICT (root_id, vol_id) DO NOTHING",
-            params![new.root, new.vol, usn, last_event_id, ts],
+            "INSERT INTO cursor (root_id, vol_id, usn, journal_id, last_event_id, ts) \
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6) ON CONFLICT (root_id, vol_id) DO NOTHING",
+            params![
+                new.root,
+                new.vol,
+                cursor.usn,
+                cursor.journal_id,
+                cursor.last_event_id,
+                cursor.ts
+            ],
         )?;
     }
     Ok(())
@@ -1042,11 +1093,20 @@ fn write_cursors(
             .flatten()
             .ok_or(WriteError::UnknownRoot(cursor.root.0))?;
         tx.prepare_cached(
-            "INSERT INTO cursor (root_id, vol_id, usn, last_event_id, ts) VALUES (?1, ?2, ?3, ?4, ?5) \
+            "INSERT INTO cursor (root_id, vol_id, usn, journal_id, last_event_id, ts) \
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6) \
              ON CONFLICT (root_id, vol_id) DO UPDATE SET usn = excluded.usn, \
+             journal_id = excluded.journal_id, \
              last_event_id = max(last_event_id, excluded.last_event_id), ts = excluded.ts",
         )?
-        .execute(params![root.root, root.vol, cursor.usn, last_id.max(0), ts.cast_signed()])?;
+        .execute(params![
+            root.root,
+            root.vol,
+            cursor.usn,
+            cursor.journal_id,
+            last_id.max(0),
+            ts.cast_signed()
+        ])?;
     }
     Ok(())
 }
@@ -1268,22 +1328,34 @@ pub(crate) mod tests {
         let cursor = [Cursor {
             root: RootIdx(0),
             usn: Some(500),
+            journal_id: Some(7),
         }];
         writer.write(&[batch(1, 3, 0)], &cursor).unwrap();
         assert_eq!(count(&writer, "SELECT usn FROM cursor"), 500);
         assert_eq!(count(&writer, "SELECT last_event_id FROM cursor"), 3);
-        // A cursor-only commit keeps the position and moves the usn.
+        // A cursor-only commit keeps the position and moves the usn, and the
+        // journal id goes with it.
         writer
             .write(
                 &[],
                 &[Cursor {
                     root: RootIdx(0),
                     usn: Some(900),
+                    journal_id: Some(-8),
                 }],
             )
             .unwrap();
         assert_eq!(count(&writer, "SELECT usn FROM cursor"), 900);
+        assert_eq!(count(&writer, "SELECT journal_id FROM cursor"), -8);
         assert_eq!(count(&writer, "SELECT last_event_id FROM cursor"), 3);
+        assert_eq!(
+            writer.cursors().unwrap(),
+            [Cursor {
+                root: RootIdx(0),
+                usn: Some(900),
+                journal_id: Some(-8),
+            }]
+        );
         assert_eq!(
             count(
                 &writer,

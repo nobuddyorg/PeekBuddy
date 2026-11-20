@@ -18,7 +18,7 @@ CREATE TABLE cursor (
   vol_id INTEGER NOT NULL,
   usn INTEGER,
   last_event_id INTEGER NOT NULL,
-  ts INTEGER NOT NULL,
+  ts INTEGER NOT NULL, journal_id INTEGER,
   PRIMARY KEY (root_id, vol_id)
 ) STRICT, WITHOUT ROWID;
 

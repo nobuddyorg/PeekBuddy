@@ -24,7 +24,7 @@ and is snapshot-tested.
 | `node` | The interned directory tree: `parent_id` (0 for top level), `name` (lossy UTF-8), `name_w` (exact UTF-16LE, only when the name is not valid Unicode), `name_kind`, `file_id`. |
 | `node_fts` | FTS5 trigram index over `node.name`, `detail='full'`, written by the writer, no triggers. |
 | `root` | Watch roots. |
-| `vol` | Volumes: GUID path, serial, letter, journal id. |
+| `vol` | Volumes: GUID path, serial, letter, the journal id known at registration. |
 | `proc` | Reserved for process attribution after v1. |
 
 `node_key` is a unique index on `(parent_id, name, coalesce(name_w, x''))`:
@@ -49,7 +49,7 @@ characters have no trigram: scan `node` instead.
 | --- | --- |
 | `event` | One row per event; see below. |
 | `stats` | `(hour_ts, root_id, kind)` counts with the id range, one UPSERT per key per batch. |
-| `cursor` | Capture checkpoint per `(root_id, vol_id)`. |
+| `cursor` | Capture checkpoint per `(root_id, vol_id)`, written in the commit of the rows it covers: `usn` and, since schema 4, the `journal_id` it belongs to (`UsnJournalID` bit-cast to a signed integer). The USN source resumes from it (#260). |
 | `meta` | Key/value, including `schema_version`. |
 
 `event.kind` packs the wire tag and its payload byte as `tag * 256 + arg`

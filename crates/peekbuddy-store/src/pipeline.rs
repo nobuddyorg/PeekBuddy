@@ -19,6 +19,8 @@ use std::sync::{Arc, Condvar, Mutex, MutexGuard};
 use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
 
+use peekbuddy_core::event::RootIdx;
+
 use crate::batch::Batch;
 use crate::policy::{Pending, Policy};
 use crate::spill::Spill;
@@ -200,6 +202,9 @@ struct State {
     overflow: VecDeque<Batch>,
     free: Vec<Batch>,
     cursors: Vec<Cursor>,
+    /// The newest cursor of each root: the one handed to [`Producer::set_cursor`]
+    /// last, or the one the database had at start.
+    saved: Vec<Cursor>,
     spilling: bool,
     spiller_busy: bool,
     closed: bool,
@@ -324,8 +329,26 @@ impl Producer {
         let mut state = lock(&self.shared.state);
         state.cursors.retain(|queued| queued.root != cursor.root);
         state.cursors.push(cursor);
+        if let Some(saved) = state.saved.iter_mut().find(|s| s.root == cursor.root) {
+            *saved = cursor;
+        } else {
+            state.saved.push(cursor);
+        }
         drop(state);
         self.shared.writer_wake.notify_one();
+    }
+
+    /// The cursor of `root` to resume from (#260): the last one handed to
+    /// [`Producer::set_cursor`], which the writer commits behind the rows
+    /// pushed before it, or else the one the database held when the pipeline
+    /// started. `None` when the root never had one.
+    #[must_use]
+    pub fn saved_cursor(&self, root: RootIdx) -> Option<Cursor> {
+        lock(&self.shared.state)
+            .saved
+            .iter()
+            .find(|saved| saved.root == root)
+            .copied()
     }
 }
 
@@ -390,12 +413,16 @@ impl Pipeline {
     /// The I/O error from opening the spill directory or spawning a thread.
     pub fn start(writer: Writer, config: Config) -> std::io::Result<Self> {
         let (generation, consumed) = writer.spill_position();
+        // A cursor that cannot be read must not look like a first run, which
+        // resumes without a gap.
+        let saved = writer.cursors().map_err(std::io::Error::other)?;
         let spill = Spill::open(&config.spill_dir, generation, consumed)?;
         let old_end = spill.end();
         let torn_tail_bytes = spill.torn_bytes();
         let shared = Arc::new(Shared {
             state: Mutex::new(State {
                 spilling: spill.has_pending(),
+                saved,
                 ..State::default()
             }),
             writer_wake: Condvar::new(),
