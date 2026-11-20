@@ -125,8 +125,15 @@ type Probes = Vec<(u64, i64)>;
 /// (a commit puts about 1,000 rows in it), and a poller that read pages would
 /// date every row of a page with the end of that read: the probe reads one row
 /// and says when the log had grown to an id, the rows are read afterwards.
-fn probe_log(data: PathBuf, stop: Arc<AtomicBool>) -> std::thread::JoinHandle<Probes> {
+fn probe_log(
+    data: PathBuf,
+    stop: Arc<AtomicBool>,
+    enabled: bool,
+) -> std::thread::JoinHandle<Probes> {
     std::thread::spawn(move || {
+        if !enabled {
+            return Probes::new();
+        }
         let reader = Reader::new(&data.join("segments"));
         let cancel = CancelFlag::new();
         let mut probes = Probes::new();
@@ -301,7 +308,10 @@ fn ingest() {
     let stop = Arc::new(AtomicBool::new(false));
     let peak = Arc::new(AtomicU64::new(0));
     let sampler = sample_memory(engine.child.0.id(), Arc::clone(&stop), Arc::clone(&peak));
-    let poller = probe_log(data.clone(), Arc::clone(&stop));
+    // `PEEKBUDDY_PERF_PROBE=0` leaves the log alone while the churn runs, to
+    // tell the writer's own throughput from the poller's contention (#497).
+    let probing = std::env::var("PEEKBUDDY_PERF_PROBE").map_or(true, |value| value != "0");
+    let poller = probe_log(data.clone(), Arc::clone(&stop), probing);
 
     let started = Instant::now();
     let config = Config {
@@ -315,7 +325,9 @@ fn ingest() {
     };
     let outcome = run(&config, |_| (WinTarget::new(&root), WinClock::new()));
     let churn_seconds = started.elapsed().as_secs_f64();
+    let settling = Instant::now();
     wait_until_settled(&data, Duration::from_secs(5));
+    let settle_seconds = settling.elapsed().as_secs_f64();
     stop.store(true, Ordering::Release);
     let probes = poller.join().unwrap();
     sampler.join().unwrap();
@@ -367,6 +379,8 @@ fn ingest() {
         "ledgerEvents": outcome.events,
         "achievedPerSecond": outcome.achieved_per_s,
         "churnSeconds": churn_seconds,
+        "settleSeconds": settle_seconds,
+        "probing": probing,
         "shutdownSeconds": shutdown_seconds,
         "undetected": verdict.report.undetected.len(),
         "gapRows": verdict.gaps,
