@@ -655,7 +655,15 @@ mod run {
                 filters_from_settings(&loaded.settings),
                 Arc::clone(counters),
             )
-            .with_rules(crate::rules_win::start(&loaded.settings, &watches)),
+            // Rules and their notification shortcut are set up at start for
+            // the watches of the settings; an engine without watches has no
+            // events to act on, and the shell work of the shortcut costs an
+            // idle engine its wakeups (F-idle, #553).
+            .with_rules(if watches.is_empty() {
+                None
+            } else {
+                crate::rules_win::start(&loaded.settings, &watches)
+            }),
         );
         let specs: Vec<RootSpec> = watches
             .iter()
