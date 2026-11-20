@@ -37,6 +37,8 @@ pub fn to_columns(name: WideStr<'_>) -> NameColumns {
 pub fn from_columns(text: &str, wide: Option<&[u8]>) -> Option<WideName> {
     match wide {
         Some(bytes) => decode_name_w(bytes),
+        // ASCII, the common case, is one unit per byte and sized up front.
+        None if text.is_ascii() => Some(WideName::new(text.bytes().map(u16::from).collect())),
         None => Some(WideName::new(text.encode_utf16().collect())),
     }
 }

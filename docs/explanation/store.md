@@ -175,6 +175,16 @@ open sets pragmas, runs the schema statements and writes `user_version` on
 every call, which was two thirds of the time of a page (12.8 ms to 4.3 ms for a
 keyset page of 200 rows at 10M rows on the same PC; the rest is opening the
 segment, about 2 ms of schema parsing, which ADR 0017 asks for on every call).
+An export asks page after page through one `Reader::pages` run, which keeps the
+catalog and the segment its last page ended in open with their prepared
+statements (one segment at a time; ADR 0020 already counts an export as the long
+reader that can make a delete wait). Segments are opened with `NO_MUTEX`: without
+it every column read took and released the connection's mutex, which was more
+than half of the cost of fetching a row. A row's path is one lookup of its
+parent's full path (kept per segment, at most 65,536 directories and 2 MiB of
+units), not one lookup per component. The CSV export of 1M rows went from 6.7 to
+7.1 s to 4.7 to 5.0 s on the developer PC (#358); the read of the rows is 1.3 to
+2 s of that, most of the rest is the formatting.
 At 10M rows (a million files, ten events each) the first page of a rare name
 costs 49 ms and of a rare subtree 15 ms, through the index; before the
 two-statement choice the id walk needed 880 ms and 830 ms for them.

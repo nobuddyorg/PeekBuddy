@@ -69,8 +69,9 @@ fn changes_since(
     });
 }
 
-/// A CSV export of every row, to a file in `dir`: the read of the rows (the
-/// segment is opened per page), the formatting and the disk (`export.1m_rows`).
+/// A CSV export of every row, to a file in `dir`: the read of the rows (one
+/// run of pages, the segment kept open between them), the formatting and the
+/// disk (`export.1m_rows`).
 fn export_all(
     group: &mut criterion::BenchmarkGroup<'_, criterion::measurement::WallTime>,
     reader: &Reader,

@@ -575,6 +575,97 @@ fn a_retired_segment_is_reported_and_skipped() {
     assert_eq!(after, before[..after.len()]);
 }
 
+/// Every page of a run that keeps its connections open (`Reader::pages`),
+/// asked with the same requests as [`all_pages`].
+fn run_of_pages(reader: &Reader, filter: &Filter, limit: usize, direction: Direction) -> Vec<Page> {
+    let cancel = CancelFlag::new();
+    let mut run = reader.pages();
+    let mut pages = Vec::new();
+    let mut cursor = None;
+    loop {
+        let request = PageRequest {
+            generation: 1,
+            filter: filter.clone(),
+            cursor,
+            direction,
+            limit,
+        };
+        let page = run.page(&request, &cancel).unwrap();
+        cursor = match direction {
+            Direction::Older => page.oldest_id(),
+            Direction::Newer => page.newest_id(),
+        };
+        let more = page.more;
+        pages.push(page);
+        if !more || cursor.is_none() {
+            return pages;
+        }
+    }
+}
+
+#[test]
+fn a_run_of_pages_answers_what_single_pages_answer() {
+    let dir = Dir::new("run");
+    build(&dir, 3, 60);
+    let reader = Reader::new(dir.path());
+    let regex = FilterSet::compile(&[Rule::include(Pattern::Regex(String::from(r"\.rs$")))]);
+    let filters = [
+        Filter::default(),
+        Filter {
+            name: Some(String::from("readme")),
+            ..Filter::default()
+        },
+        Filter {
+            pattern: Some(Arc::new(regex.unwrap())),
+            ..Filter::default()
+        },
+    ];
+    for filter in &filters {
+        for size in [1, 7, PAGE_SIZE] {
+            for direction in [Direction::Older, Direction::Newer] {
+                let single = all_pages(&reader, filter, size, direction);
+                let run = run_of_pages(&reader, filter, size, direction);
+                assert_eq!(run, single, "size {size} {direction:?} {filter:?}");
+            }
+        }
+    }
+}
+
+#[test]
+fn a_run_of_pages_reports_a_segment_retired_between_its_pages() {
+    let dir = Dir::new("run-retired");
+    build(&dir, 3, 30);
+    let reader = Reader::new(dir.path());
+    let cancel = CancelFlag::new();
+    let mut run = reader.pages();
+    let request = |cursor| PageRequest {
+        generation: 1,
+        filter: Filter::default(),
+        cursor,
+        direction: Direction::Newer,
+        limit: 2,
+    };
+    // The first page ends in the oldest segment, which the run keeps open;
+    // the newest is not open and can go.
+    let first = run.page(&request(None), &cancel).unwrap();
+    assert!(first.more);
+    let newest = segment_files(dir.path()).into_iter().max().unwrap();
+    for suffix in ["", "-wal", "-shm"] {
+        let _ = std::fs::remove_file(dir.path().join(format!("{newest}{suffix}")));
+    }
+    let mut cursor = first.newest_id();
+    let mut retired = Vec::new();
+    loop {
+        let page = run.page(&request(cursor), &cancel).unwrap();
+        retired.extend(page.retired.iter().cloned());
+        cursor = page.newest_id();
+        if !page.more || cursor.is_none() {
+            break;
+        }
+    }
+    assert!(retired.contains(&newest), "{retired:?}");
+}
+
 /// A store with one event per name (as UTF-16 units), in one segment.
 fn named(dir: &Dir, names: &[Vec<u16>]) {
     let config = SegmentsConfig {

@@ -37,7 +37,18 @@
 //! # Memory
 //!
 //! Rows come in chunks of at most [`CHUNK`]; the path cache holds at most
-//! [`PATH_CACHE_NODES`] nodes and is dropped when it is full.
+//! [`PATH_CACHE_NODES`] nodes and as many directory paths of at most
+//! [`PATH_CACHE_UNITS`] units together, and each part is dropped when it is
+//! full.
+//!
+//! # Connections
+//!
+//! [`Reader::page`] opens the catalog and each segment it reads and closes
+//! them before it returns: the viewer holds no file between requests (ADR
+//! 0020). [`Pages`], the long reader of an export, keeps the catalog and the
+//! segment its last page ended in open with their prepared statements, so a
+//! page costs no open and no schema parse. Segments are opened `NO_MUTEX`
+//! (see `open_segment`).
 
 pub mod changes;
 pub mod stats;
@@ -66,8 +77,13 @@ use crate::schema::{TICKS_PER_HOUR, hour_bucket};
 
 /// Rows fetched from SQLite at once for a post-filter.
 pub const CHUNK: usize = 1_000;
-/// Nodes in the path cache of one segment.
+/// Nodes in the path cache of one segment, and directory paths.
 pub const PATH_CACHE_NODES: usize = 65_536;
+/// UTF-16 units of the directory paths in the path cache of one segment
+/// (2 MiB).
+pub const PATH_CACHE_UNITS: usize = 1 << 20;
+/// Rows a fetch reserves room for at once.
+const RESERVE_ROWS: usize = 8_192;
 /// The ids a scan window starts with.
 const FIRST_WINDOW: i64 = 4_096;
 /// The smallest and the largest scan window, in ids.
@@ -139,30 +155,19 @@ impl Reader {
     /// SQLite's error, or the catalog's. A segment that disappeared is not an
     /// error: it is listed in [`Page::retired`].
     pub fn page(&self, request: &PageRequest, cancel: &CancelFlag) -> Result<Page, CatalogError> {
-        let catalog = Catalog::open_for_reading(&self.dir.join("catalog.db"))?;
-        let mut segments = catalog.list()?;
-        segments.retain(|segment| reaches(segment, request));
-        if request.direction == Direction::Older {
-            segments.reverse();
+        self.pages().page(request, cancel)
+    }
+
+    /// A run of requests that keeps its connections open until it is
+    /// dropped (see the module comment): for a reader that asks page after
+    /// page, like an export.
+    #[must_use]
+    pub const fn pages(&self) -> Pages<'_> {
+        Pages {
+            reader: self,
+            catalog: None,
+            segment: None,
         }
-        let mut walk = Walk::new(request, cancel, self.scan_budget);
-        for segment in &segments {
-            if walk.finished() {
-                break;
-            }
-            let path = self.dir.join(&segment.file);
-            let opened = Connection::open_with_flags(&path, OpenFlags::SQLITE_OPEN_READ_ONLY);
-            match opened {
-                Ok(conn) if path.exists() => {
-                    let cache = self.take_cache(&segment.file);
-                    let paths = walk.segment(&conn, cache);
-                    self.keep_cache(&segment.file, paths.1);
-                    paths.0?;
-                }
-                _ => walk.page.retired.push(segment.file.clone()),
-            }
-        }
-        Ok(walk.into_page())
     }
 
     /// How many rows the filter hides (`filter.hide`) that pass everything
@@ -185,8 +190,7 @@ impl Reader {
                 return Ok(None);
             }
             let path = self.dir.join(&segment.file);
-            let Ok(conn) = Connection::open_with_flags(&path, OpenFlags::SQLITE_OPEN_READ_ONLY)
-            else {
+            let Ok(conn) = open_segment(&path) else {
                 continue;
             };
             if let Some(query) = SegmentQuery::hidden(&conn, filter)? {
@@ -195,6 +199,86 @@ impl Reader {
         }
         Ok(Some(total))
     }
+}
+
+/// Requests answered one after the other over the same open connections: the
+/// catalog, and the segment the last page ended in, with its prepared
+/// statements. It is closed when a page moves on to another segment, so at
+/// most one segment is open at a time. While it is open, retention cannot
+/// delete the file and defers it (ADR 0020); a segment whose file is gone is
+/// still reported in [`Page::retired`].
+#[derive(Debug)]
+pub struct Pages<'r> {
+    reader: &'r Reader,
+    catalog: Option<Catalog>,
+    /// The segment the last page ended in, by file name.
+    segment: Option<(String, Connection)>,
+}
+
+impl Pages<'_> {
+    /// Answers one request, as [`Reader::page`].
+    ///
+    /// # Errors
+    ///
+    /// SQLite's error, or the catalog's. A segment that disappeared is not an
+    /// error: it is listed in [`Page::retired`].
+    pub fn page(
+        &mut self,
+        request: &PageRequest,
+        cancel: &CancelFlag,
+    ) -> Result<Page, CatalogError> {
+        let reader = self.reader;
+        let catalog = match &mut self.catalog {
+            Some(catalog) => catalog,
+            empty @ None => {
+                empty.insert(Catalog::open_for_reading(&reader.dir.join("catalog.db"))?)
+            }
+        };
+        let mut segments = catalog.list()?;
+        segments.retain(|segment| reaches(segment, request));
+        if request.direction == Direction::Older {
+            segments.reverse();
+        }
+        let mut walk = Walk::new(request, cancel, reader.scan_budget);
+        let mut open = self.segment.take();
+        for segment in &segments {
+            if walk.finished() {
+                break;
+            }
+            let path = reader.dir.join(&segment.file);
+            let conn = match open.take() {
+                Some((file, conn)) if file == segment.file => Ok(conn),
+                other => {
+                    // One connection at a time (ADR 0017): the previous
+                    // segment is closed before the next one opens.
+                    drop(other);
+                    open_segment(&path)
+                }
+            };
+            match conn {
+                Ok(conn) if path.exists() => {
+                    let cache = reader.take_cache(&segment.file);
+                    let (result, cache) = walk.segment(&conn, cache);
+                    reader.keep_cache(&segment.file, cache);
+                    result?;
+                    open = Some((segment.file.clone(), conn));
+                }
+                _ => walk.page.retired.push(segment.file.clone()),
+            }
+        }
+        self.segment = open;
+        Ok(walk.into_page())
+    }
+}
+
+/// A segment opened for reading. `NO_MUTEX`: a `Connection` is used by one
+/// thread at a time (it is not `Sync`), and without it every column read
+/// takes and releases the connection's mutex, twice per column of a row.
+fn open_segment(path: &Path) -> rusqlite::Result<Connection> {
+    Connection::open_with_flags(
+        path,
+        OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NO_MUTEX,
+    )
 }
 
 /// The query plan of the page query for `filter` in one segment, one line per
@@ -269,7 +353,7 @@ impl<'a> Walk<'a> {
                 generation: request.generation,
                 ..Page::default()
             },
-            rows: Vec::new(),
+            rows: Vec::with_capacity(request.limit.saturating_add(1).min(RESERVE_ROWS)),
             cursor: request.cursor,
             full: false,
             stopped: false,
@@ -377,7 +461,7 @@ impl<'a> Walk<'a> {
             for found in fetched {
                 self.page.scanned += 1;
                 self.cursor = Some(found.id);
-                let row = paths.complete(&found);
+                let row = paths.complete(found);
                 if self.passes(&row) {
                     self.rows.push(row);
                     if self.rows.len() > limit {
@@ -721,22 +805,36 @@ impl SegmentQuery {
                         .get::<_, Option<i64>>(14)?
                         .and_then(|tag| u32::try_from(tag).ok())
                         .unwrap_or(0),
-                    leaf: match (
-                        row.get::<_, Option<i64>>(15)?,
-                        row.get::<_, Option<String>>(16)?,
-                    ) {
-                        (Some(parent), Some(text)) => {
-                            let wide: Option<Vec<u8>> = row.get(17)?;
-                            from_columns(&text, wide.as_deref())
-                                .map(|name| (parent, name.into_units()))
-                        }
+                    leaf: match (row.get::<_, Option<i64>>(15)?, text_at(row, 16)?) {
+                        (Some(parent), Some(text)) => from_columns(text, blob_at(row, 17)?)
+                            .map(|name| (parent, name.into_units())),
                         _ => None,
                     },
                 })
             },
         )?;
-        rows.collect()
+        let mut found = Vec::with_capacity(limit.min(RESERVE_ROWS));
+        for row in rows {
+            found.push(row?);
+        }
+        Ok(found)
     }
+}
+
+/// A text column borrowed from the row, without a copy.
+fn text_at<'r>(row: &'r rusqlite::Row<'_>, at: usize) -> rusqlite::Result<Option<&'r str>> {
+    let value = row.get_ref(at)?;
+    value
+        .as_str_or_null()
+        .map_err(|_| rusqlite::Error::InvalidColumnType(at, String::new(), value.data_type()))
+}
+
+/// A blob column borrowed from the row, without a copy.
+fn blob_at<'r>(row: &'r rusqlite::Row<'_>, at: usize) -> rusqlite::Result<Option<&'r [u8]>> {
+    let value = row.get_ref(at)?;
+    value
+        .as_blob_or_null()
+        .map_err(|_| rusqlite::Error::InvalidColumnType(at, String::new(), value.data_type()))
 }
 
 /// The two statements of a query: the id walk, and for a filter on nodes the
@@ -842,6 +940,14 @@ fn find_node(conn: &Connection, path: &[u16]) -> rusqlite::Result<Option<i64>> {
     Ok((parent != TOP_LEVEL).then_some(parent))
 }
 
+/// `dir` followed by `name`, in one allocation.
+fn joined(dir: &[u16], name: &[u16]) -> Vec<u16> {
+    let mut path = Vec::with_capacity(dir.len() + name.len());
+    path.extend_from_slice(dir);
+    path.extend_from_slice(name);
+    path
+}
+
 /// Builds paths and names from a segment's node tree, with a bounded cache.
 struct Paths<'a> {
     conn: &'a Connection,
@@ -852,6 +958,11 @@ struct Paths<'a> {
 #[derive(Debug, Default)]
 struct PathCache {
     nodes: HashMap<i64, (i64, Arc<[u16]>)>,
+    /// The full path of a directory, each component followed by `\`: a row
+    /// costs one lookup of its parent, not one per component.
+    dirs: HashMap<i64, Box<[u16]>>,
+    /// The units in `dirs`, for its bound.
+    dir_units: usize,
     roots: HashMap<i64, Vec<u16>>,
 }
 
@@ -895,18 +1006,42 @@ impl<'a> Paths<'a> {
     /// The name and full path of a node, found by its id.
     fn path_of(&mut self, node_id: i64) -> (Vec<u16>, Vec<u16>) {
         match self.node(node_id, false) {
-            Some((parent, name)) => self.path_below(parent, &name),
+            Some((parent, name)) => {
+                let path = self.path_below(parent, &name);
+                (name.to_vec(), path)
+            }
             None => (Vec::new(), Vec::new()),
         }
     }
 
-    /// The name and full path of a node whose parent and name are known.
-    fn path_below(&mut self, parent: i64, name: &[u16]) -> (Vec<u16>, Vec<u16>) {
+    /// The full path of a node whose parent and name are known.
+    fn path_below(&mut self, parent: i64, name: &[u16]) -> Vec<u16> {
+        if parent == TOP_LEVEL {
+            return name.to_vec();
+        }
+        if let Some(dir) = self.cache.dirs.get(&parent) {
+            return joined(dir, name);
+        }
+        let (dir, complete) = self.walk_up(parent);
+        let path = joined(&dir, name);
+        // A walk that met a missing node is not kept: the node may be
+        // written later (the segment being written), as with `node`.
+        if complete {
+            self.keep_dir(parent, dir.into_boxed_slice());
+        }
+        path
+    }
+
+    /// The path of directory `id` with a `\` after each component, and
+    /// whether the walk reached the top level.
+    fn walk_up(&mut self, id: i64) -> (Vec<u16>, bool) {
         let mut parents: Vec<Arc<[u16]>> = Vec::new();
-        let mut at = parent;
+        let mut at = id;
+        let mut complete = false;
         // The tree is acyclic by construction; the bound guards a damaged file.
         for _ in 0..4_096 {
             if at == TOP_LEVEL {
+                complete = true;
                 break;
             }
             let Some((up, part)) = self.node(at, true) else {
@@ -915,15 +1050,23 @@ impl<'a> Paths<'a> {
             parents.push(part);
             at = up;
         }
-        let mut path = Vec::with_capacity(
-            parents.iter().map(|part| part.len() + 1).sum::<usize>() + name.len(),
-        );
+        let mut dir = Vec::with_capacity(parents.iter().map(|part| part.len() + 1).sum());
         for part in parents.iter().rev() {
-            path.extend_from_slice(part);
-            path.push(BACKSLASH);
+            dir.extend_from_slice(part);
+            dir.push(BACKSLASH);
         }
-        path.extend_from_slice(name);
-        (name.to_vec(), path)
+        (dir, complete)
+    }
+
+    fn keep_dir(&mut self, id: i64, dir: Box<[u16]>) {
+        if self.cache.dirs.len() >= PATH_CACHE_NODES
+            || self.cache.dir_units.saturating_add(dir.len()) > PATH_CACHE_UNITS
+        {
+            self.cache.dirs.clear();
+            self.cache.dir_units = 0;
+        }
+        self.cache.dir_units = self.cache.dir_units.saturating_add(dir.len());
+        self.cache.dirs.insert(id, dir);
     }
 
     /// The path of a watch root as stored (cached: a segment has a few).
@@ -950,9 +1093,12 @@ impl<'a> Paths<'a> {
     }
 
     /// The row with its name and full path.
-    fn complete(&mut self, found: &Found) -> Row {
-        let (name, path) = match &found.leaf {
-            Some((parent, name)) => self.path_below(*parent, name),
+    fn complete(&mut self, found: Found) -> Row {
+        let (name, path) = match found.leaf {
+            Some((parent, name)) => {
+                let path = self.path_below(parent, &name);
+                (name, path)
+            }
             None => self.path_of(found.node_id),
         };
         let old_path = found
@@ -1037,6 +1183,67 @@ mod path_cache_tests {
         let (name, path) = paths.path_of(3);
         assert_eq!(String::from_utf16_lossy(&name), "c.txt");
         assert_eq!(String::from_utf16_lossy(&path), r"a\b\c.txt");
+    }
+
+    #[test]
+    fn a_directory_path_is_built_once_and_kept() {
+        let conn = tree(0);
+        conn.execute_batch(
+            "INSERT INTO node VALUES (1, 0, 'a', NULL), (2, 1, 'b', NULL), (3, 2, 'c.txt', NULL);",
+        )
+        .unwrap();
+        let mut paths = Paths::new(&conn);
+        let wide = |text: &str| text.encode_utf16().collect::<Vec<u16>>();
+        assert_eq!(paths.path_below(2, &wide("c.txt")), wide(r"a\b\c.txt"));
+        assert_eq!(
+            paths.cache.dirs.get(&2).map(|dir| &dir[..]),
+            Some(&wide(r"a\b\")[..])
+        );
+        assert_eq!(paths.cache.dir_units, 4);
+        // Kept: the node rows are no longer needed for that directory.
+        conn.execute("DELETE FROM node", []).unwrap();
+        assert_eq!(paths.path_below(2, &wide("d.txt")), wide(r"a\b\d.txt"));
+        assert_eq!(paths.path_below(TOP_LEVEL, &wide("e")), wide("e"));
+    }
+
+    #[test]
+    fn a_directory_with_a_missing_node_is_not_kept() {
+        let conn = tree(0);
+        conn.execute_batch("INSERT INTO node VALUES (2, 1, 'b', NULL);")
+            .unwrap();
+        let mut paths = Paths::new(&conn);
+        let wide = |text: &str| text.encode_utf16().collect::<Vec<u16>>();
+        // Node 1 is missing: the path stops at what was found, as before.
+        assert_eq!(paths.path_below(2, &wide("c.txt")), wide(r"b\c.txt"));
+        assert!(paths.cache.dirs.is_empty());
+        conn.execute_batch("INSERT INTO node VALUES (1, 0, 'a', NULL);")
+            .unwrap();
+        assert_eq!(paths.path_below(2, &wide("c.txt")), wide(r"a\b\c.txt"));
+    }
+
+    #[test]
+    fn the_directory_paths_never_outgrow_their_bound() {
+        // Directories with long names: the units bound is reached long before
+        // the count bound.
+        let conn = tree(0);
+        let long = "d".repeat(200);
+        let dirs = i64::try_from(PATH_CACHE_UNITS / 200 * 2).unwrap();
+        let mut insert = conn
+            .prepare("INSERT INTO node (id, parent_id, name) VALUES (?1, 0, ?2)")
+            .unwrap();
+        for id in 1..=dirs {
+            insert.execute(params![id, format!("{long}{id}")]).unwrap();
+        }
+        drop(insert);
+        let mut paths = Paths::new(&conn);
+        for id in 1..=dirs {
+            let path = paths.path_below(id, &[0x78]);
+            assert_eq!(path.last(), Some(&0x78));
+            assert!(paths.cache.dir_units <= PATH_CACHE_UNITS);
+            assert!(paths.cache.dirs.len() <= PATH_CACHE_NODES);
+        }
+        let held: usize = paths.cache.dirs.values().map(|dir| dir.len()).sum();
+        assert_eq!(held, paths.cache.dir_units);
     }
 
     #[test]
