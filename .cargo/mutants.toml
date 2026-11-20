@@ -55,6 +55,12 @@ exclude_re = [
   # has received a shutdown signal" (slice 25/28 of core, three times on
   # 2026-11-19); locally the same mutant holds a test for 18 to 31 s.
   "crates/peekbuddy-core/src/usn/feed/mod.rs:.*replace -= with .* in Feed::flush_owed",
+  # `Listing::clear` that does nothing: the walk reuses one listing for the
+  # children of each deleted directory, so every pass pushes the earlier
+  # entries again, directories among them, and the loop over `deleted` never
+  # ends. The nightly shard 1/4 of core (slice 12/28) went from 1 to 15.8 GB
+  # in 30 s and the runner shut down (2026-11-20).
+  "crates/peekbuddy-core/src/reconcile/mod.rs:.*replace Listing::clear with .*",
   # `!=` for `==` on the owner of a thread makes `suspend_process` suspend
   # every thread of every other process: the runner agent, the shell and
   # nextest freeze with the test, and the shard dies with no log. Shard 30
