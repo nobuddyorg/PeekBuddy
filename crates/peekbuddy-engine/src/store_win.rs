@@ -88,6 +88,19 @@ fn volume_of(path: &str) -> Option<(VolInfo, Vec<u16>)> {
     ))
 }
 
+/// The root row of the watch at `index` of the settings; `None` when its
+/// volume cannot be read (the folder cannot be opened).
+#[must_use]
+pub fn root_info(index: usize, watch: &peekbuddy_core::settings::Watch) -> Option<RootInfo> {
+    let (vol, units) = volume_of(&watch.path)?;
+    Some(RootInfo {
+        idx: RootIdx(u16::try_from(index).unwrap_or(u16::MAX)),
+        vol,
+        path: units,
+        recursive: watch.recursive,
+    })
+}
+
 impl Store {
     /// Opens today's segment, registers the watches and starts the
     /// writer. Every commit updates `counters`, appends to `commits` and
@@ -135,16 +148,10 @@ impl Store {
         // Paused watches are registered too: pausing and resuming write
         // state rows for them (#63).
         for (index, watch) in settings.watches.iter().enumerate() {
-            let Some((vol, units)) = volume_of(&watch.path) else {
+            let Some(info) = root_info(index, watch) else {
                 continue;
             };
-            let registered = writer.register_root(&RootInfo {
-                idx: RootIdx(u16::try_from(index).unwrap_or(u16::MAX)),
-                vol,
-                path: units,
-                recursive: watch.recursive,
-            });
-            roots += usize::from(registered.is_ok());
+            roots += usize::from(writer.register_root(&info).is_ok());
         }
         let (observer_counters, observer_commits) = (Arc::clone(counters), Arc::clone(commits));
         let mut config = Config::new(data.root.join("spill"));

@@ -285,7 +285,8 @@ fn watches_are_added_listed_refused_and_removed_through_the_pipe() {
     assert!(message.starts_with("confirm: "), "{message}");
     assert_eq!(ask(Message::ListWatches), Message::WatchList(Vec::new()));
 
-    // A real folder is saved and listed, waiting for the next start.
+    // A real folder is saved, listed and armed at once, although the engine
+    // started without watches (#553).
     let Message::CommandResult { ok, message } = ask(Message::Command(Cmd::AddWatch {
         path: target.path().display().to_string(),
         confirmed: false,
@@ -297,7 +298,8 @@ fn watches_are_added_listed_refused_and_removed_through_the_pipe() {
         unreachable!("the list is answered with a list");
     };
     assert_eq!(watches.len(), 1);
-    assert!(!watches[0].armed);
+    assert!(watches[0].armed, "{watches:?}");
+    assert!(message.contains("starts capturing now"), "{message}");
     assert!(watches[0].path.starts_with(r"\\?\"), "{}", watches[0].path);
     let saved = std::fs::read_to_string(dir.path().join("settings.toml")).unwrap();
     assert!(saved.contains(&watches[0].id), "{saved}");

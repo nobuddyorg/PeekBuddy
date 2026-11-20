@@ -112,8 +112,11 @@ enum Job {
     Stop,
 }
 
+/// Locks are taken in this order: `machines`, `watches`, `settled`. A watch
+/// armed while the host runs is appended to all three; nothing is ever
+/// taken out, so a position found under one lock stays valid under the next.
 struct Inner {
-    watches: Vec<WatchSpec>,
+    watches: Mutex<Vec<WatchSpec>>,
     machines: Mutex<Vec<Machine>>,
     queue: Mutex<VecDeque<Job>>,
     wake: Condvar,
@@ -146,45 +149,66 @@ fn wide(text: &str) -> Vec<u16> {
 /// `Lost` row and not a missing watch.
 #[must_use]
 pub fn watches_from_settings(settings: &peekbuddy_core::settings::Settings) -> Vec<WatchSpec> {
-    use peekbuddy_win::io::dir::DirHandle;
-    use peekbuddy_win::io::open::OpenOptions;
-    use peekbuddy_win::io::path::to_long_path;
-    use peekbuddy_win::io::volume::volume_identity;
+    watches_and_volumes(settings).0
+}
 
-    let mut volumes: Vec<Vec<u16>> = Vec::new();
-    settings
+/// [`watches_from_settings`] with the volumes it numbered, so a watch armed
+/// later gets the index of a volume already in use.
+#[must_use]
+pub fn watches_and_volumes(
+    settings: &peekbuddy_core::settings::Settings,
+) -> (Vec<WatchSpec>, Volumes) {
+    let mut volumes = Volumes::default();
+    let specs = settings
         .watches
         .iter()
         .enumerate()
-        .map(|(index, watch)| {
-            let plain = wide(&watch.path);
-            let long = to_long_path(&plain).unwrap_or_else(|_| plain.clone());
-            let guid = DirHandle::open(&long, OpenOptions::default())
-                .ok()
-                .and_then(|dir| volume_identity(&dir, &long).ok())
-                .map(|identity| identity.guid_path);
-            let vol = guid.map_or(0, |guid| {
-                volumes.iter().position(|v| *v == guid).unwrap_or_else(|| {
-                    volumes.push(guid);
-                    volumes.len() - 1
+        .map(|(index, watch)| volumes.spec(index, watch))
+        .collect();
+    (specs, volumes)
+}
+
+/// The volumes of the watches by their GUID paths, in order of first use: a
+/// volume's position is its [`VolIdx`].
+#[derive(Debug, Default)]
+pub struct Volumes(Vec<Vec<u16>>);
+
+impl Volumes {
+    /// The spec of the watch at `index`; a volume not seen before gets the
+    /// next index.
+    pub fn spec(&mut self, index: usize, watch: &peekbuddy_core::settings::Watch) -> WatchSpec {
+        use peekbuddy_win::io::dir::DirHandle;
+        use peekbuddy_win::io::open::OpenOptions;
+        use peekbuddy_win::io::path::to_long_path;
+        use peekbuddy_win::io::volume::volume_identity;
+
+        let plain = wide(&watch.path);
+        let long = to_long_path(&plain).unwrap_or_else(|_| plain.clone());
+        let guid = DirHandle::open(&long, OpenOptions::default())
+            .ok()
+            .and_then(|dir| volume_identity(&dir, &long).ok())
+            .map(|identity| identity.guid_path);
+        let vol = guid.map_or(0, |guid| {
+            self.0.iter().position(|v| *v == guid).unwrap_or_else(|| {
+                self.0.push(guid);
+                self.0.len() - 1
+            })
+        });
+        WatchSpec {
+            root: RootIdx(u16::try_from(index).unwrap_or(u16::MAX)),
+            vol: VolIdx(u16::try_from(vol).unwrap_or(0)),
+            plain,
+            long,
+            recursive: watch.recursive,
+            buffer_bytes: watch
+                .buffer_kib
+                .map_or(DEFAULT_BUFFER_BYTES, |kib| {
+                    usize::try_from(kib).unwrap_or(1024).saturating_mul(1024)
                 })
-            });
-            WatchSpec {
-                root: RootIdx(u16::try_from(index).unwrap_or(u16::MAX)),
-                vol: VolIdx(u16::try_from(vol).unwrap_or(0)),
-                plain,
-                long,
-                recursive: watch.recursive,
-                buffer_bytes: watch
-                    .buffer_kib
-                    .map_or(DEFAULT_BUFFER_BYTES, |kib| {
-                        usize::try_from(kib).unwrap_or(1024).saturating_mul(1024)
-                    })
-                    .next_multiple_of(4),
-                last_access: false,
-            }
-        })
-        .collect()
+                .next_multiple_of(4),
+            last_access: false,
+        }
+    }
 }
 
 /// The filter rules of the settings compiled once: the global presets, globs
@@ -289,15 +313,15 @@ impl Signaller {
 
     /// Posts `signal` for every root on `vol`.
     pub fn signal_volume(&self, vol: VolIdx, signal: Signal) {
-        for watch in self.inner.watches.iter().filter(|w| w.vol == vol) {
-            self.inner.post(Job::Signal(watch.root, signal));
+        for root in roots_where(&self.inner, |w| w.vol == vol) {
+            self.inner.post(Job::Signal(root, signal));
         }
     }
 
     /// Posts `signal` for every root.
     pub fn signal_all(&self, signal: Signal) {
-        for watch in &self.inner.watches {
-            self.inner.post(Job::Signal(watch.root, signal));
+        for root in roots_where(&self.inner, |_| true) {
+            self.inner.post(Job::Signal(root, signal));
         }
     }
 
@@ -305,13 +329,58 @@ impl Signaller {
     #[must_use]
     pub fn states(&self) -> Vec<(RootIdx, State)> {
         let machines = lock(&self.inner.machines);
-        self.inner
-            .watches
+        lock(&self.inner.watches)
             .iter()
             .zip(machines.iter())
             .map(|(watch, machine)| (watch.root, machine.state()))
             .collect()
     }
+
+    /// Arms a watch added while the host runs: its machine starts in
+    /// `Arming`, the reconciler learns the root and the watch is opened, as
+    /// at start. The first reconcile follows the arming as at start (with no
+    /// snapshot of the root it is the baseline), so the time before the
+    /// handle was armed is covered. The readiness gate is not told: it
+    /// counted the watches of the start. `false` when the root is armed
+    /// already or the host is stopping.
+    #[must_use]
+    pub fn arm(&self, spec: WatchSpec) -> bool {
+        let inner = &self.inner;
+        if inner.stopping.load(Ordering::Acquire) {
+            return false;
+        }
+        let root = spec.root;
+        let walk = crate::reconciler::RootSpec {
+            root,
+            vol: spec.vol,
+            path: spec.long.clone(),
+        };
+        {
+            let mut machines = lock(&inner.machines);
+            let mut watches = lock(&inner.watches);
+            if watches.iter().any(|w| w.root == root) {
+                return false;
+            }
+            // Settled from the start: the gate is not waiting for it.
+            lock(&inner.settled).push(true);
+            machines.push(Machine::new());
+            watches.push(spec);
+        }
+        if let Some(reconciler) = lock(&inner.reconciler).as_ref() {
+            reconciler.add_root(walk);
+        }
+        inner.post(Job::Open(root));
+        true
+    }
+}
+
+/// The roots whose spec `pick` accepts.
+fn roots_where(inner: &Inner, pick: impl Fn(&WatchSpec) -> bool) -> Vec<RootIdx> {
+    lock(&inner.watches)
+        .iter()
+        .filter(|w| pick(w))
+        .map(|w| w.root)
+        .collect()
 }
 
 /// The completions of the watcher as signals.
@@ -572,8 +641,9 @@ impl Host {
             exclude,
         } = parts;
         let count = watches.len();
+        let roots: Vec<RootIdx> = watches.iter().map(|w| w.root).collect();
         let inner = Arc::new(Inner {
-            watches,
+            watches: Mutex::new(watches),
             machines: Mutex::new(vec![Machine::new(); count]),
             queue: Mutex::new(VecDeque::new()),
             wake: Condvar::new(),
@@ -601,8 +671,8 @@ impl Host {
         let worker = std::thread::Builder::new()
             .name(String::from("peekbuddy-lifecycle"))
             .spawn(move || work(&worker_inner))?;
-        for watch in &inner.watches {
-            inner.post(Job::Open(watch.root));
+        for root in roots {
+            inner.post(Job::Open(root));
         }
         Ok(Self {
             inner,
@@ -701,12 +771,22 @@ impl Drop for Host {
     }
 }
 
-fn spec_of(inner: &Inner, root: RootIdx) -> Option<&WatchSpec> {
-    inner.watches.iter().find(|w| w.root == root)
+fn spec_of(inner: &Inner, root: RootIdx) -> Option<WatchSpec> {
+    lock(&inner.watches)
+        .iter()
+        .find(|w| w.root == root)
+        .cloned()
 }
 
 fn index_of(inner: &Inner, root: RootIdx) -> Option<usize> {
-    inner.watches.iter().position(|w| w.root == root)
+    lock(&inner.watches).iter().position(|w| w.root == root)
+}
+
+fn vol_of(inner: &Inner, root: RootIdx) -> Option<VolIdx> {
+    lock(&inner.watches)
+        .iter()
+        .find(|w| w.root == root)
+        .map(|w| w.vol)
 }
 
 fn work(inner: &Arc<Inner>) {
@@ -755,12 +835,12 @@ fn open(inner: &Arc<Inner>, root: RootIdx) {
     let Some(spec) = spec_of(inner, root) else {
         return;
     };
-    guard_root(inner, spec);
+    guard_root(inner, &spec);
     let result = lock(&inner.watcher)
         .as_ref()
-        .map(|watcher| watcher.add_root(rdcw_spec(inner, spec)));
+        .map(|watcher| watcher.add_root(rdcw_spec(inner, &spec)));
     if matches!(result, Some(Ok(_))) {
-        register_notifier(inner, spec);
+        register_notifier(inner, &spec);
     } else {
         handle(inner, root, Signal::ArmFailed);
     }
@@ -795,7 +875,7 @@ fn rewatch(inner: &Arc<Inner>, root: RootIdx) {
         return;
     }
     if let Some(spec) = spec_of(inner, root) {
-        watch_parent(inner, spec);
+        watch_parent(inner, &spec);
     }
 }
 
@@ -809,7 +889,7 @@ fn handle(inner: &Arc<Inner>, root: RootIdx, signal: Signal) {
         let Some(machine) = machines.get_mut(index) else {
             return;
         };
-        (machine.signal(signal), spec_of(inner, root).map(|w| w.vol))
+        (machine.signal(signal), vol_of(inner, root))
     };
     if let Some(transition) = out.transition {
         {
@@ -891,11 +971,11 @@ fn act(inner: &Arc<Inner>, root: RootIdx, action: Action) {
                 let guard = lock(&inner.watcher);
                 guard.as_ref().map(|watcher| {
                     let _ = watcher.remove_root(root);
-                    watcher.add_root(rdcw_spec(inner, spec))
+                    watcher.add_root(rdcw_spec(inner, &spec))
                 })
             };
             if matches!(result, Some(Ok(_))) {
-                register_notifier(inner, spec);
+                register_notifier(inner, &spec);
             } else {
                 inner.post(Job::Signal(root, Signal::ArmFailed));
             }
@@ -912,8 +992,8 @@ fn act(inner: &Arc<Inner>, root: RootIdx, action: Action) {
                 .map_or(Signal::RootDeleted, Signal::Verified);
             inner.post(Job::Signal(root, signal));
         }
-        Action::WatchParent => watch_parent(inner, spec),
-        Action::UnwatchParent => unwatch_parent(inner, spec),
+        Action::WatchParent => watch_parent(inner, &spec),
+        Action::UnwatchParent => unwatch_parent(inner, &spec),
         Action::FlushNow => (lock(&inner.services).flush)(),
     }
 }

@@ -196,6 +196,102 @@ fn a_stalled_writer_spills_and_the_replay_keeps_the_order() {
     );
 }
 
+/// A watch armed while the engine runs (#553): its root is registered with
+/// the running writer, and batches pushed afterwards are written, the ones
+/// that went through the spill file of a stalled writer too.
+#[test]
+fn a_root_registered_while_running_takes_rows_from_the_ring_and_the_spill() {
+    let dirs = Dirs::new("live-root");
+    let blocked = Arc::new(AtomicBool::new(true));
+    let mut config = config(&dirs);
+    config.hooks = Hooks {
+        on_health: None,
+        before_commit: Some({
+            let blocked = Arc::clone(&blocked);
+            Arc::new(move || {
+                while blocked.load(Ordering::Acquire) {
+                    std::thread::sleep(Duration::from_millis(5));
+                }
+            })
+        }),
+        on_commit: None,
+        before_attempt: None,
+    };
+    let pipeline = Pipeline::start(open_writer(&dirs.db()), config).unwrap();
+    let producer = pipeline.producer();
+    // The writer holds a group of root 0 and stalls.
+    push_events(&producer, 1, 250);
+    producer.register_root(RootInfo {
+        idx: RootIdx(1),
+        vol: VolInfo {
+            guid: String::from("vol-1"),
+            serial: 1,
+            letter: Some(String::from("C:")),
+            journal_id: None,
+        },
+        path: units(r"\\?\C:\added"),
+        recursive: true,
+    });
+    // Batches that mix both roots, more than the ring holds.
+    let mut spilled = false;
+    for index in 1..20u64 {
+        let mut batch = producer.new_batch();
+        for ts in index * 250 + 1..=index * 250 + 250 {
+            let mut row = event(ts);
+            row.root = RootIdx(u16::from(ts % 2 == 0));
+            batch.push(row, &units(&format!("f{ts}.txt"))).unwrap();
+        }
+        spilled |= matches!(producer.push(batch), Push::Overflow(_));
+    }
+    assert!(
+        spilled,
+        "nothing overflowed although the writer was stalled"
+    );
+    blocked.store(false, Ordering::Release);
+    let flushed = pipeline.flush(Duration::from_secs(30)).unwrap();
+    assert_eq!(flushed.lost_batches, 0);
+    assert_eq!(flushed.rows, 5_000);
+    let _writer = pipeline.close().unwrap();
+    assert_eq!(stored_ts(&dirs.db()), (1..=5_000).collect::<Vec<_>>());
+    let conn = Connection::open(dirs.db()).unwrap();
+    let roots: i64 = conn
+        .query_row("SELECT count(*) FROM root", [], |row| row.get(0))
+        .unwrap();
+    assert_eq!(roots, 2);
+}
+
+/// An idle writer registers a root at once, before any row of it arrives.
+#[test]
+fn an_idle_writer_registers_a_root_without_a_row() {
+    let dirs = Dirs::new("idle-root");
+    let pipeline = Pipeline::start(open_writer(&dirs.db()), config(&dirs)).unwrap();
+    pipeline.producer().register_root(RootInfo {
+        idx: RootIdx(3),
+        vol: VolInfo {
+            guid: String::from("vol-2"),
+            serial: 2,
+            letter: None,
+            journal_id: None,
+        },
+        path: units(r"\\?\D:\later"),
+        recursive: false,
+    });
+    let conn = Connection::open(dirs.db()).unwrap();
+    let deadline = std::time::Instant::now() + Duration::from_secs(20);
+    loop {
+        let roots: i64 = conn
+            .query_row("SELECT count(*) FROM root", [], |row| row.get(0))
+            .unwrap();
+        if roots == 2 {
+            break;
+        }
+        assert!(std::time::Instant::now() < deadline, "not registered");
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    drop(conn);
+    let _writer = pipeline.close().unwrap();
+}
+
 #[test]
 fn a_spill_left_by_a_previous_run_is_replayed_first() {
     let dirs = Dirs::new("restart");

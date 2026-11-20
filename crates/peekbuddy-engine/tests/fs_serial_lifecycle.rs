@@ -287,6 +287,59 @@ fn a_watch_comes_up_live_reconciles_and_captures() {
     });
 }
 
+/// #553: a root armed while the host runs comes up like one armed at start:
+/// `Live` (Armed), its baseline, and its changes as events.
+#[test]
+fn a_root_armed_while_running_comes_up_live_reconciles_and_captures() {
+    let fx = start("armlive", None);
+    wait_for("live", || fx.log.has_state(WatchState::Live, ARMED));
+    wait_for("the baseline", || {
+        !fx.log.names(Kind::BaselineEstablished).is_empty()
+    });
+    let added = fx.scratch.0.join("added");
+    std::fs::create_dir_all(&added).unwrap();
+    std::fs::write(added.join("already.txt"), b"x").unwrap();
+    let plain = wide(&added);
+    let spec = WatchSpec {
+        root: RootIdx(1),
+        vol: VolIdx(0),
+        long: to_long_path(&plain).unwrap(),
+        plain,
+        recursive: true,
+        buffer_bytes: 64 * 1024,
+        last_access: false,
+    };
+    assert!(fx.signaller.arm(spec.clone()));
+    assert!(!fx.signaller.arm(spec), "a root is armed once");
+    let armed = || {
+        fx.log
+            .states()
+            .iter()
+            .filter(|state| **state == (WatchState::Live, ARMED))
+            .count()
+    };
+    wait_for("the added root live", || armed() == 2);
+    wait_for("its baseline", || {
+        fx.log.names(Kind::BaselineEstablished).len() == 2
+    });
+    assert!(
+        fx.signaller
+            .states()
+            .iter()
+            .any(|(root, _)| *root == RootIdx(1)),
+        "the host lists the added root"
+    );
+    std::fs::write(added.join("new.txt"), b"y").unwrap();
+    wait_for("the event", || {
+        fx.log.names(Kind::Created).iter().any(|n| n == "new.txt")
+    });
+    // The first root still captures.
+    std::fs::write(fx.scratch.tree().join("still.txt"), b"z").unwrap();
+    wait_for("the first root's event", || {
+        fx.log.names(Kind::Created).iter().any(|n| n == "still.txt")
+    });
+}
+
 #[test]
 fn a_deleted_root_is_lost_and_comes_back_restored_and_reconciled() {
     let fx = start("delete", None);

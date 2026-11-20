@@ -8,6 +8,7 @@
 //! thread and reads the segments through the same read API as the viewer.
 
 use std::path::Path;
+use std::sync::Mutex;
 
 use peekbuddy_core::event::Kind;
 use peekbuddy_core::filter::KindSet;
@@ -32,7 +33,7 @@ const START_SLACK: u64 = 100_000_000;
 #[derive(Debug)]
 pub struct StoreLiveLog {
     reader: Reader,
-    roots: Vec<(u16, Vec<u16>)>,
+    roots: Mutex<Vec<(u16, Vec<u16>)>>,
 }
 
 impl StoreLiveLog {
@@ -41,11 +42,23 @@ impl StoreLiveLog {
     pub fn new(segments: &Path, specs: &[RootSpec]) -> Self {
         Self {
             reader: Reader::new(segments),
-            roots: specs
-                .iter()
-                .map(|spec| (spec.root.0, spec.path.clone()))
-                .collect(),
+            roots: Mutex::new(
+                specs
+                    .iter()
+                    .map(|spec| (spec.root.0, spec.path.clone()))
+                    .collect(),
+            ),
         }
+    }
+
+    /// Adds the root of a watch armed while the engine runs.
+    pub fn add_root(&self, spec: &RootSpec) {
+        let mut roots = self
+            .roots
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        roots.retain(|(index, _)| *index != spec.root.0);
+        roots.push((spec.root.0, spec.path.clone()));
     }
 
     /// The newest row of `kinds` older than `before` (the newest of all for
@@ -157,9 +170,17 @@ fn plain(root: &[u16]) -> &[u16] {
 
 impl LiveLog for StoreLiveLog {
     fn created_since_last_walk(&self, root: u16, each: &mut dyn FnMut(&[u16]) -> bool) {
-        let Some((_, root_path)) = self.roots.iter().find(|(index, _)| *index == root) else {
+        let Some(root_path) = self
+            .roots
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .iter()
+            .find(|(index, _)| *index == root)
+            .map(|(_, path)| path.clone())
+        else {
             return;
         };
+        let root_path = &root_path;
         let cancel = CancelFlag::new();
         let Some(after) = self.last_finished_walk(root_path, &cancel) else {
             return;
@@ -430,6 +451,22 @@ mod tests {
         let log = store(&dir, &[(0, Kind::Created, 1, "a")]);
         assert_eq!(created(&log, 0), Vec::<String>::new());
         assert_eq!(created(&log, 7), Vec::<String>::new());
+    }
+
+    #[test]
+    fn a_root_added_later_is_looked_up_like_the_others() {
+        use Kind::{BaselineEstablished as Base, Created};
+        let dir = Dir::new("added");
+        let _all = store(&dir, &[(1, Base, 1, ""), (1, Created, 1, "late")]);
+        let spec = |idx: u16, path: &str| RootSpec {
+            root: RootIdx(idx),
+            vol: VolIdx(0),
+            path: w(path),
+        };
+        let log = StoreLiveLog::new(&dir.0, &[spec(0, ROOT_A)]);
+        assert_eq!(created(&log, 1), Vec::<String>::new());
+        log.add_root(&spec(1, ROOT_B));
+        assert_eq!(created(&log, 1), ["late"]);
     }
 
     #[test]

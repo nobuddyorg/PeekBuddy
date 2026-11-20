@@ -79,6 +79,54 @@ fn churn_under_the_engine(
     buffer_kib: Option<u32>,
     freeze: bool,
 ) -> (Run, peekbuddy_churn::exec::Outcome) {
+    churn_with(dir, profile_name, seed, threads, buffer_kib, freeze, false)
+}
+
+/// Asks the running engine on `data` to watch `root`, as the viewer does.
+fn add_watch_through_the_pipe(data: &Path, root: &Path) {
+    use peekbuddy_core::ipc::{Command, Message, PROTOCOL_VERSION};
+    use peekbuddy_win::pipe::PipeClient;
+
+    let name = peekbuddy_engine::ipc_server::pipe_name(Some(data)).unwrap();
+    let mut client = PipeClient::connect(
+        &name,
+        Some(engine::exe().as_path()),
+        Duration::from_secs(10),
+    )
+    .unwrap();
+    client
+        .send(&Message::Hello {
+            protocol_version: PROTOCOL_VERSION,
+            build: String::from("test"),
+        })
+        .unwrap();
+    assert!(matches!(
+        client.receive().unwrap(),
+        Some(Message::Hello { .. })
+    ));
+    client
+        .send(&Message::Command(Command::AddWatch {
+            path: root.display().to_string(),
+            confirmed: false,
+        }))
+        .unwrap();
+    let Some(Message::CommandResult { ok, message }) = client.receive().unwrap() else {
+        unreachable!("a command is answered with a result");
+    };
+    assert!(ok && message.contains("starts capturing now"), "{message}");
+}
+
+/// [`churn_under_the_engine`]; with `added_live` the engine starts without
+/// watches and the tree is added through the pipe while it runs (#553).
+fn churn_with(
+    dir: &TestDir,
+    profile_name: &str,
+    seed: u64,
+    threads: u32,
+    buffer_kib: Option<u32>,
+    freeze: bool,
+    added_live: bool,
+) -> (Run, peekbuddy_churn::exec::Outcome) {
     let data = dir.path().join("data");
     let root = dir.path().join("tree");
     std::fs::create_dir_all(&data).unwrap();
@@ -89,17 +137,23 @@ fn churn_under_the_engine(
         .trim_start_matches(r"\\?\")
         .to_owned();
     let buffer = buffer_kib.map_or_else(String::new, |kib| format!("buffer_kib = {kib}\n"));
+    let watch = if added_live {
+        String::new()
+    } else {
+        format!("[[watch]]\nid = \"w0\"\npath = '{plain}'\n{buffer}")
+    };
     std::fs::write(
         data.join("settings.toml"),
-        format!(
-            "version = 1\n[general]\nfirst_run = false\n[[watch]]\nid = \"w0\"\npath = '{plain}'\n{buffer}"
-        ),
+        format!("version = 1\n[general]\nfirst_run = false\n{watch}"),
     )
     .unwrap();
 
     let began = Instant::now();
     let mut engine = spawn(&data);
     let window = wait_for_window(&data, &mut engine.0);
+    if added_live {
+        add_watch_through_the_pipe(&data, &root);
+    }
     // Let the watch arm and the baseline reconcile finish before the churn.
     wait_for_baseline(&data);
     wait_until_settled(&data, Duration::from_secs(3));
@@ -143,6 +197,32 @@ fn every_churn_operation_is_logged_or_covered_by_a_gap() {
     assert!(
         verdict.report.matched + verdict.report.covered_by_gap > 0,
         "{}",
+        verdict.summary
+    );
+}
+
+/// The same comparison for a tree added through the pipe while the engine
+/// runs (#553): armed live, baselined, and then every operation is a row or
+/// covered by a gap.
+#[test]
+fn a_root_added_while_running_loses_nothing_undetected() {
+    let dir = TestDir::new("zero-loss-added").unwrap();
+    let (run, outcome) = churn_with(&dir, "edge-mix", 13, 2, None, false, true);
+    assert_eq!(outcome.failures(), 0, "the churn itself failed");
+    let verdict = judge(&run, &outcome);
+    assert_eq!(verdict.report.malformed, Vec::<u64>::new());
+    assert_eq!(
+        verdict.report.undetected,
+        Vec::<u64>::new(),
+        "undetected loss: {}",
+        verdict.summary
+    );
+    assert_eq!(verdict.unfinished_gaps, 0, "{}", verdict.summary);
+    assert!(verdict.report.matched > 0, "{}", verdict.summary);
+    assert_eq!(
+        tree_diff(&run, 20),
+        Vec::<String>::new(),
+        "the replayed log differs from the disk: {}",
         verdict.summary
     );
 }
