@@ -47,6 +47,12 @@ impl NameArena {
         self.units.len()
     }
 
+    /// Units that still fit.
+    #[must_use]
+    pub const fn room(&self) -> usize {
+        self.capacity.saturating_sub(self.units.len())
+    }
+
     /// Whether no names are stored.
     #[must_use]
     pub fn is_empty(&self) -> bool {

@@ -795,3 +795,42 @@ fn a_spill_is_replayed_while_the_burst_goes_on() {
     drop(pipeline.close());
     assert_eq!(stored_ts(&dirs.db()), (1..=pushed * 5).collect::<Vec<_>>());
 }
+
+/// Batches of a few events each (one per completion, #497) go into the last
+/// batch not yet taken: a stalled writer's ring holds their events, not
+/// empty storage, and the order is kept.
+#[test]
+fn small_batches_share_the_ring_instead_of_spilling() {
+    let dirs = Dirs::new("small-batches");
+    let blocked = Arc::new(AtomicBool::new(true));
+    let mut config = config(&dirs);
+    config.hooks = Hooks {
+        on_health: None,
+        before_commit: Some({
+            let blocked = Arc::clone(&blocked);
+            Arc::new(move || {
+                while blocked.load(Ordering::Acquire) {
+                    std::thread::sleep(Duration::from_millis(5));
+                }
+            })
+        }),
+        on_commit: None,
+        before_attempt: None,
+    };
+    let pipeline = Pipeline::start(open_writer(&dirs.db()), config).unwrap();
+    let producer = pipeline.producer();
+    // 2,000 batches of one event: without sharing, all but the ring's four
+    // would go through the spill file.
+    for ts in 1..=2_000 {
+        push_events(&producer, ts, 1);
+    }
+    blocked.store(false, Ordering::Release);
+    let flushed = pipeline.flush(Duration::from_secs(30)).unwrap();
+    assert_eq!(flushed.rows, 2_000);
+    assert_eq!(flushed.lost_batches, 0);
+    let stats = pipeline.stats();
+    assert!(stats.spilled_batches <= 8, "{stats:?}");
+    let _writer = pipeline.close().unwrap();
+    assert_eq!(stored_ts(&dirs.db()), (1..=2_000).collect::<Vec<_>>());
+    assert!(ids_are_contiguous(&dirs.db()));
+}

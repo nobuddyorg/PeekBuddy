@@ -295,6 +295,26 @@ impl Producer {
         if state.closed {
             return Push::Closed(batch);
         }
+        // Capture pushes a batch per completion, often a few events in
+        // storage for 256: a batch that fits behind the last one not yet
+        // taken goes into it, in order, so the ring holds events and not
+        // empty storage (#497). It counts as part of that batch.
+        let spilling = state.spilling;
+        let tail = if spilling {
+            state.overflow.back_mut()
+        } else {
+            state.queue.back_mut()
+        };
+        if tail.is_some_and(|tail| tail.absorb(&batch)) {
+            drop(state);
+            let mut spare = batch;
+            spare.clear();
+            return if spilling {
+                Push::Overflow(spare)
+            } else {
+                Push::Queued(spare)
+            };
+        }
         state.pushed += 1;
         let spare = state.free.pop().unwrap_or_else(Batch::standard);
         if !state.spilling && state.queue.len() < self.shared.capacity {
