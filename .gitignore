@@ -7,3 +7,6 @@ target/
 # Pending insta snapshots
 *.snap.new
 .pending-snap
+
+# Worktrees that Claude Code agents create inside the checkout.
+.claude/worktrees/
