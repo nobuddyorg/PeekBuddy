@@ -98,8 +98,8 @@ wpr -stop out.etl
 activity, start the `PeekBuddy.Light` trace, wait 60 s, stop. In WPA open
 CPU Usage (Precise) and filter to `peekbuddy.exe`: count `CSwitch` rows with
 `NewThread` in PeekBuddy. The budget (`engine.idle.wakes`) is at most two
-wakeups a minute and no periodic timers (`engine.idle.periodic_timers`);
-expect close to zero context switches.
+wakeups a minute, which also catches a periodic timer (ADR 0006); expect
+close to zero context switches.
 
 **Startup procedure.** Use `PeekBuddyStartup`, start the trace, launch the
 exe, stop after "engine ready". The `Milestone` events of the

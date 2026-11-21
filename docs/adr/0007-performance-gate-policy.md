@@ -40,6 +40,31 @@ Chosen option 2.
 Budget numbers live in [PERFORMANCE.md](../../PERFORMANCE.md) and
 `budgets.toml` (#20); this ADR does not copy them.
 
+## Amendment: rows no run can measure (#497, 2026-11-21)
+
+A budget row stays only if a run measures it. Five provisional rows had no
+run on any machine the project has, and each has another row that already
+covers what it protects, so they are dropped rather than kept provisional
+forever: the two cold-start rows (need a reboot or an elevated cache flush;
+the warm and disk-read rows stay), the periodic-timer count (no registry;
+`engine.idle.wakes` fails on a periodic timer, shown by the `inject timer`
+self-check), the notification-buffer total (set by the settings, not by
+the engine) and the 100k events/s burst rate (no generator reaches it, and
+the stages measured alone stay below it). A row whose end-to-end run is out
+of reach but whose stages are measured is calibrated per stage and judged end
+to end only when the generator reaches its rate (`ingest.sustained`). The
+reasons for each row are in PERFORMANCE.md.
+
+The two event latency rows are loosened from 10 and 50 ms to 100 and 750 ms.
+The old limits came from the commit path measured alone in spike #35 (3.2 and
+6.3 ms). The rows measure end to end, from the end of a file operation to its
+row in the log: on the owner PC that is 75 to 91 ms at the median and 451 to
+622 ms at the 99th percentile in ten runs, the tail being commits held up by a
+passive checkpoint. On the hosted runners the churn saturates the disk and a
+row waits minutes; moving the checkpoint off the writer thread did not change
+that (it only moved the wait), so the absolute hosted number is reported and
+the rows gate by same-runner A/B, as this ADR decides for every timing row.
+
 ## Consequences
 
 - Good: red means real.
