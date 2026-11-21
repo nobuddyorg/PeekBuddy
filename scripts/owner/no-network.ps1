@@ -26,6 +26,9 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 $started = Get-Date
 $Exe = (Resolve-Path -LiteralPath $Exe).Path
+# The process name is the file name: peekbuddy for the exe in the zip,
+# peekbuddy-v<version>-<target> for the bare release asset.
+$name = [IO.Path]::GetFileNameWithoutExtension($Exe)
 if (-not $OutFile) {
     $here = if ($PSScriptRoot) { $PSScriptRoot } else { Split-Path -Parent $MyInvocation.MyCommand.Path }
     $OutFile = Join-Path $here ("no-network-{0}.json" -f $started.ToString('yyyy-MM-dd'))
@@ -44,7 +47,7 @@ $maxProcesses = 0
 try {
     $end = (Get-Date).AddMinutes($Minutes)
     while ((Get-Date) -lt $end) {
-        $ids = @(Get-Process -Name peekbuddy -ErrorAction SilentlyContinue | ForEach-Object { $_.Id })
+        $ids = @(Get-Process -Name $name -ErrorAction SilentlyContinue | ForEach-Object { $_.Id })
         $maxProcesses = [math]::Max($maxProcesses, $ids.Count)
         if ($ids.Count -gt 0) {
             $tcp = @(Get-NetTCPConnection -ErrorAction SilentlyContinue | Where-Object { $ids -contains $_.OwningProcess })
@@ -56,7 +59,7 @@ try {
         Start-Sleep -Seconds 1
     }
 } finally {
-    Get-Process -Name peekbuddy -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq $Exe } | Stop-Process -Force -ErrorAction SilentlyContinue
+    Get-Process -Name $name -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq $Exe } | Stop-Process -Force -ErrorAction SilentlyContinue
     Remove-Item -Recurse -Force $work -ErrorAction SilentlyContinue
 }
 
