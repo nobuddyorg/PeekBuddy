@@ -132,7 +132,15 @@ fn a_second_engine_exits_zero_within_a_second_and_leaves_the_first_running() {
     // A second launch shows the viewer (through the pipe): the engine started
     // one for this directory, which has to be closed before the test ends.
     close_viewer(dir.path());
-    quit(window, &mut first.0);
+    // The arm64 runner sometimes sees this engine run on past 10 s after the
+    // close (advisory job); its log says where the shutdown stood.
+    window.post_close().unwrap();
+    let status = exit_within(&mut first.0, Duration::from_secs(10));
+    assert!(
+        status.is_some_and(|status| status.success()),
+        "the first engine did not exit cleanly within 10 s ({status:?}); engine.log: {}",
+        std::fs::read_to_string(dir.path().join("logs").join("engine.log")).unwrap_or_default()
+    );
 }
 
 #[test]
