@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1795257406805,
+  "lastUpdate": 1795258120095,
   "repoUrl": "https://github.com/nobuddyorg/PeekBuddy",
   "entries": {
     "benches (windows-2025)": [
@@ -1801,6 +1801,98 @@ window.BENCHMARK_DATA = {
           {
             "name": "viewer/scroll_frame_p99",
             "value": 371250,
+            "unit": "ns"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "name": "Matthias Eggert",
+            "username": "besessener",
+            "email": "8039350+besessener@users.noreply.github.com"
+          },
+          "committer": {
+            "name": "GitHub",
+            "username": "web-flow",
+            "email": "noreply@github.com"
+          },
+          "id": "9675ba8dc8b3038b2e052706d79e93393c7ec2ce",
+          "message": "test: show engine.log when the engine hangs (#568)\n\nThe second-engine test fails on the arm64 runner about one run in\nfour because the first engine is still running 10 s after the close.\nPut its engine.log in the failure so the next run shows where the\nshutdown stood.\n\nCo-authored-by: Matthias Eggert <dem.matze@gmail.com>\nCo-authored-by: Claude Opus 5.5 <noreply@anthropic.com>",
+          "timestamp": "2026-11-21T09:07:06Z",
+          "url": "https://github.com/nobuddyorg/PeekBuddy/commit/9675ba8dc8b3038b2e052706d79e93393c7ec2ce"
+        },
+        "date": 1795258117322,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "filter/eval_6_names",
+            "value": 1930.6143815809255,
+            "unit": "ns"
+          },
+          {
+            "name": "metrics/process_list_300",
+            "value": 1058.4380464806027,
+            "unit": "ns"
+          },
+          {
+            "name": "notify_parse/extended/64kib",
+            "value": 2798.048418567363,
+            "unit": "ns"
+          },
+          {
+            "name": "notify_parse/full/64kib",
+            "value": 2899.740452439316,
+            "unit": "ns"
+          },
+          {
+            "name": "notify_parse/plain/64kib",
+            "value": 5308.280951838454,
+            "unit": "ns"
+          },
+          {
+            "name": "perf/counters_event",
+            "value": 0.2933204787984366,
+            "unit": "ns"
+          },
+          {
+            "name": "perf/milestone_record",
+            "value": 12.811719805131368,
+            "unit": "ns"
+          },
+          {
+            "name": "reparse/classify_8",
+            "value": 22.23063434393501,
+            "unit": "ns"
+          },
+          {
+            "name": "rules/eval_6_events_50_rules",
+            "value": 36844.07486374905,
+            "unit": "ns"
+          },
+          {
+            "name": "store/batch_insert_1000",
+            "value": 3996691.7261904767,
+            "unit": "ns"
+          },
+          {
+            "name": "store/intern_hit_1000",
+            "value": 54678.95994872581,
+            "unit": "ns"
+          },
+          {
+            "name": "store/intern_miss_1000",
+            "value": 3990671.25,
+            "unit": "ns"
+          },
+          {
+            "name": "viewer/scroll_frame_p95",
+            "value": 502800,
+            "unit": "ns"
+          },
+          {
+            "name": "viewer/scroll_frame_p99",
+            "value": 661450,
             "unit": "ns"
           }
         ]
