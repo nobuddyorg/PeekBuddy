@@ -15,7 +15,12 @@ Nobody builds on a laptop. Four workflows do it:
    the job starts `ci.yml` on the PR branch itself (`workflow_dispatch`); the
    `ci-ok` result sits on the PR's head commit.
 2. **You merge the release PR** once `ci-ok` is green and the checklist below
-   is done.
+   is done. release-plz writes only the commits under `crates/peekbuddy` into
+   `CHANGELOG.md`: the other crates have `release = false`, and
+   `changelog_include` does not reach them (tried in #572 for v1.1.0). Before
+   the merge, add the user-visible commits of the crates linked into the exe
+   to the new section by hand, on the release branch:
+   `git log v<last>..main -- crates/peekbuddy-{alloc,core,engine,store,viewer,win}`.
 3. **`release-plz.yml`, job `release-plz-release`** sees the merge and creates
    the tag `v<version>` (release-plz does not create a GitHub Release: release.yml
    does, so exactly one tool creates it). A tag pushed with the built-in token
