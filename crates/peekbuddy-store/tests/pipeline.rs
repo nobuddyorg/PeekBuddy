@@ -102,6 +102,23 @@ fn push_events(producer: &peekbuddy_store::pipeline::Producer, first: u64, count
     matches!(producer.push(batch), Push::Overflow(_))
 }
 
+/// Pushes one batch filled to its capacity, which the batch before it cannot
+/// absorb. Returns whether it overflowed and how many events it held.
+fn push_full(producer: &peekbuddy_store::pipeline::Producer, first: u64) -> (bool, u64) {
+    let mut batch = producer.new_batch();
+    let mut ts = first;
+    while batch
+        .push(event(ts), &units(&format!("d\\f{ts}.txt")))
+        .is_ok()
+    {
+        ts += 1;
+    }
+    (
+        matches!(producer.push(batch), Push::Overflow(_)),
+        ts - first,
+    )
+}
+
 /// The `ts` of every stored event, in id order.
 fn stored_ts(db: &Path) -> Vec<u64> {
     let conn = Connection::open(db).unwrap();
@@ -550,8 +567,14 @@ fn the_ring_holds_exactly_its_capacity_and_the_next_batch_overflows() {
         entered.load(Ordering::Acquire)
     });
     // The ring has room for four more (`config` sets `ring_batches` to 4).
+    // Full batches, so that none goes into the one before it.
+    let mut next = 10;
     let overflowed: Vec<bool> = (0..5)
-        .map(|index| push_events(&producer, 10 + index * 5, 5))
+        .map(|_| {
+            let (overflowed, count) = push_full(&producer, next);
+            next += count;
+            overflowed
+        })
         .collect();
     assert_eq!(overflowed, [false, false, false, false, true]);
     blocked.store(false, Ordering::Release);
@@ -626,8 +649,9 @@ fn the_producer_reports_the_batches_that_were_lost() {
     let producer = pipeline.producer();
     push_events(&producer, 1, 5);
     wait_until("the writer to stop", || entered.load(Ordering::Acquire));
-    for index in 0..12u64 {
-        push_events(&producer, 10 + index * 5, 5);
+    let mut next = 10;
+    for _ in 0..12 {
+        next += push_full(&producer, next).1;
     }
     wait_until("lost batches to be counted", || {
         producer.lost_batches() >= 2
@@ -726,25 +750,36 @@ fn a_spill_of_small_records_is_replayed_in_a_few_commits() {
     };
     let pipeline = Pipeline::start(open_writer(&dirs.db()), config).unwrap();
     let producer = pipeline.producer();
-    // Four hundred records of five events: the held writer takes up to a
-    // commit's 1000 events (200 records), the ring four more, the rest spills.
-    for index in 0..400_u64 {
-        push_events(&producer, index * 5 + 1, 5);
+    // Full batches until one overflows: the held writer has a group, the
+    // ring is full and pushes go to the spill file.
+    let mut next = 1;
+    loop {
+        let (overflowed, count) = push_full(&producer, next);
+        next += count;
+        if overflowed {
+            break;
+        }
     }
-    // The spiller thread writes them while the writer is held.
-    wait_until("the records to be spilled", || {
-        pipeline.stats().spilled_batches >= 100
-    });
+    // Then a hundred records of five events, each spilled before the next
+    // is pushed, so that none goes into the one before it.
+    for _ in 0..100 {
+        let before = pipeline.stats().spilled_batches;
+        push_events(&producer, next, 5);
+        next += 5;
+        wait_until("the record to be spilled", || {
+            pipeline.stats().spilled_batches > before
+        });
+    }
     blocked.store(false, Ordering::Release);
     let flushed = pipeline.flush(Duration::from_secs(30)).unwrap();
-    assert_eq!(flushed.rows, 2_000);
+    assert_eq!(flushed.rows, next - 1);
     // The spilled records (at least a hundred) are replayed 1000 events to a
     // commit, not one commit per record.
     let spilled = pipeline.stats().spilled_batches;
     let taken = commits.load(Ordering::Relaxed);
     assert!(taken < 30, "{taken} commits for {spilled} spilled records");
     drop(pipeline.close());
-    assert_eq!(stored_ts(&dirs.db()), (1..=2_000).collect::<Vec<_>>());
+    assert_eq!(stored_ts(&dirs.db()), (1..next).collect::<Vec<_>>());
 }
 
 #[test]
@@ -794,4 +829,43 @@ fn a_spill_is_replayed_while_the_burst_goes_on() {
     assert_eq!(flushed.rows, pushed * 5);
     drop(pipeline.close());
     assert_eq!(stored_ts(&dirs.db()), (1..=pushed * 5).collect::<Vec<_>>());
+}
+
+/// Batches of a few events each (one per completion, #497) go into the last
+/// batch not yet taken: a stalled writer's ring holds their events, not
+/// empty storage, and the order is kept.
+#[test]
+fn small_batches_share_the_ring_instead_of_spilling() {
+    let dirs = Dirs::new("small-batches");
+    let blocked = Arc::new(AtomicBool::new(true));
+    let mut config = config(&dirs);
+    config.hooks = Hooks {
+        on_health: None,
+        before_commit: Some({
+            let blocked = Arc::clone(&blocked);
+            Arc::new(move || {
+                while blocked.load(Ordering::Acquire) {
+                    std::thread::sleep(Duration::from_millis(5));
+                }
+            })
+        }),
+        on_commit: None,
+        before_attempt: None,
+    };
+    let pipeline = Pipeline::start(open_writer(&dirs.db()), config).unwrap();
+    let producer = pipeline.producer();
+    // 2,000 batches of one event: without sharing, all but the ring's four
+    // would go through the spill file.
+    for ts in 1..=2_000 {
+        push_events(&producer, ts, 1);
+    }
+    blocked.store(false, Ordering::Release);
+    let flushed = pipeline.flush(Duration::from_secs(30)).unwrap();
+    assert_eq!(flushed.rows, 2_000);
+    assert_eq!(flushed.lost_batches, 0);
+    let stats = pipeline.stats();
+    assert!(stats.spilled_batches <= 8, "{stats:?}");
+    let _writer = pipeline.close().unwrap();
+    assert_eq!(stored_ts(&dirs.db()), (1..=2_000).collect::<Vec<_>>());
+    assert!(ids_are_contiguous(&dirs.db()));
 }

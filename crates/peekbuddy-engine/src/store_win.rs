@@ -232,7 +232,21 @@ impl Store {
     /// for [`Store::checkpoint`].
     pub fn close(&mut self) {
         if let Some(pipeline) = self.pipeline.take() {
+            let stats = pipeline.stats();
             self.writer = pipeline.close();
+            // What the run held in memory at its busiest (#497): the ring's
+            // deepest queue and the path dictionary of the segment.
+            let interner = self
+                .writer
+                .as_ref()
+                .map_or_else(Default::default, Writer::interner_stats);
+            crate::instrument::log(&format!(
+                "store: ring high water {} batches, {} spilled, interner {} entries, {} KiB of names",
+                stats.ring_high_water,
+                stats.spilled_batches,
+                interner.entries,
+                interner.name_bytes / 1024
+            ));
         }
         if let Some(writer) = self.writer.as_mut() {
             // Sealing threads of earlier rotations, and the purge rows they

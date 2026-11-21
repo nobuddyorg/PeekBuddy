@@ -70,6 +70,21 @@ impl Batch {
         self.events.is_empty()
     }
 
+    /// Moves the events of `other`, with their names, behind this batch's
+    /// when all of them fit; otherwise nothing changes. `other` is left as
+    /// it was. Returns whether they were taken.
+    pub fn absorb(&mut self, other: &Self) -> bool {
+        if self.events.len() + other.events.len() > self.capacity
+            || other.names.len() > self.names.room()
+        {
+            return false;
+        }
+        // Both limits were checked, so every push fits.
+        other
+            .iter()
+            .all(|(event, name)| self.push(*event, name).is_ok())
+    }
+
     /// Forgets the events and names; the storage stays.
     pub fn clear(&mut self) {
         self.events.clear();
@@ -127,6 +142,31 @@ pub(crate) mod tests {
         let rows: Vec<_> = batch.iter().map(|(e, n)| (e.ts, n.to_vec())).collect();
         assert_eq!(rows, [(1, units("a\\b.txt")), (2, vec![])]);
         assert_eq!(batch.len(), 2);
+    }
+
+    #[test]
+    fn a_batch_that_fits_is_absorbed_in_order_and_one_that_does_not_is_left() {
+        let mut tail = Batch::with_capacity(3, 16);
+        tail.push(event(1, 0), &units("a")).unwrap();
+        let mut small = Batch::with_capacity(3, 16);
+        small.push(event(2, 0), &units("bc")).unwrap();
+        small.push(event(3, 1), &[]).unwrap();
+        assert!(tail.absorb(&small));
+        let rows: Vec<_> = tail.iter().map(|(e, n)| (e.ts, n.to_vec())).collect();
+        assert_eq!(
+            rows,
+            [(1, units("a")), (2, units("bc")), (3, vec![])],
+            "the names follow their events"
+        );
+        // Too many events, or too many name units: nothing changes.
+        assert!(!tail.absorb(&small));
+        let mut names = Batch::with_capacity(4, 4);
+        names.push(event(1, 0), &units("abc")).unwrap();
+        let mut long = Batch::with_capacity(4, 4);
+        long.push(event(2, 0), &units("de")).unwrap();
+        assert!(!names.absorb(&long));
+        assert_eq!(names.len(), 1);
+        assert_eq!(long.len(), 1);
     }
 
     #[test]
