@@ -40,7 +40,8 @@ Chosen option 2.
   burst), stock bundled SQLite build (the `LIBSQLITE3_FLAGS` speed set changed
   nothing measurable).
 - The writer alone commits 77k to 83k events/s in a burst, below the 100k/s
-  burst budget: the capture ring holds about 170k records or spills (#52).
+  burst budget: the capture ring holds about 170k records or spills (#52;
+  65,536 since #497, see the amendment).
 - `node_fts` uses `detail='full'`; substring search is `MATCH` on a quoted
   phrase. `detail='none'` and `'column'` reject a multi-trigram phrase, and
   `LIKE` never uses the trigram index.
@@ -55,6 +56,18 @@ Chosen option 2.
 - Good: retention is a file delete; a corrupt day costs one day.
 - Good: queries across days are a bounded `UNION ALL` over attached segments.
 - Bad: queries spanning many days need attach management (#55).
+
+## Amendment: a ring that fits the memory budget (#497, 2026-11-21)
+
+The ring holds 256 batches (65,536 events) instead of about 170k events. A
+full batch holds about 57 KB, so the old 700 batches were 40 MB on their own,
+the whole burst budget of the engine (`engine.private_bytes.burst`, F8). On
+the hosted runners, whose disk the churn saturates (the generator reaches
+about 2k of its 10k operations/s), the ring filled and the engine peaked at
+54 to 56 MB in latency-10k. With 256 batches it peaked at 27.8 to 28.6 MB with
+the ring full, and nothing was lost. A deficit longer than the ring goes to
+the spill file, in order, as before. On the owner PC the ring never holds more
+than about 20 batches in the same run, so nothing changes there.
 
 ## Evidence
 

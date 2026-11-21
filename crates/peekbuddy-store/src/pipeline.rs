@@ -142,9 +142,14 @@ impl Config {
     pub fn new(spill_dir: PathBuf) -> Self {
         Self {
             policy: Policy::default(),
-            // About 170k events at 256 per batch: the ring covers the
-            // burst deficit measured in the spike (17k events/s for 10 s).
-            ring_batches: 700,
+            // 65,536 events at 256 per batch, about 15 MB when full: a
+            // full batch holds about 57 KB, and 700 of them (the 170k events
+            // of the spike's burst deficit, 17k events/s for 10 s) were the
+            // whole 40 MB burst budget on their own. On a hosted runner whose
+            // disk the churn saturated the engine peaked at 54-56 MB with
+            // those 700 full (#497). A longer deficit goes to the spill file,
+            // in order and without loss.
+            ring_batches: 256,
             spill_dir,
             hooks: Hooks::default(),
             wal_checkpoint_bytes: WAL_CHECKPOINT_BYTES,
