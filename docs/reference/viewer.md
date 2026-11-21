@@ -151,8 +151,8 @@ the busiest 100 paths and 100 extensions per hour and root, written once a
 minute of event time and when the hour ends). The panel never counts the log,
 so it costs the same on a 10-million-row log as on an empty one. The sketch
 counts are approximate, and each row says how much it may be too high. Per
-minute series wait for the live tail (#52, #65) and top processes for the
-process column (#80).
+minute series wait for the live tail (#52, #65). There are no top processes:
+the log has no process column (process attribution, #80, is deferred).
 
 ## Watches
 

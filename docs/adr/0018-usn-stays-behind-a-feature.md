@@ -57,6 +57,28 @@ Chosen option 2.
   `JournalIdChanged` (both end with a new journal id); a separate reason would
   change the on-disk enum, which is append-only.
 
+## Amendment: the service mode is deferred (#79, 2026-11-21)
+
+The service mode (#79) and the process attribution that needs it (#80) are
+not built after v1.1.0, so the `usn` feature stays off with no consumer.
+Reasons:
+
+- The MSI and a LocalSystem service would ship unsigned: free signing
+  through SignPath (#74) is closed not planned and paid signing is excluded
+  (ADR 0012). Smart App Control blocks both, and the `signtool verify`
+  criterion of #79 cannot be met.
+- A SYSTEM service answering a pipe that every signed-in user can open would
+  be the first privilege boundary in PeekBuddy, its largest attack surface,
+  maintained by one person with no second reviewer.
+- No user has asked for other users' folders or pre-logon changes. For the
+  user's own folders RDCW with reconciliation already holds zero undetected
+  loss (ADR 0002).
+
+Both ideas are parked in #85 with their trigger: a user asks for them and a
+free trusted signature exists. The designs stay in #79 and #80, and the
+tested parts (`peekbuddy-core::usn`, the `usn` feature of `peekbuddy-win`,
+store-backed checkpoints from #554) stay in the tree.
+
 ## Evidence
 
 - `docs/spikes/0001-unprivileged-usn.md`: names empty in 100% of records on

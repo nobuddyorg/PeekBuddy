@@ -37,6 +37,8 @@ SAC blocks the exe and SmartScreen warns; downloads are verifiable through
 After v1.0, once a few public releases exist, apply to SignPath Foundation for
 the GitHub builds (#74) and evaluate a Microsoft Store MSIX channel (#85)
 (best guess B4). If SignPath rejects, re-apply later. No paid fallback, ever.
+Update 2026-11-21: #74 is closed not planned, so the releases stay unsigned;
+the Store channel stays parked in #85.
 
 Engineering rules for any future signing: sign every shipped PE, RSA-2048+ /
 SHA-256, RFC 3161 timestamp, never change a file after signing, one publisher
