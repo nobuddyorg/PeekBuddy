@@ -129,11 +129,12 @@ limit = 40
 class = "resource"
 gate = "nightly-trend"
 scenario = "ingest"
-status = "provisional"
-source = "F8"
+status = "calibrated"
+source = "F8; #497: owner PC (Intel N150, 2026-11-21, ten latency-10k runs) 18.8-20.4 MB with the ring at most 17 batches full; hosted runners with the ring full (the churn saturates their disk) 27.8-28.6 MB on x64 and arm64 since the ring holds 256 batches (#571, throwaway run 44900994505), 54-56 MB with the 700 before"
 workload = "churn profile latency-10k (#25), the fastest the hosted runners drive; burst-100k where a machine drives it"
 how = "peak PrivateUsage sampled by the perf driver during the run (#24)"
 arch = ["x86_64", "aarch64"]
+owner_pc = 20.4
 
 [[budget]]
 id = "viewer.private_bytes.growth"
@@ -171,30 +172,32 @@ id = "event.latency.p50"
 metric = "change to durable row latency, median"
 unit = "ms"
 bound = "max"
-limit = 10
+limit = 100
 class = "timing"
 gate = "pr-ab"
 scenario = "ingest"
-status = "provisional"
-source = "R1, checked by #35 (commit path alone: p50 3.2 ms, p99 6.3 ms at 10k events/s, linger 5 ms from the first pending event)"
+status = "calibrated"
+source = "R1; #497 (owner PC, Intel N150, Defender on, 2026-11-21, ten latency-10k runs of main at 3.1k-3.3k events/s, the generator's limit): 74.7-91.1 ms, median 83.6 ms. End to end, from the end of an operation to its row in the log; #35 measured the commit path alone (3.2 ms). The hosted runners give 120-170 s because the churn saturates their disk (the generator reaches about 2k of 10k operations/s) and the passive checkpoint waits for it; the row is judged by A/B on one runner (ADR 0007)"
 workload = "churn profile latency-10k (#25)"
-how = "ledger timestamp vs commit timestamp (#27)"
+how = "ledger timestamp vs the first sighting of the row by a 5 ms poller of the log (#27)"
 arch = ["x86_64", "aarch64"]
+owner_pc = 83.6
 
 [[budget]]
 id = "event.latency.p99"
 metric = "change to durable row latency, 99th percentile"
 unit = "ms"
 bound = "max"
-limit = 50
+limit = 750
 class = "timing"
 gate = "pr-ab"
 scenario = "ingest"
-status = "provisional"
-source = "R1, checked by #35 (commit path alone: p50 3.2 ms, p99 6.3 ms at 10k events/s, linger 5 ms from the first pending event)"
+status = "calibrated"
+source = "R1; #497 (owner PC, Intel N150, Defender on, 2026-11-21, ten latency-10k runs of main at 3.1k-3.3k events/s): 451-622 ms, median 498 ms; the tail is the commits held up by a passive checkpoint (8-15 commits of 100 ms and more per run). #35 measured the commit path alone (6.3 ms). Hosted runners: see event.latency.p50"
 workload = "churn profile latency-10k (#25)"
-how = "ledger timestamp vs commit timestamp (#27)"
+how = "ledger timestamp vs the first sighting of the row by a 5 ms poller of the log (#27)"
 arch = ["x86_64", "aarch64"]
+owner_pc = 498.2
 
 [[budget]]
 id = "ingest.sustained"

@@ -55,6 +55,16 @@ of reach but whose stages are measured is calibrated per stage and judged end
 to end only when the generator reaches its rate (`ingest.sustained`). The
 reasons for each row are in PERFORMANCE.md.
 
+The two event latency rows are loosened from 10 and 50 ms to 100 and 750 ms.
+The old limits came from the commit path measured alone in spike #35 (3.2 and
+6.3 ms). The rows measure end to end, from the end of a file operation to its
+row in the log: on the owner PC that is 75 to 91 ms at the median and 451 to
+622 ms at the 99th percentile in ten runs, the tail being commits held up by a
+passive checkpoint. On the hosted runners the churn saturates the disk and a
+row waits minutes; moving the checkpoint off the writer thread did not change
+that (it only moved the wait), so the absolute hosted number is reported and
+the rows gate by same-runner A/B, as this ADR decides for every timing row.
+
 ## Consequences
 
 - Good: red means real.

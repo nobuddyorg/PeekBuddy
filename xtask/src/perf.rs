@@ -331,7 +331,7 @@ fn judge(budgets: &[Budget], id: &'static str, value: f64, note: &str) -> Row {
     if !strict && !within {
         let _ = write!(
             note,
-            " (above the provisional limit; timing rows are gated by A/B)"
+            " (above the limit, which only strict rows enforce; timing rows are gated by A/B)"
         );
     }
     Row {
