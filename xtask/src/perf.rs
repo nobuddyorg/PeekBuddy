@@ -726,10 +726,6 @@ fn measure_startup(
         disk.map_or(0.0, |s| s.median),
         &note,
     ));
-    rows.push(not_exercised(
-        "engine.ready.cold",
-        "needs a reboot or standby-list flush; owner-PC run (#84)",
-    ));
     detail.insert(
         String::from("startup"),
         serde_json::json!({
@@ -766,10 +762,6 @@ fn measure_idle(
             "the OS did not report context switches",
         )),
     }
-    rows.push(not_exercised(
-        "engine.idle.periodic_timers",
-        "no timer registry in the probe yet; the window offers no periodic timer API",
-    ));
     rows.push(judge(
         budgets,
         "engine.private_bytes.idle",
@@ -816,22 +808,14 @@ fn ingest_rows(budgets: &[Budget], doc: &Value, rows: &mut Vec<Row>) -> Result<f
     );
     let rate = number_of(doc, "achievedPerSecond")?;
     match profile {
-        "burst-100k" => {
-            if exercised {
-                rows.push(judge(budgets, "ingest.burst", rate, &note));
-            } else {
-                rows.push(not_exercised(
-                    "ingest.burst",
-                    &format!("the generator reached {rate} events/s, below the target ({note})"),
-                ));
-            }
-            rows.push(judge(
-                budgets,
-                "engine.private_bytes.burst",
-                number_of(doc, "peakPrivateMb")?,
-                &note,
-            ));
-        }
+        // No rate row: no available machine drives 100k events/s, so the
+        // burst profile gives the memory peak only (#497).
+        "burst-100k" => rows.push(judge(
+            budgets,
+            "engine.private_bytes.burst",
+            number_of(doc, "peakPrivateMb")?,
+            &note,
+        )),
         "sustained-20k" => {
             if exercised {
                 rows.push(judge(budgets, "ingest.sustained", rate, &note));
@@ -855,6 +839,14 @@ fn ingest_rows(budgets: &[Budget], doc: &Value, rows: &mut Vec<Row>) -> Result<f
                 budgets,
                 "event.latency.p99",
                 number_of(doc, "latencyP99Ms")?,
+                &note,
+            ));
+            // The fastest profile the hosted runners drive, so the nightly's
+            // memory peak under load (#497).
+            rows.push(judge(
+                budgets,
+                "engine.private_bytes.burst",
+                number_of(doc, "peakPrivateMb")?,
                 &note,
             ));
         }
@@ -1200,7 +1192,11 @@ mod tests {
             id: id.to_owned(),
             metric: String::new(),
             unit: String::from("per min"),
-            bound: String::from(if id == "ingest.burst" { "min" } else { "max" }),
+            bound: String::from(if id == "ingest.sustained" {
+                "min"
+            } else {
+                "max"
+            }),
             limit: Some(limit),
             class: String::new(),
             gate: gate.to_owned(),
@@ -1215,7 +1211,6 @@ mod tests {
         vec![
             row("engine.idle.wakes", "pr-strict", 2.0),
             row("engine.ready.warm", "pr-ab", 100.0),
-            row("ingest.burst", "pr-ab", 100_000.0),
             row("ingest.sustained", "pr-ab", 20_000.0),
             row("ingest.undetected_loss", "pr-strict", 0.0),
             row("engine.private_bytes.burst", "nightly-trend", 40.0),
@@ -1350,15 +1345,28 @@ mod tests {
     }
 
     #[test]
-    fn a_burst_document_gives_rate_and_memory_rows_and_counts_losses() {
+    fn a_burst_document_gives_the_memory_row_and_counts_losses() {
         let mut rows = Vec::new();
         let lost = super::ingest_rows(&budgets(), &ingest_doc("burst-100k", true, 0, 0), &mut rows)
             .unwrap();
         assert!((lost - 0.0).abs() < f64::EPSILON);
         let ids: Vec<&str> = rows.iter().map(|row| row.id).collect();
-        assert_eq!(ids, ["ingest.burst", "engine.private_bytes.burst"]);
-        // 120,000 events/s against a minimum of 100,000: within, and only
+        assert_eq!(ids, ["engine.private_bytes.burst"]);
+        assert_eq!(rows[0].value, Some(31.5));
+    }
+
+    #[test]
+    fn a_sustained_run_that_reached_its_rate_is_judged() {
+        let mut rows = Vec::new();
+        super::ingest_rows(
+            &budgets(),
+            &ingest_doc("sustained-20k", true, 0, 0),
+            &mut rows,
+        )
+        .unwrap();
+        // 120,000 events/s against a minimum of 20,000: within, and only
         // reported (the gate is the A/B).
+        assert_eq!(rows[0].id, "ingest.sustained");
         assert_eq!(rows[0].verdict, Verdict::Report);
         assert_eq!(rows[0].value, Some(120_000.0));
     }
@@ -1378,7 +1386,7 @@ mod tests {
     }
 
     #[test]
-    fn a_latency_document_gives_both_percentiles() {
+    fn a_latency_document_gives_both_percentiles_and_the_memory_peak() {
         let mut rows = Vec::new();
         super::ingest_rows(
             &budgets(),
@@ -1387,7 +1395,14 @@ mod tests {
         )
         .unwrap();
         let ids: Vec<&str> = rows.iter().map(|row| row.id).collect();
-        assert_eq!(ids, ["event.latency.p50", "event.latency.p99"]);
+        assert_eq!(
+            ids,
+            [
+                "event.latency.p50",
+                "event.latency.p99",
+                "engine.private_bytes.burst"
+            ]
+        );
     }
 
     #[test]

@@ -40,6 +40,21 @@ Chosen option 2.
 Budget numbers live in [PERFORMANCE.md](../../PERFORMANCE.md) and
 `budgets.toml` (#20); this ADR does not copy them.
 
+## Amendment: rows no run can measure (#497, 2026-11-21)
+
+A budget row stays only if a run measures it. Five provisional rows had no
+run on any machine the project has, and each has another row that already
+covers what it protects, so they are dropped rather than kept provisional
+forever: the two cold-start rows (need a reboot or an elevated cache flush;
+the warm and disk-read rows stay), the periodic-timer count (no registry;
+`engine.idle.wakes` fails on a periodic timer, shown by the `inject timer`
+self-check), the notification-buffer total (set by the settings, not by
+the engine) and the 100k events/s burst rate (no generator reaches it, and
+the stages measured alone stay below it). A row whose end-to-end run is out
+of reach but whose stages are measured is calibrated per stage and judged end
+to end only when the generator reaches its rate (`ingest.sustained`). The
+reasons for each row are in PERFORMANCE.md.
+
 ## Consequences
 
 - Good: red means real.

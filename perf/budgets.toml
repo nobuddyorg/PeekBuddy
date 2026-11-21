@@ -25,21 +25,6 @@ arch = ["x86_64", "aarch64"]
 owner_pc = 170.261
 
 [[budget]]
-id = "engine.ready.cold"
-metric = "engine ready since process creation, cold start (after reboot)"
-unit = "ms"
-bound = "max"
-limit = 300
-class = "timing"
-gate = "report-only"
-scenario = "owner-run"
-status = "provisional"
-source = "F7"
-workload = "10 roots, idle; owner-PC runs only (#84)"
-how = "TraceLogging milestone in a WPR trace"
-arch = ["x86_64"]
-
-[[budget]]
 id = "engine.startup.cpu"
 metric = "CPU time from process creation to engine ready"
 unit = "ms"
@@ -88,21 +73,6 @@ arch = ["x86_64", "aarch64"]
 owner_pc = 169.2
 
 [[budget]]
-id = "viewer.first_frame.cold"
-metric = "viewer first frame with rows since process creation, cold start"
-unit = "ms"
-bound = "max"
-limit = 600
-class = "timing"
-gate = "report-only"
-scenario = "owner-run"
-status = "provisional"
-source = "F7, recalibrated by #33"
-workload = "1M-row log; owner-PC runs only (#84)"
-how = "TraceLogging milestone in a WPR trace"
-arch = ["x86_64"]
-
-[[budget]]
 id = "engine.idle.cpu"
 metric = "average CPU over 60 s with no file activity"
 unit = "%"
@@ -135,21 +105,6 @@ arch = ["x86_64", "aarch64"]
 owner_pc = 0.0
 
 [[budget]]
-id = "engine.idle.periodic_timers"
-metric = "periodic timers armed while idle"
-unit = "count"
-bound = "max"
-limit = 0
-class = "deterministic"
-gate = "pr-strict"
-scenario = "idle"
-status = "provisional"
-source = "F6"
-workload = "10 local roots (UNC roots allow one >= 60 s timer)"
-how = "engine timer registry counter in --perf-probe JSON"
-arch = ["x86_64", "aarch64"]
-
-[[budget]]
 id = "engine.private_bytes.idle"
 metric = "private bytes while idle, excluding change-notification buffers"
 unit = "MB"
@@ -166,23 +121,8 @@ arch = ["x86_64", "aarch64"]
 owner_pc = 2.93
 
 [[budget]]
-id = "engine.notify_buffers.total"
-metric = "change-notification buffers, all watches together"
-unit = "MiB"
-bound = "max"
-limit = 64
-class = "deterministic"
-gate = "pr-strict"
-scenario = "idle"
-status = "provisional"
-source = "R5, sized by #32 (1 MiB per local NTFS root, 64 KiB per UNC root; report 0002)"
-workload = "any"
-how = "buffer pool accounting in --perf-probe JSON"
-arch = ["x86_64", "aarch64"]
-
-[[budget]]
 id = "engine.private_bytes.burst"
-metric = "peak private bytes during a 100k events/s burst"
+metric = "peak private bytes during an ingest burst"
 unit = "MB"
 bound = "max"
 limit = 40
@@ -191,8 +131,8 @@ gate = "nightly-trend"
 scenario = "ingest"
 status = "provisional"
 source = "F8"
-workload = "churn profile burst-100k (#25)"
-how = "PeakPagefileUsage after the burst (#24)"
+workload = "churn profile latency-10k (#25), the fastest the hosted runners drive; burst-100k where a machine drives it"
+how = "peak PrivateUsage sampled by the perf driver during the run (#24)"
 arch = ["x86_64", "aarch64"]
 
 [[budget]]
@@ -219,11 +159,12 @@ limit = 64
 class = "resource"
 gate = "nightly-trend"
 scenario = "owner-run"
-status = "provisional"
-source = "F8; #252 (owner PC, Intel N150, 2026-11-05, 10M-row log, idle and after scripted End/Home/PageDown/PageUp): glow 46-62 MB, wgpu 301-303 MB; x64 ships glow; arm64 limit pending (wgpu)"
+status = "calibrated"
+source = "F8; #252 (owner PC, Intel N150, 2026-11-05, 10M-row log, idle and after scripted End/Home/PageDown/PageUp): glow 46-62 MB, wgpu 301-303 MB; x64 ships glow, so the row is x64 only; that the viewer does not grow with the log is gated by viewer.private_bytes.growth on both architectures (#497)"
 workload = "10M-row log, scrolled top to bottom"
 how = "PROCESS_MEMORY_COUNTERS_EX2.PrivateUsage (#24)"
 arch = ["x86_64"]
+owner_pc = 62
 
 [[budget]]
 id = "event.latency.p50"
@@ -256,21 +197,6 @@ how = "ledger timestamp vs commit timestamp (#27)"
 arch = ["x86_64", "aarch64"]
 
 [[budget]]
-id = "ingest.burst"
-metric = "events per second ingested with zero undetected loss, 10 s burst"
-unit = "events/s"
-bound = "min"
-limit = 100000
-class = "timing"
-gate = "pr-ab"
-scenario = "ingest"
-status = "provisional"
-source = "F2, recalibrated by #32 (the notification side could not be driven above 37k records/s on a 4-vCPU runner; 100k stays unconfirmed, report 0002)"
-workload = "churn profile burst-100k (#25)"
-how = "ledger count / burst duration (#27)"
-arch = ["x86_64", "aarch64"]
-
-[[budget]]
 id = "ingest.sustained"
 metric = "events per second ingested sustained"
 unit = "events/s"
@@ -279,8 +205,8 @@ limit = 20000
 class = "timing"
 gate = "pr-ab"
 scenario = "ingest"
-status = "provisional"
-source = "F2, recalibrated by #32 (reader sustained 33k to 37k records/s on x64 with no overflow; report 0002)"
+status = "calibrated"
+source = "F2, recalibrated by #32; calibrated per stage by #497, since no available machine drives 20k file events/s end to end (the hosted x64 runner's generator tops out near 9.5k ops/s, the owner PC's at 5.3k events/s): the reader sustained 33k to 37k records/s on x64 with no overflow (report 0002), the writer alone commits 77k to 83k events/s (store.writer.burst, #35); an end-to-end run is judged only when the generator reaches the rate"
 workload = "churn profile sustained-20k (#25)"
 how = "ledger count / duration (#27)"
 arch = ["x86_64", "aarch64"]
@@ -309,10 +235,10 @@ limit = 5
 class = "timing"
 gate = "nightly-trend"
 scenario = "ingest"
-status = "provisional"
-source = "F4, recalibrated by #32"
+status = "calibrated"
+source = "F4, recalibrated by #32; #497: nightly 44604411722 measured 1.38 ms on windows-2025 and 2.01 ms on windows-11-vs2026-arm (slowest of the run); the owner PC showed 82 to 105 ms with the churn generator saturating its 4 cores, so the row is judged on the hosted runners"
 workload = "churn profile latency-10k (#25)"
-how = "tracing span on the capture thread (#21)"
+how = "slowest dequeue to re-arm of the run, from the engine log line `capture: slowest re-arm` (rearmMaxMs)"
 arch = ["x86_64", "aarch64"]
 
 [[budget]]

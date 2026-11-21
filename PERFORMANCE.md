@@ -51,25 +51,20 @@ Gate values in `budgets.toml`:
 | id | budget | class | gate | scenario | status | owner PC | workload | how | source |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | `engine.ready.warm` | <= 450 ms | timing | pr-ab | `startup` | calibrated | 170.261 ms | 10 roots, idle | TraceLogging milestone + --perf-probe JSON (#21, #24) | F7 |
-| `engine.ready.cold` | <= 300 ms | timing | report-only | `owner-run` | provisional | - | 10 roots, idle; owner-PC runs only (#84) | TraceLogging milestone in a WPR trace | F7 |
 | `engine.startup.cpu` | <= 300 ms | timing | pr-ab | `startup` | calibrated | 62.5 ms | 10 roots, idle | GetProcessTimes at the ready milestone (#24) | F7 |
 | `engine.startup.disk_read` | <= 1 MB | timing | pr-ab | `startup` | calibrated | 0.0165 MB | 10 roots, idle | GetProcessIoCounters at the ready milestone (#24) | F7 |
 | `viewer.first_frame.warm` | <= 250 ms | timing | pr-ab | `owner-run` | calibrated | 169.2 ms | 1M-row log | TraceLogging milestone + --perf-probe JSON | F7; #33 measured 90 ms x64 and 160 ms ARM64 on WARP, owner PC pending |
-| `viewer.first_frame.cold` | <= 600 ms | timing | report-only | `owner-run` | provisional | - | 1M-row log; owner-PC runs only (#84) | TraceLogging milestone in a WPR trace | F7, recalibrated by #33 |
 | `engine.idle.cpu` | <= 0.05 % | timing | nightly-ab | `idle` | calibrated | 0 % | 10 roots, no events for 60 s | GetProcessTimes delta over 60 s (#27) | F6 |
 | `engine.idle.wakes` | <= 2 per min | deterministic | pr-strict | `idle` | calibrated | 0 per min | 10 roots, no events for 60 s | context switches from a 60 s WPR CPU trace (#27) | F6 |
-| `engine.idle.periodic_timers` | <= 0 count | deterministic | pr-strict | `idle` | provisional | - | 10 local roots (UNC roots allow one >= 60 s timer) | engine timer registry counter in --perf-probe JSON | F6 |
 | `engine.private_bytes.idle` | <= 15 MB | resource | nightly-trend | `idle` | calibrated | 2.93 MB | 10 roots, 100k watched directories | PROCESS_MEMORY_COUNTERS_EX2.PrivateUsage minus buffer bytes (#24) | F8, R5 |
-| `engine.notify_buffers.total` | <= 64 MiB | deterministic | pr-strict | `idle` | provisional | - | any | buffer pool accounting in --perf-probe JSON | R5, sized by #32 (1 MiB per local NTFS root, 64 KiB per UNC root; report 0002) |
-| `engine.private_bytes.burst` | <= 40 MB | resource | nightly-trend | `ingest` | provisional | - | churn profile burst-100k (#25) | PeakPagefileUsage after the burst (#24) | F8 |
+| `engine.private_bytes.burst` | <= 40 MB | resource | nightly-trend | `ingest` | provisional | - | churn profile latency-10k (#25), the fastest the hosted runners drive; burst-100k where a machine drives it | peak PrivateUsage sampled by the perf driver during the run (#24) | F8 |
 | `viewer.private_bytes.growth` | <= 5 MB | resource | nightly-strict | `viewer-memory` | calibrated | - | 1M-row and 10M-row stores, scripted wheel down and back up twice, UI pass only | cargo xtask perf --scenario viewer-memory: PROCESS_MEMORY_COUNTERS_EX2.PrivateUsage (#24) of benches/viewer_memory after the second sweep | #347, F8; what the viewer holds is the screen and the cache limits, never the length of the log |
-| `viewer.private_bytes.10m_rows` | <= 64 MB | resource | nightly-trend | `owner-run` | provisional | - | 10M-row log, scrolled top to bottom | PROCESS_MEMORY_COUNTERS_EX2.PrivateUsage (#24) | F8; #252 (owner PC, Intel N150, 2026-11-05, 10M-row log, idle and after scripted End/Home/PageDown/PageUp): glow 46-62 MB, wgpu 301-303 MB; x64 ships glow; arm64 limit pending (wgpu) |
+| `viewer.private_bytes.10m_rows` | <= 64 MB | resource | nightly-trend | `owner-run` | calibrated | 62 MB | 10M-row log, scrolled top to bottom | PROCESS_MEMORY_COUNTERS_EX2.PrivateUsage (#24) | F8; #252 (owner PC, Intel N150, 2026-11-05, 10M-row log, idle and after scripted End/Home/PageDown/PageUp): glow 46-62 MB, wgpu 301-303 MB; x64 ships glow, so the row is x64 only; that the viewer does not grow with the log is gated by viewer.private_bytes.growth on both architectures (#497) |
 | `event.latency.p50` | <= 10 ms | timing | pr-ab | `ingest` | provisional | - | churn profile latency-10k (#25) | ledger timestamp vs commit timestamp (#27) | R1, checked by #35 (commit path alone: p50 3.2 ms, p99 6.3 ms at 10k events/s, linger 5 ms from the first pending event) |
 | `event.latency.p99` | <= 50 ms | timing | pr-ab | `ingest` | provisional | - | churn profile latency-10k (#25) | ledger timestamp vs commit timestamp (#27) | R1, checked by #35 (commit path alone: p50 3.2 ms, p99 6.3 ms at 10k events/s, linger 5 ms from the first pending event) |
-| `ingest.burst` | >= 100000 events/s | timing | pr-ab | `ingest` | provisional | - | churn profile burst-100k (#25) | ledger count / burst duration (#27) | F2, recalibrated by #32 (the notification side could not be driven above 37k records/s on a 4-vCPU runner; 100k stays unconfirmed, report 0002) |
-| `ingest.sustained` | >= 20000 events/s | timing | pr-ab | `ingest` | provisional | - | churn profile sustained-20k (#25) | ledger count / duration (#27) | F2, recalibrated by #32 (reader sustained 33k to 37k records/s on x64 with no overflow; report 0002) |
+| `ingest.sustained` | >= 20000 events/s | timing | pr-ab | `ingest` | calibrated | - | churn profile sustained-20k (#25) | ledger count / duration (#27) | F2, recalibrated by #32; calibrated per stage by #497, since no available machine drives 20k file events/s end to end (the hosted x64 runner's generator tops out near 9.5k ops/s, the owner PC's at 5.3k events/s): the reader sustained 33k to 37k records/s on x64 with no overflow (report 0002), the writer alone commits 77k to 83k events/s (store.writer.burst, #35); an end-to-end run is judged only when the generator reaches the rate |
 | `ingest.undetected_loss` | <= 0 count | deterministic | pr-strict | `ingest` | calibrated | - | every churn profile (#25, #50) | ledger vs store comparison (#50) | F2, R7 |
-| `capture.rearm_latency` | <= 5 ms | timing | nightly-trend | `ingest` | provisional | - | churn profile latency-10k (#25) | tracing span on the capture thread (#21) | F4, recalibrated by #32 |
+| `capture.rearm_latency` | <= 5 ms | timing | nightly-trend | `ingest` | calibrated | - | churn profile latency-10k (#25) | slowest dequeue to re-arm of the run, from the engine log line `capture: slowest re-arm` (rearmMaxMs) | F4, recalibrated by #32; #497: nightly 44604411722 measured 1.38 ms on windows-2025 and 2.01 ms on windows-11-vs2026-arm (slowest of the run); the owner PC showed 82 to 105 ms with the churn generator saturating its 4 cores, so the row is judged on the hosted runners |
 | `durability.restart_to_ready` | <= 1670 ms | timing | nightly-trend | `kill-soak` | calibrated | - | kill soak: 30 kills in each of three seeds | fs_serial_kill report (PEEKBUDDY_KILL_REPORT), series `kill soak (<runner>)` on gh-pages | #216, #266 |
 | `shutdown.endsession_flush` | <= 2000 ms | timing | nightly-trend | `test` | calibrated | - | engine with 10k synthetic events queued, session end sent to the hidden window | crates/peekbuddy/tests/store.rs (test-panic build), wall clock of the send | F19; Windows allows about 5 s, the limit leaves room (#171) |
 | `viewer.frame.p95` | <= 8 ms | timing | nightly-trend | `owner-run` | calibrated | 1.3 ms | 10M-row log, scripted scroll (owner PC: 1M rows, 20 s, #84) | app time in ui per frame, scripted wheel scroll (--viewer-probe-scroll, #84) | F9 |
@@ -305,7 +300,7 @@ failure.
 | --- | --- | --- |
 | startup | `--perf-probe 0` ten times after three warm-up runs; ready time, CPU and bytes read from the probe sample at `EngineReady` | `engine.ready.warm`, `engine.startup.cpu`, `engine.startup.disk_read` |
 | idle | `--perf-probe <idle-secs>`; CPU and context switches sampled from outside the process after a settle period and before the exit timer, memory and handles from the probe's closing sample | `engine.idle.cpu`, `engine.idle.wakes`, `engine.private_bytes.idle` |
-| ingest | `crates/peekbuddy/tests/perf_driver.rs::ingest` starts the exe on a watched tree and runs the churn profiles `burst-100k`, `sustained-20k` and `latency-10k` (#25); the ledger gives the achieved rate, the comparator the undetected loss, a 5 ms poller of the log the time from the end of an operation to its row being durable, and a sampler the peak private bytes | `ingest.burst`, `ingest.sustained`, `ingest.undetected_loss`, `event.latency.p50`, `event.latency.p99`, `engine.private_bytes.burst` |
+| ingest | `crates/peekbuddy/tests/perf_driver.rs::ingest` starts the exe on a watched tree and runs the churn profiles `burst-100k`, `sustained-20k` and `latency-10k` (#25); the ledger gives the achieved rate, the comparator the undetected loss, a 5 ms poller of the log the time from the end of an operation to its row being durable, and a sampler the peak private bytes | `ingest.sustained`, `ingest.undetected_loss`, `event.latency.p50`, `event.latency.p99`, `engine.private_bytes.burst` (from `latency-10k` and `burst-100k`), `capture.rearm_latency` (from the engine log of `latency-10k`) |
 | handles | `perf_driver.rs::handles` pauses and resumes all watches over the pipe three times with churn in between and reads `GetProcessHandleCount` after each cycle | `engine.handles.stable` |
 
 The last column of the budget table below names the **scenario** of every row:
@@ -333,11 +328,29 @@ the run into that check. The nightly `idle 60 minutes` job runs the idle
 scenario for an hour under the `PeekBuddy.Light` WPR profile and uploads the
 ETL.
 
-Not exercised, and listed as such in every result: `engine.ready.cold`
-(needs a reboot or a standby-list flush: owner-PC run, #84),
-`engine.idle.periodic_timers` (no timer registry in the probe) and
-`capture.rearm_latency` (the span is inside the engine). Until the tray and
-the watchers exist, "ready" is the point where the window is up.
+A row whose profile the generator did not reach is listed as not exercised
+(`ingest.sustained` below 20k events/s). Until the tray and the watchers
+exist, "ready" is the point where the window is up.
+
+Rows dropped by #497, because no run can measure them and another row
+covers what they protect (ADR 0007 amendment):
+
+- `engine.ready.cold`, `viewer.first_frame.cold`: a cold start needs a
+  reboot or an elevated standby-list flush, which neither the hosted runners
+  nor an unelevated owner run can do; the warm rows gate startup and
+  `engine.startup.disk_read` (0.02 MB) shows what a cold start would add
+  to read.
+- `engine.idle.periodic_timers`: there is no timer registry to count, and a
+  periodic timer shows up as wakes: the `inject timer` self-check proves
+  that `engine.idle.wakes` fails on one.
+- `engine.notify_buffers.total`: the buffers follow the settings (1 MiB per
+  local root by default, `buffer_kib` 4 to 1024 KiB per watch, 4 to 64 KiB
+  on UNC, 64 KiB per parent guard), so the total is the user's choice and no
+  fixed limit holds for "any" workload.
+- `ingest.burst` (100k events/s): no machine drives it (the hosted x64
+  generator stops near 9.5k ops/s, the owner PC at 5.3k events/s), and the
+  stages measured alone (reader 37k records/s, writer 83k events/s) stay
+  below it; `ingest.sustained` is the rate the stages show.
 
 ## Micro-benchmarks and the A/B gate
 
@@ -413,15 +426,23 @@ budget also needs an ADR amendment in `docs/adr/`.
 
 Pending recalibration hooks:
 
-- #32: `ingest.*`, `capture.rearm_latency`, `engine.notify_buffers.total`.
+- #32: `ingest.*`, `capture.rearm_latency`.
 - #33: `viewer.first_frame.*`, `viewer.private_bytes.10m_rows` (and its arm64
   row).
+- #497: the remaining provisional rows (calibrated or dropped, see above).
 - #34: which rows can run on hosted runners at all.
 - #35: `store.bytes_per_event`, `event.latency.*`,
   `query.filter_first_results`, `export.1m_rows`.
 
 ## Changelog
 
+- 2026-11-21: #497 drops `engine.ready.cold`, `viewer.first_frame.cold`,
+  `engine.idle.periodic_timers`, `engine.notify_buffers.total` and
+  `ingest.burst` (ADR 0007 amendment) and calibrates
+  `viewer.private_bytes.10m_rows` (glow 46 to 62 MB, #252),
+  `capture.rearm_latency` (1.38 ms x64, 2.01 ms arm64, nightly 44604411722)
+  and `ingest.sustained` (per stage: reader 33k to 37k records/s, writer
+  77k to 83k events/s).
 - 2026-11-06: #165 re-measured with the real exe (sizes, per-crate share, a
   WPR trace symbolised with the PDB, PGO unchanged); #166 the profiling
   recipes executed on the runners and dated in `docs/how-to/profile.md`.
