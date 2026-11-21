@@ -5,23 +5,43 @@ commit messages by release-plz and git-cliff.
 
 ## [1.1.0] - 2026-11-21
 
+Fixes a data loss in 1.0.0: when a watched folder was missing at start, the
+engine logged nothing for any watch (#561). Known limitations, unchanged since
+1.0.0:
+
+- The build is unsigned: Windows SmartScreen warns on the first run and Smart
+  App Control blocks it. Check the download with `SHA256SUMS` and
+  `gh attestation verify` (see the README).
+- Watching a network share (UNC path) is not supported.
+- Windows 10 is best effort; Windows 11 is the target.
+- arm64 is validated in CI only, on no arm64 device.
+
 ### Features (1.1.0)
 
+- **store:** Keep USN checkpoints in the store ([#554](https://github.com/nobuddyorg/PeekBuddy/pull/554))
 - **engine:** Arm a watch added while running ([#558](https://github.com/nobuddyorg/PeekBuddy/pull/558))
 
 ### Fixes (1.1.0)
 
 - Stay overflowed until the follow-up walk ([#510](https://github.com/nobuddyorg/PeekBuddy/pull/510))
+- Read live rows from the start time of a walk ([#542](https://github.com/nobuddyorg/PeekBuddy/pull/542))
 - Keep an engine without watches free of wakes ([#560](https://github.com/nobuddyorg/PeekBuddy/pull/560))
 - **engine:** Close removed watches, register missing roots ([#561](https://github.com/nobuddyorg/PeekBuddy/pull/561))
+- **tray:** List the watches as they are now ([#562](https://github.com/nobuddyorg/PeekBuddy/pull/562))
 - Forget a snapshot whose folder changed ([#564](https://github.com/nobuddyorg/PeekBuddy/pull/564))
 
 ### Performance (1.1.0)
 
 - Log commits of 100 ms or more ([#506](https://github.com/nobuddyorg/PeekBuddy/pull/506))
+- Calibrate event size and session end ([#508](https://github.com/nobuddyorg/PeekBuddy/pull/508))
+- Bound the memory of idle batches ([#509](https://github.com/nobuddyorg/PeekBuddy/pull/509))
 - Report the slowest capture re-arm ([#514](https://github.com/nobuddyorg/PeekBuddy/pull/514))
+- Checkpoint by the live log, at 4 MiB ([#520](https://github.com/nobuddyorg/PeekBuddy/pull/520))
 - Run the ingest burst without the probe ([#543](https://github.com/nobuddyorg/PeekBuddy/pull/543))
+- Intern scope names, pack the table slot ([#546](https://github.com/nobuddyorg/PeekBuddy/pull/546))
+- Keep the export's segment open, cut row cost ([#559](https://github.com/nobuddyorg/PeekBuddy/pull/559))
 - Put small batches into the last queued one ([#565](https://github.com/nobuddyorg/PeekBuddy/pull/565))
+- Size the ring to the burst budget ([#571](https://github.com/nobuddyorg/PeekBuddy/pull/571))
 
 ### Tests (1.1.0)
 
