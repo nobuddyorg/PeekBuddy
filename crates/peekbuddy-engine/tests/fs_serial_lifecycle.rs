@@ -520,11 +520,17 @@ fn arm_ingest_and_stop_cycles_leave_the_handle_count_where_the_first_left_it() {
             });
         }
         let settled = |expected: Option<u32>| {
-            // Threads and handles go a moment after the drop returns.
+            // Threads and handles go a moment after the drop returns. Without
+            // an expected count, wait until the count holds for 500 ms: a
+            // baseline read while a handle is still closing is one too high.
             let deadline = Instant::now() + Duration::from_secs(5);
+            let (mut last, mut steady) = (u32::MAX, 0);
             loop {
                 let now = handle_count(current_process()).unwrap();
-                if expected.is_none_or(|e| now == e) || Instant::now() >= deadline {
+                steady = if now == last { steady + 1 } else { 0 };
+                last = now;
+                let done = expected.map_or(steady >= 10, |e| now == e);
+                if done || Instant::now() >= deadline {
                     return now;
                 }
                 std::thread::sleep(Duration::from_millis(50));
