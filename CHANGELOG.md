@@ -3,6 +3,36 @@
 All notable changes to PeekBuddy are in this file. It is generated from the
 commit messages by release-plz and git-cliff.
 
+## [1.1.0] - 2026-11-21
+
+### Features (1.1.0)
+
+- **engine:** Arm a watch added while running ([#558](https://github.com/nobuddyorg/PeekBuddy/pull/558))
+
+### Fixes (1.1.0)
+
+- Stay overflowed until the follow-up walk ([#510](https://github.com/nobuddyorg/PeekBuddy/pull/510))
+- Keep an engine without watches free of wakes ([#560](https://github.com/nobuddyorg/PeekBuddy/pull/560))
+- **engine:** Close removed watches, register missing roots ([#561](https://github.com/nobuddyorg/PeekBuddy/pull/561))
+- Forget a snapshot whose folder changed ([#564](https://github.com/nobuddyorg/PeekBuddy/pull/564))
+
+### Performance (1.1.0)
+
+- Log commits of 100 ms or more ([#506](https://github.com/nobuddyorg/PeekBuddy/pull/506))
+- Report the slowest capture re-arm ([#514](https://github.com/nobuddyorg/PeekBuddy/pull/514))
+- Run the ingest burst without the probe ([#543](https://github.com/nobuddyorg/PeekBuddy/pull/543))
+- Put small batches into the last queued one ([#565](https://github.com/nobuddyorg/PeekBuddy/pull/565))
+
+### Tests (1.1.0)
+
+- Date ingest rows by a newest-id probe ([#504](https://github.com/nobuddyorg/PeekBuddy/pull/504))
+- Split ingest latency into two stages ([#507](https://github.com/nobuddyorg/PeekBuddy/pull/507))
+- Show where a failed path falls among the walks ([#536](https://github.com/nobuddyorg/PeekBuddy/pull/536))
+- Pin a root added while the engine runs ([#547](https://github.com/nobuddyorg/PeekBuddy/pull/547))
+- Say where a slow second engine spends time ([#550](https://github.com/nobuddyorg/PeekBuddy/pull/550))
+- Show engine.log when the engine hangs ([#568](https://github.com/nobuddyorg/PeekBuddy/pull/568))
+- Count only children younger than the engine ([#569](https://github.com/nobuddyorg/PeekBuddy/pull/569))
+
 ## [1.0.0] - 2026-11-17
 
 The first stable release. Known limitations:
