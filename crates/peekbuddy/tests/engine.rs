@@ -366,15 +366,20 @@ fn an_engine_with_a_tray_starts_no_viewer_process() {
     let mut engine = Kill(spawn(dir.path(), &["--tray"]));
     let window = wait_for_window(dir.path(), &mut engine.0);
     std::thread::sleep(Duration::from_millis(500));
+    // A parent id outlives its process and ids are reused: a process left
+    // by an earlier test whose parent had the engine's id names it too, so
+    // only processes created after the engine count.
     let query = format!(
-        "(Get-CimInstance Win32_Process -Filter 'ParentProcessId={}' | Measure-Object).Count",
+        "$engine = Get-Process -Id {0}; Get-CimInstance Win32_Process -Filter 'ParentProcessId={0}' | \
+         Where-Object {{ $_.CreationDate -ge $engine.StartTime }} | ForEach-Object {{ $_.Name }}",
         engine.0.id()
     );
     let output = Command::new("powershell.exe")
         .args(["-NoProfile", "-NonInteractive", "-Command", &query])
         .output()
         .unwrap();
+    assert!(output.status.success(), "{output:?}");
     let children = String::from_utf8_lossy(&output.stdout).trim().to_owned();
-    assert_eq!(children, "0", "the engine started a child process");
+    assert!(children.is_empty(), "the engine started {children}");
     quit(window, &mut engine.0);
 }
