@@ -478,7 +478,17 @@ jobs:
           # A mutant that allocates in a loop must fail its test, not take
           # the runner down with it: 12 GiB of address space per process.
           ulimit -v 12582912
-          (while sleep 30; do echo "mem: $(free -m | awk 'NR==2 {print $3 " of " $2 " MiB used"}')"; done) &
+          # Two such tests at once still filled the 16 GB runner and it lost
+          # its server (slice 20/28, 2026-11-21): the step runs in a cgroup
+          # of 12 GiB without swap, where the kernel kills the biggest
+          # process, the runaway test, and the runner agent outside keeps
+          # its memory. A killed test fails, so the mutant counts as caught.
+          group=/sys/fs/cgroup/mutants
+          sudo mkdir -p "${group}"
+          echo 12G | sudo tee "${group}/memory.max" > /dev/null
+          if [ -f "${group}/memory.swap.max" ]; then echo 0 | sudo tee "${group}/memory.swap.max" > /dev/null; fi
+          echo $$ | sudo tee "${group}/cgroup.procs" > /dev/null
+          (while sleep 30; do echo "mem: $(free -m | awk 'NR==2 {print $3 " of " $2 " MiB used"}'), $(grep oom_kill "${group}/memory.events")"; done) &
           code=0
           cargo mutants --no-shuffle -p peekbuddy-core --test-tool nextest --shard "$((SHARD * 7 + DAY))/28" || code=$?
           # Exit 2 (missed) and 3 (timeouts) are judged by the 80 % score.
