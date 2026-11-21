@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1795257161145,
+  "lastUpdate": 1795257406805,
   "repoUrl": "https://github.com/nobuddyorg/PeekBuddy",
   "entries": {
     "benches (windows-2025)": [
@@ -4003,6 +4003,63 @@ window.BENCHMARK_DATA = {
           {
             "name": "query.subtree_resolve_10m",
             "value": 5217808.333333334,
+            "unit": "ns"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "name": "Matthias Eggert",
+            "username": "besessener",
+            "email": "8039350+besessener@users.noreply.github.com"
+          },
+          "committer": {
+            "name": "GitHub",
+            "username": "web-flow",
+            "email": "noreply@github.com"
+          },
+          "id": "9675ba8dc8b3038b2e052706d79e93393c7ec2ce",
+          "message": "test: show engine.log when the engine hangs (#568)\n\nThe second-engine test fails on the arm64 runner about one run in\nfour because the first engine is still running 10 s after the close.\nPut its engine.log in the failure so the next run shows where the\nshutdown stood.\n\nCo-authored-by: Matthias Eggert <dem.matze@gmail.com>\nCo-authored-by: Claude Opus 5.5 <noreply@anthropic.com>",
+          "timestamp": "2026-11-21T09:07:06Z",
+          "url": "https://github.com/nobuddyorg/PeekBuddy/commit/9675ba8dc8b3038b2e052706d79e93393c7ec2ce"
+        },
+        "date": 1795257404548,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "query.changes_since_1m",
+            "value": 2113164550,
+            "unit": "ns"
+          },
+          {
+            "name": "query.export_1m_rows",
+            "value": 3636696650,
+            "unit": "ns"
+          },
+          {
+            "name": "query.filtered_first_1m",
+            "value": 5892375.208333334,
+            "unit": "ns"
+          },
+          {
+            "name": "query.fts_lookup_10m",
+            "value": 37551073.20261438,
+            "unit": "ns"
+          },
+          {
+            "name": "query.page_keyset_10m",
+            "value": 1902262.2727272727,
+            "unit": "ns"
+          },
+          {
+            "name": "query.regex_post_filter_1m",
+            "value": 2698976500,
+            "unit": "ns"
+          },
+          {
+            "name": "query.subtree_resolve_10m",
+            "value": 10432047.542735044,
             "unit": "ns"
           }
         ]
