@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1795341615969,
+  "lastUpdate": 1795342561754,
   "repoUrl": "https://github.com/nobuddyorg/PeekBuddy",
   "entries": {
     "benches (windows-2025)": [
@@ -1893,6 +1893,98 @@ window.BENCHMARK_DATA = {
           {
             "name": "viewer/scroll_frame_p99",
             "value": 661450,
+            "unit": "ns"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "name": "Matthias Eggert",
+            "username": "besessener",
+            "email": "8039350+besessener@users.noreply.github.com"
+          },
+          "committer": {
+            "name": "GitHub",
+            "username": "web-flow",
+            "email": "noreply@github.com"
+          },
+          "id": "bc942ff3d705b603a67294078be324271350c287",
+          "message": "docs: defer the service mode and attribution (#577)\n\nADR 0018 gets an amendment: no service mode (#79) and no process\nattribution (#80) after v1.1.0. They would ship unsigned since #74 is\nnot planned, they add a SYSTEM pipe as the first privilege boundary,\nand no user asked. ADR 0012 notes #74; the viewer reference drops the\npromise of a process column.\n\nCo-authored-by: Matthias Eggert <dem.matze@gmail.com>\nCo-authored-by: Claude Opus 5.5 <noreply@anthropic.com>",
+          "timestamp": "2026-11-21T22:14:19Z",
+          "url": "https://github.com/nobuddyorg/PeekBuddy/commit/bc942ff3d705b603a67294078be324271350c287"
+        },
+        "date": 1795342559494,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "filter/eval_6_names",
+            "value": 1945.1970279499274,
+            "unit": "ns"
+          },
+          {
+            "name": "metrics/process_list_300",
+            "value": 750.3658272581074,
+            "unit": "ns"
+          },
+          {
+            "name": "notify_parse/extended/64kib",
+            "value": 3143.4067643228395,
+            "unit": "ns"
+          },
+          {
+            "name": "notify_parse/full/64kib",
+            "value": 3208.5586880910114,
+            "unit": "ns"
+          },
+          {
+            "name": "notify_parse/plain/64kib",
+            "value": 5770.33879991679,
+            "unit": "ns"
+          },
+          {
+            "name": "perf/counters_event",
+            "value": 0.31872889268423377,
+            "unit": "ns"
+          },
+          {
+            "name": "perf/milestone_record",
+            "value": 4.993613814229185,
+            "unit": "ns"
+          },
+          {
+            "name": "reparse/classify_8",
+            "value": 20.9840646036682,
+            "unit": "ns"
+          },
+          {
+            "name": "rules/eval_6_events_50_rules",
+            "value": 37109.43215652327,
+            "unit": "ns"
+          },
+          {
+            "name": "store/batch_insert_1000",
+            "value": 3971542.431972789,
+            "unit": "ns"
+          },
+          {
+            "name": "store/intern_hit_1000",
+            "value": 64777.413569144686,
+            "unit": "ns"
+          },
+          {
+            "name": "store/intern_miss_1000",
+            "value": 4338895.238095239,
+            "unit": "ns"
+          },
+          {
+            "name": "viewer/scroll_frame_p95",
+            "value": 555125,
+            "unit": "ns"
+          },
+          {
+            "name": "viewer/scroll_frame_p99",
+            "value": 671625,
             "unit": "ns"
           }
         ]
