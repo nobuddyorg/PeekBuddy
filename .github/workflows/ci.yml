@@ -46,7 +46,7 @@ jobs:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
-          pip install --quiet --disable-pip-version-check committed==1.1.11
+          pip install --quiet --disable-pip-version-check --require-hashes --only-binary :all: -r .github/committed-requirements.txt
           # The PR's own commits; HEAD is GitHub's synthetic merge commit.
           committed "${BASE_SHA}..${HEAD_SHA}"
 
