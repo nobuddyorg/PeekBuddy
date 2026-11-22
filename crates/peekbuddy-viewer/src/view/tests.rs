@@ -541,7 +541,8 @@ fn the_details_pane_hashes_the_rows_file_only_when_asked() {
         .set_hasher(Arc::new(move |path, _cancelled, progress| {
             seen.lock().unwrap().push(path.to_owned());
             progress(5);
-            if path.ends_with("f997.txt") {
+            // As text: off Windows a backslash is no separator.
+            if path.to_string_lossy().ends_with("f997.txt") {
                 Ok(Outcome::Placeholder)
             } else {
                 Ok(Outcome::Done([0xCD; 32]))
@@ -560,7 +561,11 @@ fn the_details_pane_hashes_the_rows_file_only_when_asked() {
     }
     harness.get_by_label("Copy hash");
     assert_eq!(asked.lock().unwrap().len(), 1);
-    assert!(asked.lock().unwrap()[0].ends_with("f998.txt"));
+    assert!(
+        asked.lock().unwrap()[0]
+            .to_string_lossy()
+            .ends_with("f998.txt")
+    );
 
     // Another row: its own button, and a cloud file is said as such.
     harness.get_by_label("f997.txt").click();
