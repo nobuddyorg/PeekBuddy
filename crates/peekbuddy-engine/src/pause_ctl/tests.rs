@@ -367,7 +367,7 @@ fn a_paused_watch_is_listed_as_suspended_with_what_it_missed() {
 
 #[test]
 fn a_file_from_a_newer_version_is_not_edited() {
-    let (ctl, _rows, path) = ctl("newer", vec![watch("a", true)], false);
+    let (ctl, _rows, path) = ctl("newer-edit", vec![watch("a", true)], false);
     let before = std::fs::read_to_string(&path).unwrap();
     assert!(matches!(
         ctl.add_watch("C:/x", false, &context()),
