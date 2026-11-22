@@ -220,6 +220,17 @@ exclude_re = [
   # tell, and `INSTANCES + 2` is `INSTANCES * 2` for INSTANCES == 2. The same
   # holds for the impersonation flags of `PipeClient::connect`.
   "crates/peekbuddy-win/src/pipe.rs:.*replace . with . in (create_instance|PipeClient::connect)",
+  # The standard library already reads `ERROR_BROKEN_PIPE` as the end of the
+  # file (`Ok(0)`) on Windows, so the guard in `receive` never sees it: making
+  # it always or never match, or testing `!=`, changes nothing a closed pipe
+  # (`a_pipe_closed_under_the_client_reads_as_the_end`) can show. Busy or not
+  # yet created, `connect` retries either way; `==` or `!=` on the busy code
+  # only picks how it waits between the tries.
+  "crates/peekbuddy-win/src/pipe.rs:.*(match guard error.raw_os_error\\(\\) == Some.* in PipeClient::receive|replace == with != in PipeClient::receive)",
+  "crates/peekbuddy-win/src/pipe.rs:.*replace == with != in PipeClient::connect",
+  # `kill` takes the child by value: replaced with `()`, the job is dropped at
+  # the end of the call all the same, and with it every process in the job.
+  "crates/peekbuddy-win/src/spawn.rs:.*replace Child::kill with \\(\\)",
   # The pipe buffers are advisory sizes: a pipe with another size carries the
   # same bytes (the 20 kB payload of the echo test goes through either way).
   "crates/peekbuddy-win/src/pipe.rs:49:",

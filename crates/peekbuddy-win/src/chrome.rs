@@ -257,6 +257,54 @@ mod tests {
     }
 
     #[test]
+    fn every_monitor_has_a_work_area() {
+        use windows_sys::Win32::UI::WindowsAndMessaging::{GetSystemMetrics, SM_CMONITORS};
+        // SAFETY: no preconditions.
+        let monitors = unsafe { GetSystemMetrics(SM_CMONITORS) };
+        assert_eq!(work_areas().len(), usize::try_from(monitors).unwrap());
+    }
+
+    #[test]
+    fn a_real_window_reports_where_it_is_and_that_it_is_maximized() {
+        use windows_sys::Win32::UI::WindowsAndMessaging::{
+            CreateWindowExW, DestroyWindow, WS_OVERLAPPEDWINDOW,
+        };
+        let class: Vec<u16> = "STATIC".encode_utf16().chain(Some(0)).collect();
+        // SAFETY: `STATIC` is a system class, the strings are NUL-terminated and
+        // outlive the call; the window is destroyed below on this thread.
+        let window = unsafe {
+            CreateWindowExW(
+                0,
+                class.as_ptr(),
+                class.as_ptr(),
+                WS_OVERLAPPEDWINDOW,
+                100,
+                120,
+                300,
+                200,
+                std::ptr::null_mut(),
+                std::ptr::null_mut(),
+                std::ptr::null_mut(),
+                std::ptr::null(),
+            )
+        };
+        assert!(!window.is_null(), "{}", std::io::Error::last_os_error());
+        let raw = window as isize;
+        let at = Rect {
+            left: 100,
+            top: 120,
+            right: 400,
+            bottom: 320,
+        };
+        assert_eq!(super::window_rect(raw), Some(at));
+        assert!(!is_maximized(raw));
+        super::place(raw, at, true).unwrap();
+        assert!(is_maximized(raw));
+        // SAFETY: the window was created above on this thread.
+        unsafe { DestroyWindow(window) };
+    }
+
+    #[test]
     fn a_stale_window_is_not_maximized() {
         assert!(!is_maximized(0));
         assert_eq!(super::window_rect(0), None);
