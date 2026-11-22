@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1795341500511,
+  "lastUpdate": 1795341615969,
   "repoUrl": "https://github.com/nobuddyorg/PeekBuddy",
   "entries": {
     "benches (windows-2025)": [
@@ -4216,6 +4216,63 @@ window.BENCHMARK_DATA = {
           {
             "name": "query.subtree_resolve_10m",
             "value": 10432047.542735044,
+            "unit": "ns"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "name": "Matthias Eggert",
+            "username": "besessener",
+            "email": "8039350+besessener@users.noreply.github.com"
+          },
+          "committer": {
+            "name": "GitHub",
+            "username": "web-flow",
+            "email": "noreply@github.com"
+          },
+          "id": "bc942ff3d705b603a67294078be324271350c287",
+          "message": "docs: defer the service mode and attribution (#577)\n\nADR 0018 gets an amendment: no service mode (#79) and no process\nattribution (#80) after v1.1.0. They would ship unsigned since #74 is\nnot planned, they add a SYSTEM pipe as the first privilege boundary,\nand no user asked. ADR 0012 notes #74; the viewer reference drops the\npromise of a process column.\n\nCo-authored-by: Matthias Eggert <dem.matze@gmail.com>\nCo-authored-by: Claude Opus 5.5 <noreply@anthropic.com>",
+          "timestamp": "2026-11-21T22:14:19Z",
+          "url": "https://github.com/nobuddyorg/PeekBuddy/commit/bc942ff3d705b603a67294078be324271350c287"
+        },
+        "date": 1795341612212,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "query.changes_since_1m",
+            "value": 1479900700,
+            "unit": "ns"
+          },
+          {
+            "name": "query.export_1m_rows",
+            "value": 2887412350,
+            "unit": "ns"
+          },
+          {
+            "name": "query.filtered_first_1m",
+            "value": 5217795.833333334,
+            "unit": "ns"
+          },
+          {
+            "name": "query.fts_lookup_10m",
+            "value": 25310478.333333336,
+            "unit": "ns"
+          },
+          {
+            "name": "query.page_keyset_10m",
+            "value": 1506937.9166666665,
+            "unit": "ns"
+          },
+          {
+            "name": "query.regex_post_filter_1m",
+            "value": 1960794000,
+            "unit": "ns"
+          },
+          {
+            "name": "query.subtree_resolve_10m",
+            "value": 7135877.859477124,
             "unit": "ns"
           }
         ]
