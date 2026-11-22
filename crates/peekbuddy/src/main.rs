@@ -213,7 +213,14 @@ fn run(
     #[cfg(feature = "profile-tracy")]
     let _zone = tracy::start(&invocation.role);
     match invocation.role {
-        Role::Engine => peekbuddy_engine::run(&invocation.engine, table, provider).map(drop),
+        Role::Engine => {
+            let ran = peekbuddy_engine::run(&invocation.engine, table, provider).map(drop);
+            // Past the drops of the engine's state; what is left is the
+            // process exit (#568).
+            #[cfg(windows)]
+            peekbuddy_engine::instrument::log("engine: run returned");
+            ran
+        }
         Role::Viewer => run_viewer(invocation, table),
         Role::Diagnostics => run_diagnostics(invocation.full),
         Role::Ping => run_ping(&invocation.engine),
