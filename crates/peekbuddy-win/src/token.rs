@@ -83,3 +83,13 @@ pub fn is_admin() -> std::io::Result<bool> {
     })?;
     Ok(member != 0)
 }
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn a_zero_bool_is_the_last_os_error_and_anything_else_success() {
+        assert!(super::check(0).is_err());
+        assert!(super::check(1).is_ok());
+        assert!(super::check(-1).is_ok());
+    }
+}
