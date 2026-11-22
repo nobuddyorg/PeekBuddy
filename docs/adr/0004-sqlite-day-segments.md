@@ -25,7 +25,8 @@ of rows and must shrink by retention without long vacuums.
 
 Chosen option 2.
 
-- rusqlite 0.40.2 with bundled SQLite 3.53.2 (libsqlite3-sys 0.38.2).
+- rusqlite 0.40.2 with bundled SQLite 3.53.2 (libsqlite3-sys 0.38.2); since
+  2026-11-22 rusqlite 0.43.0 with SQLite 3.54.1 (libsqlite3-sys 0.40.0).
 - One writer thread; group commit with a short coalescing wait (default 5 ms)
   and upper bounds of 1,000 events or 100 ms (R1). The wait is measured from
   the first pending event of a batch, not restarted at every event: restarting

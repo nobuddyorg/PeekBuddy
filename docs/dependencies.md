@@ -15,7 +15,7 @@ upstream release at the earliest.
 | Rust toolchain | 1.100.0 | next stable | released every six weeks | done in the 1.100 migration PR |
 | windows / windows-sys | windows-sys =0.61.2 | 0.100 | tray-icon, muda, eframe, windows-service and tauri-winrt-notification have moved | open |
 | egui, eframe, egui_table | =0.37.0, =0.11.0 | next egui release | about every 6 weeks, manual | open |
-| rusqlite / SQLite | 0.41.1 | 0.43.0 (published 2026-11-15) | Dependabot, manual | 0.41 done in #410; 0.43 resolvable from 2026-11-22 |
+| rusqlite / SQLite | 0.43.0 (libsqlite3-sys 0.40.0, SQLite 3.54.1) | next minor | Dependabot, manual | 0.41 done in #410; 0.43 done in its bump PR |
 | winit | via eframe | 0.31 | eframe depends on a stable 0.31 | 0.31.0-beta.4 only (checked 2026-11-21) |
 | glow | via eframe (0.17) | follows eframe | eframe re-exports glow; Dependabot ignores it | no change |
 | Tracy | tracy-client-sys =0.30.1 (Tracy 0.14.1) | next protocol | Tracy GUI of the playbook moves | open |
@@ -23,7 +23,7 @@ upstream release at the earliest.
 
 Last review 2026-11-21, on crates.io: egui and eframe 0.37.0, windows-sys
 0.61.2, tray-icon 0.26.1 and tracy-client-sys 0.30.1 are still the newest
-releases, winit 0.31 is in beta, rusqlite 0.43.0 is out.
+releases, winit 0.31 is in beta. rusqlite 0.43.0 followed on 2026-11-22.
 
 ## Rust 1.100
 

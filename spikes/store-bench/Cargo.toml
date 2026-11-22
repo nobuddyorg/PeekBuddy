@@ -15,7 +15,7 @@ publish = false
 peekbuddy-alloc = { path = "../../crates/peekbuddy-alloc" }
 peekbuddy-core = { path = "../../crates/peekbuddy-core" }
 peekbuddy-store = { path = "../../crates/peekbuddy-store" }
-rusqlite = { version = "=0.41.1", features = ["bundled"] }
+rusqlite = { version = "=0.43.0", features = ["bundled"] }
 
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "=0.61.2", features = [
