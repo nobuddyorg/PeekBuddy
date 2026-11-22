@@ -146,6 +146,12 @@ exclude_re = [
   # `length < HEADER_LEN || read_exact(header).is_err()`: a file shorter than
   # the header fails the read as well, so `<` and `==` act the same.
   "crates/peekbuddy-store/src/spill.rs:.*replace < with == in Spill::open",
+  # The size at which the engine log rotates is a tuning constant: another
+  # value changes how much history the log keeps, not what is written.
+  "crates/peekbuddy-engine/src/instrument.rs:106:",
+  # `guard.is_some() && size >= cap`: the size is 0 whenever no file is open,
+  # so `||` acts the same.
+  "crates/peekbuddy-engine/src/instrument.rs:.*replace && with \\|\\| in LogFile::line",
   # The page cache and journal size limits are tuning constants; other
   # values change speed and disk use, not what is stored.
   "crates/peekbuddy-store/src/writer.rs:(30|32|34):.*replace \\* with",

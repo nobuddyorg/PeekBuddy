@@ -336,7 +336,12 @@ mod tests {
     use peekbuddy_win::pipe::Reply;
     use peekbuddy_win::window::WindowHandle;
 
-    use super::{Shared, handle, pipe_name};
+    use super::{Shared, build, handle, pipe_name};
+
+    #[test]
+    fn hello_names_the_build_of_this_engine() {
+        assert_eq!(build(), concat!("peekbuddy ", env!("CARGO_PKG_VERSION")));
+    }
 
     fn ctx(dir: &std::path::Path) -> Shared {
         Shared {
