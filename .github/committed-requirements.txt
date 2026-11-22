@@ -1,0 +1,5 @@
+# committed (#10) for the PR commit-message check in ci.yml, pinned by hash
+# (Scorecard Pinned-Dependencies). The Linux wheels of 1.1.11 from PyPI.
+committed==1.1.11 \
+    --hash=sha256:3595d1b61dda3d0500f242d67ff3aed95f4841d38b87b7c5967a902a5746d724 \
+    --hash=sha256:8b61f3cf7d408f200ba0e65d6a106bcd530e577e12f872b1bbc9cec95db6aae5
