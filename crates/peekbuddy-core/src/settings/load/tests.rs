@@ -434,6 +434,21 @@ fn a_bad_viewer_table_gets_positioned_messages() {
 }
 
 #[test]
+fn a_filter_of_exactly_the_limit_is_kept_and_one_byte_more_is_not() {
+    let filter = |len: usize| format!("version = 1\n[viewer]\nfilter = \"{}\"\n", "a".repeat(len));
+    match load(&filter(crate::settings::MAX_FILTER_TEXT), &ctx()) {
+        Loaded::Ok { settings, .. } => {
+            assert_eq!(
+                settings.viewer.filter.len(),
+                crate::settings::MAX_FILTER_TEXT
+            );
+        }
+        other => panic!("{other:?}"),
+    }
+    assert!(messages(&filter(crate::settings::MAX_FILTER_TEXT + 1)).contains("viewer.filter"));
+}
+
+#[test]
 fn saved_column_widths_and_compact_load_and_old_files_still_do() {
     let old = "version = 1
 [viewer]

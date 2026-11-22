@@ -142,6 +142,7 @@ mod tests {
         }
         assert!(pending.due(15 * MS, &policy));
         assert_eq!(pending.events(), 5);
+        assert!(!pending.is_empty());
         assert_eq!(pending.wait_ns(12 * MS, &policy), Some(3 * MS));
         assert_eq!(pending.wait_ns(20 * MS, &policy), Some(0));
     }
