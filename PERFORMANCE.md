@@ -73,7 +73,7 @@ Gate values in `budgets.toml`:
 | `query.filter_first_results` | <= 100 ms | timing | nightly-trend | `query-bench` | calibrated | - | 1M-row store, glob filter that one row in a thousand matches | criterion bench query/filtered_first_1m (nightly query bench job) | F5, recalibrated by #35, #267 |
 | `bench.query.export_1m_rows` | <= 8000000000 ns | timing | nightly-trend | `query-bench` | calibrated | - | 1M-row store, default filter, CSV, 5,000 rows a page | criterion bench query/export_1m_rows in the nightly query bench job (series `query benches` on gh-pages, alert at +25 %) | export.1m_rows (8 s, #215); the owner PC measured 6.6 s for CSV, the nightly bench 3.9 s (run 44358489295, hosted x64) |
 | `bench.query.changes_since_1m` | <= 2000000000 ns | timing | nightly-trend | `query-bench` | calibrated | - | 1M-row store, a million distinct files | criterion bench query/changes_since_1m in the nightly query bench job (series `query benches` on gh-pages, alert at +25 %) | #82 |
-| `export.1m_rows` | <= 8 s | timing | nightly-trend | `owner-run` | calibrated | - | 1M-row store | ignored test a_million_rows_export_in_both_formats_within_the_budget in peekbuddy-store (cargo test --release -- --ignored --nocapture) | M9; #215 (owner PC, Intel N150, 2026-11-06, release, Defender on): CSV 6.6 s, JSON Lines 6.8 s for 1M rows, of which 6.0 s is reading the rows (6 us per row), the formatting and the disk about 0.7 s; the 2 s target of M9 needs a faster row reader |
+| `export.1m_rows` | <= 8 s | timing | nightly-trend | `owner-run` | calibrated | - | 1M-row store | ignored test a_million_rows_export_in_both_formats_within_the_budget in peekbuddy-store (cargo test --release -- --ignored --nocapture) | M9; #215 (owner PC, Intel N150, 2026-11-06, release, Defender on): CSV 6.6 s, JSON Lines 6.8 s for 1M rows, of which 6.0 s is reading the rows (6 us per row), the formatting and the disk about 0.7 s; again on 2026-11-22 at ad3471e, after #559, three runs: CSV 4.05 to 4.41 s, JSON Lines 4.56 to 4.63 s, reading 3.4 to 3.5 s; the 2 s target of M9 needs a faster row reader |
 | `binary.size` | <= 13.5 MB | deterministic | report-only | `size` | calibrated | - | release profile (#28) | file size of the release artifact (#28) | M14 |
 | `binary.size.cap` | <= 14 MB | deterministic | pr-strict | `size` | calibrated | - | release profile (#28) | file size of the release artifact (#28) | M14 |
 | `alloc.capture_per_event` | <= 0 count | deterministic | pr-strict | `alloc` | calibrated | - | parse + filter + classify of a recorded buffer (#23) | counting global allocator (#23) | F10 |
@@ -436,6 +436,9 @@ Pending recalibration hooks:
 
 ## Changelog
 
+- 2026-11-22: `export.1m_rows` measured again on the owner PC at ad3471e:
+  CSV 4.05 to 4.41 s and JSON Lines 4.56 to 4.63 s in three runs (6.6 and
+  6.8 s on 2026-11-06), the reading 3.4 to 3.5 s of it; the limit stays 8 s.
 - 2026-11-21: #497 drops `engine.ready.cold`, `viewer.first_frame.cold`,
   `engine.idle.periodic_timers`, `engine.notify_buffers.total` and
   `ingest.burst` (ADR 0007 amendment) and calibrates
