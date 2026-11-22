@@ -42,6 +42,10 @@ exclude_globs = [
 # tests (#71), not by unit tests that can catch mutants.
 exclude_re = [
   "tray",
+  # The field deletions of cargo-mutants 27 (`delete field cbSize from
+  # struct NOTIFYICONDATAW expression in Tray::data`) slip past "tray"; the
+  # icon is tested by the UI suite all the same.
+  "crates/peekbuddy-win/src/tray.rs:",
   "message_loop",
   # Runaway mutants: an iterator that always yields makes `collect` grow
   # until the runner runs out of memory, and a single-instance lock that is
