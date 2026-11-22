@@ -3,6 +3,12 @@
 All notable changes to PeekBuddy are in this file. It is generated from the
 commit messages by release-plz and git-cliff.
 
+## [1.1.1] - 2026-11-22
+
+### Tests (1.1.1)
+
+- Trace the shutdown stages in engine.log ([#581](https://github.com/nobuddyorg/PeekBuddy/pull/581))
+
 ## [1.1.0] - 2026-11-21
 
 Fixes a data loss in 1.0.0: when a watched folder was missing at start, the
