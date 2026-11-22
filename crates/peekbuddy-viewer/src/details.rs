@@ -4,7 +4,9 @@
 //! [`fields`] is pure and returns `(label, value)` pairs; [`show`] draws them.
 //! Values can be selected and copied. Nothing here reads the file: the pane
 //! shows what the log says, and the raw evidence behind it (the mask the OS
-//! reported, decoded; the exact UTF-16 of a name on demand).
+//! reported, decoded; the exact UTF-16 of a name on demand). The one
+//! exception is the SHA-256 the user asks for, which the view adds below the
+//! fields (#85, `crate::hasher`).
 
 use std::fmt::Write as _;
 
@@ -134,8 +136,9 @@ pub fn utf16_hex(units: &[u16]) -> String {
     out
 }
 
-/// Draws the pane for `row`.
-pub fn show(ui: &mut egui::Ui, row: &GridRow) {
+/// Draws the pane for `row`, then `after` (the hash on demand, #85) in the
+/// same scroll area.
+pub fn show(ui: &mut egui::Ui, row: &GridRow, after: impl FnOnce(&mut egui::Ui)) {
     egui::ScrollArea::vertical()
         .auto_shrink([false, false])
         .show(ui, |ui| {
@@ -156,6 +159,7 @@ pub fn show(ui: &mut egui::Ui, row: &GridRow) {
                         .selectable(true),
                 );
             });
+            after(ui);
         });
 }
 

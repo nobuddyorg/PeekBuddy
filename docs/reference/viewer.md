@@ -111,8 +111,9 @@ Right-click a row (or select it and press the menu key) for its actions:
 - **Show in Explorer** (the item selected) and **Open containing folder**. A
   deleted item opens the nearest folder that still exists. Paths with the
   `\\?\` prefix are converted for the shell. Only Explorer is started: **no
-  action opens, reads or runs the file**, so a cloud placeholder is never
-  hydrated and a hostile file never runs. There is deliberately no "Open".
+  action opens or runs the file**, so a hostile file never runs. There is
+  deliberately no "Open". The one thing that reads a file is the SHA-256
+  button of the details pane, and only when clicked (below).
 - **Filter to this folder / file / kind**: sets the filter bar.
 
 The details pane on the right (the **Details** button toggles it, and the
@@ -124,6 +125,17 @@ OS reported in words (`FILE_ACTION_*` for RDCW, `USN_REASON_*` for USN). A bit
 or a value no table knows is shown as hex and never dropped. A name that had to
 be escaped carries a warning, and its exact UTF-16 code units are one click
 away.
+
+Below the fields of a file row, **SHA-256 of the file now** hashes the file at
+the row's path (#85). It reads the file **as it is now**, not as it was at the
+time of the row: a file that was changed since gives its current hash, one that
+was moved or deleted says it cannot be read. The file is read on a thread of
+its own, 64 KiB at a time, with every share mode (a program writing it is not
+blocked) and **Cancel hash** stops it at the next block. A cloud placeholder
+(`OFFLINE`, `RECALL_ON_OPEN` or `RECALL_ON_DATA_ACCESS`) is not read at all,
+so asking for a hash never downloads a file; the pane says so instead. The
+digest is shown in lowercase hex and **Copy hash** puts it on the clipboard;
+`Get-FileHash` prints the same digits in uppercase. Folders have no button.
 
 Not in this version: the compact view (derived groups, #41; the grid shows one
 row per stored record), ascending order, and saved column widths.

@@ -13,6 +13,7 @@ pub mod decode;
 pub mod derive;
 pub mod event;
 pub mod export;
+pub mod filehash;
 pub mod filter;
 pub mod ipc;
 pub mod lifecycle;

@@ -27,6 +27,8 @@ pub mod chrome;
 #[cfg(windows)]
 pub mod console;
 #[cfg(windows)]
+pub mod hash;
+#[cfg(windows)]
 pub mod job;
 #[cfg(windows)]
 pub mod localtime;

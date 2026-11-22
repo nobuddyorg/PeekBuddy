@@ -110,6 +110,7 @@ fn log_view(
     });
     view.set_column_widths(&settings.viewer.column_widths);
     view.set_export_dirs(options.segments.clone(), options.data_dir.join("exports"));
+    view.set_hasher(Arc::new(peekbuddy_win::hash::sha256_file));
     Ok(view)
 }
 
