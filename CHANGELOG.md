@@ -3,6 +3,44 @@
 All notable changes to PeekBuddy are in this file. It is generated from the
 commit messages by release-plz and git-cliff.
 
+## [1.1.1] - 2026-11-22
+
+A maintenance release: dependency updates and test fixes, no change in what
+PeekBuddy does. Known limitations, unchanged since 1.0.0:
+
+- The build is unsigned: Windows SmartScreen warns on the first run and Smart
+  App Control blocks it. Check the download with `SHA256SUMS` and
+  `gh attestation verify` (see the README).
+- Watching a network share (UNC path) is not supported.
+- Windows 10 is best effort; Windows 11 is the target.
+- arm64 is validated in CI only, on no arm64 device.
+
+### Fixes (1.1.1)
+
+- Find the bare release exe in no-network.ps1 ([#576](https://github.com/nobuddyorg/PeekBuddy/pull/576))
+
+### Performance (1.1.1)
+
+- Re-measure the 1M-row export ([#585](https://github.com/nobuddyorg/PeekBuddy/pull/585))
+
+### Tests (1.1.1)
+
+- Give the two newer-file tests own files ([#579](https://github.com/nobuddyorg/PeekBuddy/pull/579))
+- Trace the shutdown stages in engine.log ([#581](https://github.com/nobuddyorg/PeekBuddy/pull/581))
+- Wait for the ReFS switch to synchronous reads ([#584](https://github.com/nobuddyorg/PeekBuddy/pull/584))
+
+### Documentation (1.1.1)
+
+- Review the dependency watchlist ([#575](https://github.com/nobuddyorg/PeekBuddy/pull/575))
+- Defer the service mode and attribution ([#577](https://github.com/nobuddyorg/PeekBuddy/pull/577))
+
+### Build and CI (1.1.1)
+
+- Bump the cargo-patch group: jsonschema, toml, wgpu ([#557](https://github.com/nobuddyorg/PeekBuddy/pull/557))
+- Bump rusqlite to 0.43.0; the bundled SQLite stays 3.54.1 ([#580](https://github.com/nobuddyorg/PeekBuddy/pull/580))
+- Pin committed by hash ([#583](https://github.com/nobuddyorg/PeekBuddy/pull/583))
+- Update the lockfile patch releases ([#586](https://github.com/nobuddyorg/PeekBuddy/pull/586))
+
 ## [1.1.0] - 2026-11-21
 
 Fixes a data loss in 1.0.0: when a watched folder was missing at start, the
