@@ -39,12 +39,14 @@ pub enum Stage {
 }
 
 type Step = Box<dyn FnMut(Reason)>;
+type Trace = Box<dyn FnMut(&str)>;
 
 /// Registered steps; runs each exactly once.
 #[derive(Default)]
 pub struct Shutdown {
     steps: Vec<(Stage, Step)>,
     done: bool,
+    trace: Option<Trace>,
 }
 
 impl std::fmt::Debug for Shutdown {
@@ -52,6 +54,7 @@ impl std::fmt::Debug for Shutdown {
         f.debug_struct("Shutdown")
             .field("steps", &self.steps.len())
             .field("done", &self.done)
+            .field("traced", &self.trace.is_some())
             .finish()
     }
 }
@@ -69,6 +72,17 @@ impl Shutdown {
         self.steps.push((stage, Box::new(step)));
     }
 
+    /// A shutdown whose `sink` gets a line as each stage starts and when the
+    /// last one is done, with the milliseconds since the shutdown began: the
+    /// engine log then says where a shutdown that never ends stopped (#568).
+    #[must_use]
+    pub fn traced(sink: impl FnMut(&str) + 'static) -> Self {
+        Self {
+            trace: Some(Box::new(sink)),
+            ..Self::default()
+        }
+    }
+
     /// Whether [`Shutdown::run`] already ran.
     #[must_use]
     pub const fn is_done(&self) -> bool {
@@ -84,8 +98,25 @@ impl Shutdown {
         self.done = true;
         // Stable sort keeps registration order inside a stage.
         self.steps.sort_by_key(|(stage, _)| *stage);
-        for (_, step) in &mut self.steps {
+        let started = std::time::Instant::now();
+        let mut current = None;
+        for (stage, step) in &mut self.steps {
+            if current != Some(*stage) {
+                current = Some(*stage);
+                if let Some(trace) = &mut self.trace {
+                    trace(&format!(
+                        "shutdown: {stage:?} at {} ms",
+                        started.elapsed().as_millis()
+                    ));
+                }
+            }
             step(reason);
+        }
+        if let Some(trace) = &mut self.trace {
+            trace(&format!(
+                "shutdown: done at {} ms",
+                started.elapsed().as_millis()
+            ));
         }
     }
 }
@@ -142,6 +173,31 @@ mod tests {
         }
         shutdown.run(Reason::Quit);
         assert_eq!(*log.borrow(), ["a", "b", "c"]);
+    }
+
+    #[test]
+    fn the_trace_names_each_stage_once_and_the_end() {
+        let lines: Rc<RefCell<Vec<String>>> = Rc::default();
+        let sink = Rc::clone(&lines);
+        let mut shutdown = Shutdown::traced(move |line| sink.borrow_mut().push(line.to_owned()));
+        for stage in [Stage::FinalCommit, Stage::StopIpc, Stage::FinalCommit] {
+            shutdown.register(stage, |_| {});
+        }
+        shutdown.run(Reason::Quit);
+        let lines = lines.borrow();
+        let stages: Vec<&str> = lines
+            .iter()
+            .filter_map(|line| line.split(" at ").next())
+            .collect();
+        assert_eq!(
+            stages,
+            [
+                "shutdown: StopIpc",
+                "shutdown: FinalCommit",
+                "shutdown: done"
+            ]
+        );
+        assert!(lines.iter().all(|line| line.ends_with(" ms")), "{lines:?}");
     }
 
     #[test]

@@ -258,7 +258,7 @@ mod run {
         // The writer feeds both on every commit.
         let counters = Arc::new(peekbuddy_core::perf::Counters::new());
         let commits = Arc::new(Mutex::new(probe::CommitLog::new()));
-        let shutdown = Rc::new(RefCell::new(Shutdown::new()));
+        let shutdown = Rc::new(RefCell::new(Shutdown::traced(crate::instrument::log)));
         let store = start_store(&data, &loaded_settings, &counters, &commits, &shutdown)?;
         mark(milestones, Milestone::StoreOpened);
         queue_startup_rows(&store, &counters, options, abnormal_termination.as_deref());
