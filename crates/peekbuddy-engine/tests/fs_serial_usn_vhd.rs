@@ -483,9 +483,12 @@ fn refs_reads_fall_back_to_the_synchronous_reader_and_still_deliver() {
         has_row(&started.rows, r"dir\refs.txt", Kind::Created)
     });
     assert_eq!(gap_rows(&started.rows), []);
-    // The overlapped read is refused on ReFS (error 1784); the runner
-    // switched to its own thread.
-    assert!(started.runner.uses_synchronous_reads());
+    // The overlapped read is refused on ReFS (error 1784) when it has to
+    // wait; one that finds the records already there succeeds. So the switch
+    // to the reader's own thread may come with the read after the row.
+    wait_until("the synchronous reader on ReFS", || {
+        started.runner.uses_synchronous_reads()
+    });
     assert!(started.runner.stop().is_none());
 }
 
