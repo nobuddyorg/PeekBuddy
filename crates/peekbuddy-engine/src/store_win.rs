@@ -423,6 +423,27 @@ mod tests {
     }
 
     #[test]
+    fn a_readable_watch_gets_its_root_row_and_a_missing_one_none() {
+        let dir = Dir::new("root-info");
+        let text = dir.0.to_string_lossy().into_owned();
+        let watch = Watch {
+            path: text.clone(),
+            recursive: false,
+            ..Watch::default()
+        };
+        let info = super::root_info(3, &watch).unwrap();
+        assert_eq!(info.idx.0, 3);
+        assert_eq!(String::from_utf16_lossy(&info.path), text);
+        assert!(!info.recursive);
+        assert_ne!(info.vol.guid, "");
+        let missing = Watch {
+            path: format!(r"{text}\missing"),
+            ..Watch::default()
+        };
+        assert!(super::root_info(0, &missing).is_none());
+    }
+
+    #[test]
     fn a_store_runs_flushes_closes_and_releases_its_file() {
         let dir = Dir::new("lifecycle");
         let data = DataDir::open(&dir.0.join("data"), Decision::Portable).unwrap();

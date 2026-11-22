@@ -228,13 +228,89 @@ mod tests {
         let old = dir.join("engine.log.1");
         assert!(old.exists());
         assert!(std::fs::metadata(&path).unwrap().len() < 400 + 120);
-        assert!(std::fs::metadata(&old).unwrap().len() < 400 + 120);
+        // Rotated at the cap, not at every line.
+        let old_len = std::fs::metadata(&old).unwrap().len();
+        assert!((400..400 + 120).contains(&old_len), "{old_len}");
         // The newest line is in the current file.
         let current = std::fs::read_to_string(&path).unwrap();
         assert!(current.contains("line number 59"), "{current}");
         // Nothing but the two files exists.
         assert_eq!(std::fs::read_dir(&dir).unwrap().count(), 2);
         std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn a_file_left_by_the_last_run_is_kept_under_the_cap_and_rotated_over_it() {
+        let dir = std::env::temp_dir().join(format!("pb-log-left-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("engine.log");
+        let old = dir.join("engine.log.1");
+
+        std::fs::write(&path, "from the last run\n").unwrap();
+        LogFile::new(path.clone(), 400).line("this run");
+        let current = std::fs::read_to_string(&path).unwrap();
+        assert!(current.starts_with("from the last run\n"), "{current}");
+        assert!(current.contains("this run"), "{current}");
+        assert!(!old.exists());
+
+        std::fs::write(&path, "x".repeat(400)).unwrap();
+        LogFile::new(path.clone(), 400).line("after a full one");
+        assert_eq!(std::fs::read_to_string(&old).unwrap(), "x".repeat(400));
+        let current = std::fs::read_to_string(&path).unwrap();
+        assert!(
+            current.contains("after a full one") && !current.contains('x'),
+            "{current}"
+        );
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn the_engine_log_is_written_once_started() {
+        let dir = std::env::temp_dir().join(format!("pb-log-init-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        init_log(&dir);
+        log("a line for the engine log");
+        let text = std::fs::read_to_string(dir.join("engine.log")).unwrap();
+        assert!(text.contains("a line for the engine log"), "{text}");
+    }
+
+    #[test]
+    fn the_viewer_of_a_test_engine_gets_its_data_dir() {
+        assert_eq!(viewer_args(None), ["--viewer"]);
+        assert_eq!(
+            viewer_args(Some(Path::new(r"C:\t\data"))),
+            ["--viewer", "--data-dir", r"C:\t\data"]
+        );
+    }
+
+    #[test]
+    fn a_viewer_spawn_runs_the_hook_and_starts_the_process() {
+        let calls = Arc::new(AtomicU32::new(0));
+        let counter = Arc::clone(&calls);
+        on_viewer_spawn(move || {
+            counter.fetch_add(1, Ordering::Relaxed);
+        });
+        // Any process will do: `cmd /c mkdir` leaves a mark to wait for.
+        let mark = std::env::temp_dir().join(format!("pb-spawn-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&mark);
+        let cmd =
+            std::env::var_os("ComSpec").map_or_else(|| PathBuf::from("cmd.exe"), PathBuf::from);
+        spawn_viewer(
+            &cmd,
+            &["/c".into(), "mkdir".into(), mark.clone().into_os_string()],
+        );
+        assert_eq!(calls.load(Ordering::Relaxed), 1);
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(20);
+        while !mark.exists() {
+            assert!(
+                std::time::Instant::now() < deadline,
+                "the process did not run"
+            );
+            std::thread::sleep(std::time::Duration::from_millis(50));
+        }
+        std::fs::remove_dir_all(&mark).unwrap();
     }
 
     #[test]
