@@ -256,6 +256,15 @@ exclude_re = [
   # continues where the call stopped; the tests compare the result of a zero
   # budget with the ordinary one).
   "crates/peekbuddy-store/src/read/mod.rs:.*Walk<.a>::(adapt|out_of_time)",
+  # The directory cache of the path builder only saves node lookups: clearing
+  # it at another size gives the same paths, a few more reads.
+  "crates/peekbuddy-store/src/read/mod.rs:.*replace (>=|>) with (<|>=) in Paths<.a>::keep_dir",
+  # Equivalent: without the `||`, a page that ends the log but has rows is
+  # followed by one more read of an empty page, which has no newest row and
+  # ends the loop; the file is the same.
+  "crates/peekbuddy-store/src/export.rs:.*replace \\|\\| with && in write_partial",
+  # Equivalent: the default `claim_root` already returns `Ok(())`.
+  "crates/peekbuddy-core/src/reconcile/mod.rs:.*replace Snapshot::claim_root .* with Ok",
   # The deliberate regressions of the perf harness self-check (#269): the
   # `perf-selfcheck` job runs them and fails unless the guarding row fails.
   "crates/peekbuddy-engine/src/inject.rs:",

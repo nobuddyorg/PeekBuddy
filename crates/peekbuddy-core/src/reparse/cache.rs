@@ -94,6 +94,21 @@ mod tests {
     }
 
     #[test]
+    fn ids_that_differ_in_one_half_keep_their_own_before() {
+        // Pairs that share their low half or their high half: each half has
+        // to reach the slot, or the second id of a pair evicts the first.
+        let ids = [1_u128, (1 << 64) | 1, (1 << 64) | 5, (1 << 64) | 7];
+        let mut cache = ChurnCache::new();
+        let dehydrated = ARCHIVE | attr::RECALL_ON_DATA_ACCESS;
+        for id in ids {
+            assert!(!cache.observe(id, CLOUD, dehydrated));
+        }
+        for id in ids {
+            assert!(cache.observe(id, CLOUD, ARCHIVE), "file {id:#x}");
+        }
+    }
+
+    #[test]
     fn a_flip_of_the_sync_bits_is_churn() {
         let mut cache = ChurnCache::new();
         let dehydrated = ARCHIVE | attr::RECALL_ON_DATA_ACCESS | attr::OFFLINE;

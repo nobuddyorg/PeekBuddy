@@ -47,6 +47,22 @@ fn nothing_goes_without_caps() {
 }
 
 #[test]
+fn the_default_size_cap_is_two_gib() {
+    let now = 100 * DAY;
+    // 22 sealed days of 100 MB and today's 5 MB: 2.205 GB, younger than the
+    // default 30 days, just over 2 GiB (2,147,483,648 bytes) by size.
+    let mut segments: Vec<SegmentRow> = (1..=22_i64)
+        .rev()
+        .map(|age| {
+            let name = format!("events-{:02}.db", 23 - age);
+            seg(&name, 1000, 100_000_000, now - age * DAY, true)
+        })
+        .collect();
+    segments.push(seg("events-today.db", 10, 5_000_000, now, false));
+    assert_eq!(plan(&segments, &DEFAULT_CAPS, now), ["events-01.db"]);
+}
+
+#[test]
 fn the_age_cap_removes_the_old_ones_oldest_first() {
     let now = 100 * DAY;
     let caps = Caps {
