@@ -519,6 +519,69 @@ fn the_details_pane_follows_the_selected_row_and_can_be_closed() {
 }
 
 #[test]
+fn the_details_pane_hashes_the_rows_file_only_when_asked() {
+    use std::sync::Mutex;
+
+    use peekbuddy_core::filehash::Outcome;
+
+    let log = FakeLog::new(1_000);
+    let mut harness = log_app(&log);
+    // Without a way to read files (off Windows) there is no button.
+    until(&mut harness, "the first page", |v| v.held_rows() == PAGE);
+    settle(&mut harness);
+    harness.get_by_label("f998.txt").click();
+    harness.run_steps(4);
+    assert!(harness.query_by_label("SHA-256 of the file now").is_none());
+
+    let asked: Arc<Mutex<Vec<std::path::PathBuf>>> = Arc::default();
+    let seen = Arc::clone(&asked);
+    harness
+        .state_mut()
+        .view
+        .set_hasher(Arc::new(move |path, _cancelled, progress| {
+            seen.lock().unwrap().push(path.to_owned());
+            progress(5);
+            if path.ends_with("f997.txt") {
+                Ok(Outcome::Placeholder)
+            } else {
+                Ok(Outcome::Done([0xCD; 32]))
+            }
+        }));
+    harness.run_steps(4);
+    // Selecting a row reads nothing.
+    assert!(asked.lock().unwrap().is_empty());
+    harness.get_by_label("SHA-256 of the file now").click();
+    let digest = "cd".repeat(32);
+    let deadline = Instant::now() + Duration::from_secs(20);
+    while harness.query_by_label(&digest).is_none() {
+        assert!(Instant::now() < deadline, "the hash never showed");
+        harness.step();
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    harness.get_by_label("Copy hash");
+    assert_eq!(asked.lock().unwrap().len(), 1);
+    assert!(asked.lock().unwrap()[0].ends_with("f998.txt"));
+
+    // Another row: its own button, and a cloud file is said as such.
+    harness.get_by_label("f997.txt").click();
+    harness.run_steps(4);
+    assert!(harness.query_by_label(&digest).is_none());
+    harness.get_by_label("SHA-256 of the file now").click();
+    let deadline = Instant::now() + Duration::from_secs(20);
+    while harness
+        .query_by_label_contains("data is in the cloud")
+        .is_none()
+    {
+        assert!(
+            Instant::now() < deadline,
+            "the placeholder note never showed"
+        );
+        harness.step();
+        std::thread::sleep(Duration::from_millis(5));
+    }
+}
+
+#[test]
 fn the_context_menu_narrows_the_view_and_asks_for_explorer() {
     let log = FakeLog::new(1_000);
     let mut harness = log_app(&log);

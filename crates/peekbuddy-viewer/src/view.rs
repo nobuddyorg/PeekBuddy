@@ -245,6 +245,65 @@ pub fn group_digits(value: u64) -> String {
     out
 }
 
+/// The SHA-256 part of the details pane (#85): a button, or the state of
+/// `hashing` when it is this row's. `true` when the user asks for a hash.
+fn hash_section(ui: &mut egui::Ui, hashing: Option<&crate::hasher::Hashing>) -> bool {
+    use crate::hasher::State;
+
+    ui.separator();
+    let ask = |ui: &mut egui::Ui, text: &str| {
+        ui.button(text)
+            .on_hover_text(
+                "Reads the file as it is now, not as it was at the time of this row. \
+                 A file whose data is in the cloud is not read.",
+            )
+            .clicked()
+    };
+    let Some(hashing) = hashing else {
+        return ask(ui, "SHA-256 of the file now");
+    };
+    match hashing.state() {
+        State::Running => {
+            ui.label(format!(
+                "Reading the file: {} bytes so far",
+                group_digits(hashing.read())
+            ));
+            if ui.button("Cancel hash").clicked() {
+                hashing.cancel();
+            }
+            ui.ctx()
+                .request_repaint_after(std::time::Duration::from_millis(100));
+            false
+        }
+        State::Done(digest) => {
+            ui.label(egui::RichText::new("SHA-256 of the file now").strong());
+            ui.add(egui::Label::new(egui::RichText::new(&digest).monospace()).selectable(true));
+            if ui.button("Copy hash").clicked() {
+                ui.ctx().copy_text(digest);
+            }
+            false
+        }
+        State::Cancelled => {
+            ui.label("Hash cancelled.");
+            ask(ui, "SHA-256 of the file now")
+        }
+        State::Placeholder => {
+            ui.label(
+                "Not hashed: the file's data is in the cloud, and reading it would \
+                 download it.",
+            );
+            false
+        }
+        State::Failed(error) => {
+            ui.colored_label(
+                ui.visuals().error_fg_color,
+                format!("The file could not be read: {error}"),
+            );
+            ask(ui, "Try again")
+        }
+    }
+}
+
 /// The grid and everything it needs.
 #[expect(
     clippy::struct_excessive_bools,
@@ -273,6 +332,11 @@ pub struct LogView {
     export_dirs: Option<(std::path::PathBuf, std::path::PathBuf)>,
     /// The export that runs or has just ended.
     export: Option<crate::exporter::Export>,
+    /// How a file is hashed on demand (#85); `None` where nothing can read
+    /// files (off Windows).
+    hasher: Option<Arc<crate::hasher::HashFn>>,
+    /// The hash of a row's file that runs or has ended.
+    hashing: Option<crate::hasher::Hashing>,
     wake: Arc<dyn Fn() + Send + Sync>,
     /// Set by a row's context menu, handled after the table.
     action: Option<RowAction>,
@@ -397,6 +461,8 @@ impl LogView {
             details: true,
             export_dirs: None,
             export: None,
+            hasher: None,
+            hashing: None,
             wake,
             action: None,
             text: spec.to_text(),
@@ -595,12 +661,41 @@ impl LogView {
         self.export_dirs = Some((segments, exports));
     }
 
-    /// Cancels a running export; the partial file is removed. Called when
-    /// the window closes.
+    /// Cancels a running export (the partial file is removed) and a running
+    /// hash. Called when the window closes.
     pub fn cancel_export(&self) {
         if let Some(export) = &self.export {
             export.cancel();
         }
+        if let Some(hashing) = &self.hashing {
+            hashing.cancel();
+        }
+    }
+
+    /// Lets the details pane hash the file of a row on demand (#85).
+    pub fn set_hasher(&mut self, hasher: Arc<crate::hasher::HashFn>) {
+        self.hasher = Some(hasher);
+    }
+
+    /// Starts hashing the file at `path` (the row's exact UTF-16) for `row`;
+    /// a hash still running is cancelled.
+    fn start_hash(&mut self, row: i64, path: &[u16]) {
+        let Some(hasher) = &self.hasher else {
+            return;
+        };
+        if let Some(old) = &self.hashing {
+            old.cancel();
+        }
+        #[cfg(windows)]
+        let path = {
+            use std::os::windows::ffi::OsStringExt as _;
+            std::path::PathBuf::from(std::ffi::OsString::from_wide(path))
+        };
+        #[cfg(not(windows))]
+        let path = std::path::PathBuf::from(String::from_utf16_lossy(path));
+        self.hashing =
+            crate::hasher::Hashing::start(row, path, Arc::clone(hasher), Arc::clone(&self.wake))
+                .ok();
     }
 
     /// Starts an export of the current view in `format`.
@@ -1042,18 +1137,29 @@ impl LogView {
 
         if self.details {
             let cursor = self.selection.cursor();
+            let mut hash_asked = None;
             egui::Panel::right("details")
                 .resizable(true)
                 .default_size(340.0)
                 .min_size(220.0)
                 .show(ui, |ui| {
                     match cursor.and_then(|at| self.timeline.row_at(at)) {
-                        Some(row) => crate::details::show(ui, row),
+                        Some(row) => crate::details::show(ui, row, |ui| {
+                            if self.hasher.is_some() && !row.is_dir {
+                                let ours = self.hashing.as_ref().filter(|h| h.row() == row.id);
+                                if hash_section(ui, ours) {
+                                    hash_asked = Some((row.id, row.raw.path.clone()));
+                                }
+                            }
+                        }),
                         None => {
                             ui.label("Select a row to see everything stored about it.");
                         }
                     }
                 });
+            if let Some((row, path)) = hash_asked {
+                self.start_hash(row, &path);
+            }
         }
         self.table(ui, &mut events);
         self.pill(&ctx);

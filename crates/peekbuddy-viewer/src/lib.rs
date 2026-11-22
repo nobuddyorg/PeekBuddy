@@ -30,6 +30,7 @@ pub mod exporter;
 pub mod filterspec;
 pub mod follow;
 pub mod geometry;
+pub mod hasher;
 pub mod link;
 pub mod onboarding;
 pub mod order;
