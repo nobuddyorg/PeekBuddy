@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1795431707713,
+  "lastUpdate": 1795432680589,
   "repoUrl": "https://github.com/nobuddyorg/PeekBuddy",
   "entries": {
     "benches (windows-2025)": [
@@ -1985,6 +1985,98 @@ window.BENCHMARK_DATA = {
           {
             "name": "viewer/scroll_frame_p99",
             "value": 671625,
+            "unit": "ns"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "name": "Matthias Eggert",
+            "username": "besessener",
+            "email": "8039350+besessener@users.noreply.github.com"
+          },
+          "committer": {
+            "name": "GitHub",
+            "username": "web-flow",
+            "email": "noreply@github.com"
+          },
+          "id": "24558351bf7f4762844f3e131f80877de8793ff3",
+          "message": "feat(viewer): hash a row's file on demand (#591)\n\n* feat(viewer): hash a row's file on demand\n\nThe details pane gets a button for the SHA-256 of the file now (#85):\nthe file at the row's path is read on its own thread, 64 KiB at a\ntime, cancellable, with every share mode, through the system's\nSHA-256. A cloud placeholder is not read, so a hash never downloads a\nfile.\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>\n\n* test: compare the hashed path as text\n\nOff Windows a backslash is no path separator, so Path::ends_with\nnever matched the file name on the Linux job.\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>\n\n---------\n\nCo-authored-by: Matthias Eggert <dem.matze@gmail.com>\nCo-authored-by: Claude Opus 5.5 <noreply@anthropic.com>",
+          "timestamp": "2026-11-22T22:36:22Z",
+          "url": "https://github.com/nobuddyorg/PeekBuddy/commit/24558351bf7f4762844f3e131f80877de8793ff3"
+        },
+        "date": 1795432678459,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "filter/eval_6_names",
+            "value": 2026.0376381633441,
+            "unit": "ns"
+          },
+          {
+            "name": "metrics/process_list_300",
+            "value": 761.6482028659607,
+            "unit": "ns"
+          },
+          {
+            "name": "notify_parse/extended/64kib",
+            "value": 3138.316177917125,
+            "unit": "ns"
+          },
+          {
+            "name": "notify_parse/full/64kib",
+            "value": 3213.665340041076,
+            "unit": "ns"
+          },
+          {
+            "name": "notify_parse/plain/64kib",
+            "value": 5789.868138217029,
+            "unit": "ns"
+          },
+          {
+            "name": "perf/counters_event",
+            "value": 0.3198592900831509,
+            "unit": "ns"
+          },
+          {
+            "name": "perf/milestone_record",
+            "value": 4.993342704744028,
+            "unit": "ns"
+          },
+          {
+            "name": "reparse/classify_8",
+            "value": 21.730800313849663,
+            "unit": "ns"
+          },
+          {
+            "name": "rules/eval_6_events_50_rules",
+            "value": 37161.896486107675,
+            "unit": "ns"
+          },
+          {
+            "name": "store/batch_insert_1000",
+            "value": 3381566.6220238097,
+            "unit": "ns"
+          },
+          {
+            "name": "store/intern_hit_1000",
+            "value": 62807.30709029955,
+            "unit": "ns"
+          },
+          {
+            "name": "store/intern_miss_1000",
+            "value": 4214490.416666667,
+            "unit": "ns"
+          },
+          {
+            "name": "viewer/scroll_frame_p95",
+            "value": 581775,
+            "unit": "ns"
+          },
+          {
+            "name": "viewer/scroll_frame_p99",
+            "value": 659350,
             "unit": "ns"
           }
         ]
