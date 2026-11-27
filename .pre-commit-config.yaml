@@ -41,7 +41,7 @@ repos:
         alias: ec
 
   - repo: https://github.com/DevinR528/cargo-sort
-    rev: v2.1.4
+    rev: v2.1.5
     hooks:
       - id: cargo-sort
         args: ["--workspace", "--check"]
